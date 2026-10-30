@@ -1,0 +1,84 @@
+name: Task
+description: One unit of work that becomes one branch and one PR (≤ 400 changed lines).
+title: "<ID or area> <short imperative title>"
+labels: ["type:feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Roadmap tasks (L-, R-, O-, X- IDs) are created by `scripts/create_issues.py`. Use this form for extra or split-off tasks.
+        After filing, add the `lane:*` label that matches the dropdown below and set the milestone.
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Lane
+      description: The lane whose paths this task edits (.github/lanes.yml).
+      options:
+        - reason
+        - observe
+        - explain
+    validations:
+      required: true
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      description: Set the same milestone on the issue after filing.
+      options:
+        - M0 Ground ready (Tue 3 Nov)
+        - M1 Contracts frozen (Sun 8 Nov)
+        - M2 AI-off scored (Sun 15 Nov)
+        - M3 AI-on, live (Sun 22 Nov)
+        - M4 Results frozen (Sun 29 Nov)
+        - M5 v1.0.0 (Tue 1 Dec)
+    validations:
+      required: true
+  - type: input
+    id: roadmap_id
+    attributes:
+      label: Roadmap ID
+      description: Parent task in docs/07-roadmap.md, if any.
+      placeholder: "O-02"
+  - type: textarea
+    id: what
+    attributes:
+      label: What to build
+      description: Behaviour, inputs and outputs. Link the spec sections instead of restating them.
+      placeholder: |
+        Add critical-path share per service and window to signal_cube.critical_path (docs/03-contracts.md §3.4).
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements. Each one is a test, a command output or a file that exists.
+      value: |
+        - [ ]
+        - [ ] golden tests updated for synth-01…05
+    validations:
+      required: true
+  - type: textarea
+    id: docs
+    attributes:
+      label: Docs the agent must read
+      description: In reading order, after AGENTS.md.
+      placeholder: |
+        packages/signalyth/AGENTS.md
+        docs/engines/02-signalyth.md §3
+        docs/03-contracts.md §3.4
+  - type: input
+    id: depends
+    attributes:
+      label: Depends on
+      placeholder: "#12, R-02 fixtures"
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size (estimate)
+      options:
+        - S (≤ 0.5 day)
+        - M (≤ 1 day)
+        - L (≤ 2 days; consider splitting)
+    validations:
+      required: true

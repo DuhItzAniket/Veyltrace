@@ -1,0 +1,20 @@
+# Normalize line endings: the team works on Windows, CI runs on Linux.
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.pdf binary
+*.parquet binary
+*.gguf binary
+
+# Lockfiles are machine-generated. Never hand-merge them.
+# On conflict: take main's version, then regenerate (see docs/08-collaboration-and-git.md §6).
+uv.lock -diff linguist-generated=true
+pnpm-lock.yaml -diff linguist-generated=true
+
+# Generated contract code: regenerate from contracts/schemas, never edit or hand-merge.
+contracts/generated/** linguist-generated=true -diff

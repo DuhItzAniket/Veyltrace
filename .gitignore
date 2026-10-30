@@ -1,0 +1,73 @@
+# --- Kept on disk, never in git (lead decision, 2026-10-30) ---
+# The hack-day v1 design and its research are archived locally only.
+_hackday-v1/
+research_notes/Veyltrace outage diagnosis research/
+reports/Veyltrace outage diagnosis research.md
+
+# --- Datasets and run outputs (large, reproducible, never committed) ---
+# Benchmark data is downloaded by `bench` scripts into ${VEYLTRACE_DATA}.
+data/
+datasets/
+*.parquet
+*.arrow
+*.duckdb
+*.duckdb.wal
+runs/
+cache/
+lab/captures/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.hypothesis/
+dist/
+build/
+
+# --- Node / TypeScript ---
+node_modules/
+.pnpm-store/
+console/dist/
+*.tsbuildinfo
+
+# --- Secrets and local settings ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Editors and AI-tool local state (shared rules ARE committed) ---
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.claude/settings.local.json
+.claude/worktrees/
+# Personal tool config stays local; shared rules live only in AGENTS.md (docs/09 §1).
+.cursor/
+.mcp.json
+opencode.json
+.windsurf/
+.devin/
+CLAUDE.local.md
+AGENTS.override.md
+.opencode/
+.antigravity/
+.gemini/
+.codex/
+.aider*
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Local models (Ollama / GGUF files are multi-GB) ---
+*.gguf
+models/

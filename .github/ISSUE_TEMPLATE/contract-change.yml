@@ -1,0 +1,96 @@
+name: Contract change
+description: Contract Change Request (CCR) — propose adding or changing a field, column or enum value in a contract.
+title: "CCR(<contract>): <change>"
+labels: ["frozen-contract", "type:adr"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Process: docs/08-collaboration-and-git.md §5. Field lists: docs/03-contracts.md.
+        Until the lead merges the schema change, keep building against the current contract version. Never work around a missing field with an ad-hoc file, column or JSON key.
+        After M1 (Sun 8 Nov) a CCR needs an ADR (`docs/adr/YYYYMMDD-<initials>-<slug>.md`, template in docs/adr/_template.md).
+  - type: input
+    id: contract
+    attributes:
+      label: Contract and section
+      description: Name as in docs/03-contracts.md.
+      placeholder: "evidence (§7)"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of change
+      options:
+        - Additive — new optional field or enum value (minor bump)
+        - Breaking — rename, remove, type change or new required field (major bump; all three lanes approve)
+    validations:
+      required: true
+  - type: dropdown
+    id: producer
+    attributes:
+      label: Producer lane
+      options:
+        - reason
+        - observe
+        - explain
+    validations:
+      required: true
+  - type: checkboxes
+    id: consumers
+    attributes:
+      label: Consumer lanes affected
+      options:
+        - label: reason
+        - label: observe
+        - label: explain
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+      description: Field name, type, unit, nullability, allowed values, effect on the sort key.
+      placeholder: |
+        Add `onset_ci_steps` (int32, nullable, steps) to anomalies; not part of the key.
+    validations:
+      required: true
+  - type: textarea
+    id: schema
+    attributes:
+      label: JSON Schema fragment
+      render: json
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it is needed
+      description: The acceptance criterion, spec section or result that needs it. Why existing fields cannot carry it.
+    validations:
+      required: true
+  - type: textarea
+    id: fixtures
+    attributes:
+      label: Fixture and code impact
+      description: Golden fixtures the producer must refresh; consumers that must adopt.
+  - type: input
+    id: adr
+    attributes:
+      label: ADR
+      placeholder: "docs/adr/20261110-as-onset-ci.md (required after M1)"
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] schema + generated code + docs/03-contracts.md + version bump in one PR (lead)
+        - [ ] `contracts-in-sync` CI job passes
+        - [ ] producer fixtures refreshed in a follow-up PR
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Checks
+      options:
+        - label: I searched docs/03-contracts.md and no existing field carries this information.
+          required: true
+        - label: No code in my branch writes the new field before the schema change is merged.
+          required: true

@@ -1,0 +1,56 @@
+name: Question
+description: An ambiguity or gap in the docs, or a decision you need from another lane or the lead.
+title: "question: <short question>"
+labels: ["type:question"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Task L-02 asks each person for ≥ 3 questions before M0. The owner answers in the issue and fixes the doc in a PR if the answer changes it.
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Lane asking
+      options:
+        - reason
+        - observe
+        - explain
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Doc and section
+      placeholder: "docs/02-architecture.md §6.3"
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Quote the unclear sentence, then ask.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Your proposed answer
+      description: What you will assume if nobody answers by the next standup.
+  - type: dropdown
+    id: blocking
+    attributes:
+      label: Blocking?
+      options:
+        - "No"
+        - Yes, blocks my current issue (also add the `blocked` label)
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] answered in this issue by the owner
+        - [ ] doc updated in a PR if the answer changes it (link the PR)
+    validations:
+      required: true

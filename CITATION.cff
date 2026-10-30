@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+title: "Veyltrace: verifiable, change-aware root-cause analysis for microservices"
+abstract: "Veyltrace is an open, laptop-runnable root-cause analysis engine for microservice outages in which statistical rankers and a local language model propose hypotheses, a deterministic verifier decides, and every verdict carries a calibrated candidate set and a receipt that replays to the same hash."
+authors:
+  - family-names: Kumar
+    given-names: Aniket
+    affiliation: "RV University, Bengaluru, India"
+  - family-names: S
+    given-names: Annapurna
+    affiliation: "RV University, Bengaluru, India"
+  - family-names: Lakshanaa
+    given-names: C
+    affiliation: "RV University, Bengaluru, India"
+version: 0.0.1
+date-released: 2026-10-30
+license: Apache-2.0
+repository-code: "https://github.com/DuhItzAniket/Veyltrace"
+keywords:
+  - root-cause analysis
+  - microservices
+  - AIOps
+  - observability
+  - conformal prediction
+  - reproducibility

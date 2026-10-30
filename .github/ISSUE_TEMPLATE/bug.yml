@@ -1,0 +1,88 @@
+name: Bug
+description: Something behaves differently from the spec, a check fails on main, or a result is not reproducible.
+title: "bug(<package>): <what is wrong>"
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        If `main` is red, also follow docs/10-sdlc-and-quality.md §12 (revert within 2 hours).
+        After filing, add the `lane:*` label of the package that owns the bug.
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Owning lane
+      options:
+        - reason
+        - observe
+        - explain
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Package or area
+      placeholder: "packages/anomara"
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 (main red, determinism broken, or blocks a milestone)
+        - P1 (needed for the current milestone)
+        - P2 (can wait)
+    validations:
+      required: true
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD` where you saw it.
+      placeholder: "a1b2c3d"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Exact commands, case IDs and config. One command per line.
+      render: shell
+      placeholder: |
+        uv run veyltrace diagnose --dataset synth --case synth-03 --ai off
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected (cite the spec section)
+      placeholder: "docs/03-contracts.md §4.2: onsets.json has one entry per anomalous service."
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: Paste output or the diff of hashes. Trim to the relevant lines.
+      render: text
+    validations:
+      required: true
+  - type: checkboxes
+    id: impact
+    attributes:
+      label: Impact
+      options:
+        - label: Breaks determinism (two runs give different hashes)
+        - label: Breaks replay (`verdict_hash` mismatch)
+        - label: Affects a reported result or table
+        - label: Affects a frozen contract
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria for the fix
+      value: |
+        - [ ] regression test reproduces the bug and passes after the fix
+        - [ ]
+    validations:
+      required: true

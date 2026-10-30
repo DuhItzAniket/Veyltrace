@@ -1,0 +1,244 @@
+# CI for Veyltrace. Linux only (public repo: standard runners are free).
+# Job names are the required status checks in branch protection (docs/08-collaboration-and-git.md §4.1).
+# What each job runs and why: docs/10-sdlc-and-quality.md §5.
+#
+# Path filtering is done per job with `if:` from the `detect` job, not with `paths:` on the
+# trigger: a workflow skipped by `paths:` never reports its checks, so required checks would
+# stay pending. A job skipped by `if:` reports as skipped and does not block the merge.
+# Code jobs also skip until the workspace exists (pyproject.toml lands in task R-02).
+
+name: CI
+
+on:
+  pull_request:
+    # labeled/unlabeled: re-run the lane check when the lead adds `cross-lane`.
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  UV_PYTHON: "3.12"
+
+jobs:
+  detect:
+    name: detect
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.detect.outputs.python }}
+      python_changed: ${{ steps.detect.outputs.python_changed }}
+      console: ${{ steps.detect.outputs.console }}
+      console_changed: ${{ steps.detect.outputs.console_changed }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: detect
+        name: Detect workspace and changed areas
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          python=false
+          if test -f pyproject.toml; then python=true; fi
+          console=false
+          if test -f console/package.json; then console=true; fi
+          python_changed=true
+          console_changed=true
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            git diff --name-only "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/changed.txt"
+            echo "Changed files:"; cat "$RUNNER_TEMP/changed.txt"
+            # Python jobs skip when only docs, fragments, notes, paper or console files changed.
+            python_changed=false
+            if grep -Evq '^(console/|docs/|changes/|research_notes/|reports/|paper/)|\.md$' "$RUNNER_TEMP/changed.txt"; then python_changed=true; fi
+            # Console job runs when console/ or the contracts (TS types) changed.
+            console_changed=false
+            if grep -Eq '^(console/|contracts/)' "$RUNNER_TEMP/changed.txt"; then console_changed=true; fi
+          fi
+          {
+            echo "python=$python"
+            echo "python_changed=$python_changed"
+            echo "console=$console"
+            echo "console_changed=$console_changed"
+          } | tee -a "$GITHUB_OUTPUT"
+
+  lanes:
+    name: lanes
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - name: Files stay inside the author's lane
+        env:
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          BASE_REF: ${{ github.base_ref }}
+        run: uv run scripts/check_lanes.py --author "$PR_AUTHOR" --labels "$PR_LABELS" --base "origin/$BASE_REF"
+      - name: CODEOWNERS matches lanes.yml
+        run: uv run scripts/check_lanes.py --verify-codeowners
+
+  agent-files:
+    name: agent-files
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      # --no-project: stdlib script, no need to install the workspace.
+      - run: uv run --no-project python scripts/sync_agent_files.py --check
+
+  docs:
+    name: docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - run: uv python install 3.12
+      - run: uv run --no-project python scripts/check_links.py
+
+  lint:
+    name: lint
+    needs: detect
+    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --lint
+
+  types:
+    name: types
+    needs: detect
+    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --types
+
+  tests:
+    name: tests
+    needs: detect
+    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --tests
+
+  isolation:
+    name: isolation
+    needs: detect
+    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --isolation
+
+  determinism:
+    name: determinism
+    needs: detect
+    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --determinism
+
+  contracts-in-sync:
+    name: contracts-in-sync
+    needs: detect
+    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --contracts-in-sync
+
+  changelog:
+    name: changelog
+    needs: detect
+    if: github.event_name == 'pull_request' && needs.detect.outputs.python == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - name: Fragment present for this PR
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: uv run python scripts/check.py --changelog --base "origin/$BASE_REF"
+
+  console:
+    name: console
+    needs: detect
+    if: needs.detect.outputs.console == 'true' && needs.detect.outputs.console_changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      # Reads the pnpm version from the packageManager field of console/package.json.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: console/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: console/pnpm-lock.yaml
+      - run: pnpm -C console install --frozen-lockfile
+      - run: pnpm -C console check

@@ -1,0 +1,67 @@
+name: Paper section
+description: Write or revise a section, table or figure of the research paper.
+title: "paper: <section>"
+labels: ["type:paper"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Plan: docs/11-research-paper-plan.md. Every number comes from bench/results/ via a committed config; every citation is from research_notes/ or reports/ with a link.
+        After filing, add the `lane:*` label and the milestone (usually M4). `paper/` (LaTeX) belongs to the Reason lane, except `paper/sections/observe-*` and `paper/sections/explain-*`, which those lanes own (docs/08-collaboration-and-git.md §3); anything else in `paper/` needs the `cross-lane` label.
+  - type: dropdown
+    id: section
+    attributes:
+      label: Section
+      options:
+        - Abstract
+        - Introduction
+        - Related work
+        - System design (method)
+        - Data and signals
+        - Evidence and ranking
+        - Proposer (LLM investigator)
+        - Verifier and abstention
+        - Explanation and receipts
+        - Evaluation setup
+        - Results
+        - Threats to validity
+        - Artifact and reproducibility
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Writing lane
+      options:
+        - reason
+        - observe
+        - explain
+    validations:
+      required: true
+  - type: textarea
+    id: claims
+    attributes:
+      label: Claims the section makes
+      description: One per line, each with its evidence (results file, table ID, or note + section).
+      placeholder: |
+        Gated RRF improves AC@1 on RE2-OB — bench/results/<experiment>/summary.json
+        Small local models loop without code-enforced steps — research_notes/.../verified_agents_local_llms.md §Q1
+    validations:
+      required: true
+  - type: input
+    id: budget
+    attributes:
+      label: Length budget
+      placeholder: "≈ 600 words, 1 table"
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] every number traceable to bench/results/ from a committed config
+        - [ ] every citation links a source in research_notes/ or reports/
+        - [ ] estimates marked *estimate*; limitations stated
+        - [ ] reviewed by the lead
+    validations:
+      required: true

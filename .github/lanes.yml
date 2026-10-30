@@ -1,0 +1,67 @@
+# Single source of truth for lane ownership.
+# Used by scripts/check_lanes.py (CI) and mirrored in .github/CODEOWNERS (check_lanes.py verifies they agree).
+# Patterns are gitwildmatch globs relative to the repo root. First matching lane wins; order matters.
+# Changing this file needs the lead's approval (it lives under .github/).
+
+version: 1
+
+members:
+  # github_login: lane    (fill in the two placeholders at kickoff, task L-00)
+  DuhItzAniket: reason
+  ANNAPURNA_GITHUB_LOGIN: observe
+  LAKSHANAA_GITHUB_LOGIN: explain
+
+lead: DuhItzAniket
+
+# Paths anyone may create or edit (author-owned files with unique names).
+shared:
+  - "changes/*.md"
+  - "docs/adr/2*-*.md"
+  - "docs/team/*.md"
+
+lanes:
+  observe:
+    - "packages/infralume/**"
+    - "packages/signalyth/**"
+    - "packages/anomara/**"
+    - "packages/causync/**"
+    - "packages/causalith/**"
+    - "config/infralume.yaml"
+    - "config/signalyth.yaml"
+    - "config/anomara.yaml"
+    - "config/causync.yaml"
+    - "config/causalith.yaml"
+    - "docs/engines/01-*.md"
+    - "docs/engines/02-*.md"
+    - "docs/engines/03-*.md"
+    - "docs/engines/04-*.md"
+    - "docs/engines/05-*.md"
+    - "tests/integration/test_observe_*"
+    - "scripts/observe/**"
+    - "bench/decoys/**"
+    - "bench/stats/**"
+    - "paper/sections/observe-*"
+
+  explain:
+    - "packages/relentra/**"
+    - "packages/causivra/**"
+    - "packages/llm/**"
+    - "packages/gateway/**"
+    - "console/**"
+    - "lab/**"
+    - "config/relentra.yaml"
+    - "config/causivra.yaml"
+    - "config/llm.yaml"
+    - "config/gateway.yaml"
+    - "docs/engines/08-*.md"
+    - "docs/engines/10-*.md"
+    - "docs/05-*.md"
+    - "docs/06-*.md"
+    - "tests/integration/test_explain_*"
+    - "scripts/explain/**"
+    - "paper/sections/explain-*"
+
+  # Reason (lead) owns everything not matched above, including contracts/, packages/core,
+  # packages/{faultloom,causatrix,causentra}, bench/, shared docs, .github/, .agents/, root files.
+  reason:
+    - "**"

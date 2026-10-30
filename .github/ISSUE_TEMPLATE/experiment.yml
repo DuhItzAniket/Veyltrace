@@ -1,0 +1,72 @@
+name: Experiment
+description: A benchmark or ablation run that produces numbers for the scorecard or the paper.
+title: "exp: <question in a few words>"
+labels: ["type:exp"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Results come only from `bench/results/` produced by a committed config (AGENTS.md §4.8). Protocol: docs/04-evaluation-protocol.md.
+        After filing, add the `lane:*` label and the milestone.
+  - type: dropdown
+    id: lane
+    attributes:
+      label: Lane running it
+      options:
+        - reason
+        - observe
+        - explain
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question and hypothesis
+      description: What you expect and what result would change a decision.
+      placeholder: "Does gated RRF beat the best single ranker on RE2-OB AC@1 by ≥ 3 points?"
+    validations:
+      required: true
+  - type: input
+    id: config
+    attributes:
+      label: Experiment config
+      placeholder: "bench/experiments/rrf-vs-single-re2.yaml"
+    validations:
+      required: true
+  - type: textarea
+    id: design
+    attributes:
+      label: Design
+      description: Datasets and systems, arms (method, baselines, ablations), alert protocol, seeds, splits.
+      value: |
+        - Datasets:
+        - Arms:
+        - Alert protocol: oracle / detected
+        - Seeds:
+        - Metrics: AC@1/3/5, Avg@5, Retrieval@5, bootstrap CIs
+    validations:
+      required: true
+  - type: input
+    id: cost
+    attributes:
+      label: Expected runtime and laptop (estimate)
+      placeholder: "≈ 40 min on ak laptop, AI off"
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] config committed; `uv run veyltrace bench run <config>` reproduces the table
+        - [ ] results under bench/results/<experiment>/ (per_case.csv, summary.json) with manifest (git SHA, config hash, seeds)
+        - [ ] every cell filled or marked "not run" with a reason
+    validations:
+      required: true
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Checks
+      options:
+        - label: No ground truth (answer keys, injection times) is read outside bench/ and lab/.
+          required: true
+        - label: No number will be reported that is not in bench/results/ from this config.
+          required: true

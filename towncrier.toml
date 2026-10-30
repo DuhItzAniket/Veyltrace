@@ -1,0 +1,47 @@
+# Release notes are built from one fragment per PR in changes/ (rules: changes/README.md).
+# Preview:  uv run towncrier build --draft --version 0.1.0
+# Release:  uv run towncrier build --yes --version 0.1.0   (removes the fragments; see docs/10-sdlc-and-quality.md §8)
+# towncrier is pinned in the root pyproject.toml dev group (task R-02).
+
+[tool.towncrier]
+name = "Veyltrace"
+directory = "changes"
+filename = "CHANGELOG.md"
+start_string = "<!-- towncrier release notes start -->\n"
+title_format = "## Veyltrace {version} ({project_date})"
+issue_format = "[#{issue}](https://github.com/DuhItzAniket/Veyltrace/issues/{issue})"
+underlines = ["", "", ""]
+wrap = false
+all_bullets = true
+# changes/README.md explains the rules; it is not a fragment. (`ignore` needs towncrier >= 24.7; verify.)
+ignore = ["README.md"]
+
+[[tool.towncrier.type]]
+directory = "feat"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "fix"
+name = "Fixes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "perf"
+name = "Performance"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "exp"
+name = "Experiments and results"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "chore"
+name = "Maintenance"
+showcontent = true

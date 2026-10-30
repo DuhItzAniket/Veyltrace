@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Agent rules (AGENTS.md)
+    url: https://github.com/DuhItzAniket/Veyltrace/blob/main/AGENTS.md
+    about: Read before filing; every issue becomes one branch and one PR.
+  - name: Roadmap and task list
+    url: https://github.com/DuhItzAniket/Veyltrace/blob/main/docs/07-roadmap.md
+    about: Roadmap tasks are created by scripts/create_issues.py; check the board before filing a duplicate.
