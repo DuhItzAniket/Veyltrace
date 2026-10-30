@@ -165,7 +165,13 @@ def parse(repo: str) -> tuple[list[Milestone], list[Task]]:
 def plain_title(task: Task) -> str:
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", task.task)   # drop link targets
     text = text.replace("`", "")
-    first = text.split("; ", 1)[0].strip()   # first clause; the full text is in the body
+    # Keep as many leading clauses as fit in ~90 characters; the full text is in the body.
+    clauses = [c.strip() for c in text.split("; ") if c.strip()]
+    first = clauses[0] if clauses else text.strip()
+    for clause in clauses[1:]:
+        if len(first) + 2 + len(clause) > 90:
+            break
+        first = f"{first}, {clause}"
     if len(first) > 100:
         first = first[:97].rstrip() + "..."
     return f"{task.id} {first}"
