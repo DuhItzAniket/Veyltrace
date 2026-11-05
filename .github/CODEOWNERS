@@ -2,50 +2,50 @@
 # Last matching pattern wins, so the catch-all comes first.
 
 # lane: reason
-* @DuhItzAniket
+* @DuhItzAniket @C-LAKSHANAA @anu-082006
 
 # lane: observe
-/packages/infralume/ @DuhItzAniket
-/packages/signalyth/ @DuhItzAniket
-/packages/anomara/ @DuhItzAniket
-/packages/causync/ @DuhItzAniket
-/packages/causalith/ @DuhItzAniket
-/config/infralume.yaml @DuhItzAniket
-/config/signalyth.yaml @DuhItzAniket
-/config/anomara.yaml @DuhItzAniket
-/config/causync.yaml @DuhItzAniket
-/config/causalith.yaml @DuhItzAniket
-/docs/engines/01-*.md @DuhItzAniket
-/docs/engines/02-*.md @DuhItzAniket
-/docs/engines/03-*.md @DuhItzAniket
-/docs/engines/04-*.md @DuhItzAniket
-/docs/engines/05-*.md @DuhItzAniket
-/tests/integration/test_observe_* @DuhItzAniket
-/scripts/observe/ @DuhItzAniket
-/bench/decoys/ @DuhItzAniket
-/bench/stats/ @DuhItzAniket
-/paper/sections/observe-* @DuhItzAniket
+/packages/infralume/ @DuhItzAniket @anu-082006
+/packages/signalyth/ @DuhItzAniket @anu-082006
+/packages/anomara/ @DuhItzAniket @anu-082006
+/packages/causync/ @DuhItzAniket @anu-082006
+/packages/causalith/ @DuhItzAniket @anu-082006
+/config/infralume.yaml @DuhItzAniket @anu-082006
+/config/signalyth.yaml @DuhItzAniket @anu-082006
+/config/anomara.yaml @DuhItzAniket @anu-082006
+/config/causync.yaml @DuhItzAniket @anu-082006
+/config/causalith.yaml @DuhItzAniket @anu-082006
+/docs/engines/01-*.md @DuhItzAniket @anu-082006
+/docs/engines/02-*.md @DuhItzAniket @anu-082006
+/docs/engines/03-*.md @DuhItzAniket @anu-082006
+/docs/engines/04-*.md @DuhItzAniket @anu-082006
+/docs/engines/05-*.md @DuhItzAniket @anu-082006
+/tests/integration/test_observe_* @DuhItzAniket @anu-082006
+/scripts/observe/ @DuhItzAniket @anu-082006
+/bench/decoys/ @DuhItzAniket @anu-082006
+/bench/stats/ @DuhItzAniket @anu-082006
+/paper/sections/observe-* @DuhItzAniket @anu-082006
 
 # lane: explain
-/packages/relentra/ @DuhItzAniket
-/packages/causivra/ @DuhItzAniket
-/packages/llm/ @DuhItzAniket
-/packages/gateway/ @DuhItzAniket
-/console/ @DuhItzAniket
-/lab/ @DuhItzAniket
-/config/relentra.yaml @DuhItzAniket
-/config/causivra.yaml @DuhItzAniket
-/config/llm.yaml @DuhItzAniket
-/config/gateway.yaml @DuhItzAniket
-/docs/engines/08-*.md @DuhItzAniket
-/docs/engines/10-*.md @DuhItzAniket
-/docs/05-*.md @DuhItzAniket
-/docs/06-*.md @DuhItzAniket
-/tests/integration/test_explain_* @DuhItzAniket
-/scripts/explain/ @DuhItzAniket
-/paper/sections/explain-* @DuhItzAniket
+/packages/relentra/ @C-LAKSHANAA @DuhItzAniket
+/packages/causivra/ @C-LAKSHANAA @DuhItzAniket
+/packages/llm/ @C-LAKSHANAA @DuhItzAniket
+/packages/gateway/ @C-LAKSHANAA @DuhItzAniket
+/console/ @C-LAKSHANAA @DuhItzAniket
+/lab/ @C-LAKSHANAA @DuhItzAniket
+/config/relentra.yaml @C-LAKSHANAA @DuhItzAniket
+/config/causivra.yaml @C-LAKSHANAA @DuhItzAniket
+/config/llm.yaml @C-LAKSHANAA @DuhItzAniket
+/config/gateway.yaml @C-LAKSHANAA @DuhItzAniket
+/docs/engines/08-*.md @C-LAKSHANAA @DuhItzAniket
+/docs/engines/10-*.md @C-LAKSHANAA @DuhItzAniket
+/docs/05-*.md @C-LAKSHANAA @DuhItzAniket
+/docs/06-*.md @C-LAKSHANAA @DuhItzAniket
+/tests/integration/test_explain_* @C-LAKSHANAA @DuhItzAniket
+/scripts/explain/ @C-LAKSHANAA @DuhItzAniket
+/paper/sections/explain-* @C-LAKSHANAA @DuhItzAniket
 
 # shared, author-owned files
-/changes/*.md @DuhItzAniket
-/docs/adr/2*-*.md @DuhItzAniket
-/docs/team/*.md @DuhItzAniket
+/changes/*.md @C-LAKSHANAA @DuhItzAniket @anu-082006
+/docs/adr/2*-*.md @C-LAKSHANAA @DuhItzAniket @anu-082006
+/docs/team/*.md @C-LAKSHANAA @DuhItzAniket @anu-082006
