@@ -1,0 +1,42 @@
+{
+  "schema_version": "0.1.0",
+  "reference": "traces",
+  "offsets": [
+    {
+      "source": "events",
+      "service": null,
+      "offset_ns": 0,
+      "method": "none",
+      "confidence": 0.0
+    },
+    {
+      "source": "logs",
+      "service": null,
+      "offset_ns": 0,
+      "method": "log_span_join",
+      "confidence": 0.998
+    },
+    {
+      "source": "metrics",
+      "service": null,
+      "offset_ns": 0,
+      "method": "none",
+      "confidence": 0.0
+    },
+    {
+      "source": "traces",
+      "service": null,
+      "offset_ns": 0,
+      "method": "reference",
+      "confidence": 1.0
+    },
+    {
+      "source": "traces",
+      "service": "cart",
+      "offset_ns": -213000000,
+      "method": "trace_pairs",
+      "confidence": 0.571428571
+    }
+  ],
+  "tolerance_ns": 15000000000
+}

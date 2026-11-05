@@ -1,0 +1,262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/answer_key.schema.json",
+  "title": "AnswerKeyRow",
+  "description": "One row of an evaluation-only answer key: the ground truth of one case, keyed by case_id. Written by bench (RCAEval labels), lab (VeylLab orchestrator) and core.synth; read only by bench and lab, never by engines.",
+  "x-veyltrace": {
+    "name": "answer_key",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "bench",
+    "path": "${VEYLTRACE_DATA}/answer_keys/<dataset>.parquet",
+    "key": [
+      "case_id"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "case_id",
+    "dataset",
+    "decoy_changes_json",
+    "extra_roots_json",
+    "fault_class",
+    "fault_label",
+    "indicator",
+    "injection_json",
+    "is_no_fault",
+    "mode",
+    "root_component",
+    "root_service",
+    "sli_impact_json",
+    "system",
+    "t_end_ns",
+    "t_inject_ns",
+    "validated"
+  ],
+  "properties": {
+    "case_id": {
+      "description": "Opaque case id, as in case_manifest.case_id. RCAEval normal windows have no row of their own: bench identifies them by case_id plus bench_result.variant.",
+      "$ref": "common.schema.json#/$defs/case_id",
+      "x-arrow": "string"
+    },
+    "dataset": {
+      "description": "Dataset id, as in case_manifest.dataset (e.g. synth, re2-ob, veyllab-ob).",
+      "$ref": "common.schema.json#/$defs/dataset",
+      "x-arrow": "string"
+    },
+    "system": {
+      "description": "Benchmark system of the case, as in case_manifest.system.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/system"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "is_no_fault": {
+      "description": "True for a no-fault case (synth-05, VeylLab F14 controls).",
+      "type": "boolean",
+      "x-arrow": "bool"
+    },
+    "root_service": {
+      "description": "Root-cause service in normalised form; null for no-fault cases.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "root_component": {
+      "description": "Root-cause component (container, pod or datastore) when the dataset labels one; null otherwise.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "fault_class": {
+      "description": "Fault class of the root, mapped to the closed fault_class vocabulary.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/fault_class"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "fault_label": {
+      "description": "The dataset's own fault label before mapping (e.g. the fault part of an RCAEval folder name such as cpu or f3); free string.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "indicator": {
+      "description": "Root indicator in Causatrix's indicator vocabulary, for fine-grained (service, indicator) scoring.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/indicator"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "mode": {
+      "description": "Fault mode of the root (e.g. code for RCAEval RE3, change for a change-induced regression).",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/mode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "t_inject_ns": {
+      "description": "Injection start, int64 ns since the Unix epoch (UTC); null for no-fault cases.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "x-arrow": "int64"
+    },
+    "t_end_ns": {
+      "description": "Injection end, int64 ns since the Unix epoch (UTC); null when unknown or for no-fault cases.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "x-arrow": "int64"
+    },
+    "injection_json": {
+      "description": "Canonical JSON object {fault_id, tool, tool_version, params, severity, seed}: the injector and every parameter used; null when the dataset does not publish them (RCAEval).",
+      "type": [
+        "string",
+        "null"
+      ],
+      "contentMediaType": "application/json",
+      "contentSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "fault_id",
+          "params",
+          "seed",
+          "severity",
+          "tool",
+          "tool_version"
+        ],
+        "properties": {
+          "fault_id": {
+            "description": "Fault catalog id (e.g. F01..F16 in the VeylLab catalog).",
+            "type": "string"
+          },
+          "tool": {
+            "description": "Injector (e.g. StressChaos, NetworkChaos, synth).",
+            "type": "string"
+          },
+          "tool_version": {
+            "description": "Injector version or revision string.",
+            "type": "string"
+          },
+          "params": {
+            "description": "Injector parameters as a free map (e.g. delay_ms, loss_pct, workers).",
+            "type": "object"
+          },
+          "severity": {
+            "description": "Severity level of the injection (e.g. L1, L2); value type not fixed in v0.1."
+          },
+          "seed": {
+            "description": "Seed of the injector or plan; value type not fixed in v0.1."
+          }
+        }
+      },
+      "x-arrow": "string"
+    },
+    "extra_roots_json": {
+      "description": "Canonical JSON describing the additional roots of a multi-fault case (VeylLab F15); shape not fixed in v0.1; null for single-root cases.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "contentMediaType": "application/json",
+      "x-arrow": "string"
+    },
+    "decoy_changes_json": {
+      "description": "Canonical JSON array [{t_ns, entity, kind, is_true}] of the change events planted around the injection (RCAEval-C overlays, VeylLab and synth decoys); is_true marks the true change on the root. Null when the case has no planted changes.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "contentMediaType": "application/json",
+      "contentSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entity",
+            "is_true",
+            "kind",
+            "t_ns"
+          ],
+          "properties": {
+            "t_ns": {
+              "description": "Change time, int64 ns since the Unix epoch (UTC), as in telemetry.events.t_ns.",
+              "type": "integer"
+            },
+            "entity": {
+              "description": "Changed service or component, as in telemetry.events.entity.",
+              "$ref": "common.schema.json#/$defs/service_name"
+            },
+            "kind": {
+              "description": "Change kind, as in telemetry.events.kind.",
+              "$ref": "common.schema.json#/$defs/event_kind"
+            },
+            "is_true": {
+              "description": "True for the true change on the root, false for a decoy.",
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      "x-arrow": "string"
+    },
+    "validated": {
+      "description": "Lab cases: true if the 05 §8.2 validation rule passed (user-facing latency or error rate actually moved); null outside the lab.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "sli_impact_json": {
+      "description": "Lab cases: canonical JSON of the measured entry-service SLI change; shape not fixed in v0.1; null outside the lab.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "contentMediaType": "application/json",
+      "x-arrow": "string"
+    }
+  }
+}

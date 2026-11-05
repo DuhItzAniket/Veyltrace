@@ -1,0 +1,53 @@
+[
+  {
+    "atom_id": "E54e9c4a35d",
+    "candidate": "checkout",
+    "component": null,
+    "kind": "claim_check",
+    "predicate": "zscore_above",
+    "args_json": "{\"k\":4.0,\"signal\":\"cpu\"}",
+    "value": 9.1,
+    "unit": "z",
+    "window": "incident",
+    "refs": [
+      "checkout|checkout-1|cpu|metrics"
+    ],
+    "origin": "claim_check",
+    "holds": true,
+    "producer": "faultloom@0.1.0"
+  },
+  {
+    "atom_id": "Ec2738c422e",
+    "candidate": "checkout",
+    "component": "checkout-1",
+    "kind": "internal_anomaly",
+    "predicate": null,
+    "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+    "value": 9.1,
+    "unit": "z",
+    "window": "incident",
+    "refs": [
+      "checkout|checkout-1|cpu|metrics"
+    ],
+    "origin": "engine",
+    "holds": null,
+    "producer": "faultloom@0.1.0"
+  },
+  {
+    "atom_id": "Ee33689c27e",
+    "candidate": "checkout",
+    "component": null,
+    "kind": "propagation",
+    "predicate": null,
+    "args_json": "{\"scope\":\"path\",\"window\":\"incident\"}",
+    "value": 1.0,
+    "unit": null,
+    "window": "incident",
+    "refs": [
+      "graph.paths#cfe8e714541e"
+    ],
+    "origin": "engine",
+    "holds": null,
+    "producer": "faultloom@0.1.0"
+  }
+]

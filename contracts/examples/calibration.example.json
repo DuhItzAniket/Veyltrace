@@ -1,0 +1,29 @@
+{
+  "schema_version": "0.1.0",
+  "family": "veyllab.brief.oracle.foldA",
+  "ai_arm": "brief",
+  "alert_protocol": "oracle",
+  "alpha": 0.1,
+  "n": 40,
+  "rank_index": 37,
+  "q_hat": 0.291666667,
+  "no_fault": {
+    "beta": 0.1,
+    "m": 24,
+    "rank_index": 23,
+    "tau_nf": 1.791759469,
+    "calibrated": true,
+    "sources": [
+      "veyllab"
+    ]
+  },
+  "split": {
+    "seed": 20261108,
+    "fold": "foldA",
+    "cases_sha256": "2d122b7b3ebdf31da3d5e5f6c52937ffb7f852f18b8d1c752edce5509f1e0fd8"
+  },
+  "scores_sha256": "cbd74ac5c8290c4a6b52766d40128334eed8a085c15adf0c8e3c67ea8258920f",
+  "config_sha256": "3e56f6112e0d11d066c45a44e3ec6aaf5afd8ee6868e02651dfc526761a6a2c2",
+  "code_commit": "5255a4557ad48cbd1dfc8f61b5b097b32dcb6cef",
+  "experiment_id": "rq3-coverage-veyllab"
+}

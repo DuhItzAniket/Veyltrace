@@ -1,0 +1,29 @@
+[
+  {
+    "service": "checkout",
+    "template_id": "T6c7c4dfc",
+    "template": "retrying charge for order <NUM> attempt <NUM>",
+    "count_baseline": 0,
+    "count_incident": 259,
+    "error_level": false,
+    "first_seen_ns": 1767226920043210987
+  },
+  {
+    "service": "payment",
+    "template_id": "Tf821af34",
+    "template": "CardValidationException: invalid token for order <NUM>",
+    "count_baseline": 0,
+    "count_incident": 414,
+    "error_level": true,
+    "first_seen_ns": 1767226920012345678
+  },
+  {
+    "service": "payment",
+    "template_id": "Tfed9bf89",
+    "template": "charge ok for order <NUM> in <DUR>",
+    "count_baseline": 972,
+    "count_incident": 385,
+    "error_level": false,
+    "first_seen_ns": 1767225600211003542
+  }
+]

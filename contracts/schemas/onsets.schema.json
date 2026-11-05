@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/onsets.schema.json",
+  "title": "Onsets",
+  "description": "Per-service external and internal onsets and the incident onset t_onset, written by Anomara as onsets.json (03 §4.2). Onsets are in source time; consumers add the alignment offset of the recorded *_onset_source (and service).",
+  "x-veyltrace": {
+    "name": "onsets",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "anomara",
+    "path": "onsets.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry_services",
+    "method",
+    "per_service",
+    "schema_version",
+    "slo_breach_ns",
+    "t_onset_ns"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "t_onset_ns": {
+      "description": "Incident onset (02 §6.3): second-earliest non-null external_onset_ns, else the only one, else alert.t_alert_ns; clamped to [t_alert - 60 s, t_alert + 300 s].",
+      "type": "integer"
+    },
+    "method": {
+      "description": "How t_onset_ns was chosen: second_external (>= 2 external onsets, default rule), single_external (exactly 1), t_alert_fallback (none).",
+      "type": "string",
+      "enum": [
+        "second_external",
+        "single_external",
+        "t_alert_fallback"
+      ]
+    },
+    "slo_breach_ns": {
+      "description": "First entry-service SLO breach: alert.t_alert_ns - alert.shift_ns if and only if alert.protocol = detected, else null (cross-artifact rule, checked in tests).",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "entry_services": {
+      "description": "Entry services: alert.detector.entry_services when set, else the shared entry rule on signal_cube.edges; sorted (UTF-8 byte order), may be empty.",
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/service_name"
+      },
+      "minItems": 0,
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ]
+    },
+    "per_service": {
+      "description": "One entry per service in case_manifest.services (cross-artifact rule, checked in tests), sorted by service.",
+      "type": "array",
+      "items": {
+        "title": "OnsetsPerService",
+        "description": "Onsets of one service; *_source and its onset are null together (enforced by the allOf below).",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "external_onset_ns",
+          "external_onset_source",
+          "internal_onset_ns",
+          "internal_onset_source",
+          "service",
+          "silent"
+        ],
+        "properties": {
+          "service": {
+            "description": "Service from case_manifest.services.",
+            "$ref": "common.schema.json#/$defs/service_name"
+          },
+          "external_onset_ns": {
+            "description": "Earliest series onset of record (source time) over the service's klass-external series with robust_z above threshold or klass external/context series with silence above threshold; null if none.",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "external_onset_source": {
+            "description": "Source of the series that gave external_onset_ns (ties: smallest series_id); null if and only if external_onset_ns is null.",
+            "anyOf": [
+              {
+                "$ref": "common.schema.json#/$defs/telemetry_source_subset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "internal_onset_ns": {
+            "description": "Earliest series onset of record (source time) over the service's klass-internal series with robust_z or silence above threshold; null if none.",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "internal_onset_source": {
+            "description": "Source of the series that gave internal_onset_ns (ties: smallest series_id); null if and only if internal_onset_ns is null.",
+            "anyOf": [
+              {
+                "$ref": "common.schema.json#/$defs/telemetry_source_subset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "silent": {
+            "description": "True if any rps, workload or log_rate series of the service is silent, or at least silence.service_metric_share of its metric series are.",
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "external_onset_ns"
+              ],
+              "properties": {
+                "external_onset_ns": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "external_onset_source": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "external_onset_source": {
+                  "$ref": "common.schema.json#/$defs/telemetry_source_subset"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "internal_onset_ns"
+              ],
+              "properties": {
+                "internal_onset_ns": {
+                  "type": "null"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "internal_onset_source": {
+                  "type": "null"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "internal_onset_source": {
+                  "$ref": "common.schema.json#/$defs/telemetry_source_subset"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "x-sort": [
+        {
+          "pointer": "service",
+          "order": "asc"
+        }
+      ]
+    }
+  }
+}

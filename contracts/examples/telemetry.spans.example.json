@@ -1,0 +1,44 @@
+[
+  {
+    "trace_id": "5f3a9c1e000000000000000000000412",
+    "span_id": "0000000000002a01",
+    "parent_span_id": null,
+    "service": "frontend",
+    "component": "frontend",
+    "operation": "POST /cart/checkout",
+    "kind": "server",
+    "start_ns": 1767225700000000000,
+    "end_ns": 1767225700045000000,
+    "status": "ok",
+    "status_code": 200,
+    "attrs_json": "{\"http.request.method\":\"POST\",\"http.route\":\"/cart/checkout\"}"
+  },
+  {
+    "trace_id": "5f3a9c1e000000000000000000000412",
+    "span_id": "0000000000002a02",
+    "parent_span_id": "0000000000002a01",
+    "service": "frontend",
+    "component": "frontend",
+    "operation": "POST /checkout",
+    "kind": "client",
+    "start_ns": 1767225700003000000,
+    "end_ns": 1767225700041000000,
+    "status": "ok",
+    "status_code": 200,
+    "attrs_json": null
+  },
+  {
+    "trace_id": "5f3a9c1e000000000000000000000412",
+    "span_id": "0000000000002a03",
+    "parent_span_id": "0000000000002a02",
+    "service": "checkout",
+    "component": "checkout",
+    "operation": "POST /checkout",
+    "kind": "server",
+    "start_ns": 1767225700004000000,
+    "end_ns": 1767225700040000000,
+    "status": "ok",
+    "status_code": 200,
+    "attrs_json": null
+  }
+]

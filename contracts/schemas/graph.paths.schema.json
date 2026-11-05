@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/graph.paths.schema.json",
+  "title": "GraphPathsRow",
+  "description": "One row of graph.paths: one of the k best simple propagation paths from a candidate node to an entry service, against the call direction. Produced by Causalith for every node that can reach an entry (03 §6.3, 05 §3.6).",
+  "x-veyltrace": {
+    "name": "graph.paths",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "causalith",
+    "path": "graph/paths.parquet",
+    "key": [
+      "candidate",
+      "path_rank"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "anomalous_fraction",
+    "candidate",
+    "nodes",
+    "path_rank"
+  ],
+  "properties": {
+    "candidate": {
+      "description": "Node the path starts at (a graph.nodes.node).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "path_rank": {
+      "description": "Rank of the path for this candidate; 1 = best, ranks 1..k without gaps (05 §3.6).",
+      "type": "integer",
+      "minimum": 1,
+      "x-arrow": "int32"
+    },
+    "nodes": {
+      "description": "Path nodes in order candidate -> ... -> entry (reverse call direction); an entry's own path is [entry]. At least one node; never sorted (contract_changes B).",
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/service_name"
+      },
+      "minItems": 1,
+      "x-order": "semantic",
+      "x-arrow": "list<string>"
+    },
+    "anomalous_fraction": {
+      "description": "Anomalous nodes on the path / nodes on the path; a node is anomalous if it has an above-threshold anomalies row with (robust_z, external) or (silence, external or context) (05 §3.6).",
+      "type": "number",
+      "x-arrow": "float64"
+    }
+  }
+}

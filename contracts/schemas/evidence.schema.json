@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/evidence.schema.json",
+  "title": "EvidenceRow",
+  "description": "One row of evidence: an evidence atom for one candidate service, one kind and one set of defining arguments, with its value, window and source references. Produced by FaultLoom: engine atoms in the engine pass, claim_check and intervention atoms appended in the claim pass (03 §7, 06 §2.2, §3).",
+  "x-veyltrace": {
+    "name": "evidence",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "faultloom",
+    "path": "evidence.parquet",
+    "key": [
+      "candidate",
+      "kind",
+      "atom_id"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "args_json",
+    "atom_id",
+    "candidate",
+    "component",
+    "holds",
+    "kind",
+    "origin",
+    "predicate",
+    "producer",
+    "refs",
+    "unit",
+    "value",
+    "window"
+  ],
+  "properties": {
+    "atom_id": {
+      "description": "E + first 10 hex of SHA-256(canonical_json([kind, candidate, A])); A = the defining-arguments object for engine atoms, {\"args\": <canonical predicate args>, \"predicate\": <name>} for claim_check (contract_changes B; 06 §3.2). One atom per (predicate, canonical args, candidate).",
+      "$ref": "common.schema.json#/$defs/atom_id",
+      "x-arrow": "string"
+    },
+    "candidate": {
+      "description": "Service the atom is about: a member of the universe U (engine pass) or of the claim-pass pool (claim pass).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "component": {
+      "description": "Component of the row that set the value when it differs from candidate; else null (06 §2.2).",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "kind": {
+      "description": "Atom kind (03 §7).",
+      "$ref": "common.schema.json#/$defs/atom_kind",
+      "x-arrow": "string"
+    },
+    "predicate": {
+      "description": "Library predicate name; null for origin engine, always set for origin claim_check (contract_changes B).",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/predicate"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "args_json": {
+      "description": "canonical_json of the defining arguments. Keys per kind (06 §3.4): internal_anomaly, external_anomaly {detector, family, source, window}; onset_precedence {scope: self|dependents|internal_vs_external, window}; propagation {scope: entry|anomalous|path, window}; change_proximity {change_id, event_kind, window}; peer_contrast {source: anomalies|changes, window}; spectrum {formula, weighting, window}; critical_path_share {window}; self_time_share {quantile, window}; log_new_template {error_level_only, min_count, window}; log_error_rate {window}; silence {window}; edge_gap {direction, quantile, window}; intervention {parents_hash, series_id, window}; claim_check: the canonical predicate arguments after the subject (never contains subject).",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "value": {
+      "description": "Atom value; finite (never NaN or +-inf); 0.0 when there is no measurable value, the meaning then carried by holds or by absence (06 §2.2).",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "unit": {
+      "description": "Unit of value per kind (free string, e.g. z, sigma, score, ms, count, lines/s); null for unitless scores and fractions (contract_changes B; 06 §3.4).",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "window": {
+      "description": "Window of the atom; for claim_check it equals the predicate's window in contracts/predicates.json (contract_changes B).",
+      "$ref": "common.schema.json#/$defs/window",
+      "x-arrow": "string"
+    },
+    "refs": {
+      "description": "Source references: series_id, change_id (C...), template_id (T...) or <contract>#<first 12 hex of sha256(canonical_json(row))>; sorted, unique (contract_changes B; 06 §3.3).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence_ref"
+      },
+      "uniqueItems": true,
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ],
+      "x-arrow": "list<string>"
+    },
+    "origin": {
+      "description": "engine for engine-pass and intervention atoms; claim_check for claim_check atoms (06 §2.2).",
+      "type": "string",
+      "enum": [
+        "engine",
+        "claim_check"
+      ],
+      "x-arrow": "string"
+    },
+    "holds": {
+      "description": "Predicate result for claim_check atoms (null = not evaluable on this case and subject); always null for origin engine (contract_changes B).",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "producer": {
+      "description": "faultloom@<package version>.",
+      "type": "string",
+      "pattern": "^faultloom@\\S+$",
+      "x-arrow": "string"
+    }
+  },
+  "allOf": [
+    {
+      "description": "Engine atoms carry no predicate and no holds (contract_changes B).",
+      "if": {
+        "properties": {
+          "origin": {
+            "const": "engine"
+          }
+        },
+        "required": [
+          "origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "predicate": {
+            "type": "null"
+          },
+          "holds": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "description": "Claim-check atoms always name a library predicate and are of kind claim_check (03 §7; 06 §3.6 step 4).",
+      "if": {
+        "properties": {
+          "origin": {
+            "const": "claim_check"
+          }
+        },
+        "required": [
+          "origin"
+        ]
+      },
+      "then": {
+        "properties": {
+          "predicate": {
+            "$ref": "common.schema.json#/$defs/predicate"
+          },
+          "kind": {
+            "const": "claim_check"
+          }
+        }
+      }
+    },
+    {
+      "description": "Atoms of kind claim_check have origin claim_check (06 §2.2).",
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "claim_check"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "properties": {
+          "origin": {
+            "const": "claim_check"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "row_ref": {
+      "description": "Reference to a row of a table without its own id: <contract name>#<first 12 hex of sha256(canonical_json(row))>, e.g. graph.edges#3f9a0c41d2e7 (06 §3.3).",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*#[0-9a-f]{12}$"
+    },
+    "evidence_ref": {
+      "description": "One entry of evidence.refs: series_id | change_id | template_id | row_ref (contract_changes B).",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/series_id"
+        },
+        {
+          "$ref": "common.schema.json#/$defs/change_id"
+        },
+        {
+          "$ref": "common.schema.json#/$defs/template_id"
+        },
+        {
+          "$ref": "#/$defs/row_ref"
+        }
+      ]
+    }
+  }
+}

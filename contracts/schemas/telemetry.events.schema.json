@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/telemetry.events.schema.json",
+  "title": "TelemetryEventsRow",
+  "description": "One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, overlay events included (03 §2.5). Written by Infralume; the key is not unique.",
+  "x-veyltrace": {
+    "name": "telemetry.events",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "infralume",
+    "path": "telemetry/events.parquet",
+    "key": [
+      "t_ns",
+      "entity",
+      "kind"
+    ],
+    "unique": false
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "actor",
+    "detail_json",
+    "entity",
+    "kind",
+    "source_system",
+    "t_ns"
+  ],
+  "properties": {
+    "t_ns": {
+      "description": "Event time in ns since the Unix epoch (UTC), source time as given.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "entity": {
+      "description": "Normalised service or component the event applies to.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "kind": {
+      "description": "Event kind.",
+      "$ref": "common.schema.json#/$defs/event_kind",
+      "x-arrow": "string"
+    },
+    "source_system": {
+      "description": "System the event came from; every overlay (RCAEval-C) row is synthetic.",
+      "type": "string",
+      "enum": [
+        "k8s",
+        "flagd",
+        "git",
+        "ci",
+        "manual",
+        "synthetic"
+      ],
+      "x-arrow": "string"
+    },
+    "detail_json": {
+      "description": "Canonical JSON object, scrubbed, e.g. {\"from\":\"...\",\"image\":\"...\",\"to\":\"...\"}. Flag events (kind = flag) carry {\"flag\":<8-hex digest of the flag key>,\"from\":...,\"to\":...} (shape to be confirmed by Observe and Explain; not enforced here).",
+      "type": "string",
+      "pattern": "^\\{[\\s\\S]*\\}$",
+      "x-arrow": "string"
+    },
+    "actor": {
+      "description": "Who made the change; null when unknown and for every overlay row.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    }
+  }
+}

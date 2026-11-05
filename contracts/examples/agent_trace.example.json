@@ -1,0 +1,47 @@
+[
+  {
+    "seq": 2,
+    "type": "state",
+    "prev_hash": "8896d69d355e332a3b7ca875cdfa64eed4076917db4241308f7d763ce9a6b994",
+    "line_hash": "f67a6ccc591d3af62ca5562f84d7825b2cad8efb479b342a7d14a576342f488d",
+    "request_sha256": null,
+    "response_sha256": null,
+    "tool": null,
+    "args": null,
+    "result_sha256": null,
+    "summary": null,
+    "state": "probe",
+    "detail": null
+  },
+  {
+    "seq": 3,
+    "type": "llm_call",
+    "prev_hash": "f67a6ccc591d3af62ca5562f84d7825b2cad8efb479b342a7d14a576342f488d",
+    "line_hash": "59498df5d61f855c117f162be52e32ce7ac553d76070959af19ceef25a34429a",
+    "request_sha256": "b152d6f6868f21051fe736fe64044d2137c5885723858660c820e6a3f7e4f50c",
+    "response_sha256": "91483bf72975fcb3f7ed061f7e329c43e2a1baefd2aee1077cbe82875452dbf8",
+    "tool": null,
+    "args": null,
+    "result_sha256": null,
+    "summary": null,
+    "state": null,
+    "detail": null
+  },
+  {
+    "seq": 4,
+    "type": "tool_call",
+    "prev_hash": "59498df5d61f855c117f162be52e32ce7ac553d76070959af19ceef25a34429a",
+    "line_hash": "b272129751f6db239b64632d77bd0e2bcc150e10430e6cacb7e3c58487a3b7b2",
+    "request_sha256": null,
+    "response_sha256": null,
+    "tool": "compare_windows",
+    "args": {
+      "entity": "checkout",
+      "signal": "cpu"
+    },
+    "result_sha256": "e1ec72277629f94fb6880a1892469697ef97409167747188080e98752419ccdb",
+    "summary": "compare_windows({\"entity\":\"checkout\",\"signal\":\"cpu\"}) -> 2 rows",
+    "state": null,
+    "detail": null
+  }
+]

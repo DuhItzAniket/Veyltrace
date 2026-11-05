@@ -1,0 +1,47 @@
+[
+  {
+    "series_id": "catalog|catalog|mem|metrics",
+    "service": "catalog",
+    "component": "catalog",
+    "family": "mem",
+    "klass": "internal",
+    "source": "metrics",
+    "detector": "bocpd",
+    "score": 0.981234567,
+    "score_norm": 0.683720169,
+    "direction": "up",
+    "onset_ns": 1767226920000000000,
+    "threshold": 0.5,
+    "above_threshold": true
+  },
+  {
+    "series_id": "catalog|catalog|mem|metrics",
+    "service": "catalog",
+    "component": "catalog",
+    "family": "mem",
+    "klass": "internal",
+    "source": "metrics",
+    "detector": "robust_z",
+    "score": 71.912345678,
+    "score_norm": 4.289257976,
+    "direction": "up",
+    "onset_ns": 1767226920000000000,
+    "threshold": 3.0,
+    "above_threshold": true
+  },
+  {
+    "series_id": "payment|payment|error_rate|traces",
+    "service": "payment",
+    "component": "payment",
+    "family": "errors",
+    "klass": "external",
+    "source": "traces",
+    "detector": "robust_z",
+    "score": 0.0,
+    "score_norm": 0.0,
+    "direction": "flat",
+    "onset_ns": null,
+    "threshold": 3.0,
+    "above_threshold": false
+  }
+]

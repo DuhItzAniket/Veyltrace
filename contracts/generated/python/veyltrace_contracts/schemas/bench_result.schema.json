@@ -1,0 +1,302 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/bench_result.schema.json",
+  "title": "BenchResultRow",
+  "description": "One row of bench/results/<experiment_id>/per_case.csv: the outcome of one method on one case (per seed and variant) in one experiment. Written by bench, committed to git and released with the paper; evaluation-only.",
+  "x-veyltrace": {
+    "name": "bench_result",
+    "version": "0.1.0",
+    "kind": "csv",
+    "producer": "bench",
+    "path": "bench/results/<experiment_id>/per_case.csv",
+    "key": [
+      "case_id",
+      "method",
+      "seed",
+      "variant"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ai_mode",
+    "case_id",
+    "dataset",
+    "decoy_present",
+    "decoy_ranked_first",
+    "fault_class_hit",
+    "fold",
+    "hit_at_1",
+    "hit_at_3",
+    "hit_at_5",
+    "in_set",
+    "method",
+    "onset_error_ms",
+    "peak_rss_mb",
+    "pool_hit",
+    "protocol",
+    "ranks",
+    "retrieval_hit",
+    "run_outcome",
+    "seed",
+    "set_size",
+    "shift_s",
+    "sources_dropped",
+    "status",
+    "system",
+    "tokens_in",
+    "tokens_out",
+    "variant",
+    "verdict_hash",
+    "wall_ms"
+  ],
+  "properties": {
+    "case_id": {
+      "description": "Opaque case id, as in case_manifest.case_id and answer_key.case_id.",
+      "$ref": "common.schema.json#/$defs/case_id",
+      "x-arrow": "string"
+    },
+    "dataset": {
+      "description": "Dataset id, as in case_manifest.dataset.",
+      "$ref": "common.schema.json#/$defs/dataset",
+      "x-arrow": "string"
+    },
+    "system": {
+      "description": "Benchmark system of the case; per-system results are primary (04 §8).",
+      "$ref": "common.schema.json#/$defs/system",
+      "x-arrow": "string"
+    },
+    "method": {
+      "description": "Method id from the experiment YAML (04 §4), e.g. veyltrace:off, rcaeval:baro, causatrix:rrf; free string because rankers and baselines are plugins.",
+      "type": "string",
+      "minLength": 1,
+      "x-arrow": "string"
+    },
+    "ai_mode": {
+      "description": "ai.mode of the run for pipeline methods (veyltrace:brief runs with record); null for methods that do not run the pipeline. The AI arm is part of method.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/ai_mode"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "seed": {
+      "description": "Method seed (LLM arms); empty (null) = deterministic method.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "x-arrow": "int64"
+    },
+    "variant": {
+      "description": "Bench variant of the case run, e.g. shift-510 (RCAEval normal window) or perm-3 (proposal permutation); empty (null) = the unperturbed run.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "x-arrow": "string"
+    },
+    "fold": {
+      "description": "Test fold of the case under the experiment's split (e.g. foldA); null when the split scheme is none.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "x-arrow": "string"
+    },
+    "protocol": {
+      "description": "Alert protocol of the run (04 §5.1).",
+      "$ref": "common.schema.json#/$defs/alert_protocol",
+      "x-arrow": "string"
+    },
+    "run_outcome": {
+      "description": "ok, failed (crash or missing output), timeout (bench-side), no_alert (detected protocol, no breach) or rejected (case not run: CaseRejected, invalid case, unsupported format). Every non-ok outcome is a miss.",
+      "type": "string",
+      "enum": [
+        "ok",
+        "failed",
+        "timeout",
+        "no_alert",
+        "rejected"
+      ],
+      "x-arrow": "string"
+    },
+    "pool_hit": {
+      "description": "Truth in the decision pool; null when the method has no decision pool or the case has no truth.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "shift_s": {
+      "description": "alert.shift_s applied to the run, integer seconds; 0 unless an onset-shift or normal-window run.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "sources_dropped": {
+      "description": "Sources removed by sources.drop, ;-joined in the CSV; empty cell = no source dropped.",
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/source"
+      },
+      "x-arrow": "list<string>"
+    },
+    "status": {
+      "description": "Verdict status for pipeline methods; null when the method or run produced no verdict.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/verdict_status"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "ranks": {
+      "description": "Ranking in rank order, ;-joined in the CSV: verdict.ranks_rcaeval for pipeline methods, the baseline's own ranks otherwise; empty cell = no ranking.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^;]+$"
+      },
+      "x-order": "semantic",
+      "x-arrow": "list<string>"
+    },
+    "hit_at_1": {
+      "description": "Truth in ranks[:1] after RCAEval's coarse transform (04 §7); null when the case has no truth (normal windows).",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "hit_at_3": {
+      "description": "Truth in ranks[:3]; null when the case has no truth.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "hit_at_5": {
+      "description": "Truth in ranks[:5]; null when the case has no truth.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "retrieval_hit": {
+      "description": "Truth in the Causatrix slate top-K; null when the method has no slate or the case has no truth.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "fault_class_hit": {
+      "description": "verdict.root.fault_class matches the mapped answer_key fault class; null when not applicable.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "in_set": {
+      "description": "Truth in the conformal candidate set; null when the method has no set or the case has no truth.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "set_size": {
+      "description": "Size of the conformal candidate set (0 under NO_FAULT); null when the method has no set.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "onset_error_ms": {
+      "description": "|onsets.t_onset_ns - answer_key.t_inject_ns| / 1e6 (04 §7); null when not computed.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "decoy_present": {
+      "description": "True if the case run contained a decoy (04 §7 decoy metrics): a decoy change, i.e. an answer_key.decoy_changes_json item with is_true = false (synth, VeylLab or an RCAEval-C overlay), or a planted decoy proposal (protocol.inject_proposals); false if it contained none; null when decoys were not evaluated for the row.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "decoy_ranked_first": {
+      "description": "04 §7 decoy metrics: for decoy changes, a decoy-changed service was ranked first; for a planted decoy proposal, the top-1 changed (H2b); null when no decoy was present.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "wall_ms": {
+      "description": "Wall time of the run in ms, measured by bench outside the run artefacts; null when not measured.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "peak_rss_mb": {
+      "description": "Peak resident set size of the run in MB, measured by bench; null when not measured.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "tokens_in": {
+      "description": "LLM input tokens of the run; null for methods without an LLM.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "tokens_out": {
+      "description": "LLM output tokens of the run; null for methods without an LLM.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "verdict_hash": {
+      "description": "verdict.verdict_hash of the run; null when the method or run produced no verdict.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    }
+  }
+}

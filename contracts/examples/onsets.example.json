@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.1.0",
+  "t_onset_ns": 1767226930000000000,
+  "method": "second_external",
+  "slo_breach_ns": 1767226950000000000,
+  "entry_services": [
+    "frontend"
+  ],
+  "per_service": [
+    {
+      "service": "cart",
+      "external_onset_ns": null,
+      "external_onset_source": null,
+      "internal_onset_ns": null,
+      "internal_onset_source": null,
+      "silent": false
+    },
+    {
+      "service": "catalog",
+      "external_onset_ns": 1767226920000000000,
+      "external_onset_source": "traces",
+      "internal_onset_ns": 1767226920000000000,
+      "internal_onset_source": "metrics",
+      "silent": false
+    },
+    {
+      "service": "checkout",
+      "external_onset_ns": 1767226940000000000,
+      "external_onset_source": "traces",
+      "internal_onset_ns": null,
+      "internal_onset_source": null,
+      "silent": false
+    },
+    {
+      "service": "frontend",
+      "external_onset_ns": 1767226930000000000,
+      "external_onset_source": "traces",
+      "internal_onset_ns": null,
+      "internal_onset_source": null,
+      "silent": false
+    },
+    {
+      "service": "payment",
+      "external_onset_ns": null,
+      "external_onset_source": null,
+      "internal_onset_ns": null,
+      "internal_onset_source": null,
+      "silent": false
+    },
+    {
+      "service": "redis",
+      "external_onset_ns": null,
+      "external_onset_source": null,
+      "internal_onset_ns": null,
+      "internal_onset_source": null,
+      "silent": false
+    }
+  ]
+}

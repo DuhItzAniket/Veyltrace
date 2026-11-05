@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/telemetry.metrics.schema.json",
+  "title": "TelemetryMetricsRow",
+  "description": "One metric point in the canonical long-format metrics table over the full available span (03 §2.2). Written by Infralume; series-distinguishing labels are folded into name so the key stays unique.",
+  "x-veyltrace": {
+    "name": "telemetry.metrics",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "infralume",
+    "path": "telemetry/metrics.parquet",
+    "key": [
+      "service",
+      "component",
+      "name",
+      "t_ns"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attrs_json",
+    "component",
+    "metric_type",
+    "name",
+    "service",
+    "source_system",
+    "t_ns",
+    "unit",
+    "value"
+  ],
+  "properties": {
+    "t_ns": {
+      "description": "Point time in ns since the Unix epoch (UTC), source time as given.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "service": {
+      "description": "Normalised service name (lowercase, no pod hash, no underscore).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "component": {
+      "description": "Container, pod or db name; equals service if unknown.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "name": {
+      "description": "Original metric name after scrubbing. Adapters may rewrite it: distinguishing labels encoded as name{k=v,...} (sorted keys), _total added to monotonic OTLP sums, histograms split into <name>_count and <name>_sum (01 §3.9). No pattern.",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "metric_type": {
+      "description": "Metric type, OTLP-native when known; null when the source does not publish it.",
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "gauge",
+            "counter",
+            "histogram_bucket",
+            "summary",
+            "unknown"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "attrs_json": {
+      "description": "Canonical JSON of the remaining labels, scrubbed; display only, not part of the key.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "value": {
+      "description": "Point value; NaN and +/-inf points are dropped at ingest and rejected by the writer.",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "unit": {
+      "description": "Unit of value, e.g. bytes, s, ms; null when unknown.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "source_system": {
+      "description": "System the metric came from; synth uses prom.",
+      "type": "string",
+      "enum": [
+        "prom",
+        "otlp",
+        "csv"
+      ],
+      "x-arrow": "string"
+    }
+  }
+}

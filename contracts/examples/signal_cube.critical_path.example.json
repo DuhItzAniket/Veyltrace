@@ -1,0 +1,35 @@
+[
+  {
+    "window": "baseline",
+    "service": "checkout",
+    "traces": 972,
+    "cp_self_ms_p50": 12.1,
+    "cp_self_ms_p99": 15.2,
+    "cp_share_mean": 0.049,
+    "traces_total": 3240,
+    "traces_slow": 162,
+    "cp_share_sum_slow": 22.03
+  },
+  {
+    "window": "baseline",
+    "service": "payment",
+    "traces": 972,
+    "cp_self_ms_p50": 6.0,
+    "cp_self_ms_p99": 7.7,
+    "cp_share_mean": 0.026,
+    "traces_total": 3240,
+    "traces_slow": 162,
+    "cp_share_sum_slow": 10.53
+  },
+  {
+    "window": "incident",
+    "service": "payment",
+    "traces": 540,
+    "cp_self_ms_p50": 5.9,
+    "cp_self_ms_p99": 7.8,
+    "cp_share_mean": 0.031,
+    "traces_total": 1800,
+    "traces_slow": 312,
+    "cp_share_sum_slow": 18.72
+  }
+]

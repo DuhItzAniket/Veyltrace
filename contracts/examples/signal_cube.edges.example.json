@@ -1,0 +1,41 @@
+[
+  {
+    "caller": "cart",
+    "callee": "redis",
+    "window": "baseline",
+    "calls": 4,
+    "error_rate": 0.0,
+    "p50_caller_ms": null,
+    "p99_caller_ms": null,
+    "p50_callee_ms": null,
+    "p99_callee_ms": null,
+    "p50_gap_ms": null,
+    "p99_gap_ms": null
+  },
+  {
+    "caller": "checkout",
+    "callee": "payment",
+    "window": "baseline",
+    "calls": 972,
+    "error_rate": 0.0,
+    "p50_caller_ms": 30.2,
+    "p99_caller_ms": 36.1,
+    "p50_callee_ms": 28.1,
+    "p99_callee_ms": 34.0,
+    "p50_gap_ms": 2.0,
+    "p99_gap_ms": 2.2
+  },
+  {
+    "caller": "checkout",
+    "callee": "payment",
+    "window": "incident",
+    "calls": 799,
+    "error_rate": 0.518147685,
+    "p50_caller_ms": 29.8,
+    "p99_caller_ms": 37.5,
+    "p50_callee_ms": 27.7,
+    "p99_callee_ms": 35.3,
+    "p50_gap_ms": 2.0,
+    "p99_gap_ms": 2.3
+  }
+]

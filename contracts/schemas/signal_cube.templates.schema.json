@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.templates.schema.json",
+  "title": "SignalCubeTemplatesRow",
+  "description": "One Drain3 log template of one service, with per-window line counts and an error-level flag (03 §3.3). Written by Signalyth; template text and id cover the whole data range, only the count_* columns depend on alert windows.",
+  "x-veyltrace": {
+    "name": "signal_cube.templates",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "signalyth",
+    "path": "signal_cube/templates.parquet",
+    "key": [
+      "service",
+      "template_id"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "count_baseline",
+    "count_incident",
+    "error_level",
+    "first_seen_ns",
+    "service",
+    "template",
+    "template_id"
+  ],
+  "properties": {
+    "service": {
+      "description": "Service whose logs the template was mined from.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "template_id": {
+      "description": "\"T\" + first 8 hex of SHA-256(canonical_json([service, template])), ensure_ascii=False (short_id(\"T\", 8, [service, template])).",
+      "$ref": "common.schema.json#/$defs/template_id",
+      "x-arrow": "string"
+    },
+    "template": {
+      "description": "Final Drain3 template text of the cluster, mined from masked first lines (the masked string itself if Drain3 fails).",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "count_baseline": {
+      "description": "Lines of the template with timestamps in alert.windows.baseline.",
+      "type": "integer",
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "count_incident": {
+      "description": "Lines of the template with timestamps in alert.windows.incident.",
+      "type": "integer",
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "error_level": {
+      "description": "True if any line of the template has severity ERROR/FATAL or its full body matches logs.error_lexicon.",
+      "type": "boolean",
+      "x-arrow": "bool"
+    },
+    "first_seen_ns": {
+      "description": "Timestamp of the template's earliest line in the data range (ns).",
+      "type": "integer",
+      "x-arrow": "int64"
+    }
+  }
+}

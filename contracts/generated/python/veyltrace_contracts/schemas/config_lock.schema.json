@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/config_lock.schema.json",
+  "title": "ConfigLock",
+  "description": "The fully resolved configuration of one run (config.lock.json): every config section after overrides, plus the selected calibration file. Written by core at the manifest step (after Causivra's card, step 10a); run_manifest.config_sha256 is the SHA-256 of its file bytes, and replay loads it instead of the repo's config/.",
+  "x-veyltrace": {
+    "name": "config_lock",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "core",
+    "path": "config.lock.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "calibration",
+    "schema_version",
+    "sections"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "sections": {
+      "description": "Resolved config sections, one entry per config file keyed by file stem (core, the ten engine names and llm); each value is that YAML file's top-level mapping after overrides, frozen to JSON. Every paths and fetch subtree is left out and config/gateway.yaml never enters the lock; ai.mode is a run parameter, not a key here. Path-valued keys are stored unexpanded as POSIX paths relative to a named root (never absolute, never with backslashes; loader check). Free keys; canonical JSON sorts them.",
+      "type": "object",
+      "additionalProperties": {
+        "description": "Body of one config section: a free-key mapping of JSON values.",
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      }
+    },
+    "calibration": {
+      "description": "Calibration file selected for this run (Causentra's family resolution), or null when the run is uncalibrated (no file found, or the causentra section was not resolved).",
+      "anyOf": [
+        {
+          "title": "ConfigLockCalibration",
+          "description": "Identity, file hash and content of the selected calibration file.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "content",
+            "family_id",
+            "sha256"
+          ],
+          "properties": {
+            "family_id": {
+              "description": "Calibration family id <benchmark family>.<ai_arm>.<alert_protocol>.<fold>: the file stem under config/calibration/ and the value of content.family; verdict.calibration.family carries the same id.",
+              "$ref": "calibration.schema.json#/$defs/family_id"
+            },
+            "sha256": {
+              "description": "SHA-256 of the calibration file bytes; equals run_manifest.calibration_sha256.",
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            "content": {
+              "description": "The calibration file content (03 §12.1).",
+              "$ref": "calibration.schema.json"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "JsonValue": {
+      "title": "JsonValue",
+      "description": "Any JSON value (null, boolean, number, string, array or object of JSON values); used for free-form config section bodies.",
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
+    }
+  }
+}

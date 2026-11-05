@@ -1,0 +1,299 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "4320347d0fe6",
+  "run_id": "95bf5dea088414ac",
+  "status": "LIKELY",
+  "root": {
+    "service": "payment",
+    "component": "payment-1",
+    "indicator": "cpu",
+    "fault_class": "cpu",
+    "mode": "resource"
+  },
+  "candidate_set": [
+    {
+      "service": "payment",
+      "component": "payment-1",
+      "v": 1.2,
+      "nonconformity": 0.0
+    },
+    {
+      "service": "cart",
+      "component": null,
+      "v": 0.870731707,
+      "nonconformity": 0.274390244
+    }
+  ],
+  "ranked": [
+    {
+      "rank": 1,
+      "service": "payment",
+      "component": "payment-1",
+      "indicator": "cpu",
+      "fault_class": "cpu",
+      "v": 1.2,
+      "nonconformity": 0.0,
+      "fused_score": 0.0492,
+      "origin": "slate",
+      "trials": [
+        {
+          "id": "T1",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Ea4217049f6",
+            "Ef7cb7d7c62"
+          ]
+        },
+        {
+          "id": "T2",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E2b5b9e794b",
+            "E18da98df6a"
+          ]
+        },
+        {
+          "id": "T3",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Ea7121fb60b",
+            "E1199ddb1b0"
+          ]
+        },
+        {
+          "id": "T4",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Ef7cb7d7c62"
+          ]
+        },
+        {
+          "id": "T5",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E36bbce0a0c"
+          ]
+        },
+        {
+          "id": "T6",
+          "result": "untestable",
+          "reason": "no_events",
+          "atoms": []
+        },
+        {
+          "id": "T8",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Eb3610938f9"
+          ]
+        },
+        {
+          "id": "T9",
+          "result": "pass",
+          "reason": null,
+          "atoms": []
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "service": "cart",
+      "component": null,
+      "indicator": "latency",
+      "fault_class": "delay",
+      "v": 0.870731707,
+      "nonconformity": 0.274390244,
+      "fused_score": 0.0476,
+      "origin": "slate",
+      "trials": [
+        {
+          "id": "T1",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E36b4b45cc9",
+            "E43045689b6",
+            "E6ab344ed6c"
+          ]
+        },
+        {
+          "id": "T2",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E879f34f4ca",
+            "E628b47efc3"
+          ]
+        },
+        {
+          "id": "T3",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E0a8dcf72fc"
+          ]
+        },
+        {
+          "id": "T4",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E6ab344ed6c",
+            "E156c852f36"
+          ]
+        },
+        {
+          "id": "T5",
+          "result": "fail",
+          "reason": "share_below_min",
+          "atoms": [
+            "Ee7cb346376"
+          ]
+        },
+        {
+          "id": "T6",
+          "result": "untestable",
+          "reason": "no_events",
+          "atoms": []
+        },
+        {
+          "id": "T8",
+          "result": "untestable",
+          "reason": "intervention_unavailable",
+          "atoms": []
+        },
+        {
+          "id": "T9",
+          "result": "pass",
+          "reason": null,
+          "atoms": []
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "service": "catalog",
+      "component": null,
+      "indicator": "error",
+      "fault_class": "error",
+      "v": 0.522054878,
+      "nonconformity": 0.564954268,
+      "fused_score": 0.0302,
+      "origin": "proposal",
+      "trials": [
+        {
+          "id": "T1",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Efa27cc72d6",
+            "E14a63edd66"
+          ]
+        },
+        {
+          "id": "T2",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Ef97682c414",
+            "E2fee60bfa8"
+          ]
+        },
+        {
+          "id": "T3",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E667c276889"
+          ]
+        },
+        {
+          "id": "T4",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "E14a63edd66"
+          ]
+        },
+        {
+          "id": "T5",
+          "result": "fail",
+          "reason": "share_below_min",
+          "atoms": [
+            "E2d56f0d998"
+          ]
+        },
+        {
+          "id": "T6",
+          "result": "untestable",
+          "reason": "no_events",
+          "atoms": []
+        },
+        {
+          "id": "T8",
+          "result": "untestable",
+          "reason": "intervention_unavailable",
+          "atoms": []
+        },
+        {
+          "id": "T9",
+          "result": "fail",
+          "reason": "drops_out_without:logs",
+          "atoms": []
+        },
+        {
+          "id": "T10",
+          "result": "pass",
+          "reason": null,
+          "atoms": [
+            "Eca905b837f"
+          ]
+        }
+      ]
+    }
+  ],
+  "confidence": {
+    "level": "medium",
+    "margin": 0.274390244,
+    "alpha": 0.1,
+    "q_hat": 0.291666667,
+    "set_size": 2
+  },
+  "asks": [
+    {
+      "kind": "telemetry",
+      "target": "events",
+      "why": "T6 untestable without events"
+    }
+  ],
+  "ranks_rcaeval": [
+    "payment_cpu",
+    "cart_latency",
+    "catalog_error",
+    "checkout_latency",
+    "frontend_latency",
+    "redis_unknown"
+  ],
+  "proposals_accepted": [
+    "P3c9a1e07",
+    "P5e1f0b2d"
+  ],
+  "proposals_rejected": [
+    {
+      "proposal_id": "Pa8d47c13",
+      "reason": "claim_false"
+    }
+  ],
+  "calibration": {
+    "family": "veyllab.brief.oracle.foldA",
+    "sha256": "d13b1cbb8ae6c8f66415831933fe98388dd8e0fc38690052a1f8c1006389eea7"
+  },
+  "params_sha256": "4337d077348deb12f5f32020c3f483c972af5de07152f3c6e0805540253fbc07",
+  "verdict_hash": "e373e6544d97ef1b6c2bc6ff57b9f3497e66712da8b822cdeefc8379f29318fa"
+}

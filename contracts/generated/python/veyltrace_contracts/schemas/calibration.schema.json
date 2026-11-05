@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/calibration.schema.json",
+  "title": "Calibration",
+  "description": "Fitted conformal threshold q_hat and NO_FAULT threshold tau_nf for one calibration family id, with hashes of the split, scores and config they came from; no per-case labels or case ids. Written by bench as canonical_json(content) + LF, read by Causentra through ctx.config.calibration.",
+  "x-veyltrace": {
+    "name": "calibration",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "bench",
+    "path": "config/calibration/<family_id>.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ai_arm",
+    "alert_protocol",
+    "alpha",
+    "code_commit",
+    "config_sha256",
+    "experiment_id",
+    "family",
+    "n",
+    "no_fault",
+    "q_hat",
+    "rank_index",
+    "schema_version",
+    "scores_sha256",
+    "split"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "family": {
+      "description": "The file's 4-part family id (equal to the file stem); its ai_arm, alert_protocol and fold segments equal the fields below (loader check).",
+      "$ref": "#/$defs/family_id"
+    },
+    "ai_arm": {
+      "description": "The file applies only to runs with this AI arm; a mismatch is a hard error (03 §12.1, 09 §3.15).",
+      "$ref": "common.schema.json#/$defs/ai_arm"
+    },
+    "alert_protocol": {
+      "description": "The file applies only to runs with this alert protocol; a mismatch is a hard error (03 §12.1, 09 §3.15).",
+      "$ref": "common.schema.json#/$defs/alert_protocol"
+    },
+    "alpha": {
+      "description": "Conformal miscoverage level alpha.",
+      "type": "number"
+    },
+    "n": {
+      "description": "Number of calibration fault cases (scores).",
+      "type": "integer",
+      "minimum": 0
+    },
+    "rank_index": {
+      "description": "ceil((n + 1)(1 - alpha)); may exceed n, in which case q_hat is null (+inf) (09 §3.7, contract_changes B).",
+      "type": "integer"
+    },
+    "q_hat": {
+      "description": "The rank_index-th smallest calibration score; null means +inf.",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "no_fault": {
+      "description": "NO_FAULT threshold fit over normal windows of the calibration split (09 §3.8).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "beta",
+        "calibrated",
+        "m",
+        "rank_index",
+        "sources",
+        "tau_nf"
+      ],
+      "properties": {
+        "beta": {
+          "description": "Target false-alarm level beta on normal windows.",
+          "type": "number"
+        },
+        "m": {
+          "description": "Number of normal windows.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "rank_index": {
+          "description": "ceil((m + 1)(1 - beta)); may exceed m, in which case tau_nf is the default and calibrated is false.",
+          "type": "integer"
+        },
+        "tau_nf": {
+          "description": "The rank_index-th smallest statistic M, or no_fault.default_tau (log1p(3.0)) when not fitted.",
+          "type": "number"
+        },
+        "calibrated": {
+          "description": "false when tau_nf is the default because rank_index > m.",
+          "type": "boolean"
+        },
+        "sources": {
+          "description": "Normal-window sources used, a subset of the three listed (03 §12.1).",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "synth-05",
+              "veyllab",
+              "rcaeval_pre_injection"
+            ]
+          }
+        }
+      }
+    },
+    "split": {
+      "description": "Which calibration cases were used, as a hash only (03 §12.1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cases_sha256",
+        "fold",
+        "seed"
+      ],
+      "properties": {
+        "seed": {
+          "description": "Seed of the cluster split (04 §5.4 split.seed).",
+          "type": "integer"
+        },
+        "fold": {
+          "description": "Calibration fold, equal to the family id's last segment, e.g. foldA.",
+          "type": "string"
+        },
+        "cases_sha256": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "scores_sha256": {
+      "description": "SHA-256 of the canonical calibration scores; +inf scores are hashed as null (contract_changes B).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "config_sha256": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "code_commit": {
+      "description": "Code commit of the calibration runs, as in run_manifest (\"<sha>+dirty.<12 hex>\" for a dirty tree).",
+      "type": "string"
+    },
+    "experiment_id": {
+      "description": "Bench experiment that fitted the file (bench/experiments/<experiment_id>.yaml).",
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "family_id": {
+      "description": "Calibration family id <benchmark family>.<ai_arm>.<alert_protocol>.<fold>, always four dot-separated parts (03 §12.1, contract_changes B). The per-system (Mondrian) variant puts the system into the first part (<family>-<system>, e.g. rcaeval-re2-ob.brief.oracle.foldA); the leave-one-system-out variant puts it into the fold part (loso-<system>, e.g. rcaeval-re2.brief.oracle.loso-ob). Used by calibration.family, verdict.calibration.family and config_lock.calibration.family_id.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*\\.(off|brief|investigate|external)\\.(oracle|detected|live)\\.[A-Za-z0-9]+(-[A-Za-z0-9]+)*$"
+    }
+  }
+}

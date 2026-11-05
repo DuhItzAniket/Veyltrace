@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/receipt.schema.json",
+  "title": "Receipt",
+  "description": "Verdict receipt (03 §11.2): an in-toto Statement v1 whose subject is verdict.json and whose predicate carries the run manifest, verdict_hash, card_hash and the agent-trace head, so `veyltrace replay` can re-check the verdict. Written by Causivra at step 10b as canonical JSON; it keeps the in-toto shape, so it has no schema_version and predicateType carries the version.",
+  "x-veyltrace": {
+    "name": "receipt",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "causivra",
+    "path": "receipt.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "_type",
+    "predicate",
+    "predicateType",
+    "subject"
+  ],
+  "properties": {
+    "_type": {
+      "description": "in-toto Statement type.",
+      "type": "string",
+      "const": "https://in-toto.io/Statement/v1"
+    },
+    "subject": {
+      "description": "Exactly one subject: verdict.json with the SHA-256 of its file bytes (not verdict_hash, which hashes the canonical verdict JSON without verdict_hash and run_id; replay checks both).",
+      "type": "array",
+      "items": {
+        "title": "ReceiptSubject",
+        "description": "The verdict file this receipt attests.",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "digest",
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "description": "Run-dir path of the subject file.",
+            "type": "string",
+            "const": "verdict.json"
+          },
+          "digest": {
+            "description": "Digest set of the subject file.",
+            "$ref": "#/$defs/ReceiptDigest"
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "predicateType": {
+      "description": "Veyltrace RCA-verdict predicate type; its version is the receipt's contract version.",
+      "type": "string",
+      "const": "https://veyltrace.dev/rca-verdict/v1"
+    },
+    "predicate": {
+      "title": "ReceiptPredicate",
+      "description": "What replay re-checks: the embedded run manifest and the three result hashes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agent_trace_head",
+        "card_hash",
+        "run_manifest",
+        "verdict_hash"
+      ],
+      "properties": {
+        "run_manifest": {
+          "description": "The run_manifest.json object, embedded verbatim (replay requires canonical-byte equality with the file on disk).",
+          "$ref": "run_manifest.schema.json"
+        },
+        "verdict_hash": {
+          "description": "verdict.verdict_hash: SHA-256 of the canonical verdict JSON without verdict_hash and run_id.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "card_hash": {
+          "description": "card.card_hash: SHA-256 of the canonical card JSON without card_hash.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "agent_trace_head": {
+          "description": "line_hash of the last agent_trace.jsonl line after the chain is verified; null when the run has no agent_trace (e.g. AI off).",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "$defs": {
+    "ReceiptDigest": {
+      "title": "ReceiptDigest",
+      "description": "Digest set of the subject file.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256"
+      ],
+      "properties": {
+        "sha256": {
+          "description": "SHA-256 of the verdict.json file bytes.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    }
+  }
+}

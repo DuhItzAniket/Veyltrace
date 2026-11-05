@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.critical_path.schema.json",
+  "title": "SignalCubeCriticalPathRow",
+  "description": "Per-window critical-path statistics of one service over CP-eligible traces, including the slow-trace spectrum used by Causatrix's cp_sbfl (03 §3.4). Written by Signalyth; depends on alert windows.",
+  "x-veyltrace": {
+    "name": "signal_cube.critical_path",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "signalyth",
+    "path": "signal_cube/critical_path.parquet",
+    "key": [
+      "window",
+      "service"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "cp_self_ms_p50",
+    "cp_self_ms_p99",
+    "cp_share_mean",
+    "cp_share_sum_slow",
+    "service",
+    "traces",
+    "traces_slow",
+    "traces_total",
+    "window"
+  ],
+  "properties": {
+    "window": {
+      "description": "Alert window the traces are assigned to (by the primary root's start_ns).",
+      "$ref": "common.schema.json#/$defs/cube_window",
+      "x-arrow": "string"
+    },
+    "service": {
+      "description": "Service; rows exist only for services seen in eligible traces of the window.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "traces": {
+      "description": "Eligible traces in the window where the service's critical-path self time is > 0.",
+      "type": "integer",
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "cp_self_ms_p50": {
+      "description": "Median critical-path self time (ms) over those traces; 0.0 when traces = 0.",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "cp_self_ms_p99": {
+      "description": "p99 critical-path self time (ms) over those traces; 0.0 when traces = 0.",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "cp_share_mean": {
+      "description": "Σ over eligible traces of (service CP self / root duration) ÷ traces_total (absent traces count as 0); in [0, 1].",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "x-arrow": "float64"
+    },
+    "traces_total": {
+      "description": "Eligible traces in the window after the cap cp.max_traces_per_window; same value on every row of the window.",
+      "type": "integer",
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "traces_slow": {
+      "description": "Slow eligible traces (root duration above the baseline p95 of its entry operation) on which the service's critical-path self time is > 0.",
+      "type": "integer",
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "cp_share_sum_slow": {
+      "description": "Σ over those slow traces of (service CP self / root duration); spectrum numerator for cp_sbfl.",
+      "type": "number",
+      "x-arrow": "float64"
+    }
+  }
+}

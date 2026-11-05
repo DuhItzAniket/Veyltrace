@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/case_manifest.schema.json",
+  "title": "CaseManifest",
+  "description": "Descriptive manifest of one materialised case: opaque id, dataset, data span, present sources, services, raw inputs, adapter and scrub counts (03 §2.1). Written by Infralume at pipeline step 0.",
+  "x-veyltrace": {
+    "name": "case_manifest",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "infralume",
+    "path": "case_manifest.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "adapter",
+    "case_id",
+    "data_end_ns",
+    "data_start_ns",
+    "dataset",
+    "hint_source",
+    "inputs",
+    "schema_version",
+    "scrub",
+    "services",
+    "sources",
+    "system",
+    "t_alert_hint_ns"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "case_id": {
+      "description": "Opaque case id: first 12 hex of SHA-256 of the adapter's canonical case key (01 §3.2).",
+      "$ref": "common.schema.json#/$defs/case_id"
+    },
+    "dataset": {
+      "description": "Dataset name, e.g. synth, re1-ob, re2-ob, re2-ss, re2-tt, re3-ob, nezha-ob, fse26-tt, veyllab-ob, veyllab-otel, live.",
+      "$ref": "common.schema.json#/$defs/dataset"
+    },
+    "system": {
+      "description": "Benchmark system of the case, from the adapter.",
+      "$ref": "common.schema.json#/$defs/system"
+    },
+    "t_alert_hint_ns": {
+      "description": "Alert hint in ns: the dataset's published injection time (oracle protocol) or the trigger time (live protocol); null under the detected protocol or when nothing is published. Only core's alert step reads it. Not checked against the data span here (a hint outside it is written unchanged).",
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "hint_source": {
+      "description": "Origin of t_alert_hint_ns; none if and only if t_alert_hint_ns is null (enforced by the if/then/else below).",
+      "$ref": "common.schema.json#/$defs/hint_source"
+    },
+    "data_start_ns": {
+      "description": "Minimum timestamp in ns over all non-dropped sources, span start_ns/end_ns and overlay events included (01 §3.8). data_start_ns <= data_end_ns is a writer cross-field check.",
+      "type": "integer"
+    },
+    "data_end_ns": {
+      "description": "Maximum timestamp in ns over all non-dropped sources, span start_ns/end_ns and overlay events included (01 §3.8).",
+      "type": "integer"
+    },
+    "sources": {
+      "description": "Which telemetry sources are present; a dropped or absent source is false and its table has zero rows.",
+      "$ref": "common.schema.json#/$defs/Sources"
+    },
+    "services": {
+      "description": "Sorted (UTF-8 byte order) union of normalised services in metrics, logs and spans; event-only entities excluded. May be empty (e.g. an events-only case).",
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/service_name"
+      },
+      "minItems": 0,
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ]
+    },
+    "inputs": {
+      "description": "One entry per raw file that contributed to a non-empty emitted table, plus overlay/events.parquet when an overlay is used (01 §3.8); sorted by name. Empty for synth.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CaseManifestInput"
+      },
+      "minItems": 0,
+      "x-sort": [
+        {
+          "pointer": "name",
+          "order": "asc"
+        }
+      ]
+    },
+    "adapter": {
+      "title": "CaseManifestAdapter",
+      "description": "Adapter that converted the case.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "description": "Adapter name as registered under the veyltrace.adapters entry-point group, e.g. rcaeval, nezha, veyllab, otlp_live, synth.",
+          "type": "string"
+        },
+        "version": {
+          "description": "Per-adapter revision string (e.g. \"1\"), not the package version.",
+          "type": "string"
+        }
+      }
+    },
+    "scrub": {
+      "title": "CaseManifestScrub",
+      "description": "Leakage-scrub rule version and counts (01 §3.6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dropped_attributes",
+        "dropped_rows",
+        "rules_version"
+      ],
+      "properties": {
+        "rules_version": {
+          "description": "Scrub rules version, e.g. scrub-1.",
+          "type": "string"
+        },
+        "dropped_attributes": {
+          "description": "Number of deny-listed attributes dropped.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "dropped_rows": {
+          "description": "Number of rows dropped: deny-listed service rows, drop_containers rows and chaos events (Infralume documents the rule).",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "if": {
+    "required": [
+      "hint_source"
+    ],
+    "properties": {
+      "hint_source": {
+        "const": "none"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "t_alert_hint_ns": {
+        "type": "null"
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "t_alert_hint_ns": {
+        "type": "integer"
+      }
+    }
+  },
+  "$defs": {
+    "CaseManifestInput": {
+      "title": "CaseManifestInput",
+      "description": "One raw input file of the case.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bytes",
+        "name",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "description": "Relative name <source>/<basename>, e.g. traces/traces.parquet; never contains the original folder name.",
+          "type": "string",
+          "pattern": "^(metrics|logs|traces|events|overlay)/[^/]+$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file bytes.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "bytes": {
+          "description": "File size in bytes.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

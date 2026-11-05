@@ -1,0 +1,567 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/verdict.schema.json",
+  "title": "Verdict",
+  "description": "The sealed RCA decision for one run: status, root, conformal candidate set, every decision-pool candidate with its trial results, confidence, asks and proposal outcomes. Produced by Causentra (pipeline step 9); the only artifact that sets the verdict.",
+  "x-veyltrace": {
+    "name": "verdict",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "causentra",
+    "path": "verdict.json",
+    "self_hash": {
+      "field": "verdict_hash",
+      "exclude": [
+        "run_id"
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "asks",
+    "calibration",
+    "candidate_set",
+    "case_id",
+    "confidence",
+    "params_sha256",
+    "proposals_accepted",
+    "proposals_rejected",
+    "ranked",
+    "ranks_rcaeval",
+    "root",
+    "run_id",
+    "schema_version",
+    "status",
+    "verdict_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/case_id"
+    },
+    "run_id": {
+      "description": "Run id from RunContext; excluded from verdict_hash so replay reproduces the hash (contract_changes B, core D-4).",
+      "$ref": "common.schema.json#/$defs/run_id"
+    },
+    "status": {
+      "$ref": "#/$defs/Status"
+    },
+    "root": {
+      "description": "The leader's classification; null for NO_FAULT and for INCONCLUSIVE with no leader (03 §10).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Root"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "candidate_set": {
+      "description": "Split-conformal candidate set C = {c in decision pool : nonconformity(c) <= q_hat}, sorted by v desc with ties in ranked order; empty for NO_FAULT (03 §10, 09 §3.7).",
+      "type": "array",
+      "x-sort": [
+        {
+          "pointer": "v",
+          "order": "desc",
+          "round": 9
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "component",
+          "nonconformity",
+          "service",
+          "v"
+        ],
+        "properties": {
+          "service": {
+            "$ref": "common.schema.json#/$defs/service_name"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "$ref": "common.schema.json#/$defs/service_name"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "v": {
+            "description": "Verified score V, rounded to 9 decimals before any comparison (09 §3.5).",
+            "type": "number"
+          },
+          "nonconformity": {
+            "description": "s(c) = round(1 - V9(c) / V9(leader), 9); 1.0 for all when there is no leader (09 §3.7).",
+            "type": "number"
+          }
+        }
+      }
+    },
+    "ranked": {
+      "description": "Every decision-pool candidate in the tie-break order of 02 §6.9 / 09 §3.6 (-V9, internal-first, earliest aligned onset, name); the order uses quantities not in the item, so it is producer-ordered.",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "component",
+          "fault_class",
+          "fused_score",
+          "indicator",
+          "nonconformity",
+          "origin",
+          "rank",
+          "service",
+          "trials",
+          "v"
+        ],
+        "properties": {
+          "rank": {
+            "description": "1-based position in this order (09 §3.6).",
+            "type": "integer",
+            "minimum": 1
+          },
+          "service": {
+            "$ref": "common.schema.json#/$defs/service_name"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "$ref": "common.schema.json#/$defs/service_name"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "indicator": {
+            "$ref": "common.schema.json#/$defs/indicator"
+          },
+          "fault_class": {
+            "$ref": "common.schema.json#/$defs/fault_class"
+          },
+          "v": {
+            "description": "Verified score V, rounded to 9 decimals (09 §3.5).",
+            "type": "number"
+          },
+          "nonconformity": {
+            "description": "s(c) as in candidate_set, for every decision-pool candidate; bench reads the true root's value as its calibration score (contract_changes B, lead_decisions §2.5).",
+            "type": "number"
+          },
+          "fused_score": {
+            "description": "The candidate's fused_score from slate.all_scores.",
+            "type": "number"
+          },
+          "origin": {
+            "description": "slate if the service is a slate candidate (even when a proposal also names it), else proposal (09 §3.2).",
+            "type": "string",
+            "enum": [
+              "slate",
+              "proposal"
+            ]
+          },
+          "trials": {
+            "description": "Applicable trials in numeric id order T1..T10; non-applicable trials are omitted (09 §2.2, §3.4).",
+            "type": "array",
+            "x-sort": [
+              {
+                "pointer": "id",
+                "order": "enum"
+              }
+            ],
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "atoms",
+                "id",
+                "reason",
+                "result"
+              ],
+              "properties": {
+                "id": {
+                  "$ref": "common.schema.json#/$defs/trial_id"
+                },
+                "result": {
+                  "$ref": "common.schema.json#/$defs/trial_result"
+                },
+                "reason": {
+                  "description": "Null on pass; otherwise the fail or untestable reason, optionally with one argument after a colon, e.g. explained_by_callee:payment, drops_out_without:logs (09 §3.4, contract_changes B).",
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "pattern": "^[a-z_]+(:[A-Za-z0-9_.,-]+)?$"
+                },
+                "atoms": {
+                  "description": "Evidence atom ids the trial used; empty when it used none (e.g. T9).",
+                  "type": "array",
+                  "items": {
+                    "$ref": "common.schema.json#/$defs/atom_id"
+                  }
+                }
+              },
+              "if": {
+                "required": [
+                  "result"
+                ],
+                "properties": {
+                  "result": {
+                    "const": "pass"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "reason": {
+                    "type": "null"
+                  }
+                }
+              },
+              "else": {
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "confidence": {
+      "$ref": "#/$defs/Confidence"
+    },
+    "asks": {
+      "description": "Code-generated requests that would settle a LIKELY or INCONCLUSIVE case, sorted by (priority, kind, target), de-duplicated and truncated to asks.max; priority is not in the item, so the array is producer-ordered (09 §3.11).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "target",
+          "why"
+        ],
+        "properties": {
+          "kind": {
+            "$ref": "common.schema.json#/$defs/ask_kind"
+          },
+          "target": {
+            "description": "<Tn>:<service>, <source>, set:<services>, <service> or all (09 §3.11).",
+            "type": "string"
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ranks_rcaeval": {
+      "description": "\"{service}_{indicator}\" for every service of the universe U, all statuses: the decision pool in ranked order, then the remaining slate.all_scores services in that order, duplicates removed (03 §10, 09 §3.12, contract_changes B). The indicator alternation mirrors common indicator.",
+      "type": "array",
+      "x-order": "semantic",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9.-]*_(cpu|mem|diskio|socket|latency|error|logs|workload|unknown)$"
+      }
+    },
+    "proposals_accepted": {
+      "description": "Ids of accepted proposals, ascending (09 §3.10).",
+      "type": "array",
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ],
+      "uniqueItems": true,
+      "items": {
+        "$ref": "common.schema.json#/$defs/proposal_id"
+      }
+    },
+    "proposals_rejected": {
+      "description": "One entry per rejected proposal, sorted by proposal_id (09 §3.10).",
+      "type": "array",
+      "x-sort": [
+        {
+          "pointer": "proposal_id",
+          "order": "asc"
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "proposal_id",
+          "reason"
+        ],
+        "properties": {
+          "proposal_id": {
+            "$ref": "common.schema.json#/$defs/proposal_id"
+          },
+          "reason": {
+            "$ref": "common.schema.json#/$defs/rejection_reason"
+          }
+        }
+      }
+    },
+    "calibration": {
+      "description": "The calibration used: its family id and the SHA-256 of the calibration file bytes (the same value as run_manifest.calibration_sha256), or family \"uncalibrated\" with sha256 = sha256_json({\"family\": \"uncalibrated\"}) (09 §3.7, contract_changes B).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "family",
+        "sha256"
+      ],
+      "properties": {
+        "family": {
+          "anyOf": [
+            {
+              "$ref": "calibration.schema.json#/$defs/family_id"
+            },
+            {
+              "const": "uncalibrated"
+            }
+          ]
+        },
+        "sha256": {
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "params_sha256": {
+      "description": "sha256(canonical_json(effective causentra config section)) (09 §2.2).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "verdict_hash": {
+      "description": "SHA-256 of canonical_json(this object without verdict_hash and run_id) (x-veyltrace.self_hash).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "description": "NO_FAULT: root null, empty candidate set, level none, set_size 0 (03 §10, 09 §3.9, contract_changes B).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "NO_FAULT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "root": {
+            "type": "null"
+          },
+          "candidate_set": {
+            "maxItems": 0
+          },
+          "confidence": {
+            "properties": {
+              "level": {
+                "const": "none"
+              },
+              "set_size": {
+                "const": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "CONFIRMED: root present, level high (03 §10).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "CONFIRMED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "root": {
+            "type": "object"
+          },
+          "confidence": {
+            "properties": {
+              "level": {
+                "const": "high"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "LIKELY: root present, level medium (03 §10).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "LIKELY"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "root": {
+            "type": "object"
+          },
+          "confidence": {
+            "properties": {
+              "level": {
+                "const": "medium"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "INCONCLUSIVE: level low with a leader (root present), none without (root null) (03 §10).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "INCONCLUSIVE"
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "root": {
+                "type": "object"
+              },
+              "confidence": {
+                "properties": {
+                  "level": {
+                    "const": "low"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "root": {
+                "type": "null"
+              },
+              "confidence": {
+                "properties": {
+                  "level": {
+                    "const": "none"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "Status": {
+      "description": "Verdict status, the common verdict_status vocabulary. Shared with card.status (03 §11.1, contract_changes B: the card references the verdict's $defs for status, root and confidence).",
+      "$ref": "common.schema.json#/$defs/verdict_status"
+    },
+    "Root": {
+      "description": "Classification of the leader: copied from the slate entry for slate candidates, from Causatrix classify() for proposal-origin candidates (09 §3.9). Shared with card.root.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "fault_class",
+        "indicator",
+        "mode",
+        "service"
+      ],
+      "properties": {
+        "service": {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        "component": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/service_name"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "indicator": {
+          "$ref": "common.schema.json#/$defs/indicator"
+        },
+        "fault_class": {
+          "$ref": "common.schema.json#/$defs/fault_class"
+        },
+        "mode": {
+          "$ref": "common.schema.json#/$defs/mode"
+        }
+      }
+    },
+    "Confidence": {
+      "description": "Verdict confidence (03 §10, 09 §3.9); computed normally under NO_FAULT with set_size 0. Shared with card.confidence.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "alpha",
+        "level",
+        "margin",
+        "q_hat",
+        "set_size"
+      ],
+      "properties": {
+        "level": {
+          "$ref": "common.schema.json#/$defs/confidence_level"
+        },
+        "margin": {
+          "description": "(V_top - V_runner-up) / V_top; 1.0 with no runner-up, 0.0 with no leader (09 §3.9).",
+          "type": "number"
+        },
+        "alpha": {
+          "description": "Conformal miscoverage level used for the set.",
+          "type": "number"
+        },
+        "q_hat": {
+          "description": "Conformal threshold; null means +inf (canonical_json maps inf to null).",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "set_size": {
+          "description": "|C|, the number of candidate_set members.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/changes.schema.json",
+  "title": "ChangesRow",
+  "description": "One row of changes.parquet: a change-kind event from telemetry.events on the reference clock, with its scope, proximity to the target onset and changed-vs-peer contrast (03 §5.2). Written by Causync.",
+  "x-veyltrace": {
+    "name": "changes",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "causync",
+    "path": "changes.parquet",
+    "key": [
+      "t_ns",
+      "entity",
+      "change_id"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "change_id",
+    "delta_to_onset_ms",
+    "detail_json",
+    "entity",
+    "kind",
+    "latest_before_onset",
+    "peer_contrast",
+    "proximity",
+    "scope",
+    "t_ns"
+  ],
+  "properties": {
+    "change_id": {
+      "description": "C + first 10 hex of SHA-256 of canonical_json({t_ns, entity, kind, source_system, detail_json, actor}) over the original event fields (t_ns before alignment, detail_json hashed as its string); duplicate ids are collapsed.",
+      "$ref": "common.schema.json#/$defs/change_id",
+      "x-arrow": "string"
+    },
+    "t_ns": {
+      "description": "Change time on the reference clock: event time + events offset.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "entity": {
+      "description": "Changed entity from telemetry.events: a service, a component or a cluster-level object.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "kind": {
+      "description": "Event kind (full event_kind vocabulary); Causync keeps the kinds in changes.kinds.",
+      "$ref": "common.schema.json#/$defs/event_kind",
+      "x-arrow": "string"
+    },
+    "scope": {
+      "description": "service if entity is in case_manifest.services; component if it is a component in signal_cube.series; else cluster.",
+      "type": "string",
+      "enum": [
+        "service",
+        "component",
+        "cluster"
+      ],
+      "x-arrow": "string"
+    },
+    "detail_json": {
+      "description": "Canonical JSON string copied unchanged from telemetry.events.detail_json.",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "latest_before_onset": {
+      "description": "True for every change of this entity at the latest t_ns <= target onset + tolerance_ns (equal timestamps are all latest).",
+      "type": "boolean",
+      "x-arrow": "bool"
+    },
+    "delta_to_onset_ms": {
+      "description": "(t_ns - target onset) / 1e6 in ms; negative = before onset; null only if there is no onset at all.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "proximity": {
+      "description": "exp(-max(0, O - t_ns) / tau_change) if t_ns <= O + tolerance_ns, else 0, where O is the target onset (a change recorded slightly after the onset, within tolerance, still counts); in [0, 1].",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "x-arrow": "float64"
+    },
+    "peer_contrast": {
+      "description": "Mean replica score of the changed set minus the median of unchanged peers, in raw robust z (max anomalies.score, detector robust_z); null if either set is empty or scope is cluster.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    }
+  }
+}

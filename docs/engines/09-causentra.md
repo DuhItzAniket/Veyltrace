@@ -36,7 +36,7 @@ Shared values: `k_anom = thresholds.anomaly_z` (`config/core.yaml`, 3.0); `tol_m
 | `status` | §3.9 |
 | `root` | §3.9: `{service, component, indicator, fault_class, mode}` of the leader, or null |
 | `candidate_set` | §3.7: `{service, component, v, nonconformity}`, sorted by `v` desc, ties in `ranked` order |
-| `ranked` | every decision-pool candidate in tie-break order (§3.6): `rank`, `service`, `component`, `indicator`, `fault_class`, `v`, `fused_score`, `origin` (`slate` or `proposal`), `trials[]` (`{id, result, reason?, atoms}` in order T1…T10, non-applicable trials omitted) |
+| `ranked` | every decision-pool candidate in tie-break order (§3.6): `rank`, `service`, `component`, `indicator`, `fault_class`, `v`, `fused_score`, `nonconformity` (§3.7; bench reads it for calibration), `origin` (`slate` or `proposal`), `trials[]` (`{id, result, reason?, atoms}` in order T1…T10, non-applicable trials omitted) |
 | `confidence` | `{level, margin, alpha, q_hat, set_size}` (§3.9) |
 | `asks` | §3.11 |
 | `ranks_rcaeval` | §3.12 |
@@ -193,7 +193,7 @@ Sorted by (priority, kind, target), de-duplicated, truncated to `asks.max` (5).
 
 ### 3.13 `verdict_hash`
 
-`verdict_hash = sha256_hex(canonical_json(verdict without the verdict_hash key))`. Every float in the verdict is already the 9-decimal value used in the decision, so the canonical rounding changes nothing. Replay re-runs steps 5–10 and must reproduce this hash ([02 §6.10](../02-architecture.md)).
+`verdict_hash = sha256_hex(canonical_json(verdict without the verdict_hash and run_id keys))`, the contract's `self_hash` rule ([03 §10](../03-contracts.md)). `run_id` is excluded because it hashes `ai.mode`, so a replay must reproduce the hash of the recorded run. Every float in the verdict is already the 9-decimal value used in the decision, so the canonical rounding changes nothing. Replay re-runs steps 5–10 and must reproduce this hash ([02 §6.10](../02-architecture.md)).
 
 ### 3.14 Worked example (numbers computed for this doc)
 

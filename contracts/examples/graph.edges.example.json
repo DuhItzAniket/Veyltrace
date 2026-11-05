@@ -1,0 +1,33 @@
+[
+  {
+    "src": "cart",
+    "dst": "redis",
+    "provenance": [
+      "topology"
+    ],
+    "calls_incident": null,
+    "weight": 1.0,
+    "anomalous": null
+  },
+  {
+    "src": "checkout",
+    "dst": "payment",
+    "provenance": [
+      "traces"
+    ],
+    "calls_incident": 1185,
+    "weight": 0.5,
+    "anomalous": false
+  },
+  {
+    "src": "frontend",
+    "dst": "checkout",
+    "provenance": [
+      "logs",
+      "traces"
+    ],
+    "calls_incident": 1190,
+    "weight": 0.25,
+    "anomalous": true
+  }
+]

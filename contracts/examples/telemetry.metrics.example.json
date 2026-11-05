@@ -1,0 +1,35 @@
+[
+  {
+    "t_ns": 1767225615000000000,
+    "service": "cart",
+    "component": "cart-0",
+    "name": "container_cpu_usage_seconds_total",
+    "metric_type": "counter",
+    "attrs_json": null,
+    "value": 182.35,
+    "unit": "s",
+    "source_system": "prom"
+  },
+  {
+    "t_ns": 1767225615000000000,
+    "service": "checkout",
+    "component": "checkout",
+    "name": "container_memory_working_set_bytes",
+    "metric_type": "gauge",
+    "attrs_json": null,
+    "value": 268435456.0,
+    "unit": "bytes",
+    "source_system": "prom"
+  },
+  {
+    "t_ns": 1767225615000000000,
+    "service": "checkout",
+    "component": "checkout",
+    "name": "http_requests_total",
+    "metric_type": "counter",
+    "attrs_json": "{\"job\":\"checkout\"}",
+    "value": 2700.0,
+    "unit": null,
+    "source_system": "prom"
+  }
+]
