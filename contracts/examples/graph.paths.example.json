@@ -1,0 +1,29 @@
+[
+  {
+    "candidate": "checkout",
+    "path_rank": 1,
+    "nodes": [
+      "checkout",
+      "frontend"
+    ],
+    "anomalous_fraction": 1.0
+  },
+  {
+    "candidate": "frontend",
+    "path_rank": 1,
+    "nodes": [
+      "frontend"
+    ],
+    "anomalous_fraction": 1.0
+  },
+  {
+    "candidate": "payment",
+    "path_rank": 1,
+    "nodes": [
+      "payment",
+      "checkout",
+      "frontend"
+    ],
+    "anomalous_fraction": 0.6666666666666666
+  }
+]

@@ -1,0 +1,181 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "59e0d31bcc42",
+  "k": 5,
+  "rankers_active": [
+    "baro_rs",
+    "cp_sbfl",
+    "graph_walk",
+    "nsigma",
+    "prism_m"
+  ],
+  "fusion": {
+    "method": "rrf",
+    "k": 60,
+    "weights": {
+      "baro_rs": 1.0,
+      "change_prox": 1.0,
+      "cp_sbfl": 1.0,
+      "graph_walk": 1.0,
+      "nsigma": 1.0,
+      "prism_m": 1.0
+    }
+  },
+  "candidates": [
+    {
+      "rank": 1,
+      "service": "checkout",
+      "component": "checkout-1",
+      "indicator": "cpu",
+      "mode": "resource",
+      "fault_class": "cpu",
+      "fused_score": 0.081438392,
+      "ranker_ranks": {
+        "baro_rs": 2,
+        "change_prox": null,
+        "cp_sbfl": 1,
+        "graph_walk": 1,
+        "nsigma": 2,
+        "prism_m": 1
+      },
+      "ranker_scores": {
+        "baro_rs": 10.4,
+        "change_prox": null,
+        "cp_sbfl": 0.702,
+        "graph_walk": 0.462,
+        "nsigma": 11.0,
+        "prism_m": 16.479575114
+      }
+    },
+    {
+      "rank": 2,
+      "service": "frontend",
+      "component": null,
+      "indicator": "latency",
+      "mode": "network",
+      "fault_class": "delay",
+      "fused_score": 0.081173982,
+      "ranker_ranks": {
+        "baro_rs": 1,
+        "change_prox": null,
+        "cp_sbfl": 2,
+        "graph_walk": 2,
+        "nsigma": 1,
+        "prism_m": 2
+      },
+      "ranker_scores": {
+        "baro_rs": 13.6,
+        "change_prox": null,
+        "cp_sbfl": 0.281,
+        "graph_walk": 0.231,
+        "nsigma": 15.2,
+        "prism_m": 11.946339288
+      }
+    },
+    {
+      "rank": 3,
+      "service": "cart",
+      "component": "cart-1",
+      "indicator": "latency",
+      "mode": "unknown",
+      "fault_class": "unknown",
+      "fused_score": 0.078869048,
+      "ranker_ranks": {
+        "baro_rs": 4,
+        "change_prox": null,
+        "cp_sbfl": 3,
+        "graph_walk": 3,
+        "nsigma": 4,
+        "prism_m": 3
+      },
+      "ranker_scores": {
+        "baro_rs": 1.9,
+        "change_prox": null,
+        "cp_sbfl": 0.19,
+        "graph_walk": 0.118,
+        "nsigma": 2.2,
+        "prism_m": 1.995922603
+      }
+    },
+    {
+      "rank": 4,
+      "service": "payment",
+      "component": null,
+      "indicator": "latency",
+      "mode": "unknown",
+      "fault_class": "unknown",
+      "fused_score": 0.078621032,
+      "ranker_ranks": {
+        "baro_rs": 3,
+        "change_prox": null,
+        "cp_sbfl": 4,
+        "graph_walk": 4,
+        "nsigma": 3,
+        "prism_m": 4
+      },
+      "ranker_scores": {
+        "baro_rs": 2.6,
+        "change_prox": null,
+        "cp_sbfl": 0.15,
+        "graph_walk": 0.083,
+        "nsigma": 2.9,
+        "prism_m": 1.841384977
+      }
+    },
+    {
+      "rank": 5,
+      "service": "recommend",
+      "component": null,
+      "indicator": "error",
+      "mode": "unknown",
+      "fault_class": "unknown",
+      "fused_score": 0.076923077,
+      "ranker_ranks": {
+        "baro_rs": 5,
+        "change_prox": null,
+        "cp_sbfl": 5,
+        "graph_walk": 5,
+        "nsigma": 5,
+        "prism_m": 5
+      },
+      "ranker_scores": {
+        "baro_rs": 1.2,
+        "change_prox": null,
+        "cp_sbfl": 0.101,
+        "graph_walk": 0.064,
+        "nsigma": 1.5,
+        "prism_m": 0.968597889
+      }
+    }
+  ],
+  "all_scores": [
+    {
+      "service": "checkout",
+      "fused_score": 0.081438392
+    },
+    {
+      "service": "frontend",
+      "fused_score": 0.081173982
+    },
+    {
+      "service": "cart",
+      "fused_score": 0.078869048
+    },
+    {
+      "service": "payment",
+      "fused_score": 0.078621032
+    },
+    {
+      "service": "recommend",
+      "fused_score": 0.076923077
+    },
+    {
+      "service": "catalog",
+      "fused_score": 0.075757576
+    },
+    {
+      "service": "redis",
+      "fused_score": 0.074626866
+    }
+  ]
+}

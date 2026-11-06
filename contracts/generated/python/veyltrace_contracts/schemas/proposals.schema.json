@@ -1,0 +1,440 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/proposals.schema.json",
+  "title": "Proposals",
+  "description": "Hypotheses, predicate claims and trial requests proposed by Relentra (pipeline step 7, AI on only), or submitted externally through the MCP verify_hypothesis tool (mode external). Proposals never decide: FaultLoom's claim pass re-evaluates every claim for every claim-pass pool candidate, and Causentra reads the result (03 §9.1).",
+  "x-veyltrace": {
+    "name": "proposals",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "relentra",
+    "path": "proposals.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "asks",
+    "budget_used",
+    "case_id",
+    "mode",
+    "model",
+    "proposals",
+    "schema_version",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/case_id"
+    },
+    "status": {
+      "description": "complete: the state machine reached done; budget_exhausted: a budget stopped it (finished proposals kept); failed: provider error or no valid output after repair; skipped: AI on but the model was not called (relentra.enabled false or empty slate).",
+      "type": "string",
+      "enum": [
+        "complete",
+        "budget_exhausted",
+        "failed",
+        "skipped"
+      ]
+    },
+    "mode": {
+      "description": "brief (default) or investigate, from config; external only for hypotheses submitted through the MCP verify_hypothesis tool, never written by Relentra.",
+      "type": "string",
+      "enum": [
+        "brief",
+        "investigate",
+        "external"
+      ]
+    },
+    "model": {
+      "description": "Model and sampler parameters actually sent; null for mode external and for status skipped (contract_changes B).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ProposalsModel"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "budget_used": {
+      "$ref": "#/$defs/BudgetUsed"
+    },
+    "proposals": {
+      "description": "Normalised proposals (08 §3.6), sorted by (hypothesis.service, hypothesis.fault_class, proposal_id). May be empty.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Proposal"
+      },
+      "x-sort": [
+        {
+          "pointer": "hypothesis/service",
+          "order": "asc"
+        },
+        {
+          "pointer": "hypothesis/fault_class",
+          "order": "asc"
+        },
+        {
+          "pointer": "proposal_id",
+          "order": "asc"
+        }
+      ]
+    },
+    "asks": {
+      "description": "Requests for more information from the model, sorted by (kind, target); at most 3 (08 §3.4).",
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/ProposalAsk"
+      },
+      "x-sort": [
+        {
+          "pointer": "kind",
+          "order": "asc"
+        },
+        {
+          "pointer": "target",
+          "order": "asc"
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "description": "mode external: hypotheses were submitted through MCP and no model was called, so model is null (03 §9.1).",
+      "if": {
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "const": "external"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "model": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "description": "status skipped: the model was not called, so model is null (03 §9.1).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "skipped"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "model": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "ProposalsModel": {
+      "title": "ProposalsModel",
+      "description": "LLM provider, model identity and sampler parameters of the run (config/llm.yaml, config/relentra.yaml).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gguf_sha256",
+        "name",
+        "params",
+        "provider"
+      ],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "llamacpp",
+            "openai_compat",
+            "fake"
+          ]
+        },
+        "name": {
+          "description": "Model name or tag as configured (model.name), e.g. qwen3.5:9b.",
+          "type": "string"
+        },
+        "gguf_sha256": {
+          "description": "SHA-256 of the pinned GGUF weights file (model.gguf_sha256); null when not pinned.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "params": {
+          "$ref": "#/$defs/SamplerParams"
+        }
+      }
+    },
+    "SamplerParams": {
+      "title": "SamplerParams",
+      "description": "Sampler parameters actually sent to the provider.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_tokens",
+        "presence_penalty",
+        "seed",
+        "temperature",
+        "thinking",
+        "top_k",
+        "top_p"
+      ],
+      "properties": {
+        "temperature": {
+          "type": "number"
+        },
+        "seed": {
+          "description": "Derived from veyltrace_core.rng(case_id, \"relentra.seed/<seed_index>\"); in [0, 2^31 - 1).",
+          "type": "integer",
+          "minimum": 0,
+          "exclusiveMaximum": 2147483647
+        },
+        "top_k": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "top_p": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "presence_penalty": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "thinking": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "max_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "BudgetUsed": {
+      "title": "BudgetUsed",
+      "description": "Budget consumed. turns counts LLM calls including repairs; tokens are provider-reported usage stored in the cassette; wall_ms is the sum of recorded call latencies, so a replay reproduces it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tokens_in",
+        "tokens_out",
+        "turns",
+        "wall_ms"
+      ],
+      "properties": {
+        "turns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_in": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tokens_out": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "wall_ms": {
+          "type": "number"
+        }
+      }
+    },
+    "Proposal": {
+      "title": "Proposal",
+      "description": "One hypothesis with the predicate claims and trials that would test it. proposal_id = P + first 8 hex of SHA-256(canonical_json({hypothesis, claims without claim_id})).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claims",
+        "hypothesis",
+        "proposal_id",
+        "rationale",
+        "requested_trials"
+      ],
+      "properties": {
+        "proposal_id": {
+          "$ref": "common.schema.json#/$defs/proposal_id"
+        },
+        "hypothesis": {
+          "$ref": "#/$defs/Hypothesis"
+        },
+        "claims": {
+          "description": "Claims sorted by (predicate, canonical_json(args)); claim ids are assigned in this order.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Claim"
+          },
+          "x-sort": [
+            {
+              "pointer": "predicate",
+              "order": "asc"
+            },
+            {
+              "pointer": "args",
+              "order": "asc"
+            }
+          ]
+        },
+        "requested_trials": {
+          "description": "Trials the proposer asks Causentra to run, unique, at most 4, in ascending trial number (T1 < T2 < ... < T10, the trial_id enum order, not byte order). Causentra decides which trials run.",
+          "type": "array",
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "common.schema.json#/$defs/trial_id"
+          },
+          "x-sort": [
+            {
+              "pointer": ".",
+              "order": "enum"
+            }
+          ]
+        },
+        "rationale": {
+          "description": "Display only; never read by code. At most 280 code points.",
+          "type": "string",
+          "maxLength": 280
+        }
+      }
+    },
+    "Hypothesis": {
+      "title": "Hypothesis",
+      "description": "Proposed root cause. service must be a graph.nodes.node (checked by Causentra as unknown_entity, not by this schema).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "fault_class",
+        "indicator",
+        "service"
+      ],
+      "properties": {
+        "service": {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        "component": {
+          "description": "Always null in v0.1 (08 §2.2).",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/service_name"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "fault_class": {
+          "$ref": "common.schema.json#/$defs/fault_class"
+        },
+        "indicator": {
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/indicator"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "Claim": {
+      "title": "Claim",
+      "description": "A library predicate the proposer wants checked. The subject is implied (hypothesis.service for T10; every claim-pass pool candidate in FaultLoom's claim pass).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "args",
+        "cites",
+        "claim_id",
+        "predicate"
+      ],
+      "properties": {
+        "claim_id": {
+          "description": "<proposal_id>-<i>, i from 1 in sorted claim order; the prefix equals the parent proposal_id (writer check).",
+          "type": "string",
+          "pattern": "^P[0-9a-f]{8}-[1-9][0-9]*$"
+        },
+        "predicate": {
+          "$ref": "common.schema.json#/$defs/predicate"
+        },
+        "args": {
+          "description": "Predicate arguments after the subject, keyed by parameter name. Permissive in the schema: a subject key, unknown names and out-of-range values are rejected per claim as bad_args by FaultLoom and Causentra, not here.",
+          "type": "object",
+          "additionalProperties": {
+            "description": "A scalar argument value. integer is listed next to number (same JSON values) so generated models keep an int parameter such as min_count an integer, and canonical_json (proposal_id) does not change on a model round-trip.",
+            "type": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "cites": {
+          "description": "Atom ids (E + 10 hex) or tool-call ids (tc:<seq>, investigate mode), 0-3 per claim. For display and audit only; the decision uses only the claim-pass result.",
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "pattern": "^(E[0-9a-f]{10}|tc:[0-9]+)$"
+          }
+        }
+      }
+    },
+    "ProposalAsk": {
+      "title": "ProposalAsk",
+      "description": "A request for more telemetry, a trial or context.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "target",
+        "why"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "common.schema.json#/$defs/ask_kind"
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "why": {
+          "type": "string",
+          "maxLength": 160
+        }
+      }
+    }
+  }
+}

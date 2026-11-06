@@ -1,0 +1,31 @@
+[
+  {
+    "node": "checkout",
+    "kind": "service",
+    "is_entry": false,
+    "provenance": [
+      "logs",
+      "metrics",
+      "traces"
+    ]
+  },
+  {
+    "node": "frontend",
+    "kind": "entry",
+    "is_entry": true,
+    "provenance": [
+      "logs",
+      "metrics",
+      "traces"
+    ]
+  },
+  {
+    "node": "redis",
+    "kind": "cache",
+    "is_entry": false,
+    "provenance": [
+      "metrics",
+      "topology"
+    ]
+  }
+]

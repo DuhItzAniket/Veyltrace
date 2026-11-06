@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/telemetry.logs.schema.json",
+  "title": "TelemetryLogsRow",
+  "description": "One log line in the canonical logs table over the full available span (03 §2.3). Written by Infralume; the key is not unique (identical rows are kept and ordered by all columns).",
+  "x-veyltrace": {
+    "name": "telemetry.logs",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "infralume",
+    "path": "telemetry/logs.parquet",
+    "key": [
+      "service",
+      "t_ns",
+      "body"
+    ],
+    "unique": false
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attrs_json",
+    "body",
+    "component",
+    "service",
+    "severity",
+    "span_id",
+    "t_ns",
+    "trace_id"
+  ],
+  "properties": {
+    "t_ns": {
+      "description": "Log time in ns since the Unix epoch (UTC), source time as given.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "service": {
+      "description": "Normalised service name.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "component": {
+      "description": "Normalised component (e.g. pod) name; equals service if unknown.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "severity": {
+      "description": "Log severity; null when the source has none or an unknown severity string.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/severity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "body": {
+      "description": "Log message, scrubbed of folder tokens only; multi-line stack traces stay in one row.",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "trace_id": {
+      "description": "Trace id of the log's span, as a string; null when the line has no span.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "span_id": {
+      "description": "Span id of the log's span, as a string; null when the line has no span.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "attrs_json": {
+      "description": "Canonical JSON of remaining attributes (e.g. unknown source columns), scrubbed.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    }
+  }
+}

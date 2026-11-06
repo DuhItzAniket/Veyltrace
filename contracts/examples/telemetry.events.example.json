@@ -1,0 +1,26 @@
+[
+  {
+    "t_ns": 1767225630000000000,
+    "entity": "frontend",
+    "kind": "k8s_event",
+    "source_system": "k8s",
+    "detail_json": "{\"reason\":\"Pulled\"}",
+    "actor": null
+  },
+  {
+    "t_ns": 1767226680000000000,
+    "entity": "cart-1",
+    "kind": "deploy",
+    "source_system": "k8s",
+    "detail_json": "{\"from\":\"cart:2.3.1\",\"image\":\"registry.local/cart\",\"to\":\"cart:2.3.2\"}",
+    "actor": null
+  },
+  {
+    "t_ns": 1767226800000000000,
+    "entity": "checkout",
+    "kind": "flag",
+    "source_system": "flagd",
+    "detail_json": "{\"flag\":\"165922fa\",\"from\":\"off\",\"to\":\"on\"}",
+    "actor": null
+  }
+]

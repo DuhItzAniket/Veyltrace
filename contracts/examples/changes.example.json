@@ -1,0 +1,38 @@
+[
+  {
+    "change_id": "Ca5701f61a6",
+    "t_ns": 1767226680000000000,
+    "entity": "cart-1",
+    "kind": "deploy",
+    "scope": "component",
+    "detail_json": "{\"from\":\"cart:2.3.1\",\"image\":\"registry.local/cart\",\"to\":\"cart:2.3.2\"}",
+    "latest_before_onset": true,
+    "delta_to_onset_ms": -250000.0,
+    "proximity": 0.434598209,
+    "peer_contrast": 0.087
+  },
+  {
+    "change_id": "C977d5e0584",
+    "t_ns": 1767226860000000000,
+    "entity": "catalog",
+    "kind": "deploy",
+    "scope": "service",
+    "detail_json": "{\"from\":\"catalog:1.4.2\",\"image\":\"registry.local/catalog\",\"to\":\"catalog:1.5.0\"}",
+    "latest_before_onset": true,
+    "delta_to_onset_ms": -60000.0,
+    "proximity": 0.818730753,
+    "peer_contrast": null
+  },
+  {
+    "change_id": "C93fd797239",
+    "t_ns": 1767227100000000000,
+    "entity": "payment",
+    "kind": "config",
+    "scope": "service",
+    "detail_json": "{\"from\":\"1000\",\"key\":\"CARD_GATEWAY_TIMEOUT_MS\",\"to\":\"2000\"}",
+    "latest_before_onset": false,
+    "delta_to_onset_ms": 170000.0,
+    "proximity": 0.0,
+    "peer_contrast": null
+  }
+]

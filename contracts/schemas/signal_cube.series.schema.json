@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.series.schema.json",
+  "title": "SignalCubeSeriesRow",
+  "description": "One point of a typed signal series (metric, trace or log derived), tagged with family and klass (03 §3.1). Written by Signalyth over the whole data range, independent of alert windows.",
+  "x-veyltrace": {
+    "name": "signal_cube.series",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "signalyth",
+    "path": "signal_cube/series.parquet",
+    "key": [
+      "series_id",
+      "t_ns"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "component",
+    "family",
+    "klass",
+    "series_id",
+    "service",
+    "signal",
+    "source",
+    "t_ns",
+    "unit",
+    "value"
+  ],
+  "properties": {
+    "series_id": {
+      "description": "\"{service}|{component}|{signal}|{source}\"; each part non-empty without |. Writer cross-checks it against the four columns.",
+      "$ref": "common.schema.json#/$defs/series_id",
+      "x-arrow": "string"
+    },
+    "service": {
+      "description": "Normalised service name.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "component": {
+      "description": "Component from telemetry.metrics for metric series; equals service for trace and log series.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "signal": {
+      "description": "Free string without | (contract_changes B). Emitted names: metrics cpu, mem, disk, diskio, net, socket, latency, latency_p{q}, error, rps, workload, a sanitised raw name for other metrics, or \"{signal}:{sanitised raw name}\" on a per-(service, component) collision; traces latency_p50, latency_p99, error_rate, rps, self_time_p50, self_time_p99; logs log_rate, log_error_rate, tmpl:{template_id}.",
+      "type": "string",
+      "pattern": "^[^|]+$",
+      "x-arrow": "string"
+    },
+    "family": {
+      "description": "Signal family (Signalyth §3.6 klass table).",
+      "$ref": "common.schema.json#/$defs/family",
+      "x-arrow": "string"
+    },
+    "klass": {
+      "description": "Signal class: internal, external or context (Signalyth §3.6).",
+      "$ref": "common.schema.json#/$defs/klass",
+      "x-arrow": "string"
+    },
+    "source": {
+      "description": "Telemetry source the series is derived from: metrics, logs or traces (no events).",
+      "$ref": "common.schema.json#/$defs/telemetry_source_subset",
+      "x-arrow": "string"
+    },
+    "unit": {
+      "description": "Canonical unit as a free string, e.g. ms, bytes, ratio, 1/s, count, or <unit>/s for counter rates; other metric units unchanged; null when the source gives none.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    },
+    "t_ns": {
+      "description": "Source time in ns (not clock-aligned). Metrics: native observation time; a counter rate is written at the later observation t2 of its pair and the first point is dropped. Traces and logs: start of the epoch-aligned bucket, floor(t / b) * b. Consumers infer the step from t_ns.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "value": {
+      "description": "Point value in unit; finite (NaN and ±inf rejected).",
+      "type": "number",
+      "x-arrow": "float64"
+    }
+  }
+}

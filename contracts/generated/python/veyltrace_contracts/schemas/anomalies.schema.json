@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/anomalies.schema.json",
+  "title": "AnomaliesRow",
+  "description": "One row of anomalies.parquet: one signal_cube series scored by one enabled detector (03 §4.1). Written by Anomara for every series and every enabled detector, even below threshold, so evidence can be recomputed.",
+  "x-veyltrace": {
+    "name": "anomalies",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "anomara",
+    "path": "anomalies.parquet",
+    "key": [
+      "series_id",
+      "detector"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "above_threshold",
+    "component",
+    "detector",
+    "direction",
+    "family",
+    "klass",
+    "onset_ns",
+    "score",
+    "score_norm",
+    "series_id",
+    "service",
+    "source",
+    "threshold"
+  ],
+  "properties": {
+    "series_id": {
+      "description": "Copied from signal_cube.series: \"{service}|{component}|{signal}|{source}\".",
+      "$ref": "common.schema.json#/$defs/series_id",
+      "x-arrow": "string"
+    },
+    "service": {
+      "description": "Copied from signal_cube.series.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "component": {
+      "description": "Copied from signal_cube.series.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "family": {
+      "description": "Copied from signal_cube.series.",
+      "$ref": "common.schema.json#/$defs/family",
+      "x-arrow": "string"
+    },
+    "klass": {
+      "description": "Copied from signal_cube.series.",
+      "$ref": "common.schema.json#/$defs/klass",
+      "x-arrow": "string"
+    },
+    "source": {
+      "description": "Copied from signal_cube.series: metrics, logs or traces (no events).",
+      "$ref": "common.schema.json#/$defs/telemetry_source_subset",
+      "x-arrow": "string"
+    },
+    "detector": {
+      "description": "Detector that produced the row (03-anomara §3.2–§3.5, §3.9); tsfm only when the optional plugin is enabled.",
+      "type": "string",
+      "enum": [
+        "robust_z",
+        "nsigma",
+        "bocpd",
+        "silence",
+        "tsfm"
+      ],
+      "x-arrow": "string"
+    },
+    "score": {
+      "description": "Detector-native score, >= 0: robust_z = max persistent |z| over the incident window; nsigma = raw max |x - mu_B| / sigma'; bocpd = max short-run change-point probability; silence = longest qualifying run / L; tsfm = max persistent residual z.",
+      "type": "number",
+      "minimum": 0,
+      "x-arrow": "float64"
+    },
+    "score_norm": {
+      "description": "log1p-compressed, scale-floored score, comparable across series: log1p(score) exactly for robust_z, bocpd and silence; nsigma uses log1p(max |x - mu_B| / max(sigma_B, epsilon, eta*|mu_B|)) (03-anomara §3.3); tsfm as defined in 03-anomara §3.9.",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "direction": {
+      "description": "Direction of the deviation: robust_z, nsigma and tsfm use the sign of z at the earliest argmax, flat when score = 0; bocpd uses the sign of the mean standardised value over [onset, onset + p*g), flat without onset; silence is always down (03-anomara §3.2–§3.5, §3.9).",
+      "type": "string",
+      "enum": [
+        "up",
+        "down",
+        "flat"
+      ],
+      "x-arrow": "string"
+    },
+    "onset_ns": {
+      "description": "Detector onset in source time (not clock-aligned); null when the detector finds none. robust_z and tsfm: start of the first persistent above-threshold run in the incident window; nsigma: first incident point at or above threshold; bocpd: first incident grid point with cp >= threshold, moved back by the most probable short run length; silence: start of the first qualifying run (03-anomara §3.2–§3.5, §3.9).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "x-arrow": "int64"
+    },
+    "threshold": {
+      "description": "Threshold this detector applies to score (config/anomara.yaml).",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "above_threshold": {
+      "description": "score >= threshold (invariant checked by a property test, not by this schema).",
+      "type": "boolean",
+      "x-arrow": "bool"
+    }
+  }
+}

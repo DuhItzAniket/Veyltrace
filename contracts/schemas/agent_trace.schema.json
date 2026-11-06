@@ -1,0 +1,320 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/agent_trace.schema.json",
+  "title": "AgentTraceLine",
+  "description": "One line of Relentra's hash-chained agent_trace.jsonl (AI on only): a state-machine transition, an LLM call or a tool call. Lines are flushed one by one in seq order; the receipt's agent_trace_head is the last line_hash (03 §9.2, 08 §5.3).",
+  "x-veyltrace": {
+    "name": "agent_trace",
+    "version": "0.1.0",
+    "kind": "jsonl",
+    "producer": "relentra",
+    "path": "agent_trace.jsonl"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "args",
+    "detail",
+    "line_hash",
+    "prev_hash",
+    "request_sha256",
+    "response_sha256",
+    "result_sha256",
+    "seq",
+    "state",
+    "summary",
+    "tool",
+    "type"
+  ],
+  "properties": {
+    "seq": {
+      "description": "Line number from 0, consecutive. For tool_call lines it is also the tool_call_id that claims cite as tc:<seq>.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "state",
+        "llm_call",
+        "tool_call"
+      ]
+    },
+    "prev_hash": {
+      "description": "line_hash of the previous line (writer check); 64 zeros for seq 0.",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "line_hash": {
+      "description": "SHA-256 over the bytes: ASCII hex of prev_hash, then UTF-8 canonical_json of this line without line_hash.",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "request_sha256": {
+      "description": "llm_call: the cassette key (SHA-256 of the canonical request); null otherwise.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "response_sha256": {
+      "description": "llm_call: SHA-256 of the response content, or of canonical_json of the error object; null otherwise.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tool": {
+      "description": "tool_call: tool name (08 §3.3); null otherwise.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "args": {
+      "description": "tool_call: canonical tool arguments keyed by argument name; null otherwise.",
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "description": "A scalar argument value. integer is listed next to number (same JSON values) so generated models keep integers as integers and canonical_json does not change.",
+            "type": [
+              "string",
+              "integer",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "result_sha256": {
+      "description": "tool_call: SHA-256 of canonical_json of the tool result; null otherwise.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "summary": {
+      "description": "tool_call: \"<tool>(<args>) -> <n> rows[, truncated]\" (08 §5.3); null otherwise.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "state": {
+      "description": "state: the state-machine transition name; null otherwise.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TraceState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "detail": {
+      "description": "Optional explanation for state drop_claim or drop_proposal (e.g. which claim and why); null on every other line (contract_changes B, lead_decisions 2.5).",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "seq"
+        ],
+        "properties": {
+          "seq": {
+            "const": 0
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "prev_hash": {
+            "const": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "state"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "state": {
+            "$ref": "#/$defs/TraceState"
+          },
+          "request_sha256": {
+            "type": "null"
+          },
+          "response_sha256": {
+            "type": "null"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "args": {
+            "type": "null"
+          },
+          "result_sha256": {
+            "type": "null"
+          },
+          "summary": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "llm_call"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "request_sha256": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "response_sha256": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "tool": {
+            "type": "null"
+          },
+          "args": {
+            "type": "null"
+          },
+          "result_sha256": {
+            "type": "null"
+          },
+          "summary": {
+            "type": "null"
+          },
+          "state": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "const": "tool_call"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tool": {
+            "type": "string"
+          },
+          "args": {
+            "type": "object"
+          },
+          "result_sha256": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "request_sha256": {
+            "type": "null"
+          },
+          "response_sha256": {
+            "type": "null"
+          },
+          "state": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "state"
+        ],
+        "properties": {
+          "state": {
+            "enum": [
+              "drop_claim",
+              "drop_proposal"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "detail": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "TraceState": {
+      "title": "TraceState",
+      "description": "Closed list of state-line names (08 §5.3).",
+      "type": "string",
+      "enum": [
+        "start",
+        "cards_built",
+        "prompt_built",
+        "validated",
+        "validation_failed",
+        "repair",
+        "drop_claim",
+        "drop_proposal",
+        "pick",
+        "stop",
+        "probe",
+        "emit",
+        "budget_turns",
+        "budget_tokens",
+        "budget_wall",
+        "budget_context",
+        "provider_error",
+        "cassette_miss",
+        "done",
+        "failed"
+      ]
+    }
+  }
+}

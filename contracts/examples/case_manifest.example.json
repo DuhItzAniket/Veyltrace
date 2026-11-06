@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "59e0d31bcc42",
+  "dataset": "synth",
+  "system": "other",
+  "t_alert_hint_ns": 1767226920000000000,
+  "hint_source": "oracle",
+  "data_start_ns": 1767225600000000000,
+  "data_end_ns": 1767227520000000000,
+  "sources": {
+    "metrics": true,
+    "logs": true,
+    "traces": true,
+    "events": true
+  },
+  "services": [
+    "cart",
+    "catalog",
+    "checkout",
+    "frontend",
+    "payment",
+    "recommend"
+  ],
+  "inputs": [],
+  "adapter": {
+    "name": "synth",
+    "version": "1"
+  },
+  "scrub": {
+    "rules_version": "scrub-1",
+    "dropped_attributes": 0,
+    "dropped_rows": 0
+  }
+}

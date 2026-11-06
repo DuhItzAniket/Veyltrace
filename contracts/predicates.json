@@ -1,0 +1,114 @@
+{
+  "schema_version": "0.1.0",
+  "predicates": [
+    {
+      "name": "change_before_onset",
+      "params": [
+        {
+          "name": "max_ms",
+          "type": "float"
+        }
+      ],
+      "polarity": "supports",
+      "window": "onset"
+    },
+    {
+      "name": "edge_anomalous",
+      "params": [
+        {
+          "name": "callee",
+          "type": "service"
+        }
+      ],
+      "polarity": "refutes",
+      "window": "incident"
+    },
+    {
+      "name": "error_rate_above",
+      "params": [
+        {
+          "name": "x",
+          "type": "float"
+        }
+      ],
+      "polarity": "supports",
+      "window": "incident"
+    },
+    {
+      "name": "on_critical_path",
+      "params": [
+        {
+          "name": "min_share",
+          "type": "float"
+        }
+      ],
+      "polarity": "supports",
+      "window": "incident"
+    },
+    {
+      "name": "onset_before",
+      "params": [
+        {
+          "name": "other_service",
+          "type": "service"
+        }
+      ],
+      "polarity": "supports",
+      "window": "onset"
+    },
+    {
+      "name": "peer_gap_above",
+      "params": [
+        {
+          "name": "x",
+          "type": "float"
+        }
+      ],
+      "polarity": "supports",
+      "window": "incident"
+    },
+    {
+      "name": "self_time_share_above",
+      "params": [
+        {
+          "name": "x",
+          "type": "float"
+        }
+      ],
+      "polarity": "supports",
+      "window": "incident"
+    },
+    {
+      "name": "silent",
+      "params": [],
+      "polarity": "supports",
+      "window": "incident"
+    },
+    {
+      "name": "template_new_in_incident",
+      "params": [
+        {
+          "name": "min_count",
+          "type": "int"
+        }
+      ],
+      "polarity": "supports",
+      "window": "incident"
+    },
+    {
+      "name": "zscore_above",
+      "params": [
+        {
+          "name": "signal",
+          "type": "signal"
+        },
+        {
+          "name": "k",
+          "type": "float"
+        }
+      ],
+      "polarity": "supports",
+      "window": "incident"
+    }
+  ]
+}

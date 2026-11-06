@@ -1,0 +1,38 @@
+[
+  {
+    "series_id": "checkout|checkout|cpu|metrics",
+    "service": "checkout",
+    "component": "checkout",
+    "signal": "cpu",
+    "family": "cpu",
+    "klass": "internal",
+    "source": "metrics",
+    "unit": "s/s",
+    "t_ns": 1767226935000000000,
+    "value": 0.152
+  },
+  {
+    "series_id": "payment|payment|error_rate|traces",
+    "service": "payment",
+    "component": "payment",
+    "signal": "error_rate",
+    "family": "errors",
+    "klass": "external",
+    "source": "traces",
+    "unit": "ratio",
+    "t_ns": 1767226930000000000,
+    "value": 0.571428571
+  },
+  {
+    "series_id": "payment|payment|tmpl:Tf821af34|logs",
+    "service": "payment",
+    "component": "payment",
+    "signal": "tmpl:Tf821af34",
+    "family": "logs",
+    "klass": "internal",
+    "source": "logs",
+    "unit": "count",
+    "t_ns": 1767226930000000000,
+    "value": 8.0
+  }
+]

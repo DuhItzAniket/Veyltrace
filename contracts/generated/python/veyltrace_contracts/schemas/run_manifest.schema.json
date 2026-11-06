@@ -1,0 +1,361 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/run_manifest.schema.json",
+  "title": "RunManifest",
+  "description": "Provenance manifest of one finished run (03 §12): ids, code commit, environment, config/uv.lock/calibration hashes, input and output file hashes, AI provenance and per-step output hashes, with no timestamps or timings (P3). Written by core at the manifest step, after Causivra's card (10a) and before the receipt (10b), which embeds it.",
+  "x-veyltrace": {
+    "name": "run_manifest",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "core",
+    "path": "run_manifest.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ai",
+    "calibration_sha256",
+    "case_id",
+    "code",
+    "config_sha256",
+    "dataset",
+    "env",
+    "inputs",
+    "outputs",
+    "run_id",
+    "schema_version",
+    "steps",
+    "uv_lock_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "run_id": {
+      "description": "Run id: first 16 hex of SHA-256 over (case_id, config_sha256, code.commit, ai.mode), plus -x<12 hex> for a derived verify_hypothesis run.",
+      "$ref": "common.schema.json#/$defs/run_id"
+    },
+    "case_id": {
+      "description": "Case id, as in case_manifest.case_id.",
+      "$ref": "common.schema.json#/$defs/case_id"
+    },
+    "dataset": {
+      "description": "Dataset name, as in case_manifest.dataset.",
+      "$ref": "common.schema.json#/$defs/dataset"
+    },
+    "code": {
+      "title": "RunManifestCode",
+      "description": "Code version the run executed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "dirty"
+      ],
+      "properties": {
+        "commit": {
+          "description": "Code commit that enters run_id: the git HEAD sha; \"<sha>+dirty.<12 hex>\" when the tree is dirty (the 12 hex hash the diff and untracked files under packages/, contracts/, config/, excluding config/calibration/, bench/results/ and runs/); \"fixture\" in golden fixtures; \"unknown\" outside a git checkout. Reported by replay, never compared.",
+          "type": "string"
+        },
+        "dirty": {
+          "description": "True if the work tree had uncommitted or untracked changes under packages/, contracts/ or config/ (config/calibration/, bench/results/ and runs/ excluded), or the code is not a git checkout; dirty runs are marked and never used for paper tables.",
+          "type": "boolean"
+        }
+      }
+    },
+    "env": {
+      "title": "RunManifestEnv",
+      "description": "Runtime environment. Replay exit 5 compares Python major.minor and libs (with uv_lock_sha256); os is reported, never compared, so a Windows-recorded receipt replays on Linux CI.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "libs",
+        "os",
+        "python"
+      ],
+      "properties": {
+        "python": {
+          "description": "Python version, e.g. 3.12.7.",
+          "type": "string"
+        },
+        "os": {
+          "description": "Operating system, platform.system() lowercased (e.g. linux, windows, darwin). Reported only.",
+          "type": "string"
+        },
+        "libs": {
+          "description": "Distribution name -> installed version for core's fixed list of analysis-relevant distributions (the same list on every platform). Free keys; canonical JSON sorts them.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "config_sha256": {
+      "description": "SHA-256 of the config.lock.json file bytes (the fully resolved config written into the run dir).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "uv_lock_sha256": {
+      "description": "SHA-256 of uv.lock after CRLF -> LF normalisation.",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "calibration_sha256": {
+      "description": "SHA-256 of the calibration file bytes; for an uncalibrated run the sentinel sha256_json({\"family\":\"uncalibrated\"}), the same value as verdict.calibration.sha256.",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "inputs": {
+      "description": "Raw case inputs, copied from case_manifest.inputs (name and sha256); sorted by name. Empty for synth.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RunManifestInput"
+      },
+      "minItems": 0,
+      "x-sort": [
+        {
+          "pointer": "name",
+          "order": "asc"
+        }
+      ]
+    },
+    "outputs": {
+      "description": "Every artifact in the run dir except run_manifest.json, receipt.json and receipt.json.minisig, sorted by name; includes config.lock.json, card.md, agent_trace.jsonl and each cassette/ file. Built from known paths only.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RunManifestFile"
+      },
+      "minItems": 0,
+      "x-sort": [
+        {
+          "pointer": "name",
+          "order": "asc"
+        }
+      ]
+    },
+    "ai": {
+      "description": "AI provenance, merged by core from the ai_manifest of every engine that called an LLM (Relentra, Causivra). With mode off every other field is null (enforced by the if/then below).",
+      "$ref": "#/$defs/RunManifestAI"
+    },
+    "steps": {
+      "description": "Per-step record of the sub-steps that ran before this manifest was written, in pipeline order (infralume ... causivra.card, then manifest); causivra.receipt runs afterwards and is not listed. Lets reuse and replay check per-step hashes (e.g. evidence.parquet after faultloom and after faultloom.claim_pass).",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RunManifestStep"
+      },
+      "minItems": 0,
+      "x-order": "semantic"
+    }
+  },
+  "$defs": {
+    "RunManifestAI": {
+      "title": "RunManifestAI",
+      "description": "AI provenance, merged by core from the ai_manifest of every engine that called an LLM (Relentra, Causivra). With mode off every other field is null (enforced by the if/then below).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cassette_sha256",
+        "gguf_sha256",
+        "mode",
+        "model",
+        "prompt_sha256",
+        "provider",
+        "schema_sha256"
+      ],
+      "properties": {
+        "mode": {
+          "description": "AI mode of the run (a run parameter that enters run_id, not a config key).",
+          "$ref": "common.schema.json#/$defs/ai_mode"
+        },
+        "provider": {
+          "description": "LLM provider; must agree across engines.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model": {
+          "description": "Model name; must agree across engines.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gguf_sha256": {
+          "description": "SHA-256 of the model GGUF file; must agree across engines.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "prompt_sha256": {
+          "description": "manifest_hash over every engine's prompt files, named <engine>/<file> and hashed after CRLF -> LF.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "schema_sha256": {
+          "description": "manifest_hash over every engine's constrained-decoding schemas, named <engine>/<purpose>.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "cassette_sha256": {
+          "description": "manifest_hash over the files under cassette/, computed by core after step 10a.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "if": {
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "const": "off"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "provider": {
+            "type": "null"
+          },
+          "model": {
+            "type": "null"
+          },
+          "gguf_sha256": {
+            "type": "null"
+          },
+          "prompt_sha256": {
+            "type": "null"
+          },
+          "schema_sha256": {
+            "type": "null"
+          },
+          "cassette_sha256": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    "RunManifestFile": {
+      "title": "RunManifestFile",
+      "description": "One file and the SHA-256 of its bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "description": "Run-dir path, relative POSIX (forward slashes, no leading slash, no backslash), e.g. signal_cube/series.parquet or cassette/index.json.",
+          "type": "string",
+          "pattern": "^[^/\\\\]+(/[^/\\\\]+)*$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file bytes.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "RunManifestInput": {
+      "title": "RunManifestInput",
+      "description": "One raw case input copied from case_manifest.inputs: its name and the SHA-256 of its bytes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "description": "Relative name <source>/<basename>, the same value as case_manifest.inputs[].name (e.g. traces/traces.parquet).",
+          "type": "string",
+          "pattern": "^(metrics|logs|traces|events|overlay)/[^/]+$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file bytes.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "RunManifestStep": {
+      "title": "RunManifestStep",
+      "description": "One pipeline sub-step and the files it wrote.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "outputs",
+        "status"
+      ],
+      "properties": {
+        "name": {
+          "description": "Sub-step name from the fixed pipeline order.",
+          "type": "string",
+          "enum": [
+            "infralume",
+            "alert",
+            "signalyth",
+            "anomara",
+            "causync",
+            "causalith",
+            "faultloom",
+            "causatrix",
+            "relentra",
+            "faultloom.claim_pass",
+            "causentra",
+            "causivra.card",
+            "manifest",
+            "causivra.receipt"
+          ]
+        },
+        "status": {
+          "description": "Step result status (EngineResult.status): skipped is written by the runner (e.g. relentra with AI off); a failed step stops the run, so no manifest is written.",
+          "type": "string",
+          "enum": [
+            "ok",
+            "degraded",
+            "skipped",
+            "failed"
+          ]
+        },
+        "outputs": {
+          "description": "Files this step wrote, as run-dir paths with the SHA-256 of their bytes right after the step, sorted by name; empty for a skipped step. The manifest step lists config.lock.json only (run_manifest.json cannot hash itself).",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RunManifestFile"
+          },
+          "minItems": 0,
+          "x-sort": [
+            {
+              "pointer": "name",
+              "order": "asc"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

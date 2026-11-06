@@ -1,0 +1,454 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/card.schema.json",
+  "title": "Card",
+  "description": "Human-readable incident card for one sealed verdict: title, copied status/root/confidence/candidate set, checked summary prose, timeline, propagation path, evidence table, why-not, asks and deterministic next steps. Produced by Causivra (step 10a, with card.md rendered from it); it never changes the verdict.",
+  "x-veyltrace": {
+    "name": "card",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "causivra",
+    "path": "card.json",
+    "self_hash": {
+      "field": "card_hash",
+      "exclude": []
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "asks",
+    "candidate_set",
+    "card_hash",
+    "case_id",
+    "confidence",
+    "evidence_table",
+    "narrator",
+    "next_steps",
+    "path",
+    "root",
+    "schema_version",
+    "status",
+    "summary",
+    "timeline",
+    "title",
+    "verdict_hash",
+    "why_not"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/case_id"
+    },
+    "verdict_hash": {
+      "description": "verdict.verdict_hash of the verdict this card explains.",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "title": {
+      "description": "Deterministic title by status (10 §3.1 step 1).",
+      "type": "string"
+    },
+    "status": {
+      "description": "Copied from verdict.status.",
+      "$ref": "verdict.schema.json#/$defs/Status"
+    },
+    "root": {
+      "description": "Copied from verdict.root.",
+      "anyOf": [
+        {
+          "$ref": "verdict.schema.json#/$defs/Root"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "confidence": {
+      "description": "Copied from verdict.confidence.",
+      "$ref": "verdict.schema.json#/$defs/Confidence"
+    },
+    "candidate_set": {
+      "description": "{service, component} of verdict.candidate_set, in the verdict's order; always present, empty for NO_FAULT (03 §11.1, contract_changes B).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "component",
+          "service"
+        ],
+        "properties": {
+          "service": {
+            "$ref": "common.schema.json#/$defs/service_name"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "$ref": "common.schema.json#/$defs/service_name"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "summary": {
+      "description": "Filled sentences (no placeholders left) in prose order, from checked LLM narration or template prose (10 §3.2, §3.5).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cites",
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "cites": {
+            "description": "Cited atom ids; may be empty only for template sentences with no citable atom (10 §3.5, contract_changes B).",
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "$ref": "common.schema.json#/$defs/atom_id"
+            }
+          }
+        }
+      }
+    },
+    "timeline": {
+      "description": "Alert, incident onset, the root's onsets and changes on decision-pool candidates inside the alert windows, sorted by (t_ns, label) (10 §2.2, §3.1 step 4).",
+      "type": "array",
+      "x-sort": [
+        {
+          "pointer": "t_ns",
+          "order": "asc"
+        },
+        {
+          "pointer": "label",
+          "order": "asc"
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cites",
+          "label",
+          "t_ns"
+        ],
+        "properties": {
+          "t_ns": {
+            "type": "integer"
+          },
+          "label": {
+            "type": "string"
+          },
+          "cites": {
+            "description": "onset_precedence or change_proximity atoms naming this entry; may be empty (e.g. the alert line).",
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "$ref": "common.schema.json#/$defs/atom_id"
+            }
+          }
+        }
+      }
+    },
+    "path": {
+      "description": "Propagation path: graph.paths.nodes of the root at path_rank 1, in path order; [] when root is null or no path exists (10 §2.2).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "$ref": "common.schema.json#/$defs/service_name"
+      }
+    },
+    "evidence_table": {
+      "description": "Atoms behind the root's trials and its holding claim checks, sorted by the atoms' (candidate, kind, atom_id), capped at card.evidence_max; the sort keys are not in the item, so it is producer-ordered (10 §2.2, §3.1 step 3).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "atom_id",
+          "label",
+          "unit",
+          "value"
+        ],
+        "properties": {
+          "atom_id": {
+            "$ref": "common.schema.json#/$defs/atom_id"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "description": "The atom's raw value (number or null, contract_changes B).",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "why_not": {
+      "description": "One entry per runner-up, verdict.ranked[1 .. why_not.max] in ranked order; empty for NO_FAULT (10 §3.1 step 6).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "cites",
+          "service",
+          "text"
+        ],
+        "properties": {
+          "service": {
+            "$ref": "common.schema.json#/$defs/service_name"
+          },
+          "text": {
+            "type": "string"
+          },
+          "cites": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "$ref": "common.schema.json#/$defs/atom_id"
+            }
+          }
+        }
+      }
+    },
+    "asks": {
+      "description": "verdict.asks rendered by asks.<kind> templates, in the verdict's order (10 §3.1 step 7).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "next_steps": {
+      "description": "Steps of the selected deterministic playbooks, in playbook file order (10 §3.6).",
+      "type": "array",
+      "x-order": "semantic",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "playbook_id",
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "playbook_id": {
+            "type": "string",
+            "pattern": "^PB-[A-Z]+-[0-9]{2}$"
+          }
+        }
+      }
+    },
+    "narrator": {
+      "description": "How the summary prose was produced (10 §2.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempts",
+        "checker_failures",
+        "model",
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "enum": [
+            "llm",
+            "template"
+          ]
+        },
+        "model": {
+          "description": "Model name of the narration calls, or null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "attempts": {
+          "description": "LLM narration calls made.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "checker_failures": {
+          "description": "Sentences rejected by the claim checker across attempts.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "card_hash": {
+      "description": "SHA-256 of canonical_json(this object without card_hash) (x-veyltrace.self_hash).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    }
+  },
+  "allOf": [
+    {
+      "description": "NO_FAULT: root null, empty candidate set, level none, set_size 0 (copied verdict rules; 03 §11.1).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "NO_FAULT"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "root": {
+            "type": "null"
+          },
+          "candidate_set": {
+            "maxItems": 0
+          },
+          "confidence": {
+            "properties": {
+              "level": {
+                "const": "none"
+              },
+              "set_size": {
+                "const": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "CONFIRMED: root present, level high (copied verdict rules).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "CONFIRMED"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "root": {
+            "type": "object"
+          },
+          "confidence": {
+            "properties": {
+              "level": {
+                "const": "high"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "LIKELY: root present, level medium (copied verdict rules).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "LIKELY"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "root": {
+            "type": "object"
+          },
+          "confidence": {
+            "properties": {
+              "level": {
+                "const": "medium"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "INCONCLUSIVE: level low with a root, none without (copied verdict rules).",
+      "if": {
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "const": "INCONCLUSIVE"
+          }
+        }
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "root": {
+                "type": "object"
+              },
+              "confidence": {
+                "properties": {
+                  "level": {
+                    "const": "low"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "properties": {
+              "root": {
+                "type": "null"
+              },
+              "confidence": {
+                "properties": {
+                  "level": {
+                    "const": "none"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

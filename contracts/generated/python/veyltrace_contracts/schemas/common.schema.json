@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/common.schema.json",
+  "title": "Common",
+  "description": "Shared closed vocabularies, identifier and hash formats, and reusable sub-schemas for Veyltrace contracts v0.1. Not an artifact; contract schemas reference it as common.schema.json#/$defs/<def>.",
+  "$defs": {
+    "family": {
+      "description": "Signal family of a series (03 §1); used by signal_cube.series and anomalies.",
+      "type": "string",
+      "enum": [
+        "cpu",
+        "mem",
+        "disk",
+        "net",
+        "latency",
+        "errors",
+        "traffic",
+        "logs",
+        "self_time",
+        "other"
+      ]
+    },
+    "klass": {
+      "description": "Signal class of a series (03 §1); used by signal_cube.series and anomalies.",
+      "type": "string",
+      "enum": [
+        "internal",
+        "external",
+        "context"
+      ]
+    },
+    "mode": {
+      "description": "Fault mode of a candidate (03 §1); used by slate, verdict and answer_key.",
+      "type": "string",
+      "enum": [
+        "resource",
+        "network",
+        "code",
+        "change",
+        "dependency",
+        "unknown"
+      ]
+    },
+    "fault_class": {
+      "description": "Fault class (03 §1); socket = RCAEval RE2 socket exhaustion, availability = pod kill, container restart or pod failure.",
+      "type": "string",
+      "enum": [
+        "cpu",
+        "mem",
+        "disk",
+        "socket",
+        "delay",
+        "loss",
+        "error",
+        "exception",
+        "availability",
+        "config",
+        "dependency",
+        "unknown"
+      ]
+    },
+    "source": {
+      "description": "Telemetry source, full set including events (03 §1); e.g. alignment.offsets[].source.",
+      "type": "string",
+      "enum": [
+        "metrics",
+        "logs",
+        "traces",
+        "events"
+      ]
+    },
+    "event_kind": {
+      "description": "Kind of a change event (03 §1); used by telemetry.events and changes.",
+      "type": "string",
+      "enum": [
+        "deploy",
+        "config",
+        "flag",
+        "scale",
+        "restart",
+        "k8s_event",
+        "commit",
+        "other"
+      ]
+    },
+    "verdict_status": {
+      "description": "Verdict status (03 §1 'status'); used by verdict, card and bench_result.",
+      "type": "string",
+      "enum": [
+        "CONFIRMED",
+        "LIKELY",
+        "INCONCLUSIVE",
+        "NO_FAULT"
+      ]
+    },
+    "window": {
+      "description": "Window of an evidence atom (03 §7): baseline, incident or onset.",
+      "type": "string",
+      "enum": [
+        "baseline",
+        "incident",
+        "onset"
+      ]
+    },
+    "cube_window": {
+      "description": "Aggregation window of signal_cube.edges and signal_cube.critical_path (03 §3.2, §3.4): baseline or incident only.",
+      "type": "string",
+      "enum": [
+        "baseline",
+        "incident"
+      ]
+    },
+    "confidence_level": {
+      "description": "Verdict confidence level (03 §10): CONFIRMED -> high, LIKELY -> medium, INCONCLUSIVE with a leader -> low, else none.",
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low",
+        "none"
+      ]
+    },
+    "trial_id": {
+      "description": "Verification trial id, T1..T10 in numeric order (03 §9.1, §10).",
+      "type": "string",
+      "enum": [
+        "T1",
+        "T2",
+        "T3",
+        "T4",
+        "T5",
+        "T6",
+        "T7",
+        "T8",
+        "T9",
+        "T10"
+      ]
+    },
+    "trial_result": {
+      "description": "Outcome of one verification trial (03 §10 ranked[].trials[].result).",
+      "type": "string",
+      "enum": [
+        "pass",
+        "fail",
+        "untestable"
+      ]
+    },
+    "ai_mode": {
+      "description": "AI execution mode ai.mode (contract_changes A8); part of the run_id preimage.",
+      "type": "string",
+      "enum": [
+        "off",
+        "record",
+        "replay"
+      ]
+    },
+    "ai_arm": {
+      "description": "AI experiment arm (contract_changes A8); used by calibration and bench.",
+      "type": "string",
+      "enum": [
+        "off",
+        "brief",
+        "investigate",
+        "external"
+      ]
+    },
+    "alert_protocol": {
+      "description": "Alert protocol (03 §2.6); used by alert, calibration and bench_result.",
+      "type": "string",
+      "enum": [
+        "oracle",
+        "detected",
+        "live"
+      ]
+    },
+    "hint_source": {
+      "description": "Origin of case_manifest.t_alert_hint_ns (03 §2.1); none if and only if the hint is null.",
+      "type": "string",
+      "enum": [
+        "oracle",
+        "live",
+        "none"
+      ]
+    },
+    "predicate": {
+      "description": "Claim-check predicate library v0.1 (03 §7); used by evidence and proposals.",
+      "type": "string",
+      "enum": [
+        "zscore_above",
+        "onset_before",
+        "edge_anomalous",
+        "self_time_share_above",
+        "change_before_onset",
+        "template_new_in_incident",
+        "error_rate_above",
+        "silent",
+        "on_critical_path",
+        "peer_gap_above"
+      ]
+    },
+    "atom_kind": {
+      "description": "Evidence atom kind (03 §7); intervention = Causalith's restricted conditional-independence test for trial T8.",
+      "type": "string",
+      "enum": [
+        "internal_anomaly",
+        "external_anomaly",
+        "onset_precedence",
+        "propagation",
+        "change_proximity",
+        "peer_contrast",
+        "spectrum",
+        "critical_path_share",
+        "self_time_share",
+        "log_new_template",
+        "log_error_rate",
+        "silence",
+        "edge_gap",
+        "intervention",
+        "claim_check"
+      ]
+    },
+    "rejection_reason": {
+      "description": "Why a proposal was rejected (03 §10 proposals_rejected[].reason).",
+      "type": "string",
+      "enum": [
+        "unknown_entity",
+        "unknown_predicate",
+        "bad_args",
+        "claim_false",
+        "trial_failed",
+        "budget"
+      ]
+    },
+    "indicator": {
+      "description": "Root indicator from Causatrix's indicator_map (contract_changes A7); family other maps to unknown.",
+      "type": "string",
+      "enum": [
+        "cpu",
+        "mem",
+        "diskio",
+        "socket",
+        "latency",
+        "error",
+        "logs",
+        "workload",
+        "unknown"
+      ]
+    },
+    "span_kind": {
+      "description": "Span kind (03 §2.4); Infralume fills unspecified when the source has none.",
+      "type": "string",
+      "enum": [
+        "server",
+        "client",
+        "internal",
+        "producer",
+        "consumer",
+        "unspecified"
+      ]
+    },
+    "span_status": {
+      "description": "Span status (03 §2.4).",
+      "type": "string",
+      "enum": [
+        "ok",
+        "error",
+        "unset"
+      ]
+    },
+    "severity": {
+      "description": "Log severity (03 §2.3).",
+      "type": "string",
+      "enum": [
+        "TRACE",
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR",
+        "FATAL"
+      ]
+    },
+    "system": {
+      "description": "Benchmark system of a case (03 §2.1); live is a dataset, not a system.",
+      "type": "string",
+      "enum": [
+        "ob",
+        "ss",
+        "tt",
+        "otel",
+        "other"
+      ]
+    },
+    "telemetry_source_subset": {
+      "description": "Telemetry source without events (03 §3.1, §4.1, §4.2): metrics, logs or traces.",
+      "type": "string",
+      "enum": [
+        "metrics",
+        "logs",
+        "traces"
+      ]
+    },
+    "ask_kind": {
+      "description": "Kind of a request for more information (03 §9.1 asks[].kind; contract_changes B verdict.asks).",
+      "type": "string",
+      "enum": [
+        "telemetry",
+        "trial",
+        "context"
+      ]
+    },
+    "provenance": {
+      "description": "Evidence source of a dependency-graph node or edge (03 §6.1, §6.2).",
+      "type": "string",
+      "enum": [
+        "traces",
+        "topology",
+        "logs",
+        "metrics"
+      ]
+    },
+    "sha256": {
+      "description": "Lowercase 64-hex SHA-256 digest, no prefix (03 §1).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "case_id": {
+      "description": "Case id: first 12 hex of SHA-256 of the adapter's canonical case key (03 §1, contract_changes B).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{12}$"
+    },
+    "run_id": {
+      "description": "Run id: first 16 hex of SHA-256(case_id, config_sha256, code_commit, ai.mode), plus -x<12 hex> for a derived verify_hypothesis run (02 §4.1, contract_changes A6).",
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}(-x[0-9a-f]{12})?$"
+    },
+    "atom_id": {
+      "description": "Evidence atom id: E + first 10 hex of SHA-256 of [kind, candidate, canonical args] (03 §1, contract_changes B).",
+      "type": "string",
+      "pattern": "^E[0-9a-f]{10}$"
+    },
+    "change_id": {
+      "description": "Change id: C + first 10 hex of SHA-256 of the change row preimage (03 §5.2, contract_changes B).",
+      "type": "string",
+      "pattern": "^C[0-9a-f]{10}$"
+    },
+    "template_id": {
+      "description": "Log template id: T + first 8 hex of SHA-256(service, template) (03 §3.3).",
+      "type": "string",
+      "pattern": "^T[0-9a-f]{8}$"
+    },
+    "proposal_id": {
+      "description": "Proposal id: P + 8 hex (contract_changes B proposals); used by proposals and verdict.",
+      "type": "string",
+      "pattern": "^P[0-9a-f]{8}$"
+    },
+    "series_id": {
+      "description": "Series id {service}|{component}|{signal}|{source}; each part is non-empty and contains no | (03 §3.1, contract_changes B).",
+      "type": "string",
+      "pattern": "^[^|]+\\|[^|]+\\|[^|]+\\|[^|]+$"
+    },
+    "service_name": {
+      "description": "Normalised service, component, entity or node name: lowercase, no underscore (contract_changes A6).",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "dataset": {
+      "description": "Dataset name such as synth, re2-ob or veyllab-otel (contract_changes A6); a pattern, not an enum.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "semver_0_1": {
+      "description": "Contract version string for v0.1, as carried in schema_version (CONVENTIONS §3.6).",
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "Sources": {
+      "description": "Per-source presence switches; shared by case_manifest.sources and Causatrix's Sources type (contract_changes B).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "events",
+        "logs",
+        "metrics",
+        "traces"
+      ],
+      "properties": {
+        "metrics": {
+          "type": "boolean"
+        },
+        "logs": {
+          "type": "boolean"
+        },
+        "traces": {
+          "type": "boolean"
+        },
+        "events": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TimeWindow": {
+      "description": "Half-open window [start_ns, end_ns) of two int64 ns timestamps; start <= end is a writer check, contiguous windows allowed (contract_changes B alert.windows).",
+      "type": "array",
+      "prefixItems": [
+        {
+          "description": "start_ns (inclusive)",
+          "type": "integer"
+        },
+        {
+          "description": "end_ns (exclusive)",
+          "type": "integer"
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/slate.schema.json",
+  "title": "Slate",
+  "description": "Hypothesis slate written by Causatrix (pipeline step 6): the top-K root-cause candidates from gated rank fusion of the active rankers, plus a fused score for every service in the universe U. Read by Relentra and Causentra (03 §8).",
+  "x-veyltrace": {
+    "name": "slate",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "causatrix",
+    "path": "slate.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "all_scores",
+    "candidates",
+    "case_id",
+    "fusion",
+    "k",
+    "rankers_active",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "case_id": {
+      "$ref": "common.schema.json#/$defs/case_id"
+    },
+    "k": {
+      "description": "Configured slate size K (slate.k, default 5); recorded even when U has fewer than K services (07 §3.8).",
+      "type": "integer"
+    },
+    "rankers_active": {
+      "description": "Names of the rankers that voted, sorted; rankers that abstained are absent. Ranker names are free strings because rankers are plugins (contract_changes B). Empty when no ranker voted.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ]
+    },
+    "fusion": {
+      "$ref": "#/$defs/SlateFusion"
+    },
+    "candidates": {
+      "description": "Top-K candidates sorted by rank; length <= k (writer check). rank values are 1..n and unique (writer check). May be empty when no ranker voted.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SlateCandidate"
+      },
+      "x-sort": [
+        {
+          "pointer": "rank",
+          "order": "asc"
+        }
+      ]
+    },
+    "all_scores": {
+      "description": "Every service in the universe U with its fused score, sorted by fused_score (rounded to 9 decimals) desc, then service A-Z. Gives Causentra the base score S0 for proposed candidates outside the top-K and bench the full ranking.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/SlateScore"
+      },
+      "x-sort": [
+        {
+          "pointer": "fused_score",
+          "order": "desc",
+          "round": 9
+        },
+        {
+          "pointer": "service",
+          "order": "asc"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "SlateFusion": {
+      "title": "SlateFusion",
+      "description": "Fusion rule and its parameters. method rrf is the default; combsum_minmax and borda are ablations (07 §9).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "k",
+        "method",
+        "weights"
+      ],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": [
+            "rrf",
+            "combsum_minmax",
+            "borda"
+          ]
+        },
+        "k": {
+          "description": "RRF constant (rrf.k, default 60); null for fusion methods without one.",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "weights": {
+          "description": "Fusion weight per enabled ranker (rrf.weights, a priori 1.0), keyed by ranker name.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number"
+          }
+        }
+      }
+    },
+    "SlateCandidate": {
+      "title": "SlateCandidate",
+      "description": "One top-K candidate with its classification (07 §3.5-§3.6) and per-ranker votes.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "component",
+        "fault_class",
+        "fused_score",
+        "indicator",
+        "mode",
+        "rank",
+        "ranker_ranks",
+        "ranker_scores",
+        "service"
+      ],
+      "properties": {
+        "rank": {
+          "description": "1-based position in the slate; unique within candidates.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "service": {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        "component": {
+          "description": "Component of the candidate's top internal (else external) anomaly atom; null if equal to service or absent.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/service_name"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "indicator": {
+          "$ref": "common.schema.json#/$defs/indicator"
+        },
+        "mode": {
+          "$ref": "common.schema.json#/$defs/mode"
+        },
+        "fault_class": {
+          "$ref": "common.schema.json#/$defs/fault_class"
+        },
+        "fused_score": {
+          "type": "number"
+        },
+        "ranker_ranks": {
+          "description": "Competition rank per enabled ranker, keyed by ranker name; null if that ranker abstained.",
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "ranker_scores": {
+          "description": "Raw score per enabled ranker, keyed by ranker name; null if that ranker abstained.",
+          "type": "object",
+          "additionalProperties": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "SlateScore": {
+      "title": "SlateScore",
+      "description": "Fused score of one service in U.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fused_score",
+        "service"
+      ],
+      "properties": {
+        "service": {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        "fused_score": {
+          "type": "number"
+        }
+      }
+    }
+  }
+}

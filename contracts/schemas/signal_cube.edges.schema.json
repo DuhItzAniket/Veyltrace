@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.edges.schema.json",
+  "title": "SignalCubeEdgesRow",
+  "description": "Per-window call statistics of one caller→callee service pair, built from trace span pairs (03 §3.2). Written by Signalyth; depends on alert windows.",
+  "x-veyltrace": {
+    "name": "signal_cube.edges",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "signalyth",
+    "path": "signal_cube/edges.parquet",
+    "key": [
+      "caller",
+      "callee",
+      "window"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "callee",
+    "caller",
+    "calls",
+    "error_rate",
+    "p50_callee_ms",
+    "p50_caller_ms",
+    "p50_gap_ms",
+    "p99_callee_ms",
+    "p99_caller_ms",
+    "p99_gap_ms",
+    "window"
+  ],
+  "properties": {
+    "caller": {
+      "description": "Calling service A: service of the parent span (or of the client-like span wrapping the call).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "callee": {
+      "description": "Called service B ≠ caller: service of the child entry span.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "window": {
+      "description": "Alert window (alert.windows) the call pairs are counted in.",
+      "$ref": "common.schema.json#/$defs/cube_window",
+      "x-arrow": "string"
+    },
+    "calls": {
+      "description": "Number of parent→child call pairs in the window. Rows with calls = 0 are not written, so a row always has calls ≥ 1. Consumers read a (caller, callee) pair that has a row in one window and none in the other as calls = 0 in the window without a row.",
+      "type": "integer",
+      "minimum": 1,
+      "x-arrow": "int64"
+    },
+    "error_rate": {
+      "description": "Pairs where the child or its client span has status = error, divided by calls; in [0, 1].",
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "x-arrow": "float64"
+    },
+    "p50_caller_ms": {
+      "description": "Median client-observed duration (client-like span) in ms; null when no client span; null below traces.min_spans_per_quantile samples.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "p99_caller_ms": {
+      "description": "p99 client-observed duration (client-like span) in ms; null when no client span; null below traces.min_spans_per_quantile samples.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "p50_callee_ms": {
+      "description": "Median server-side duration (child entry span) in ms; null below traces.min_spans_per_quantile samples.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "p99_callee_ms": {
+      "description": "p99 server-side duration (child entry span) in ms; null below traces.min_spans_per_quantile samples.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "p50_gap_ms": {
+      "description": "Median per-pair gap (client duration − child duration) in ms; null when no client span; null below traces.min_spans_per_quantile samples.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    },
+    "p99_gap_ms": {
+      "description": "p99 per-pair gap (client duration − child duration) in ms; null when no client span; null below traces.min_spans_per_quantile samples.",
+      "type": [
+        "number",
+        "null"
+      ],
+      "x-arrow": "float64"
+    }
+  }
+}

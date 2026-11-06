@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/alert.schema.json",
+  "title": "Alert",
+  "description": "Alert time and analysis windows of one run (03 §2.6): the protocol, t_alert after the onset shift, the half-open baseline and incident windows clamped to the data span, and the detector that fired under the detected protocol. Written by core's alert step (pipeline step 1); engines from Signalyth on read it instead of any injection time.",
+  "x-veyltrace": {
+    "name": "alert",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "core",
+    "path": "alert.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "clamped",
+    "detector",
+    "protocol",
+    "schema_version",
+    "shift_ns",
+    "t_alert_ns",
+    "windows"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "protocol": {
+      "description": "Alert protocol of the run (config core.alert.protocol): oracle and live take case_manifest.t_alert_hint_ns, detected calls the alert detector on telemetry.",
+      "$ref": "common.schema.json#/$defs/alert_protocol"
+    },
+    "t_alert_ns": {
+      "description": "Alert time in ns after the onset shift: exactly the base time (hint or detector breach) plus shift_ns, for every protocol.",
+      "type": "integer"
+    },
+    "shift_ns": {
+      "description": "Onset shift in ns = core.alert.shift_s (an int, seconds) x 10^9; 0 unless an onset-shift robustness run.",
+      "type": "integer",
+      "multipleOf": 1000000000
+    },
+    "detector": {
+      "description": "Detector that produced the base alert time; non-null if and only if protocol is detected (enforced by the if/then/else below).",
+      "anyOf": [
+        {
+          "title": "AlertDetector",
+          "description": "Breach found by the alert detector on the entry service(s).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entry_services",
+            "signal",
+            "threshold"
+          ],
+          "properties": {
+            "entry_services": {
+              "description": "Entry services the detector watched, sorted (UTF-8 byte order).",
+              "type": "array",
+              "items": {
+                "$ref": "common.schema.json#/$defs/service_name"
+              },
+              "minItems": 0,
+              "x-sort": [
+                {
+                  "pointer": ".",
+                  "order": "asc"
+                }
+              ]
+            },
+            "signal": {
+              "description": "Signal whose sustained SLO breach fired the alert, e.g. latency_p99 or error_rate (free string; signal names are documented by Signalyth).",
+              "type": "string"
+            },
+            "threshold": {
+              "description": "Breach threshold applied to signal, in that signal's unit.",
+              "type": "number"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "windows": {
+      "title": "AlertWindows",
+      "description": "Analysis windows around t_alert_ns from config core.windows, each half-open [start_ns, end_ns) and clamped to [data_start_ns, data_end_ns + 1); contiguous windows are allowed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "incident"
+      ],
+      "properties": {
+        "baseline": {
+          "description": "Baseline window [start_ns, end_ns), after clamping.",
+          "$ref": "common.schema.json#/$defs/TimeWindow"
+        },
+        "incident": {
+          "description": "Incident window [start_ns, end_ns), after clamping.",
+          "$ref": "common.schema.json#/$defs/TimeWindow"
+        }
+      }
+    },
+    "clamped": {
+      "description": "True if either window was shortened by clamping to the data span.",
+      "type": "boolean"
+    }
+  },
+  "if": {
+    "required": [
+      "protocol"
+    ],
+    "properties": {
+      "protocol": {
+        "const": "detected"
+      }
+    }
+  },
+  "then": {
+    "properties": {
+      "detector": {
+        "type": "object"
+      }
+    }
+  },
+  "else": {
+    "properties": {
+      "detector": {
+        "type": "null"
+      }
+    }
+  }
+}

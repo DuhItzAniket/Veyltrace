@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/graph.nodes.schema.json",
+  "title": "GraphNodesRow",
+  "description": "One row of graph.nodes: a node of the service dependency graph with its kind, entry flag and evidence sources. Produced by Causalith (03 §6.1, 05 §3.1-§3.3).",
+  "x-veyltrace": {
+    "name": "graph.nodes",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "causalith",
+    "path": "graph/nodes.parquet",
+    "key": [
+      "node"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "is_entry",
+    "kind",
+    "node",
+    "provenance"
+  ],
+  "properties": {
+    "node": {
+      "description": "Service name, or an external host (lowercase, without port) seen in client spans that does not normalise to a known service (contract_changes B; 05 §3.1).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "kind": {
+      "description": "Node kind; first matching rule wins: entry, cache, db, queue, external, service (05 §3.2).",
+      "type": "string",
+      "enum": [
+        "service",
+        "db",
+        "cache",
+        "queue",
+        "external",
+        "entry"
+      ],
+      "x-arrow": "string"
+    },
+    "is_entry": {
+      "description": "True if the node receives external traffic, by the shared entry-service rule (05 §3.3).",
+      "type": "boolean",
+      "x-arrow": "bool"
+    },
+    "provenance": {
+      "description": "Sources the node was seen in: traces (spans/edges), topology (named in an event hint), logs (source or target of a counted log mention), metrics (has a metrics series). Unique, sorted, may be empty (contract_changes B; 05 §3.1).",
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/provenance"
+      },
+      "minItems": 0,
+      "uniqueItems": true,
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ],
+      "x-arrow": "list<string>"
+    }
+  }
+}

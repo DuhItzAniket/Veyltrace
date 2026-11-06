@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1.0",
+  "protocol": "oracle",
+  "t_alert_ns": 1767226920000000000,
+  "shift_ns": 0,
+  "detector": null,
+  "windows": {
+    "baseline": [
+      1767225720000000000,
+      1767226800000000000
+    ],
+    "incident": [
+      1767226800000000000,
+      1767227400000000000
+    ]
+  },
+  "clamped": false
+}

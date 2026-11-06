@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/telemetry.spans.schema.json",
+  "title": "TelemetrySpansRow",
+  "description": "One span in the canonical spans table over the full available span (03 §2.4). Written by Infralume, which applies the span error-status rule (01 §3.5).",
+  "x-veyltrace": {
+    "name": "telemetry.spans",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "infralume",
+    "path": "telemetry/spans.parquet",
+    "key": [
+      "trace_id",
+      "start_ns",
+      "span_id"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "attrs_json",
+    "component",
+    "end_ns",
+    "kind",
+    "operation",
+    "parent_span_id",
+    "service",
+    "span_id",
+    "start_ns",
+    "status",
+    "status_code",
+    "trace_id"
+  ],
+  "properties": {
+    "trace_id": {
+      "description": "Trace id as a string (leading zeros kept; lowercase hex for OTLP sources).",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "span_id": {
+      "description": "Span id as a string (leading zeros kept; lowercase hex for OTLP sources).",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "parent_span_id": {
+      "description": "Parent span id; null for a root span, never the empty string. An unknown parent is kept as given.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "x-arrow": "string"
+    },
+    "service": {
+      "description": "Normalised service name.",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "component": {
+      "description": "Normalised component (e.g. pod) name; null or the service when unknown, as Infralume decides.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/service_name"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "operation": {
+      "description": "Operation name (methodName if non-empty, else operationName; OTLP span name).",
+      "type": "string",
+      "x-arrow": "string"
+    },
+    "kind": {
+      "description": "Span kind; unspecified when the source has none.",
+      "$ref": "common.schema.json#/$defs/span_kind",
+      "x-arrow": "string"
+    },
+    "start_ns": {
+      "description": "Span start in ns since the Unix epoch (UTC), source time as given.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "end_ns": {
+      "description": "Span end in ns; spans with end_ns < start_ns are dropped at ingest.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "status": {
+      "description": "Span status from the error-status rule (01 §3.5); the native OTel status wins for OTLP sources.",
+      "$ref": "common.schema.json#/$defs/span_status",
+      "x-arrow": "string"
+    },
+    "status_code": {
+      "description": "HTTP or gRPC status code (or OTel status code under rule 1 of 01 §3.5); null when absent or NaN.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "x-arrow": "int32"
+    },
+    "attrs_json": {
+      "description": "Canonical JSON of span attributes, scrubbed.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "x-arrow": "string"
+    }
+  }
+}

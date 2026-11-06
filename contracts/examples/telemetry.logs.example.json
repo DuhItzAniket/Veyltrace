@@ -1,0 +1,32 @@
+[
+  {
+    "t_ns": 1767225700039000000,
+    "service": "checkout",
+    "component": "checkout",
+    "severity": "INFO",
+    "body": "POST /checkout 200 36ms order 4217",
+    "trace_id": "5f3a9c1e000000000000000000000412",
+    "span_id": "0000000000002a03",
+    "attrs_json": "{\"req_path\":\"/checkout\"}"
+  },
+  {
+    "t_ns": 1767225660000000000,
+    "service": "frontend",
+    "component": "frontend",
+    "severity": "INFO",
+    "body": "GET /healthz 200",
+    "trace_id": null,
+    "span_id": null,
+    "attrs_json": null
+  },
+  {
+    "t_ns": 1767225660000000000,
+    "service": "frontend",
+    "component": "frontend",
+    "severity": "INFO",
+    "body": "GET /healthz 200",
+    "trace_id": null,
+    "span_id": null,
+    "attrs_json": null
+  }
+]

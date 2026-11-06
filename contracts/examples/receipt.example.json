@@ -1,0 +1,323 @@
+{
+  "_type": "https://in-toto.io/Statement/v1",
+  "subject": [
+    {
+      "name": "verdict.json",
+      "digest": {
+        "sha256": "75e2a3dec25ace15417e24547e168954f4e570803780c8ee8c25b6e995f8c929"
+      }
+    }
+  ],
+  "predicateType": "https://veyltrace.dev/rca-verdict/v1",
+  "predicate": {
+    "run_manifest": {
+      "schema_version": "0.1.0",
+      "run_id": "8b1d27c1a3610380",
+      "case_id": "59e0d31bcc42",
+      "dataset": "synth",
+      "code": {
+        "commit": "150aecda3b6e226185b0a8d4771408139a55ffc6",
+        "dirty": false
+      },
+      "env": {
+        "python": "3.12.7",
+        "os": "linux",
+        "libs": {
+          "drain3": "0.9.11",
+          "duckdb": "1.1.3",
+          "networkx": "3.4.2",
+          "numpy": "2.1.3",
+          "pyarrow": "18.1.0",
+          "pydantic": "2.10.3",
+          "pyyaml": "6.0.2",
+          "scipy": "1.14.1"
+        }
+      },
+      "config_sha256": "2c618f065d37b94991a53a6c1ec61abc89342cc5518468cce4bb7b13a6d2968f",
+      "uv_lock_sha256": "2ddaaf1c7749431840ae16da89ba2744ce65da9e4f1afe694dc724a011ef00ca",
+      "calibration_sha256": "aeebc4ff10f76132bbfaacc48542716183788f52031dd677474855dca2da08ce",
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "alert.json",
+          "sha256": "354aacba16063084a9ef2a9c5cccd748e7681683a8f4ff81d3c2f6da4c5c8672"
+        },
+        {
+          "name": "alignment.json",
+          "sha256": "6177a313b7fae2ad54a7f4953416fbfafb643e945bcd6d1b0a71828b51599f31"
+        },
+        {
+          "name": "anomalies.parquet",
+          "sha256": "453005622d78a183517faceb2be5c4d353f04c6f7cfef5fbf18a9e3f50dd73b1"
+        },
+        {
+          "name": "card.json",
+          "sha256": "ea4c5a71279aba72a75f270e99b3fa5bdab48a95939b42c5904d3d8468e448dd"
+        },
+        {
+          "name": "card.md",
+          "sha256": "e30e28d7c2c1d63a0e5c4759502c06e797efa3ea2d10ef16bcc472e21c67b437"
+        },
+        {
+          "name": "case_manifest.json",
+          "sha256": "ba74554979ba8936b96e989d1a5d987bddd7bc4a4834ca3e9ba5d39919fd95d1"
+        },
+        {
+          "name": "changes.parquet",
+          "sha256": "1b33b71513adb611745845c9854dcb2e934c434b228a6cd70c9b8ac86a4f73ef"
+        },
+        {
+          "name": "config.lock.json",
+          "sha256": "2c618f065d37b94991a53a6c1ec61abc89342cc5518468cce4bb7b13a6d2968f"
+        },
+        {
+          "name": "evidence.parquet",
+          "sha256": "68c08dc4dd85937132f263fffcf722a9172445de6b0cf664daec84adcb3b2f08"
+        },
+        {
+          "name": "graph/edges.parquet",
+          "sha256": "8a6c995fca49997b62dd330ed05dd1b43ec4b142f65e9799bc7c57d4a58cff95"
+        },
+        {
+          "name": "graph/nodes.parquet",
+          "sha256": "b1adcaab59dcb51dbfd484a347298b9c784081d5cff5d3f8b56019c36fbe62ad"
+        },
+        {
+          "name": "graph/paths.parquet",
+          "sha256": "04461ede64f281d810012d98c584950ea6b7bccba914ca82e2f9802408af0cb4"
+        },
+        {
+          "name": "onsets.json",
+          "sha256": "81491f0449fd72b0f65d2acbb26a97a9cb049277cf341deb6d2936e256fad622"
+        },
+        {
+          "name": "signal_cube/critical_path.parquet",
+          "sha256": "431f81923fa58a4d15ea868efe5bed8db60dd147285779891b339e4a05dac194"
+        },
+        {
+          "name": "signal_cube/edges.parquet",
+          "sha256": "621be33d80e13dc43f7f7d842ec36942a8e7e60518a92586cb2b34c1894edc50"
+        },
+        {
+          "name": "signal_cube/series.parquet",
+          "sha256": "27eb8197bd877267ea2241ff015cde1197e972a120f63e9843a9a19a3d41b536"
+        },
+        {
+          "name": "signal_cube/templates.parquet",
+          "sha256": "d4f580b6648d21bca4082aa029b42e1d68a3e1e422ec2306b2140467b10c5f3c"
+        },
+        {
+          "name": "slate.json",
+          "sha256": "3f62d0f02b156673eb6d7d6f88df5dbdff38c8d1ec4bd66e0e197a3df8bb52a5"
+        },
+        {
+          "name": "telemetry/events.parquet",
+          "sha256": "a58602ce045bb09e3b5b717df7d183b9ae2ad06b0645160b519986d94e676f36"
+        },
+        {
+          "name": "telemetry/logs.parquet",
+          "sha256": "cdb03499f001609f84e88f25f36630e4f0723f757f3e636302e22066f95852f7"
+        },
+        {
+          "name": "telemetry/metrics.parquet",
+          "sha256": "5736653a7775f419d70f28d0e005626bbede435b7c247a9ac04d2e81ccbdee6a"
+        },
+        {
+          "name": "telemetry/spans.parquet",
+          "sha256": "2aa9cdc77767d9f6b93437e1a046f9f10e75b71150e128b8b5dd7e1fc25d0277"
+        },
+        {
+          "name": "verdict.json",
+          "sha256": "75e2a3dec25ace15417e24547e168954f4e570803780c8ee8c25b6e995f8c929"
+        }
+      ],
+      "ai": {
+        "mode": "off",
+        "provider": null,
+        "model": null,
+        "gguf_sha256": null,
+        "prompt_sha256": null,
+        "schema_sha256": null,
+        "cassette_sha256": null
+      },
+      "steps": [
+        {
+          "name": "infralume",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "case_manifest.json",
+              "sha256": "ba74554979ba8936b96e989d1a5d987bddd7bc4a4834ca3e9ba5d39919fd95d1"
+            },
+            {
+              "name": "telemetry/events.parquet",
+              "sha256": "a58602ce045bb09e3b5b717df7d183b9ae2ad06b0645160b519986d94e676f36"
+            },
+            {
+              "name": "telemetry/logs.parquet",
+              "sha256": "cdb03499f001609f84e88f25f36630e4f0723f757f3e636302e22066f95852f7"
+            },
+            {
+              "name": "telemetry/metrics.parquet",
+              "sha256": "5736653a7775f419d70f28d0e005626bbede435b7c247a9ac04d2e81ccbdee6a"
+            },
+            {
+              "name": "telemetry/spans.parquet",
+              "sha256": "2aa9cdc77767d9f6b93437e1a046f9f10e75b71150e128b8b5dd7e1fc25d0277"
+            }
+          ]
+        },
+        {
+          "name": "alert",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "alert.json",
+              "sha256": "354aacba16063084a9ef2a9c5cccd748e7681683a8f4ff81d3c2f6da4c5c8672"
+            }
+          ]
+        },
+        {
+          "name": "signalyth",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "signal_cube/critical_path.parquet",
+              "sha256": "431f81923fa58a4d15ea868efe5bed8db60dd147285779891b339e4a05dac194"
+            },
+            {
+              "name": "signal_cube/edges.parquet",
+              "sha256": "621be33d80e13dc43f7f7d842ec36942a8e7e60518a92586cb2b34c1894edc50"
+            },
+            {
+              "name": "signal_cube/series.parquet",
+              "sha256": "27eb8197bd877267ea2241ff015cde1197e972a120f63e9843a9a19a3d41b536"
+            },
+            {
+              "name": "signal_cube/templates.parquet",
+              "sha256": "d4f580b6648d21bca4082aa029b42e1d68a3e1e422ec2306b2140467b10c5f3c"
+            }
+          ]
+        },
+        {
+          "name": "anomara",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "anomalies.parquet",
+              "sha256": "453005622d78a183517faceb2be5c4d353f04c6f7cfef5fbf18a9e3f50dd73b1"
+            },
+            {
+              "name": "onsets.json",
+              "sha256": "81491f0449fd72b0f65d2acbb26a97a9cb049277cf341deb6d2936e256fad622"
+            }
+          ]
+        },
+        {
+          "name": "causync",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "alignment.json",
+              "sha256": "6177a313b7fae2ad54a7f4953416fbfafb643e945bcd6d1b0a71828b51599f31"
+            },
+            {
+              "name": "changes.parquet",
+              "sha256": "1b33b71513adb611745845c9854dcb2e934c434b228a6cd70c9b8ac86a4f73ef"
+            }
+          ]
+        },
+        {
+          "name": "causalith",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "graph/edges.parquet",
+              "sha256": "8a6c995fca49997b62dd330ed05dd1b43ec4b142f65e9799bc7c57d4a58cff95"
+            },
+            {
+              "name": "graph/nodes.parquet",
+              "sha256": "b1adcaab59dcb51dbfd484a347298b9c784081d5cff5d3f8b56019c36fbe62ad"
+            },
+            {
+              "name": "graph/paths.parquet",
+              "sha256": "04461ede64f281d810012d98c584950ea6b7bccba914ca82e2f9802408af0cb4"
+            }
+          ]
+        },
+        {
+          "name": "faultloom",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "evidence.parquet",
+              "sha256": "c626ba7db19d27b19c1a1bb6da4d0c287c295ef17c70bf89b6358da9a65d4fe0"
+            }
+          ]
+        },
+        {
+          "name": "causatrix",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "slate.json",
+              "sha256": "3f62d0f02b156673eb6d7d6f88df5dbdff38c8d1ec4bd66e0e197a3df8bb52a5"
+            }
+          ]
+        },
+        {
+          "name": "relentra",
+          "status": "skipped",
+          "outputs": []
+        },
+        {
+          "name": "faultloom.claim_pass",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "evidence.parquet",
+              "sha256": "68c08dc4dd85937132f263fffcf722a9172445de6b0cf664daec84adcb3b2f08"
+            }
+          ]
+        },
+        {
+          "name": "causentra",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "verdict.json",
+              "sha256": "75e2a3dec25ace15417e24547e168954f4e570803780c8ee8c25b6e995f8c929"
+            }
+          ]
+        },
+        {
+          "name": "causivra.card",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "card.json",
+              "sha256": "ea4c5a71279aba72a75f270e99b3fa5bdab48a95939b42c5904d3d8468e448dd"
+            },
+            {
+              "name": "card.md",
+              "sha256": "e30e28d7c2c1d63a0e5c4759502c06e797efa3ea2d10ef16bcc472e21c67b437"
+            }
+          ]
+        },
+        {
+          "name": "manifest",
+          "status": "ok",
+          "outputs": [
+            {
+              "name": "config.lock.json",
+              "sha256": "2c618f065d37b94991a53a6c1ec61abc89342cc5518468cce4bb7b13a6d2968f"
+            }
+          ]
+        }
+      ]
+    },
+    "verdict_hash": "437dd00413008f385dfd3bbfafe9d84cd171b3e975e010971ff145148df437ed",
+    "card_hash": "eaff0113a70c5dd24f788e511074e645d5e768c5d7c2dc4c0bf53cbd0e074193",
+    "agent_trace_head": null
+  }
+}

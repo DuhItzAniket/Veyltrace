@@ -1,0 +1,106 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "59e0d31bcc42",
+  "status": "complete",
+  "mode": "investigate",
+  "model": {
+    "provider": "ollama",
+    "name": "qwen3.5:9b",
+    "gguf_sha256": "d44c7d9b05e61185a2c639c4d56d3aae04ad36edf1cc5a23ea4e450743277ee9",
+    "params": {
+      "temperature": 0.7,
+      "seed": 1738215694,
+      "top_k": 20,
+      "top_p": 0.8,
+      "presence_penalty": 1.5,
+      "thinking": false,
+      "max_tokens": 384
+    }
+  },
+  "budget_used": {
+    "turns": 7,
+    "tokens_in": 18342,
+    "tokens_out": 941,
+    "wall_ms": 41873.4
+  },
+  "proposals": [
+    {
+      "proposal_id": "P1b99f9e6",
+      "hypothesis": {
+        "service": "checkout",
+        "component": null,
+        "fault_class": "cpu",
+        "indicator": "cpu"
+      },
+      "claims": [
+        {
+          "claim_id": "P1b99f9e6-1",
+          "predicate": "onset_before",
+          "args": {
+            "other_service": "frontend"
+          },
+          "cites": [
+            "Ee33689c27e"
+          ]
+        },
+        {
+          "claim_id": "P1b99f9e6-2",
+          "predicate": "zscore_above",
+          "args": {
+            "k": 4.0,
+            "signal": "cpu"
+          },
+          "cites": [
+            "Ec2738c422e",
+            "tc:4"
+          ]
+        }
+      ],
+      "requested_trials": [
+        "T1",
+        "T4",
+        "T10"
+      ],
+      "rationale": "checkout cpu shifted sharply while its callees stayed flat, and its onset precedes the frontend latency onset."
+    },
+    {
+      "proposal_id": "P4b37d37e",
+      "hypothesis": {
+        "service": "redis",
+        "component": null,
+        "fault_class": "mem",
+        "indicator": "mem"
+      },
+      "claims": [
+        {
+          "claim_id": "P4b37d37e-1",
+          "predicate": "template_new_in_incident",
+          "args": {
+            "min_count": 3
+          },
+          "cites": []
+        },
+        {
+          "claim_id": "P4b37d37e-2",
+          "predicate": "zscore_above",
+          "args": {
+            "k": 3.5,
+            "signal": "mem"
+          },
+          "cites": []
+        }
+      ],
+      "requested_trials": [
+        "T2"
+      ],
+      "rationale": "redis is a shared cache; a memory squeeze there could also slow checkout, so it is worth ruling out."
+    }
+  ],
+  "asks": [
+    {
+      "kind": "telemetry",
+      "target": "redis",
+      "why": "No memory metrics for redis in the incident window; the mem claim may be untestable."
+    }
+  ]
+}

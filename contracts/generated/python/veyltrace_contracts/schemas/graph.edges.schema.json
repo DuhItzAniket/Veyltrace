@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/graph.edges.schema.json",
+  "title": "GraphEdgesRow",
+  "description": "One row of graph.edges: a caller -> callee edge of the dependency graph, merged by (src, dst) from traces, topology hints and log mentions, with its call share and incident anomaly flag. Produced by Causalith (03 §6.2, 05 §3.4); self-loops are dropped.",
+  "x-veyltrace": {
+    "name": "graph.edges",
+    "version": "0.1.0",
+    "kind": "parquet",
+    "producer": "causalith",
+    "path": "graph/edges.parquet",
+    "key": [
+      "src",
+      "dst"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "anomalous",
+    "calls_incident",
+    "dst",
+    "provenance",
+    "src",
+    "weight"
+  ],
+  "properties": {
+    "src": {
+      "description": "Caller node (a graph.nodes.node).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "dst": {
+      "description": "Callee node (a graph.nodes.node).",
+      "$ref": "common.schema.json#/$defs/service_name",
+      "x-arrow": "string"
+    },
+    "provenance": {
+      "description": "Sources the edge was derived from; unique, sorted, at least one (contract_changes B). Causalith derives no edges from metrics, so it never emits metrics here (05 §3.1).",
+      "type": "array",
+      "items": {
+        "$ref": "common.schema.json#/$defs/provenance"
+      },
+      "minItems": 1,
+      "uniqueItems": true,
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ],
+      "x-arrow": "list<string>"
+    },
+    "calls_incident": {
+      "description": "Incident-window calls from traces (0 if only baseline calls exist); null when the edge has no trace data (05 §3.4).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "x-arrow": "int64"
+    },
+    "weight": {
+      "description": "Normalised call share: incident calls of this edge / all incident calls from src, else the same share from baseline calls, else 1.0 (unknown, including edges without trace data) (05 §3.4).",
+      "type": "number",
+      "x-arrow": "float64"
+    },
+    "anomalous": {
+      "description": "Edge latency or error anomaly in the incident window vs baseline (05 §3.4 rules); null when the edge has no trace data.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    }
+  }
+}

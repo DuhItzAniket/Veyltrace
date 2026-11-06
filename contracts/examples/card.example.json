@@ -1,0 +1,194 @@
+{
+  "schema_version": "0.1.0",
+  "case_id": "4320347d0fe6",
+  "verdict_hash": "e373e6544d97ef1b6c2bc6ff57b9f3497e66712da8b822cdeefc8379f29318fa",
+  "title": "LIKELY · payment · cpu",
+  "status": "LIKELY",
+  "root": {
+    "service": "payment",
+    "component": "payment-1",
+    "indicator": "cpu",
+    "fault_class": "cpu",
+    "mode": "resource"
+  },
+  "confidence": {
+    "level": "medium",
+    "margin": 0.274390244,
+    "alpha": 0.1,
+    "q_hat": 0.291666667,
+    "set_size": 2
+  },
+  "candidate_set": [
+    {
+      "service": "payment",
+      "component": "payment-1"
+    },
+    {
+      "service": "cart",
+      "component": null
+    }
+  ],
+  "summary": [
+    {
+      "text": "payment is the most likely root cause; the candidate set has 2 services.",
+      "cites": [
+        "Ea4217049f6",
+        "E18da98df6a"
+      ]
+    },
+    {
+      "text": "Its cpu anomaly score reached 9.42 in the incident window, ahead of every dependent's onset.",
+      "cites": [
+        "Ea4217049f6",
+        "E18da98df6a"
+      ]
+    },
+    {
+      "text": "Its verified score leads cart by a relative margin of 0.27.",
+      "cites": [
+        "Ea7121fb60b"
+      ]
+    }
+  ],
+  "timeline": [
+    {
+      "t_ns": 1767226800000000000,
+      "label": "payment internal onset",
+      "cites": [
+        "E2b5b9e794b"
+      ]
+    },
+    {
+      "t_ns": 1767226830000000000,
+      "label": "incident onset",
+      "cites": [
+        "E18da98df6a"
+      ]
+    },
+    {
+      "t_ns": 1767226830000000000,
+      "label": "payment external onset",
+      "cites": [
+        "E2b5b9e794b"
+      ]
+    },
+    {
+      "t_ns": 1767226920000000000,
+      "label": "alert (oracle)",
+      "cites": []
+    }
+  ],
+  "path": [
+    "payment",
+    "checkout",
+    "frontend"
+  ],
+  "evidence_table": [
+    {
+      "atom_id": "E7148e3dd27",
+      "label": "claim: payment cpu z above 4",
+      "value": 9.42,
+      "unit": "z"
+    },
+    {
+      "atom_id": "Efdbe355f91",
+      "label": "claim: payment onset before checkout",
+      "value": 1.0,
+      "unit": null
+    },
+    {
+      "atom_id": "Ea4217049f6",
+      "label": "payment cpu anomaly (incident)",
+      "value": 9.42,
+      "unit": "z"
+    },
+    {
+      "atom_id": "Eb3610938f9",
+      "label": "payment anomaly not explained by parents (incident)",
+      "value": 5.13,
+      "unit": "z"
+    },
+    {
+      "atom_id": "E18da98df6a",
+      "label": "payment onset before dependents (onset)",
+      "value": 1.0,
+      "unit": "ratio"
+    },
+    {
+      "atom_id": "E2b5b9e794b",
+      "label": "payment onset (onset)",
+      "value": 1200000.0,
+      "unit": "ms"
+    },
+    {
+      "atom_id": "E1199ddb1b0",
+      "label": "payment path anomalous fraction (incident)",
+      "value": 1.0,
+      "unit": "ratio"
+    },
+    {
+      "atom_id": "Ea7121fb60b",
+      "label": "payment reaches an anomalous entry (incident)",
+      "value": 1.0,
+      "unit": "ratio"
+    },
+    {
+      "atom_id": "E36bbce0a0c",
+      "label": "payment self-time share of entry latency increase (incident)",
+      "value": 0.62,
+      "unit": "ratio"
+    },
+    {
+      "atom_id": "Ef7cb7d7c62",
+      "label": "payment silence (incident)",
+      "value": 0.0,
+      "unit": null
+    }
+  ],
+  "why_not": [
+    {
+      "service": "cart",
+      "text": "cart self-time explains too little of the entry latency increase (failed T5, latency accounting).",
+      "cites": [
+        "Ee7cb346376"
+      ]
+    },
+    {
+      "service": "catalog",
+      "text": "catalog self-time explains too little of the entry latency increase (failed T5, latency accounting).",
+      "cites": [
+        "E2d56f0d998"
+      ]
+    }
+  ],
+  "asks": [
+    {
+      "text": "telemetry: events — T6 untestable without events"
+    }
+  ],
+  "next_steps": [
+    {
+      "text": "Compare CPU use with the limit and check throttling on payment.",
+      "playbook_id": "PB-CPU-01"
+    },
+    {
+      "text": "Compare payment with its replicas.",
+      "playbook_id": "PB-CPU-01"
+    },
+    {
+      "text": "Look for a deploy, config or traffic change before the onset.",
+      "playbook_id": "PB-CPU-01"
+    },
+    {
+      "text": "Consider scaling out or raising the CPU limit after review.",
+      "playbook_id": "PB-CPU-01"
+    }
+  ],
+  "narrator": {
+    "path": "llm",
+    "model": "qwen3.5-9b-q4_k_m",
+    "attempts": 1,
+    "checker_failures": 0
+  },
+  "card_hash": "68941a1713840d479022cacf75a68537382ccd2854c998b272e7dd02b85d89ef"
+}

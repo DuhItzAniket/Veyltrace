@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/alignment.schema.json",
+  "title": "Alignment",
+  "description": "Per-source and per-service clock offsets onto the reference clock, plus the tolerance for onset comparisons, written by Causync as alignment.json (03 §5.1). Telemetry is never rewritten; consumers add the offsets.",
+  "x-veyltrace": {
+    "name": "alignment",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "causync",
+    "path": "alignment.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "offsets",
+    "reference",
+    "schema_version",
+    "tolerance_ns"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "reference": {
+      "description": "Reference clock: traces if present, else metrics (also when neither traces nor metrics exist).",
+      "type": "string",
+      "enum": [
+        "traces",
+        "metrics"
+      ]
+    },
+    "offsets": {
+      "description": "Offsets sorted by (source, service), the source-level entry (service null) first.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AlignmentOffset"
+      },
+      "x-sort": [
+        {
+          "pointer": "source",
+          "order": "asc"
+        },
+        {
+          "pointer": "service",
+          "order": "asc",
+          "nulls": "first"
+        }
+      ]
+    },
+    "tolerance_ns": {
+      "description": "Largest effective step in ns among present metric, log and trace sources; 0 if no stepped source is present.",
+      "type": "integer"
+    }
+  },
+  "$defs": {
+    "AlignmentOffset": {
+      "title": "AlignmentOffset",
+      "description": "Clock offset of one source, or of one (source, service) pair.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "confidence",
+        "method",
+        "offset_ns",
+        "service",
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "description": "Source whose times this offset corrects (full source vocabulary, events included).",
+          "$ref": "common.schema.json#/$defs/source"
+        },
+        "service": {
+          "description": "Service the offset applies to; null for the source-level offset (the key is always present).",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/service_name"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "offset_ns": {
+          "description": "Offset in ns added to this source's (and service's) times to put them on the reference clock; integer, rounded half-even.",
+          "type": "integer"
+        },
+        "method": {
+          "description": "Estimator: reference (the reference source itself, offset 0), trace_pairs, log_span_join, comovement, or none (no estimate, offset 0).",
+          "type": "string",
+          "enum": [
+            "reference",
+            "trace_pairs",
+            "log_span_join",
+            "comovement",
+            "none"
+          ]
+        },
+        "confidence": {
+          "description": "Confidence of the estimate in [0, 1] (1 for reference, 0 for none).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

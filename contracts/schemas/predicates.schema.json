@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/predicates.schema.json",
+  "title": "Predicates",
+  "description": "The claim-check predicate library v0.1 as data: name, parameters after the subject (names and Param types), polarity and window of every predicate (03 §7, 06 §3.5). Maintained by the lead in contracts/predicates.json; parameter ranges stay in config/faultloom.yaml and weights in config/causentra.yaml (lead decisions §2.6).",
+  "x-veyltrace": {
+    "name": "predicates",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "lead",
+    "path": "contracts/predicates.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "predicates",
+    "schema_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "predicates": {
+      "description": "Every library predicate, sorted by name.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/PredicateSpec"
+      },
+      "x-sort": [
+        {
+          "pointer": "name",
+          "order": "asc"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "PredicateSpec": {
+      "description": "One library predicate. The subject service is implied as the first argument and never listed in params (03 §7, §9.1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "params",
+        "polarity",
+        "window"
+      ],
+      "properties": {
+        "name": {
+          "description": "Library predicate name.",
+          "$ref": "common.schema.json#/$defs/predicate"
+        },
+        "params": {
+          "description": "Arguments after the subject, in call order (03 §7); may be empty.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PredicateParam"
+          },
+          "x-order": "semantic"
+        },
+        "polarity": {
+          "description": "supports or refutes the subject being the root (03 §7); must equal the code polarity of the registered predicate.",
+          "type": "string",
+          "enum": [
+            "supports",
+            "refutes"
+          ]
+        },
+        "window": {
+          "description": "Window written on the predicate's claim_check atoms (contract_changes B: claim_check window = Predicate.window).",
+          "$ref": "common.schema.json#/$defs/window"
+        }
+      }
+    },
+    "PredicateParam": {
+      "description": "One predicate argument: its name and FaultLoom Param type (03 §7, 06 §3.5).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "description": "Argument name as in 03 §7.",
+          "type": "string"
+        },
+        "type": {
+          "description": "Param type: float, int, service (a graph.nodes.node) or signal (a signal present in the case's signal_cube.series), as in 03 §7.",
+          "type": "string",
+          "enum": [
+            "float",
+            "int",
+            "service",
+            "signal"
+          ]
+        }
+      }
+    }
+  }
+}
