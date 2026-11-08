@@ -235,7 +235,7 @@ Fewer active rankers is recorded in `rankers_active`; bench reports results by a
 |---|---|
 | synth-01 CPU hog | injected service rank 1; `mode = resource`, `fault_class = cpu`, indicator `cpu` |
 | synth-02 network delay | injected service in the slate; `mode = network`, indicator `latency` |
-| synth-03 error injection | injected service rank 1; `mode = code` |
+| synth-03 error injection | injected service rank 1; `mode = code`, `fault_class = exception`. Indicator: §3.6 as written gives `logs` (payment's top internal series is its new ERROR template), while the answer key says `error`; see open question 9 |
 | synth-04 change-induced regression | `change_prox` active; injected service rank 1; `mode = change` |
 | synth-05 no-fault | rankers may abstain on constant scores; no candidate has I or E ≥ k_anom |
 
@@ -282,7 +282,8 @@ Bench reads `slate.json` to compute Retrieval@K and Rerank@1 ([04 §7](../04-eva
 5. **`prism_m.silence_z`.** *Default:* 10.0 a priori; sweep on RE1/synth only.
 6. **Cross-platform `math.log`.** Quantisation to 1e-12 makes reorderings vanishingly rare but not impossible. *Default:* accept; the determinism gate runs on Ubuntu CI and on each laptop, and any mismatch is a P1 bug.
 7. **Rule table on RE3 code faults (F1–F5).** No fault-class mapping exists in RCAEval for F1–F5. *Default:* report mode accuracy (`code`) only.
-8. **`availability` fault class** (pod kill, container restart, pod failure; added to 03 §1 on 2026-10-30) has no rule yet. *Default:* not emitted (a silent non-dependency service falls through to R5/R6); any new rule is decided on synth/lab cases only, never on test splits.
+8. **`availability` fault class** (pod kill, container restart, pod failure; added to 03 §1 on 2026-10-30) has no rule yet. *Default:* not emitted (a silent non-dependency service falls through to R5/R6); any new rule is decided on synth/lab cases only, never on test splits. synth-05@silent (telemetry loss on `cart-1`) is labelled with no fault class, so it does not exercise this.
+9. **Indicator of an exception fault with internal log evidence.** §3.6 takes the indicator from topI's family (`logs` for a new ERROR template), so synth-03's answer-key indicator `error` never matches. *Default:* keep the answer key's `error` and decide at R-09 between an R3 override (`exception` → `error`) and accepting `logs`; until then the bench smoke does not score synth-03's indicator.
 
 ## 12. References
 

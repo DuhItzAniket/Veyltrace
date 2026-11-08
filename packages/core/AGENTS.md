@@ -25,8 +25,8 @@ Reads `config/*.yaml`, `config/calibration/*.json`, run-directory contracts, rec
 |---|---|
 | Check | `uv run python scripts/check.py --package core` |
 | Determinism gate | `uv run python scripts/check.py --determinism` |
-| Synth cases | `uv run veyltrace data fetch synth` (needs the synth generator, R-03 #6) |
-| One case | `uv run veyltrace diagnose --dataset synth --case synth-01 --ai off` (from R-03; until then the R-02 stubs write placeholder outputs) |
+| Synth answer keys | `uv run veyltrace data fetch synth` (writes `${VEYLTRACE_DATA}/answer_keys/synth.parquet`; the telemetry is generated on demand) |
+| One case | `uv run veyltrace diagnose --dataset synth --case synth-01 --ai off` (real synth telemetry; engines are stubs until each lane replaces them) |
 | Refresh golden fixtures | `uv run python scripts/check.py --package <producer> --update-golden [--cascade]` |
 
 ## Never (this package)

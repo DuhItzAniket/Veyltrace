@@ -129,7 +129,9 @@ def test_infralume_stub_blanks_the_hint_under_detected(tmp_path: Path) -> None:
     assert manifest.t_alert_hint_ns is None and manifest.hint_source == "none"
     assert [name for name, _ in result.outputs] == sorted(stubs.stub_outputs("infralume"))
     assert result.notes == (stubs.STUB_NOTE,)
-    assert io.read_table("telemetry.spans", run_dir).num_rows == 0
+    # Since R-03 the installed synth adapter supplies the case (no placeholder): real telemetry.
+    assert manifest.adapter.name == "synth"
+    assert io.read_table("telemetry.spans", run_dir).num_rows > 0
 
 
 def test_stub_result_lists_every_written_file(off_run: RunSummary) -> None:
