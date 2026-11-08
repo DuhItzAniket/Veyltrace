@@ -60,8 +60,21 @@ def test_diagnose_rejected_case_exits_3(tmp_path: Path) -> None:
     assert summary["outcome"] == "rejected" and summary["exit_code"] == DiagnoseExit.REJECTED
 
 
-def test_diagnose_config_error_exits_4_and_still_writes_summary(tmp_path: Path) -> None:
-    # No alert detector is registered before O-04, so the detected protocol is a config error.
+def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep testing the missing-detector path once Anomara registers veyltrace.alert_detectors (O-04)."""
+    real = plugins.discover
+
+    def discover(group: str) -> tuple[plugins.Plugin, ...]:
+        return () if group == plugins.ALERT_DETECTORS else real(group)
+
+    monkeypatch.setattr(plugins, "discover", discover)
+
+
+def test_diagnose_config_error_exits_4_and_still_writes_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without an alert detector the detected protocol is a config error.
+    _hide_alert_detectors(monkeypatch)
     summary_path = tmp_path / "summary.json"
     code = cli.main(_diagnose(tmp_path, "--protocol", "detected", "--summary-json", str(summary_path)))
     assert code == DiagnoseExit.CONFIG
