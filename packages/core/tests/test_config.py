@@ -230,8 +230,9 @@ def test_relative_path_values_and_lists_are_accepted(cfg_dir: Path) -> None:
 
 
 def test_backslashes_in_regex_strings_are_fine(cfg_dir: Path) -> None:
-    append_yaml(cfg_dir, "signalyth", "metrics:\n  counter_name_patterns: ['_total$', '\\d+_count$']\n")
-    patterns = resolve(cfg_dir).sections["signalyth"]["metrics"]["counter_name_patterns"]
+    # A key no lane defines, so the copy of the lane's real signalyth.yaml never gets a duplicate key.
+    append_yaml(cfg_dir, "signalyth", "zz_regex_probe:\n  patterns: ['_total$', '\\d+_count$']\n")
+    patterns = resolve(cfg_dir).sections["signalyth"]["zz_regex_probe"]["patterns"]
     assert patterns == ("_total$", "\\d+_count$")
 
 
