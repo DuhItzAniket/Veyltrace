@@ -31,13 +31,14 @@ from veyltrace_faultloom.inputs import (
     missing_required,
 )
 from veyltrace_faultloom.onset import silence_atoms
+from veyltrace_faultloom.trace import critical_path_atoms, edge_gap_atoms, self_time_atoms, spectrum_atoms
 
 __all__ = ["ENGINE", "STUB_NOTE", "claim_pool", "engine_atoms", "run_claim_pass", "run_main"]
 
 ENGINE: Final = "faultloom"
 #: EngineResult.notes entry of every stub result. It starts with veyltrace_core.cli.STUB_MARK
 #: ("stub: "), so diagnose warns that the run's outputs are not analysis.
-STUB_NOTE: Final = "stub: FaultLoom R-08 in progress: no trace or claim atoms yet"
+STUB_NOTE: Final = "stub: FaultLoom R-08 in progress: every engine atom kind, no claim atoms yet"
 #: proposals.status values whose proposals the claim pass would evaluate (03 §9.1).
 _EVALUATED_STATUSES: Final = frozenset({"complete", "budget_exhausted"})
 
@@ -76,10 +77,21 @@ def engine_atoms(ctx: RunContext, view: EvidenceInputs) -> list[Atom]:
         *peer_atoms(view, int(ctx.config["peer"]["min_components"])),
         *log_atoms(view, int(ctx.config["templates"]["min_count"])),
         *silence_atoms(view),
+        *_trace_atoms(ctx, view),
     ]
     atoms = drop_disabled(found, (str(k) for k in ctx.config["atoms"]["disabled"]))
     check_unique(atoms)
     return atoms
+
+
+def _trace_atoms(ctx: RunContext, view: EvidenceInputs) -> list[Atom]:
+    spectrum, self_time = ctx.config["spectrum"], ctx.config["self_time"]
+    return [
+        *spectrum_atoms(view, str(spectrum["formula"]), str(spectrum["weighting"])),
+        *critical_path_atoms(view),
+        *self_time_atoms(view, str(self_time["quantile"]), float(self_time["min_total_increase_ms"])),
+        *edge_gap_atoms(view, int(ctx.config["edge_gap"]["min_calls"])),
+    ]
 
 
 def run_main(ctx: RunContext) -> EngineResult:
