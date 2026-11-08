@@ -1,0 +1,390 @@
+{
+ "_comment": [
+  "07 §3.7 micro-example: four services, frontend -> checkout, frontend -> currency, checkout -> payment,",
+  "checkout -> currency, no change events. I (cpu) / E (latency) robust z, NS (nsigma), SP (spectrum) as in",
+  "the table. Expected: change_prox abstains; checkout, frontend, currency, payment; checkout resource/cpu,",
+  "frontend network/latency. Hand-made, not real data, no answer key."
+ ],
+ "case_manifest": {
+  "schema_version": "0.1.0",
+  "case_id": "a1b2c3d4e5f6",
+  "dataset": "handmade",
+  "system": "other",
+  "t_alert_hint_ns": null,
+  "hint_source": "none",
+  "data_start_ns": 1767225600000000000,
+  "data_end_ns": 1767227520000000000,
+  "sources": {
+   "metrics": true,
+   "logs": true,
+   "traces": true,
+   "events": false
+  },
+  "services": [
+   "checkout",
+   "currency",
+   "frontend",
+   "payment"
+  ],
+  "inputs": [],
+  "adapter": {
+   "name": "handmade",
+   "version": "1"
+  },
+  "scrub": {
+   "rules_version": "scrub-1",
+   "dropped_attributes": 0,
+   "dropped_rows": 0
+  }
+ },
+ "evidence": [
+  {
+   "atom_id": "Ec2738c422e",
+   "candidate": "checkout",
+   "component": "checkout-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 9.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "checkout|checkout-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E9234bf6adb",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 11.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "checkout|checkout|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ed321a6f802",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 10.5,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "checkout|checkout|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E47791e1144",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "spectrum",
+   "predicate": null,
+   "args_json": "{\"formula\":\"ochiai\",\"weighting\":\"critical_path\",\"window\":\"incident\"}",
+   "value": 0.683,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "signal_cube.critical_path#c7761e58969f"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E2e4f1c0f09",
+   "candidate": "currency",
+   "component": "currency-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 2.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "currency|currency-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E92b7b7bf63",
+   "candidate": "currency",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 4.5,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "currency|currency|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee60ce72478",
+   "candidate": "currency",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 5.0,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "currency|currency|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E6db417e5a6",
+   "candidate": "currency",
+   "component": null,
+   "kind": "spectrum",
+   "predicate": null,
+   "args_json": "{\"formula\":\"ochiai\",\"weighting\":\"critical_path\",\"window\":\"incident\"}",
+   "value": 0.21,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "signal_cube.critical_path#466e5b9cd57f"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee7ebb9ac8a",
+   "candidate": "frontend",
+   "component": "frontend-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 1.2,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eec03d297f6",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 14.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E4b4a6fc626",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 16.0,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E685a0ea095",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "spectrum",
+   "predicate": null,
+   "args_json": "{\"formula\":\"ochiai\",\"weighting\":\"critical_path\",\"window\":\"incident\"}",
+   "value": 0.258,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "signal_cube.critical_path#1cf387c012cd"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E70f811c2a2",
+   "candidate": "payment",
+   "component": "payment-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.8,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "payment|payment-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eb23b7f3578",
+   "candidate": "payment",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "payment|payment|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E5fd390b50b",
+   "candidate": "payment",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 1.1,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "payment|payment|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E2f354fe7c1",
+   "candidate": "payment",
+   "component": null,
+   "kind": "spectrum",
+   "predicate": null,
+   "args_json": "{\"formula\":\"ochiai\",\"weighting\":\"critical_path\",\"window\":\"incident\"}",
+   "value": 0.165,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "signal_cube.critical_path#040ffd5925d4"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  }
+ ],
+ "graph.nodes": [
+  {
+   "node": "checkout",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "currency",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "frontend",
+   "kind": "entry",
+   "is_entry": true,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "payment",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  }
+ ],
+ "graph.edges": [
+  {
+   "src": "frontend",
+   "dst": "checkout",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "frontend",
+   "dst": "currency",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "checkout",
+   "dst": "payment",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "checkout",
+   "dst": "currency",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  }
+ ]
+}
