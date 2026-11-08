@@ -141,7 +141,9 @@ VARIANTS: Final[Mapping[str, Variant]] = MappingProxyType(
             "synth-01", _drop("logs", "traces", "events"), description="FR-4: metrics only"
         ),
         "synth-01@logs": Variant(
-            "synth-01", _drop("metrics", "traces", "events"), description="FR-4: logs only"
+            "synth-01",
+            _drop("metrics", "traces", "events"),
+            description="FR-4: logs only (synth-01's logs are flat, so the expected status is NO_FAULT)",
         ),
         "synth-01@traces": Variant(
             "synth-01", _drop("metrics", "logs", "events"), description="FR-4: traces only"

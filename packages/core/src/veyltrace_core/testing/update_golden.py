@@ -17,10 +17,11 @@ case (`synth-0N` and the `VARIANTS`) and each selected sub-step, this module:
 Run it through `scripts/check.py --package <name> --update-golden [--cascade]` (never in CI);
 `python -m veyltrace_core.testing.update_golden --package P [--step S]… [--case C]…` directly.
 A case whose plugins are not installed yet (ConfigError before any step runs, e.g. the detected
-alert protocol before Anomara's detector) or that needs a synth generator variant is reported
-as SKIP and left unchanged. So is a consumer whose upstream fixture is missing because an
-earlier sub-step cannot run for that case either (its producer was SKIPped for the same reason),
-so `--cascade` completes before O-04. Any other failure exits 1.
+alert protocol before Anomara's detector) is reported as SKIP and left unchanged. So is a
+consumer whose upstream fixture is missing because an earlier sub-step cannot run for that case
+either (its producer was SKIPped for the same reason), so `--cascade` completes before O-04.
+Generator variants (`synth-05@silent`) run like any case, under their own case id (R-03).
+Any other failure exits 1.
 """
 
 from __future__ import annotations
@@ -115,12 +116,15 @@ def _store(step: Step, name: str, run_dir: Path) -> list[str]:
 def _run_step(step: Step, name: str, work: Path, config_dir: Path) -> RunSummary:
     base, _variant = split_case(name)
     variant = VARIANTS.get(name)
+    # A generator variant is its own synth case: the adapter resolves the fixture name
+    # ("synth-05@silent") as its canonical key, so its case id hashes that name (R-03).
+    key = name if variant is not None and variant.generator is not None else base
     reuse = None
     if step.index > 0:
         reuse = fixture_run_dir(name, work / "upstream", through=STEPS[step.index - 1].name)
     plan = RunPlan(
         dataset=FIXTURE_DATASET,
-        case=make_case_id(base),
+        case=make_case_id(key),
         ai_mode=variant.ai_mode if variant is not None else "off",
         overrides=variant.overrides if variant is not None else {},
         from_step=step.name,
@@ -160,9 +164,6 @@ def update_case(package: str, steps: Sequence[Step], name: str, *, config_dir: P
 
     Raises VeyltraceError (other than a pre-step ConfigError, reported as SKIP) when a step fails.
     """
-    variant = VARIANTS.get(name)
-    if variant is not None and variant.generator is not None:
-        return f"SKIP {package} {name}: needs the synth generator variant {variant.generator!r} (R-03)"
     written: list[str] = []
     for step in steps:
         with tempfile.TemporaryDirectory(prefix="vt-golden-") as tmp:

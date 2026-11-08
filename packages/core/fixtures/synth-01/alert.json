@@ -1,0 +1,1 @@
+{"clamped":false,"detector":null,"protocol":"oracle","schema_version":"0.1.0","shift_ns":0,"t_alert_ns":1767226920000000000,"windows":{"baseline":[1767225720000000000,1767226800000000000],"incident":[1767226800000000000,1767227400000000000]}}

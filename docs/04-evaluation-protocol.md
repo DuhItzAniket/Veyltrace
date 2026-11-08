@@ -162,7 +162,7 @@ Notation: *F* = fault cases of the evaluated split, *N* = normal windows; for ca
 | `NO_FAULT` rates | false-alarm rate = share of held-out normal windows *not* declared `NO_FAULT`; wrong-`NO_FAULT` rate = share of fault cases declared `NO_FAULT`; precision and recall on mixed sets | VeylLab, RCAEval normal windows (synth-05 excluded from reporting) |
 | Proposer lift | AC@1(arm) − AC@1(off), paired | `ai_mode`, `seed` |
 | Proposal outcomes | admitted, accepted, rejection reasons, decision-pool retrieval gain | from `verdict.json` |
-| Decoy metrics | proposal decoys: share of cases where the top-1 changed (H2b); RCAEval-C: share of cases where a decoy-changed service is ranked first | `decoy_present`, `decoy_ranked_first` |
+| Decoy metrics | proposal decoys: share of cases where the top-1 changed (H2b); RCAEval-C: share of cases where a decoy-changed service is ranked first. `decoy_present` = `decoy_changes_json` has a row with `is_true = false` (rows with `is_true = true` record the true change, e.g. synth-04); a decoy's `entity` is mapped to its service before comparing with ranks (a component-scope decoy on `cart-1` counts for `cart`) | `decoy_present`, `decoy_ranked_first` |
 | Permutation invariance | share of cases with identical `verdict_hash` across proposal permutations | `verdict_hash` |
 | Claim-grounding rate (narration) | share of card summary sentences with ≥ 1 citation resolving to an evidence atom; numeric fidelity (100% by construction, measured); checker rejection and template-fallback rates | Causivra; code-computed, no judge [verified_agents §Q8][va] |
 | Cost | wall time per case and per stage (p50, p95); peak RSS (MB); tokens in/out; CPU model, cores, RAM, OS | `wall_ms`, `peak_rss_mb`, `tokens_in`, `tokens_out` |

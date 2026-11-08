@@ -26,6 +26,14 @@ dependencies = [
 [project.scripts]
 veyltrace = "veyltrace_core.cli:app"
 
+# Core owns the synthetic dataset (02 §6.1; R-03): adapter for dataset `synth` and its fetcher,
+# which writes the evaluation-only answer keys (the telemetry is generated on demand, never cached).
+[project.entry-points."veyltrace.adapters"]
+synth = "veyltrace_core.synth.adapter:SynthAdapter"
+
+[project.entry-points."veyltrace.fetchers"]
+synth = "veyltrace_core.synth.fetch:fetch"
+
 [tool.uv.sources]
 veyltrace-contracts = { workspace = true }
 

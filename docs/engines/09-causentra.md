@@ -292,10 +292,11 @@ Missing channels push the verdict toward `INCONCLUSIVE` with a telemetry ask ([0
 | Case | Expected (uncalibrated fixture) |
 |---|---|
 | synth-01 CPU hog | leader = injected service; T1–T4 pass; status `CONFIRMED` or `LIKELY` |
-| synth-02 network delay | leader may fail T1 (no internal anomaly); status `INCONCLUSIVE` acceptable, root's indicator `latency` |
-| synth-03 error injection | leader = injected service; mode `code` |
+| synth-02 network delay | leader `recommend` or `frontend` (frontend's spans carry both 100 ms egress delays, so its E ≥ recommend's); the leader may fail T1 (no internal anomaly); status `INCONCLUSIVE` acceptable, root's indicator `latency` |
+| synth-03 error injection | leader = injected service; mode `code`. The `cart-1` decoy deploy (proximity ≈ 0.449 on `cart`) passes T6 for `cart` until T6 is gated on the candidate being anomalous (lead decision 2026-11-06 §2.11), so do not assert that it leaves cart's V unchanged |
 | synth-04 change-induced regression | T6 passes for the injected service |
 | synth-05 no-fault | `NO_FAULT`, `root = null`, `candidate_set = []` |
+| synth-05@silent (variant) | not `NO_FAULT` (`cart` silent); T4 passes for `cart` and fails for `checkout` (`silent_callee:cart`); T3 untestable (`no_anomalous_entry`: the entry is unaffected), so status `INCONCLUSIVE` |
 
 **Property tests** (hypothesis):
 
