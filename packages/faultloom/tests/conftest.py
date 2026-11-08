@@ -54,16 +54,11 @@ class HandMade:
 
     @staticmethod
     def anomaly(
-        series_id: str,
-        klass: str,
-        detector: str = "robust_z",
-        score: float = 0.0,
-        *,
-        above: bool | None = None,
+        series_id: str, klass: str, detector: str = "robust_z", score: float = 0.0, **kw: bool
     ) -> AnomalyRow:
         """An anomalies row whose family is the series' signal; above_threshold defaults to score >= 3."""
         service, component, signal, source = series_id.split("|")
-        hot = score >= 3.0 if above is None else above
+        hot = kw.get("above", score >= 3.0)
         return AnomalyRow(series_id, service, component, signal, klass, source, detector, score, hot)
 
 
