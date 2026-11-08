@@ -42,8 +42,8 @@ VERSION = "0.1.0"
 NUMERIC_PARAM_TYPES = ("float", "int")
 RUN_STUB_ARITY = 2  # run_stub(ctx, engine_name)
 # Engines whose api.run no longer calls core's R-02 bootstrap `run_stub(ctx, name)` because the
-# owning lane replaced it with the package's own implementation (R-00 Reason stubs, #9).
-PACKAGE_OWNED = frozenset({"faultloom", "causatrix", "causentra"})
+# owning lane replaced it with the package's own implementation (R-00 Reason stubs, #9; X-00 Relentra, #102).
+PACKAGE_OWNED = frozenset({"faultloom", "causatrix", "causentra", "relentra"})
 
 # 03 §7, "Default weight" column of the predicate library table.
 DEFAULT_WEIGHTS = {
