@@ -16,6 +16,13 @@ dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-causatrix"]
 [project.entry-points."veyltrace.engines"]
 causentra = "veyltrace_causentra.api:run"
 
+# Trials T1-T4 (09 §3.4, §5); R-12 adds T5-T10.
+[project.entry-points."veyltrace.trials"]
+T1 = "veyltrace_causentra.trials:T1"
+T2 = "veyltrace_causentra.trials:T2"
+T3 = "veyltrace_causentra.trials:T3"
+T4 = "veyltrace_causentra.trials:T4"
+
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
