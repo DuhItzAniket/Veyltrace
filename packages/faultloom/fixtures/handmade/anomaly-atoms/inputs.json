@@ -1,0 +1,44 @@
+{
+ "_comment": [
+  "Hand-made FaultLoom inputs (R-06), synth-01-shaped: CPU hog on checkout, frontend -> checkout -> payment.",
+  "Not real data and no answer key. Written through io.write by tests/test_handmade.py, so every input is",
+  "validated against its contract on every run. Expected evidence: evidence.main.txt (canonical content).",
+  "Rows that must give no atom: bocpd (not in atoms.detectors), klass=context, card-gateway.example",
+  "(external graph node, outside U). payment-1/payment-2 tie (component A-Z, both refs).",
+  "onsets follow 03-anomara 3.6-3.7: checkout's external onset is its latency row (t_alert + 380 s), so",
+  "t_onset = the second external onset clamped to t_alert + 300 s, and W_score = [t_alert + 300 s, end of",
+  "W_inc]. The cpu and frontend onsets fall before W_score: anomaly atoms use the incident-window score.",
+  "Partial on purpose: Anomara writes one row per series and enabled detector (03 4.1) and signal_cube",
+  "tables; this case holds only the rows the anomaly atoms need. Consumers pass ctx.dataset = 'handmade'."
+ ],
+ "alert": {"schema_version": "0.1.0", "protocol": "oracle", "t_alert_ns": 1767226920000000000, "shift_ns": 0, "detector": null, "windows": {"baseline": [1767225720000000000, 1767226800000000000], "incident": [1767226800000000000, 1767227400000000000]}, "clamped": false},
+ "anomalies": [
+  {"series_id": "checkout|checkout-1|cpu|metrics", "service": "checkout", "component": "checkout-1", "family": "cpu", "klass": "internal", "source": "metrics", "detector": "robust_z", "score": 9.1, "score_norm": 2.312535423847214, "direction": "up", "onset_ns": 1767226920000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "checkout|checkout-1|cpu|metrics", "service": "checkout", "component": "checkout-1", "family": "cpu", "klass": "internal", "source": "metrics", "detector": "nsigma", "score": 7.25, "score_norm": 2.1102132003465894, "direction": "up", "onset_ns": 1767226920000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "checkout|checkout-1|cpu|metrics", "service": "checkout", "component": "checkout-1", "family": "cpu", "klass": "internal", "source": "metrics", "detector": "bocpd", "score": 0.9, "score_norm": 0.6418538861723948, "direction": "up", "onset_ns": 1767226920000000000, "threshold": 0.5, "above_threshold": true},
+  {"series_id": "checkout|checkout-2|cpu|metrics", "service": "checkout", "component": "checkout-2", "family": "cpu", "klass": "internal", "source": "metrics", "detector": "robust_z", "score": 1.5, "score_norm": 0.9162907318741551, "direction": "up", "onset_ns": null, "threshold": 3.0, "above_threshold": false},
+  {"series_id": "checkout|checkout-1|mem|metrics", "service": "checkout", "component": "checkout-1", "family": "mem", "klass": "internal", "source": "metrics", "detector": "robust_z", "score": 2.0, "score_norm": 1.0986122886681098, "direction": "up", "onset_ns": null, "threshold": 3.0, "above_threshold": false},
+  {"series_id": "checkout|checkout|latency|traces", "service": "checkout", "component": "checkout", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 4.2, "score_norm": 1.6486586255873816, "direction": "up", "onset_ns": 1767227300000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "frontend|frontend|latency|traces", "service": "frontend", "component": "frontend", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 6.4, "score_norm": 2.0014800002101243, "direction": "up", "onset_ns": 1767226935000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "frontend|frontend|requests|metrics", "service": "frontend", "component": "frontend", "family": "traffic", "klass": "context", "source": "metrics", "detector": "robust_z", "score": 5.0, "score_norm": 1.791759469228055, "direction": "down", "onset_ns": 1767226935000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "payment|payment-1|errors|logs", "service": "payment", "component": "payment-1", "family": "errors", "klass": "internal", "source": "logs", "detector": "robust_z", "score": 3.3, "score_norm": 1.4586150226995167, "direction": "up", "onset_ns": 1767226965000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "payment|payment-2|errors|logs", "service": "payment", "component": "payment-2", "family": "errors", "klass": "internal", "source": "logs", "detector": "robust_z", "score": 3.3, "score_norm": 1.4586150226995167, "direction": "up", "onset_ns": 1767226965000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "payment|payment-1|errors|logs", "service": "payment", "component": "payment-1", "family": "errors", "klass": "internal", "source": "logs", "detector": "silence", "score": 0.0, "score_norm": 0.0, "direction": "down", "onset_ns": null, "threshold": 1.0, "above_threshold": false},
+  {"series_id": "payment|payment-2|errors|logs", "service": "payment", "component": "payment-2", "family": "errors", "klass": "internal", "source": "logs", "detector": "silence", "score": 0.0, "score_norm": 0.0, "direction": "down", "onset_ns": null, "threshold": 1.0, "above_threshold": false},
+  {"series_id": "redis|redis|mem|metrics", "service": "redis", "component": "redis", "family": "mem", "klass": "internal", "source": "metrics", "detector": "robust_z", "score": 0.0, "score_norm": 0.0, "direction": "flat", "onset_ns": null, "threshold": 3.0, "above_threshold": false},
+  {"series_id": "card-gateway.example|card-gateway.example|latency|traces", "service": "card-gateway.example", "component": "card-gateway.example", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 8.0, "score_norm": 2.1972245773362196, "direction": "up", "onset_ns": 1767226935000000000, "threshold": 3.0, "above_threshold": true}
+ ],
+ "case_manifest": {"schema_version": "0.1.0", "case_id": "b6bdf0930803", "dataset": "handmade", "system": "other", "t_alert_hint_ns": null, "hint_source": "none", "data_start_ns": 1767225600000000000, "data_end_ns": 1767227520000000000, "sources": {"metrics": true, "logs": true, "traces": true, "events": false}, "services": ["checkout", "frontend", "payment"], "inputs": [], "adapter": {"name": "handmade", "version": "1"}, "scrub": {"rules_version": "scrub-1", "dropped_attributes": 0, "dropped_rows": 0}},
+ "graph.nodes": [
+  {"node": "card-gateway.example", "kind": "external", "is_entry": false, "provenance": ["traces"]},
+  {"node": "checkout", "kind": "service", "is_entry": false, "provenance": ["metrics", "traces"]},
+  {"node": "frontend", "kind": "entry", "is_entry": true, "provenance": ["metrics", "traces"]},
+  {"node": "payment", "kind": "service", "is_entry": false, "provenance": ["logs", "traces"]},
+  {"node": "redis", "kind": "cache", "is_entry": false, "provenance": ["metrics", "topology"]}
+ ],
+ "onsets": {"schema_version": "0.1.0", "t_onset_ns": 1767227220000000000, "method": "second_external", "slo_breach_ns": null, "entry_services": ["frontend"], "per_service": [
+  {"service": "checkout", "external_onset_ns": 1767227300000000000, "external_onset_source": "traces", "internal_onset_ns": 1767226920000000000, "internal_onset_source": "metrics", "silent": false},
+  {"service": "frontend", "external_onset_ns": 1767226935000000000, "external_onset_source": "traces", "internal_onset_ns": null, "internal_onset_source": null, "silent": false},
+  {"service": "payment", "external_onset_ns": null, "external_onset_source": null, "internal_onset_ns": 1767226965000000000, "internal_onset_source": "logs", "silent": false}
+ ]}
+}

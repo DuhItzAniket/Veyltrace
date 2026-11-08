@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Final
+from typing import Any, Final
 
 from veyltrace_contracts import models
 from veyltrace_core.context import RunContext
@@ -24,8 +24,10 @@ __all__ = [
     "CLAIM_REQUIRED",
     "EXTERNAL_KIND",
     "MAIN_REQUIRED",
+    "AnomalyRow",
     "EvidenceInputs",
     "GraphNode",
+    "anomaly_rows",
     "load_inputs",
     "missing_required",
     "score_window",
@@ -99,12 +101,28 @@ class GraphNode:
 
 
 @dataclass(frozen=True)
+class AnomalyRow:
+    """One anomalies row with the fields 06 §2.1 reads (03 §4.1), named as BOTH_PASS_TABLES."""
+
+    series_id: str
+    service: str
+    component: str
+    family: str
+    klass: str
+    source: str
+    detector: str
+    score: float
+    above_threshold: bool
+
+
+@dataclass(frozen=True)
 class EvidenceInputs:
     """What both passes read, plus the shared values of 06 §2.1.
 
     `rows` holds the row count of every table input that is present; `absent` names the optional
     inputs that are not in the run directory (treated as zero rows, 06 §6). Windows are half-open
-    [start_ns, end_ns) like alert.windows (03 §2.6).
+    [start_ns, end_ns) like alert.windows (03 §2.6). `anomalies` holds every anomalies row, sorted
+    by the contract key (series_id, detector).
     """
 
     case_id: str
@@ -117,6 +135,7 @@ class EvidenceInputs:
     w_base: tuple[int, int]
     w_inc: tuple[int, int]
     w_score: tuple[int, int]
+    anomalies: tuple[AnomalyRow, ...]
     rows: Mapping[str, int]
     absent: tuple[str, ...]
     notes: tuple[str, ...]
@@ -170,6 +189,12 @@ def _by_node(node: GraphNode) -> str:
     return node.node
 
 
+def anomaly_rows(records: Iterable[Mapping[str, Any]]) -> tuple[AnomalyRow, ...]:
+    """anomalies records as AnomalyRow, sorted by the contract key (series_id, detector)."""
+    found = (AnomalyRow(**{f: r[f] for f in BOTH_PASS_TABLES["anomalies"]}) for r in records)
+    return tuple(sorted(found, key=lambda r: (r.series_id, r.detector)))
+
+
 def load_inputs(ctx: RunContext) -> EvidenceInputs:
     """Read every 06 §2.1 "both"-pass input through `ctx` and derive the shared values.
 
@@ -186,11 +211,15 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
 
     rows: dict[str, int] = {}
     absent: list[str] = []
+    anomalies: tuple[AnomalyRow, ...] = ()
     for name in sorted(BOTH_PASS_TABLES):
         if not ctx.exists(name):
             absent.append(name)
             continue
-        rows[name] = ctx.read_table(name, columns=BOTH_PASS_TABLES[name]).num_rows
+        table = ctx.read_table(name, columns=BOTH_PASS_TABLES[name])
+        rows[name] = table.num_rows
+        if name == "anomalies":
+            anomalies = anomaly_rows(table.to_pylist())
     nodes = _nodes(ctx)
 
     notes: list[str] = []
@@ -214,6 +243,7 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         w_base=alert.windows.baseline,
         w_inc=w_inc,
         w_score=score_window(onsets.t_onset_ns, w_inc, score_ns),
+        anomalies=anomalies,
         rows=dict(sorted(rows.items())),
         absent=tuple(sorted(absent)),
         notes=tuple(notes),

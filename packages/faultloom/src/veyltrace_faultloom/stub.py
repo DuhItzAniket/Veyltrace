@@ -1,13 +1,12 @@
-"""FaultLoom R-00 stub: both passes wired end to end, no evidence atoms derived.
+"""FaultLoom R-00 stub, both passes wired end to end; the engine pass has R-06's anomaly atoms.
 
 Why this exists: the Reason engines must run on synth through the pipeline before their algorithms
 land (07 roadmap R-00, "stub: schema-valid evidence on synth"). The stub reads every input of
 06 §2.1 through the run context, derives the shared values (U, tol_ns, windows; claim-pass pool)
-and writes `evidence` only through the contract writer. It makes no algorithmic claim: every atom
-kind of 03 §7 is computed from Observe evidence by R-06 (anomaly atoms) and R-08 (the rest, the
-predicate library and the symmetric claim pass), and intervention atoms by R-12, so the stub
-writes none. An empty evidence table is honest ("absence is no atom", 06 §6); a 0.0 value would
-look like a healthy measurement.
+and writes `evidence` only through the contract writer. The engine pass writes R-06's anomaly
+atoms (`veyltrace_faultloom.atoms`); every other kind of 03 §7 comes with R-08 (with the predicate
+library and the symmetric claim pass), and intervention atoms with R-12, so none is written yet.
+Absence is honest ("absence is no atom", 06 §6); a 0.0 value would look like a healthy measurement.
 
 Claim pass: engine atoms are read back and rewritten unchanged (06 §2.2), so the evidence file is
 byte-identical before and after when no claim is evaluated.
@@ -21,6 +20,7 @@ from typing import Final
 from veyltrace_contracts import models
 from veyltrace_core.context import EngineResult, RunContext
 from veyltrace_core.errors import ContractValidationError
+from veyltrace_faultloom.atoms import KIND_OF_KLASS, anomaly_atoms
 from veyltrace_faultloom.inputs import (
     CLAIM_REQUIRED,
     MAIN_REQUIRED,
@@ -34,7 +34,7 @@ __all__ = ["ENGINE", "STUB_NOTE", "claim_pool", "run_claim_pass", "run_main"]
 ENGINE: Final = "faultloom"
 #: EngineResult.notes entry of every stub result. It starts with veyltrace_core.cli.STUB_MARK
 #: ("stub: "), so diagnose warns that the run's outputs are not analysis.
-STUB_NOTE: Final = "stub: R-00 FaultLoom derives no evidence atoms yet (R-06/R-08/R-12 replace it)"
+STUB_NOTE: Final = "stub: FaultLoom R-06 has anomaly atoms only; R-08/R-12 add the other kinds and claims"
 #: proposals.status values whose proposals the claim pass would evaluate (03 §9.1).
 _EVALUATED_STATUSES: Final = frozenset({"complete", "budget_exhausted"})
 
@@ -63,14 +63,18 @@ def _notes(view: EvidenceInputs, *extra: str) -> tuple[str, ...]:
 
 
 def run_main(ctx: RunContext) -> EngineResult:
-    """Engine pass (pipeline step 5): read every input, write an empty `evidence` table."""
+    """Engine pass (pipeline step 5): read every input, write the anomaly atoms of U (06 §3.1)."""
     missing = missing_required(ctx, MAIN_REQUIRED)
     if missing:
         return _failed(missing)
     view = load_inputs(ctx)
-    digest = ctx.write("evidence", [])
+    detectors = (str(d) for d in ctx.config["atoms"]["detectors"])
+    atoms = anomaly_atoms(view.anomalies, view.universe, detectors)
+    digest = ctx.write("evidence", atoms)
     metrics = _input_metrics(view)
-    metrics["atoms"] = 0
+    metrics["atoms"] = len(atoms)
+    for kind in KIND_OF_KLASS.values():
+        metrics[f"atoms.{kind}"] = sum(1 for a in atoms if a["kind"] == kind)
     return EngineResult(
         engine=ENGINE, status="ok", outputs=(("evidence", digest),), metrics=metrics, notes=_notes(view)
     )

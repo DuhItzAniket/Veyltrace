@@ -45,7 +45,7 @@ Until R-10 lands, `api.run` calls the package's own stub, `veyltrace_causentra.s
 
 **Writes** `verdict.json` through `ctx.write`, so it is schema-checked, order-checked and self-hashed:
 - **Status.** `status = INCONCLUSIVE`, `root = null`, `confidence.level = none` and `margin = 0.0`.
-- **`ranked`.** Every slate candidate appears, in slate rank order, with `origin = slate`. `indicator`, `fault_class` and `component` are copied from the slate, and `fused_score` comes from `slate.all_scores` (the candidate's own value if U lacks it). Each candidate has `v = 0.0` and `nonconformity = 1.0`. This is the 09 §3.15 "all V = 0" case: no trial is evaluated, so nothing has verified support and there is no leader. On R-00 the slate order is name-only (see the Causatrix README), so `ranked` and `ranks_rcaeval` are not a ranking.
+- **`ranked`.** Every slate candidate appears, in slate rank order, with `origin = slate`. `indicator`, `fault_class` and `component` are copied from the slate, and `fused_score` comes from `slate.all_scores` (the candidate's own value if U lacks it). Each candidate has `v = 0.0` and `nonconformity = 1.0`. This is the 09 §3.15 "all V = 0" case: no trial is evaluated, so nothing has verified support and there is no leader. The slate order is the Causatrix stub's tie-break (see the Causatrix README): name-only with no atoms (synth today), internal-anomaly-first, then earliest onset, then name with R-06's anomaly atoms. Either way `ranked` and `ranks_rcaeval` are not a ranking.
 - **`trials`.** A trial is written only when it applies and an existence fact of the inputs already makes it `untestable`. It gets the 09 §3.4 reason and `atoms = []`:
 
   | Trial | Written as `untestable` when | Reason |
