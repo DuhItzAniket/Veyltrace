@@ -611,7 +611,7 @@ Acceptance: tests fail on the current stub where the spec says they should, pass
 ### 5.4 Fix a CI failure
 
 ```text
-CI failed on PR #<P> (issue #<N>). Job: <lint|types|tests|isolation|determinism|contracts-in-sync|lanes|changelog|agent-files|docs|console>.
+CI failed on PR #<P> (issue #<N>). Job: <detect|lint|types|tests|isolation|determinism|contracts-in-sync|lanes|changelog|agent-files|docs|console|fixtures-stale>.
 Log excerpt:
 <paste the failing lines from `gh run view --log-failed` or the Actions page>
 1. Reproduce locally with the same command CI runs (docs/10-sdlc-and-quality.md §5 lists them) and paste the output.
