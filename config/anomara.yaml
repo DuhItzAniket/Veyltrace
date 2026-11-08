@@ -1,7 +1,7 @@
 # config/anomara.yaml: section "anomara" (file stem). Owner: Observe lane.
-# Spec: docs/engines/03-anomara.md §4. Keys arrive with the detectors that read them (O-04c: grid,
-# robust_z, nsigma; O-04d: bocpd, silence; O-04e: onset, t_onset; detect_alert: slo). Overrides
-# must name keys present here (packages/core/README.md: unknown keys are an error).
+# Spec: docs/engines/03-anomara.md §4. Keys arrive with the detectors that read them (O-04c: grid;
+# O-04d: robust_z; O-04e: nsigma, silence; O-04f: bocpd; O-04g: onset, t_onset; detect_alert:
+# slo). Overrides must name keys present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06). 03-anomara states no
@@ -15,3 +15,25 @@ grid:
   # with fewer than two points, whose step cannot be inferred from t_ns (03 §3.1).
   bucket_s: 10
 
+robust_z:
+  # 03-anomara §3.2: s_B = max(mad_factor * MAD, IQR / iqr_divisor, epsilon(family, unit), eta * |median|).
+  mad_factor: 1.4826        # normal consistency constant
+  iqr_divisor: 1.349        # normal consistency constant
+  eta: 0.02                 # a priori, 2% of |median|
+  # epsilon(family, unit), a priori (03-anomara §3.2 table). "*" = any unit not listed for the
+  # family; a (family, unit) pair with neither falls back to other."*", which only prevents a
+  # division by zero.
+  epsilon:
+    cpu: {cores: 0.001, "*": 0.1}       # 0.1% CPU; RCAEval CPU looks like percent (unverified)
+    mem: {bytes: 1048576}               # 1 MiB
+    disk: {"*": 1.0}                    # source unit
+    net: {"*": 1.0}                     # source unit
+    latency: {ms: 1.0}                  # 1 ms
+    self_time: {ms: 1.0}                # 1 ms
+    errors: {ratio: 0.01, "*": 0.1}
+    traffic: {"1/s": 0.1, "*": 1.0}
+    logs: {"1/s": 0.1, count: 1.0}
+    other: {"*": 1.0e-6}
+  persist_steps: 3          # p, grid steps a deviation must persist (a priori)
+  threshold: 3.0            # z; PRISM's nominal threshold (rcaeval_facts §Anomaly scoring methods)
+  min_baseline_steps: 5     # grid buckets the baseline must cover, else score 0 (a priori)
