@@ -1,0 +1,134 @@
+# Veyltrace v2 — virtual uv workspace root (no [project]: nothing is built from the root).
+# One uv.lock for all members (02 §8). Regenerate the lock with `uv lock`, never by hand (AGENTS §4.1).
+# Install: `uv sync --all-packages`. CI: `uv sync --locked --all-packages` (no extras: Anomara's tsfm
+# extra is never installed in CI; M0 lead decision 2026-11-06).
+
+[tool.uv.workspace]
+# The 13 packages, bench and the generated contracts package (M0 lead decision 2026-11-06: 15 members).
+# lab/ is not a member: it has its own tooling (lab/AGENTS.md).
+members = [
+    "packages/core",
+    "packages/infralume",
+    "packages/signalyth",
+    "packages/anomara",
+    "packages/causync",
+    "packages/causalith",
+    "packages/faultloom",
+    "packages/causatrix",
+    "packages/relentra",
+    "packages/causentra",
+    "packages/causivra",
+    "packages/llm",
+    "packages/gateway",
+    "bench",
+    "contracts/generated/python",
+]
+
+[dependency-groups]
+# Workspace dev tools (02 §8 Quality). Minimum versions only; uv.lock pins the exact ones.
+dev = [
+    "hypothesis>=6.112",
+    "jsonschema>=4.23",
+    "pathspec>=0.12",       # scripts/check_lanes.py (PEP 723 dep), so pyright resolves its import
+    "pre-commit>=4.0",
+    "pyarrow-stubs>=17",    # pyarrow ships no type information; needed for pyright strict in core
+    "pyright>=1.1.390",
+    "pytest>=8.3",
+    "referencing>=0.35",
+    "ruff>=0.8",
+    "towncrier>=24.7",      # `ignore` in towncrier.toml needs >= 24.7
+    "types-pyyaml>=6.0.12", # pyyaml ships no type information; needed for pyright strict in core
+]
+
+# ---------------------------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 110
+# Python only: ruff >= 0.17 also formats code blocks in Markdown by default, and the docs' code
+# blocks are spec excerpts owned by their lanes, not formatted source.
+include = ["*.py", "*.pyi", "**/pyproject.toml"]
+# Generated code is checked separately (gen_contracts.py --check); console is TypeScript.
+extend-exclude = ["contracts/generated", "console", "**/node_modules", "**/fixtures"]
+
+[tool.ruff.format]
+line-ending = "lf"  # .gitattributes eol=lf; byte-identical files on Windows and Linux
+# scripts/gen_contracts.py predates the 110-column workspace config (contracts v0.1, #4) and is
+# frozen in this PR; reformat it in its own chore PR together with regenerating contracts.
+exclude = ["scripts/gen_contracts.py"]
+
+[tool.ruff.lint]
+# PLW1514 (unspecified-encoding) is a preview rule: enable preview, but only for rules named
+# explicitly, so selecting "PL" never pulls in other preview rules (M0 lead decision 2026-11-06).
+preview = true
+explicit-preview-rules = true
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "PLC", # pylint conventions
+    "PLE", # pylint errors
+    "PLW", # pylint warnings
+    "PLW1514", # open()/read_text()/write_text() without encoding: cp1252 on Windows, UTF-8 on CI
+    "RUF", # ruff-specific
+]
+ignore = [
+    "PLC0415", # import-outside-toplevel: lazy imports are deliberate (CLI start-up, isolation, Anomara tsfm)
+]
+# Typographic characters used in docstrings that cite the docs (en dash ranges, minus, ×).
+allowed-confusables = ["–", "−", "×"]
+
+[tool.ruff.lint.per-file-ignores]
+# Same reason as format.exclude above: written for 120 columns before this config existed.
+"scripts/gen_contracts.py" = ["E501", "RUF100"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["veyltrace_*"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Typer declares CLI parameters through call defaults.
+extend-immutable-calls = ["typer.Argument", "typer.Option"]
+
+# ---------------------------------------------------------------------------------------------
+[tool.pyright]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+include = ["packages", "bench", "tests", "scripts", "conftest.py"]
+exclude = [
+    "contracts/generated",
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "console",
+    "lab",
+]
+# Strict for core and engines 1-10 (check_ci §1; AGENTS §5), so lane code lands strict from its
+# first PR; basic for llm, gateway, bench, tests, scripts (and generated code is excluded).
+typeCheckingMode = "basic"
+strict = [
+    "packages/core/src",
+    "packages/infralume/src",
+    "packages/signalyth/src",
+    "packages/anomara/src",
+    "packages/causync/src",
+    "packages/causalith/src",
+    "packages/faultloom/src",
+    "packages/causatrix/src",
+    "packages/relentra/src",
+    "packages/causentra/src",
+    "packages/causivra/src",
+]
+
+# ---------------------------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["packages", "bench", "tests"]
+# importlib mode: every package has its own tests/ dir with overlapping module names (test_config.py …).
+addopts = ["-q", "--import-mode=importlib", "--strict-markers"]
+markers = [
+    "real_data: needs a real dataset under VEYLTRACE_DATA; skipped when VEYLTRACE_DATA is unset",
+]

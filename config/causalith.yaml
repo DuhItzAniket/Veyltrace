@@ -1,0 +1,9 @@
+# config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
+# Spec: docs/engines/05-causalith.md §4. R-02 bootstrap: only the keys core needs now; the Observe
+# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
+# unknown keys are an error).
+
+duckdb:
+  # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
+  threads: 1             # determinism (05-causalith §4)
+  memory_limit: "2GB"    # 05-causalith states no value: lead default (a priori)

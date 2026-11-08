@@ -1,0 +1,5 @@
+# config/causatrix.yaml: section "causatrix" (file stem). Owner: Reason lane.
+# Spec: docs/engines/07-causatrix.md §4. R-02 bootstrap: core needs no Causatrix key yet; the Reason
+# lane adds them in R-00, including ablation keys such as fusion.method, which overrides can only
+# name once they are here (packages/core/README.md).
+{}

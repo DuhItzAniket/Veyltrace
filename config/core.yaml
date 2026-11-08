@@ -1,0 +1,39 @@
+# config/core.yaml: section "core" (the file stem; the top level is the section body, no wrapper key).
+# Owner: Reason lane (core). Spec: docs/02-architecture.md §5.1, packages/core/README.md; key names
+# fixed by the M0 lead decision 2026-11-06. Override with dotted keys, e.g. core.alert.shift_s=-120.
+# Every key here enters config.lock.json except the `paths` subtree, and `ai.mode` is a run
+# parameter, not a config key (03 §12.2).
+
+alert:
+  # oracle | detected | live (02 §5.1). Oracle = the dataset's published injection time, the
+  # standard RCAEval protocol, kept for comparability with the literature.
+  protocol: oracle
+  # Onset-shift robustness offset in whole seconds, applied by core's alert step under every
+  # protocol (02 §5.1; 03 §2.6: shift_ns = shift_s * 10^9). 0 except in shift experiments.
+  shift_s: 0
+  # Reject a case whose hint lies outside [data_start_ns, data_end_ns] (01 §11 Q8: broken
+  # RE1-OB cases are "not run" under the oracle protocol).
+  reject_hint_outside_span: true
+
+windows:
+  # Offsets in seconds relative to t_alert, half-open [start, end), clamped to the data span
+  # (02 §5.1 defaults: baseline [t_alert - 20 min, t_alert - 2 min], incident
+  # [t_alert - 2 min, t_alert + 8 min]; 03 §2.6).
+  baseline_s: [-1200, -120]
+  incident_s: [-120, 480]
+
+thresholds:
+  # k_anom shared by FaultLoom, Causatrix and Causentra (06 §2.1, 07 §2.1, 09 §2.1): PRISM's
+  # epsilon = 3 for z-scores and SimpleRCA's 3-sigma alert rule.
+  anomaly_z: 3.0
+
+universe:
+  # External nodes join the candidate universe U only when true (06 §2.1; default false).
+  include_external: false
+
+paths:
+  # Environment-dependent locations: never written to config.lock.json (03 §12.2). Only `runs` is a
+  # key; the other two locations are fixed on purpose, so there is no key that silently does
+  # nothing: the data root is $VEYLTRACE_DATA (default ~/veyltrace-data), resolved at call time by
+  # config.data_root(), and calibration files are always <config dir>/calibration/ (03 §12.1).
+  runs: runs

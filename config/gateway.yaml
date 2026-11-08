@@ -1,0 +1,5 @@
+# config/gateway.yaml: section "gateway" (file stem). Owner: Explain lane.
+# Spec: docs/06-gateway-and-console.md §6. Loaded only by the gateway (load_section_file("gateway"))
+# and never written to config.lock.json (03 §12.2). R-02 bootstrap: core needs no
+# gateway key; the Explain lane adds them in X-00.
+{}

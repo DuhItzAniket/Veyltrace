@@ -54,7 +54,9 @@ def load() -> list[dict[str, str]]:
 
 
 def gh(*args: str) -> str:
-    proc = subprocess.run(["gh", *args], capture_output=True, text=True, encoding="utf-8")
+    proc = subprocess.run(  # returncode is checked below, to show gh's stderr
+        ["gh", *args], capture_output=True, text=True, encoding="utf-8", check=False
+    )
     if proc.returncode != 0:
         raise SystemExit(f"gh {' '.join(args[:3])} ... failed:\n{proc.stderr.strip()}")
     return proc.stdout
@@ -69,7 +71,10 @@ def main() -> int:
 
     labels = load()
     if not args.apply:
-        print(f"DRY RUN for {args.repo} (use --apply). {len(labels)} label(s) in {LABELS_FILE.relative_to(ROOT).as_posix()}:")
+        print(
+            f"DRY RUN for {args.repo} (use --apply). {len(labels)} label(s) in"
+            f" {LABELS_FILE.relative_to(ROOT).as_posix()}:"
+        )
         for lb in labels:
             print(f"  {lb['name']:<20} #{lb['color']}  {lb.get('description', '')}")
         if args.prune:
@@ -79,12 +84,25 @@ def main() -> int:
     if shutil.which("gh") is None:
         raise SystemExit("gh CLI not found. Install it and run `gh auth login`.")
     for lb in labels:
-        gh("label", "create", lb["name"], "--repo", args.repo, "--color", lb["color"],
-           "--description", str(lb.get("description", "")), "--force")
+        gh(
+            "label",
+            "create",
+            lb["name"],
+            "--repo",
+            args.repo,
+            "--color",
+            lb["color"],
+            "--description",
+            str(lb.get("description", "")),
+            "--force",
+        )
         print(f"synced  {lb['name']}")
     if args.prune:
         wanted = {lb["name"] for lb in labels}
-        current = [l["name"] for l in json.loads(gh("label", "list", "--repo", args.repo, "--limit", "500", "--json", "name"))]
+        current = [
+            lb["name"]
+            for lb in json.loads(gh("label", "list", "--repo", args.repo, "--limit", "500", "--json", "name"))
+        ]
         for name in sorted(set(current) - wanted):
             gh("label", "delete", name, "--repo", args.repo, "--yes")
             print(f"deleted {name}")

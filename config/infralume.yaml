@@ -1,0 +1,14 @@
+# config/infralume.yaml: section "infralume" (file stem). Owner: Observe lane.
+# Spec: docs/engines/01-infralume.md §4. R-02 bootstrap: only the keys core needs now; the Observe
+# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
+# unknown keys are an error).
+
+sources:
+  # Telemetry ablation (FR-4): sources replaced by zero-row tables, e.g. [events] (01 §4; 04 §5.2).
+  # Core's testing.VARIANTS overrides it for the synth-01 source-drop variants.
+  drop: []
+
+duckdb:
+  # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
+  threads: 1            # deterministic aggregates (01 §4; rcaeval_facts §Engineering)
+  memory_limit: "1GB"   # share of the 3 GB per-case budget (01 §4, §8)

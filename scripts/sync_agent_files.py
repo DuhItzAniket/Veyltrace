@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import argparse
 import os
-import shutil
 import sys
 from pathlib import Path
 
@@ -42,8 +41,18 @@ CLAUDE_IMPORT = "@AGENTS.md\n"
 
 # Directories never scanned (vendored, generated, archived or other worktrees).
 PRUNE = {
-    ".git", "node_modules", ".venv", "venv", "__pycache__", ".pytest_cache",
-    ".ruff_cache", ".mypy_cache", ".hypothesis", "dist", "build", "_hackday-v1",
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".hypothesis",
+    "dist",
+    "build",
+    "_hackday-v1",
 }
 PRUNE_PATHS = {Path(".claude") / "worktrees"}
 
@@ -58,7 +67,7 @@ FORBIDDEN_DIRS = [
 ]
 FORBIDDEN_ROOT_FILES = [Path(".github") / "copilot-instructions.md"]
 
-MAX_AGENTS_CHARS = 12_000   # Windsurf/Devin workspace rule file limit
+MAX_AGENTS_CHARS = 12_000  # Windsurf/Devin workspace rule file limit
 MAX_CHAIN_BYTES = 32 * 1024  # Codex project_doc_max_bytes default
 
 TEXT_SUFFIXES = {".md", ".txt", ".py", ".sh", ".yaml", ".yml", ".json", ".toml", ".ps1"}
@@ -105,6 +114,7 @@ def walk(top: Path):
 
 
 # ---------------------------------------------------------------- skills
+
 
 def expected_skill_files() -> dict[str, bytes]:
     """Map of path relative to DST -> content, as the sync would write it."""
@@ -183,15 +193,20 @@ def validate_skill_frontmatter() -> list[str]:
             key, _, value = line.partition(":")
             keys[key.strip()] = value.strip().strip("\"'")
         if set(keys) != {"name", "description"}:
-            problems.append(f"{rel(skill)}: frontmatter keys must be exactly name, description (found {sorted(keys)})")
+            problems.append(
+                f"{rel(skill)}: frontmatter keys must be exactly name, description (found {sorted(keys)})"
+            )
         if keys.get("name") != skill_dir.name:
-            problems.append(f"{rel(skill)}: name '{keys.get('name')}' must equal folder name '{skill_dir.name}'")
+            problems.append(
+                f"{rel(skill)}: name '{keys.get('name')}' must equal folder name '{skill_dir.name}'"
+            )
         if not keys.get("description"):
             problems.append(f"{rel(skill)}: description is empty")
     return problems
 
 
 # ---------------------------------------------------------------- instruction files
+
 
 def check_instruction_files(check: bool) -> list[str]:
     problems: list[str] = []
@@ -203,10 +218,15 @@ def check_instruction_files(check: bool) -> list[str]:
             problems.append(f"forbidden instruction file: {rel(d / name)} (AGENTS.md is the only rules file)")
     for fd in FORBIDDEN_DIRS:
         if (ROOT / fd).is_dir() and any((ROOT / fd).iterdir()):
-            problems.append(f"forbidden instruction folder: {fd.as_posix()}/ (AGENTS.md is the only rules file)")
+            problems.append(
+                f"forbidden instruction folder: {fd.as_posix()}/ (AGENTS.md is the only rules file)"
+            )
     for ff in FORBIDDEN_ROOT_FILES:
         if (ROOT / ff).is_file():
-            problems.append(f"forbidden instruction file: {ff.as_posix()} (needs an ADR and an allow-list change in this script)")
+            problems.append(
+                f"forbidden instruction file: {ff.as_posix()}"
+                " (needs an ADR and an allow-list change in this script)"
+            )
 
     root_agents = ROOT / "AGENTS.md"
     root_claude = ROOT / "CLAUDE.md"
@@ -221,12 +241,18 @@ def check_instruction_files(check: bool) -> list[str]:
     for agents in agents_files:
         text = agents.read_text(encoding="utf-8")
         if len(text) > MAX_AGENTS_CHARS:
-            problems.append(f"{rel(agents)}: {len(text)} characters > {MAX_AGENTS_CHARS} (Windsurf/Devin rule-file limit); move detail to docs/")
+            problems.append(
+                f"{rel(agents)}: {len(text)} characters > {MAX_AGENTS_CHARS}"
+                " (Windsurf/Devin rule-file limit); move detail to docs/"
+            )
         if agents == root_agents:
             continue
         chain = root_bytes + len(agents.read_bytes())
         if chain > MAX_CHAIN_BYTES:
-            problems.append(f"{rel(agents)}: root + nested AGENTS.md = {chain} bytes > {MAX_CHAIN_BYTES} (Codex combined cap)")
+            problems.append(
+                f"{rel(agents)}: root + nested AGENTS.md = {chain} bytes > {MAX_CHAIN_BYTES}"
+                " (Codex combined cap)"
+            )
         claude = agents.parent / "CLAUDE.md"
         if not claude.is_file():
             if check:
@@ -257,7 +283,9 @@ def main() -> int:
         if args.check:
             print("Fix: uv run python scripts/sync_agent_files.py  (then commit the result)")
         return 1
-    print("OK: .claude/skills matches .agents/skills; nested CLAUDE.md files present; no duplicate rule files.")
+    print(
+        "OK: .claude/skills matches .agents/skills; nested CLAUDE.md files present; no duplicate rule files."
+    )
     return 0
 
 

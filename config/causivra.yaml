@@ -1,0 +1,4 @@
+# config/causivra.yaml: section "causivra" (file stem). Owner: Explain lane.
+# Spec: docs/engines/10-causivra.md §4. R-02 bootstrap: core needs no Causivra key yet; the Explain
+# lane adds them in X-00. Overrides can only name keys present here (packages/core/README.md).
+{}

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "veyltrace-bench"
+version = "0.1.0"
+description = "Veyltrace bench: evaluation harness, baselines, metrics, calibration fitting and tables."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["veyltrace-core", "veyltrace-contracts"]
+
+[tool.uv.sources]
+veyltrace-core = { workspace = true }
+veyltrace-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/veyltrace_bench"]
+
+# Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
+# (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
+[tool.veyltrace.isolation]
+allow = []

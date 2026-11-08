@@ -28,7 +28,7 @@ import io
 import re
 import sys
 import unicodedata
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -42,9 +42,9 @@ SETEXT = re.compile(r"^ {0,3}(=+|-+)[ \t]*$")
 HTML_ANCHOR = re.compile(r"""<a\s+[^>]*?(?:id|name)\s*=\s*["']([^"']+)["']""", re.IGNORECASE)
 CODE_SPAN = re.compile(r"(`+)(.+?)\1")
 INLINE_LINK = re.compile(
-    r"!?\[(?:[^\[\]]|\[[^\]]*\])*\]"            # [text] allowing one level of nested []
+    r"!?\[(?:[^\[\]]|\[[^\]]*\])*\]"  # [text] allowing one level of nested []
     r"\(\s*(<[^>]*>|[^)\s]*(?:\([^)\s]*\)[^)\s]*)*)"  # target, allowing balanced ()
-    r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?\s*\)"   # optional title
+    r"(?:\s+(?:\"[^\"]*\"|'[^']*'|\([^)]*\)))?\s*\)"  # optional title
 )
 REF_DEF = re.compile(r"^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)")
 SCHEME = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
@@ -87,7 +87,7 @@ def iter_lines(path: Path):
         yield no, line, False
 
 
-@lru_cache(maxsize=None)
+@cache
 def anchors_of(path: Path) -> frozenset[str]:
     seen: dict[str, int] = {}
     found: set[str] = set()
@@ -153,9 +153,9 @@ def check_target(src: Path, raw: str) -> str | None:
             return "file not found"
     else:
         dest = src
-    if anchor and dest.is_file() and dest.suffix.lower() == ".md":
-        if anchor.lower() not in anchors_of(dest):
-            return f"anchor #{anchor} not found in {dest.relative_to(ROOT).as_posix() if dest.is_relative_to(ROOT) else dest}"
+    if anchor and dest.is_file() and dest.suffix.lower() == ".md" and anchor.lower() not in anchors_of(dest):
+        shown = dest.relative_to(ROOT).as_posix() if dest.is_relative_to(ROOT) else dest
+        return f"anchor #{anchor} not found in {shown}"
     return None
 
 
@@ -184,8 +184,12 @@ def collect(paths: list[str], excludes: list[str]) -> list[Path]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("paths", nargs="*", help="files or folders relative to the repo root (default: whole repo)")
-    ap.add_argument("--exclude", action="append", default=[], help="path prefix to skip, relative to the repo root")
+    ap.add_argument(
+        "paths", nargs="*", help="files or folders relative to the repo root (default: whole repo)"
+    )
+    ap.add_argument(
+        "--exclude", action="append", default=[], help="path prefix to skip, relative to the repo root"
+    )
     args = ap.parse_args()
     if isinstance(sys.stdout, io.TextIOWrapper):  # Windows pipes default to cp1252
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")

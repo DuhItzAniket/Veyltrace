@@ -1,0 +1,106 @@
+"""testing.update_golden: goldens regenerated from upstream fixtures, phase-qualified, locked.
+
+The fixture root is redirected to a temporary work tree, so the test never writes into the repo.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from veyltrace_contracts.models import RunManifest
+from veyltrace_core.steps import STEPS
+from veyltrace_core.testing import fixtures, stale_upstream
+from veyltrace_core.testing.update_golden import FIXTURE_ENV, main, steps_of
+
+REPO = Path(__file__).resolve().parents[3]
+CASE = "synth-01"
+
+
+@pytest.fixture
+def tree(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """A scratch work tree whose packages/<p>/fixtures/ receive the goldens."""
+    monkeypatch.setattr(fixtures, "repo_root", lambda: tmp_path)
+    return tmp_path
+
+
+def _update(package: str, *steps: str, case: str = CASE) -> int:
+    argv = ["--package", package, "--case", case, "--config-dir", str(REPO / "config")]
+    for name in steps:
+        argv += ["--step", name]
+    return main(argv)
+
+
+def _cascade() -> None:
+    """Every sub-step once, in pipeline order (what check.py --update-golden --cascade runs)."""
+    for step in STEPS:
+        assert _update(step.runner, step.name) == 0, step.name
+
+
+def test_cascade_writes_every_golden_with_phases_and_locks(tree: Path) -> None:
+    _cascade()
+    fx = tree / "packages"
+    assert (fx / "infralume" / "fixtures" / CASE / "case_manifest.json").is_file()
+    assert (fx / "core" / "fixtures" / CASE / "alert.json").is_file()
+    faultloom = fx / "faultloom" / "fixtures" / CASE
+    assert (faultloom / "evidence.main.parquet").is_file()
+    assert (faultloom / "evidence.final.parquet").is_file()
+    assert not (faultloom / "evidence.parquet").exists()
+    assert (fx / "causivra" / "fixtures" / CASE / "receipt.json").is_file()
+    manifest_path = fx / "core" / "fixtures" / CASE / "run_manifest.json"
+    manifest = RunManifest.model_validate_json(manifest_path.read_bytes())
+    assert manifest.code.commit == fixtures.FIXTURE_CODE_COMMIT  # pinned, not this checkout's
+    assert manifest.uv_lock_sha256 == FIXTURE_ENV["uv_lock_sha256"]
+    for package in sorted({s.runner for s in STEPS}):
+        assert stale_upstream(package, CASE) == (), package
+
+
+def test_regeneration_is_byte_stable(tree: Path) -> None:
+    _update("infralume")
+    _update("core", "alert")
+    alert = tree / "packages" / "core" / "fixtures" / CASE / "alert.json"
+    first = alert.read_bytes()
+    _update("core", "alert")
+    assert alert.read_bytes() == first
+
+
+def test_upstream_change_makes_the_consumer_stale(tree: Path) -> None:
+    _update("infralume")
+    _update("core", "alert")
+    _update("signalyth")
+    assert stale_upstream("signalyth", CASE) == ()
+    events = tree / "packages" / "infralume" / "fixtures" / CASE / "telemetry" / "events.parquet"
+    events.unlink()
+    assert any("removed upstream fixture" in r for r in stale_upstream("signalyth", CASE))
+
+
+def test_missing_upstream_fails_and_plugin_gaps_skip(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert _update("signalyth") == 1  # no infralume/core fixtures yet
+    assert "FAIL signalyth synth-01" in capsys.readouterr().out
+    _update("infralume", case="synth-01@detected")
+    assert _update("core", "alert", case="synth-01@detected") == 0
+    assert "SKIP core synth-01@detected alert" in capsys.readouterr().out
+    assert _update("core", "alert", case="synth-05@silent") == 0
+    assert "generator variant" in capsys.readouterr().out
+
+
+def test_consumer_of_a_skipped_producer_skips_too(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    # Regression: the cascade failed on signalyth synth-01@detected because core's alert was
+    # SKIPped (no detector before O-04) and left no alert.json upstream.
+    case = "synth-01@detected"
+    assert _update("infralume", case=case) == 0
+    assert _update("core", "alert", case=case) == 0
+    capsys.readouterr()
+    assert _update("signalyth", case=case) == 0
+    out = capsys.readouterr().out
+    assert "SKIP signalyth synth-01@detected signalyth: upstream cannot run yet" in out
+    assert "alert_detectors" in out
+    assert not (tree / "packages" / "signalyth" / "fixtures" / case).exists()
+
+
+def test_steps_of() -> None:
+    assert [s.name for s in steps_of("faultloom")] == ["faultloom", "faultloom.claim_pass"]
+    assert [s.name for s in steps_of("core")] == ["alert", "manifest"]
+    with pytest.raises(ValueError, match="not run by"):
+        steps_of("core", ["signalyth"])

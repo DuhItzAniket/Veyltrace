@@ -1,0 +1,13 @@
+# config/llm.yaml: section "llm" (file stem). Owner: Explain lane. Used by Relentra, Causivra and
+# the gateway. Spec: docs/engines/08-relentra.md §4. The section enters config.lock.json, base_url
+# included, because replay exit 4 needs it (03 §12.2; M0 lead decision 2026-11-06).
+# R-02 bootstrap: only the identity keys; the Explain lane adds runtime and sampler keys in X-00.
+
+# ollama | llamacpp | openai_compat | fake (08-relentra §4).
+provider: ollama
+# Localhost only; a remote endpoint needs VEYLTRACE_ALLOW_REMOTE_LLM=1 (02 §9; 08-relentra §5.4).
+base_url: "http://127.0.0.1:11434"
+model:
+  name: "qwen3.5:9b"            # 02 §12; exact tag pinned at M0 (08-relentra §4)
+  gguf_sha256: null             # null until pinned after llama-bench (08-relentra §4)
+  fallback_name: "qwen3.5:4b"   # 02 §6.8

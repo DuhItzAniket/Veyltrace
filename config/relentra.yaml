@@ -1,0 +1,10 @@
+# config/relentra.yaml: section "relentra" (file stem). Owner: Explain lane.
+# Spec: docs/engines/08-relentra.md §4. R-02 bootstrap: only the keys core needs now; the Explain
+# lane adds the rest in X-00. Overrides must name keys present here (packages/core/README.md:
+# unknown keys are an error).
+
+# false: Relentra reports status = skipped even with AI on (narration-only runs) (08-relentra §4).
+enabled: true
+# brief | investigate | agent_only (08-relentra §4; 02 §6.8 default). With AI on, core uses it as
+# the calibration ai_arm when building the family_id (03 §12.1).
+mode: brief
