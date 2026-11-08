@@ -1,0 +1,424 @@
+{
+ "_comment": [
+  "CPU hog on checkout: frontend -> checkout -> payment. checkout has cpu z 9 (component checkout-1), its onset",
+  "precedes its anomalous dependent frontend, it reaches the anomalous entry, nothing it calls is silent: T1-T4",
+  "pass. frontend's internal z is 1 (T1 fails), payment has no onset. Expected: CONFIRMED, root checkout",
+  "resource/cpu/cpu. The slate comes from Causatrix on these inputs. Hand-made, not real data, no answer key."
+ ],
+ "case_manifest": {
+  "schema_version": "0.1.0",
+  "case_id": "c0ffee000001",
+  "dataset": "handmade",
+  "system": "other",
+  "t_alert_hint_ns": null,
+  "hint_source": "none",
+  "data_start_ns": 1767225600000000000,
+  "data_end_ns": 1767227520000000000,
+  "sources": {
+   "metrics": true,
+   "logs": true,
+   "traces": true,
+   "events": false
+  },
+  "services": [
+   "checkout",
+   "frontend",
+   "payment"
+  ],
+  "inputs": [],
+  "adapter": {
+   "name": "handmade",
+   "version": "1"
+  },
+  "scrub": {
+   "rules_version": "scrub-1",
+   "dropped_attributes": 0,
+   "dropped_rows": 0
+  }
+ },
+ "evidence": [
+  {
+   "atom_id": "Ec2738c422e",
+   "candidate": "checkout",
+   "component": "checkout-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 9.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "checkout|checkout-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E9234bf6adb",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 6.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "checkout|checkout|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E92c60db966",
+   "candidate": "checkout",
+   "component": "checkout-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 10.799999999999999,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "checkout|checkout-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E69dec80d43",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "checkout|checkout-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E586a046788",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "propagation",
+   "predicate": null,
+   "args_json": "{\"scope\":\"entry\",\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E39040cc71a",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "onset_precedence",
+   "predicate": null,
+   "args_json": "{\"scope\":\"self\",\"window\":\"onset\"}",
+   "value": 0.0,
+   "unit": "ms",
+   "window": "onset",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E8aa8de679c",
+   "candidate": "checkout",
+   "component": null,
+   "kind": "onset_precedence",
+   "predicate": null,
+   "args_json": "{\"scope\":\"dependents\",\"window\":\"onset\"}",
+   "value": 1.0,
+   "unit": null,
+   "window": "onset",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee7ebb9ac8a",
+   "candidate": "frontend",
+   "component": "frontend-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eec03d297f6",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 7.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee0425738cd",
+   "candidate": "frontend",
+   "component": "frontend-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 1.2,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E2a9591ce1a",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "frontend|frontend-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E6a49a9c872",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "propagation",
+   "predicate": null,
+   "args_json": "{\"scope\":\"entry\",\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eb7975b24ea",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "onset_precedence",
+   "predicate": null,
+   "args_json": "{\"scope\":\"self\",\"window\":\"onset\"}",
+   "value": 30000.0,
+   "unit": "ms",
+   "window": "onset",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E70f811c2a2",
+   "candidate": "payment",
+   "component": "payment-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.5,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "payment|payment-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eb23b7f3578",
+   "candidate": "payment",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 0.4,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "payment|payment|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E0fbf00c872",
+   "candidate": "payment",
+   "component": "payment-1",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.6,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "payment|payment-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E23c811e2ae",
+   "candidate": "payment",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [
+    "payment|payment-1|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee4ddfcab63",
+   "candidate": "payment",
+   "component": null,
+   "kind": "propagation",
+   "predicate": null,
+   "args_json": "{\"scope\":\"entry\",\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  }
+ ],
+ "graph.nodes": [
+  {
+   "node": "checkout",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "frontend",
+   "kind": "entry",
+   "is_entry": true,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "payment",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  }
+ ],
+ "graph.edges": [
+  {
+   "src": "checkout",
+   "dst": "payment",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": 40,
+   "weight": 1.0,
+   "anomalous": false
+  },
+  {
+   "src": "frontend",
+   "dst": "checkout",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": 50,
+   "weight": 1.0,
+   "anomalous": true
+  }
+ ],
+ "onsets": {
+  "schema_version": "0.1.0",
+  "t_onset_ns": 1767227220000000000,
+  "method": "second_external",
+  "slo_breach_ns": null,
+  "entry_services": [
+   "frontend"
+  ],
+  "per_service": [
+   {
+    "service": "checkout",
+    "external_onset_ns": 1767227240000000000,
+    "external_onset_source": "traces",
+    "internal_onset_ns": 1767227220000000000,
+    "internal_onset_source": "metrics",
+    "silent": false
+   },
+   {
+    "service": "frontend",
+    "external_onset_ns": 1767227250000000000,
+    "external_onset_source": "traces",
+    "internal_onset_ns": null,
+    "internal_onset_source": null,
+    "silent": false
+   }
+  ]
+ },
+ "alignment": {
+  "schema_version": "0.1.0",
+  "reference": "traces",
+  "offsets": [
+   {
+    "source": "metrics",
+    "service": null,
+    "offset_ns": 0,
+    "method": "reference",
+    "confidence": 1.0
+   }
+  ],
+  "tolerance_ns": 15000000000
+ }
+}

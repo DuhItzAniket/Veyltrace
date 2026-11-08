@@ -21,9 +21,19 @@ uv run python scripts/check.py --package causentra
 uv run veyltrace diagnose --dataset synth --case synth-05 --ai off   # expect NO_FAULT
 ```
 
-## Stub (R-00)
+## v1 (R-10)
 
-Until R-10 lands, `api.run` calls the package's own stub, `veyltrace_causentra.stub` (it replaces core's R-02 placeholder). The stub proves the wiring and makes no claim about the root cause.
+- **Modules:** `config` (`CausentraConfig`, the 09 §4 keys R-10 reads), `inputs` (`load_inputs`: U, G and the 07 §2.1 quantities from Causatrix's views, claim_check atoms kept apart, q̂ and τ_nf), `trials` (T1–T4, declared under `veyltrace.trials`), `decision` (steps 1–3 and 6, nonconformity, the set at the run's q̂), `outcome` (step 5, asks, proposal outcomes, `ranks_rcaeval`), `verdict` (assembly, `verdict_hash`) and `api`.
+- **Trials.** T1–T4 are evaluated on every decision-pool candidate. Until R-12, T5, T6 and T8 are written only where an existence fact fixes them as `untestable` (supporting trials: factor 1.0, so V never moves); T7, T9 and T10 are omitted.
+- **Set.** Uncalibrated, q̂ = `calibration.uncalibrated_q_hat` = 0.0: the leader plus exact ties. A calibration file's q̂ is used as given (null is +∞, the whole pool).
+- **NO_FAULT** needs at least one robust_z anomaly atom: M is a maximum over them, so a case with none (missing telemetry, or the synth fixtures while Anomara is a stub) is never NO_FAULT.
+- **Ask 6** ("no anomaly evidence in any source") fires only when there is no leader and no service is anomalous by value (I, E or NS ≥ k_anom, or Sil = 1); healthy 0.0 atoms no longer suppress it.
+- **Proposals.** Every proposal gets one outcome in the 09 §3.10 order, except `bad_args`, which needs FaultLoom's `validate()`: until then such a proposal is never admitted and is rejected `claim_false`.
+- **Hand-made goldens** (`fixtures/handmade/`): a CPU hog (CONFIRMED, root checkout resource/cpu) and a healthy case (NO_FAULT), each run through Causatrix first.
+
+## Stub (R-00, replaced by R-10)
+
+Since R-10f, `api.run` runs the v1 verdict above; `stub.py` is dead code, deleted in R-10g together with this section. Until then, `api.run` called the package's own stub, `veyltrace_causentra.stub` (it replaced core's R-02 placeholder). The stub proved the wiring and made no claim about the root cause.
 
 **Reads**, all through `ctx` and the contract loaders:
 - `case_manifest`;
