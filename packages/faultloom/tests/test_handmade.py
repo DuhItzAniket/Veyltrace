@@ -82,3 +82,25 @@ def test_external_graph_nodes_get_atoms_only_inside_the_universe(anomaly_dir: Pa
     assert "card-gateway.example" not in {a["candidate"] for a in _evidence(anomaly_dir)}
     run(_ctx(anomaly_dir, {"core.universe.include_external": True}))
     assert "card-gateway.example" in {a["candidate"] for a in _evidence(anomaly_dir)}
+
+
+def test_onset_and_propagation_values(anomaly_dir: Path) -> None:
+    # inputs.json _comment: aligned onsets checkout t_alert + 1 s, frontend + 15 s, payment + 43 s;
+    # t_onset = t_alert + 300 s; calls frontend -> checkout -> {payment, redis}.
+    run(_ctx(anomaly_dir))
+    got = {
+        (a["candidate"], json.loads(str(a["args_json"]))["scope"]): a["value"]
+        for a in _evidence(anomaly_dir)
+        if a["kind"] == "propagation"
+    }
+    assert got[("checkout", "anomalous")] == 0.5  # reaches frontend, not payment
+    assert got[("redis", "anomalous")] == 2 / 3 and got[("payment", "anomalous")] == 1.0
+    assert got[("payment", "path")] == 0.666666667 and got[("checkout", "path")] == 1.0  # rank 1 only
+    onset = {
+        (a["candidate"], str(a["args_json"])): a["value"]
+        for a in _evidence(anomaly_dir)
+        if a["kind"] == "onset_precedence"
+    }
+    assert onset[("checkout", '{"scope":"dependents","window":"onset"}')] == 1.0  # precedes frontend
+    assert onset[("payment", '{"scope":"dependents","window":"onset"}')] == 0.0  # later than both + 15 s
+    assert onset[("checkout", '{"scope":"self","window":"onset"}')] == -299_000.0
