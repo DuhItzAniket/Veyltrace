@@ -1,5 +1,5 @@
 # config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
-# Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with O-04b);
+# Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with O-04b, edges.* with O-05a);
 # the rest come with O-05. Overrides must name keys present here (packages/core/README.md:
 # unknown keys are an error).
 
@@ -20,3 +20,10 @@ entry:
     otel: [frontend-proxy]
   # Traffic sources are not entries (05 §4): their calls do not make a service a callee.
   exclude: [load-generator, loadgenerator, locust]
+
+edges:
+  # 05 §3.4: an edge is anomalous in the incident window if any rule holds (all a priori).
+  anom_latency_ratio: 0.5           # p99 at least 1.5x the baseline p99 ...
+  anom_latency_min_ms: 5.0          # ... and at least 5 ms higher
+  anom_error_delta: 0.05            # error rate up by at least 5 points
+  silence_min_baseline_calls: 10    # an edge with this many baseline calls that went silent
