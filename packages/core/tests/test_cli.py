@@ -290,5 +290,7 @@ def test_diagnose_warns_about_stub_outputs(tmp_path: Path, capsys: pytest.Captur
 
 def test_stub_infralume_refuses_real_datasets_without_an_adapter(tmp_path: Path) -> None:
     runs = (tmp_path / "runs").as_posix()
-    argv = ["diagnose", "--dataset", "re2-ob", "--case", "abcdefabcdef", "--set", f"core.paths.runs={runs}"]
-    assert cli.main(argv) == DiagnoseExit.CONFIG  # no adapter: exit 4, not "ok" on fake data
+    # A dataset no adapter claims (re2-ob gets one in O-01): exit 4, not "ok" on placeholder data.
+    argv = ["diagnose", "--dataset", "no-adapter-ob", "--case", "abcdefabcdef"]
+    argv += ["--set", f"core.paths.runs={runs}"]
+    assert cli.main(argv) == DiagnoseExit.CONFIG
