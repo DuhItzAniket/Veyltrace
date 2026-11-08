@@ -1,4 +1,43 @@
 # config/causivra.yaml: section "causivra" (file stem). Owner: Explain lane.
-# Spec: docs/engines/10-causivra.md §4. R-02 bootstrap: core needs no Causivra key yet; the Explain
-# lane adds them in X-00. Overrides can only name keys present here (packages/core/README.md).
-{}
+# Spec: docs/engines/10-causivra.md §4. Overrides can only name keys present here
+# (packages/core/README.md). X-03: the deterministic card keys; narration, checker, signing and
+# replay keys arrive with X-09, which reads them.
+
+card:
+  # Atoms in the evidence table, trial atoms kept first (10 §3.1 step 3; a priori).
+  evidence_max: 20
+
+why_not:
+  # Runner-ups explained, ranked[1 … max] (10 §3.1 step 6; a priori).
+  max: 3
+
+format:
+  # Significant figures of every number shown on the card (10 §3.3; a priori).
+  sig_digits: 3
+
+# Evidence-table label per atom kind (10 §3.1 step 3; display only). Fields: candidate, component,
+# window, predicate, args (the predicate arguments as "name=value, ..."), and every key of the
+# atom's args_json (03 §7 "Defining arguments A per kind"). internal/external anomaly atoms carry
+# `family`, not `signal`, so their label reads "<candidate> <family> anomaly" (#62 review note).
+labels:
+  internal_anomaly: "{candidate} {family} anomaly ({window})"
+  external_anomaly: "{candidate} {family} anomaly seen by callers ({window})"
+  onset_precedence: "{candidate} onset precedence over {scope} ({window})"
+  propagation: "{candidate} propagation to {scope} ({window})"
+  change_proximity: "{candidate} {event_kind} change close to the onset ({window})"
+  peer_contrast: "{candidate} contrast with peers from {source} ({window})"
+  spectrum: "{candidate} spectrum score, {formula} ({window})"
+  critical_path_share: "{candidate} critical-path share ({window})"
+  self_time_share: "{candidate} self-time share at {quantile} ({window})"
+  log_new_template: "{candidate} new log templates ({window})"
+  log_error_rate: "{candidate} log error rate ({window})"
+  silence: "{candidate} silence ({window})"
+  edge_gap: "{candidate} edge latency gap, {direction} at {quantile} ({window})"
+  intervention: "{candidate} anomaly not explained by parents ({window})"
+  claim_check: "claim: {candidate} {predicate} {args} ({window})"
+
+# Ask line per ask kind (10 §3.1 step 7: "<kind>: <target> — <why>"; display only).
+asks:
+  telemetry: "{kind}: {target} — {why}"
+  trial: "{kind}: {target} — {why}"
+  context: "{kind}: {target} — {why}"

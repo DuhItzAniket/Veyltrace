@@ -38,7 +38,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | `onsets.json`, `changes.parquet`, `graph.paths`, `graph.nodes` | [03 §4.2, §5.2, §6](../03-contracts.md) | timeline, path, `{ONSET}`, entity enum (03 lists Causivra as their consumer; OQ-1 resolved) |
 | Narration cassette entries | `cassette/` | `ai.mode = replay` |
 | Config | `config/causivra.yaml`, `config/llm.yaml` | §4 |
-| Playbooks | `packages/causivra/playbooks/playbooks.yaml` | next steps |
+| Playbooks | `packages/causivra/src/veyltrace_causivra/playbooks.yaml` (package data, so an installed wheel ships it) | next steps |
 | Prompts | `packages/causivra/prompts/{system,narrate,repair}.md` | narration; hashes join `run_manifest.ai.prompt_sha256` ([08 §3.5](08-relentra.md#35-prompts-and-system-briefs)) |
 
 ### 2.2 Outputs
@@ -54,7 +54,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | `summary` | `[{text, cites}]`: filled LLM sentences or template sentences (§3.2, §3.5) |
 | `timeline` | `[{t_ns, label, cites}]` sorted by (`t_ns`, `label`) |
 | `path` | `graph.paths.nodes` of the root at `path_rank = 1`; `[]` when `root` is null |
-| `evidence_table` | `[{atom_id, label, value, unit?}]` sorted by (`candidate`, `kind`, `atom_id`) |
+| `evidence_table` | `[{atom_id, label, value?, unit?}]` sorted by (`candidate`, `kind`, `atom_id`); `value` is the raw float or null |
 | `why_not` | `[{service, text, cites}]` for `ranked[1 … why_not.max]` |
 | `asks` | `[{text}]` from `verdict.asks` |
 | `next_steps` | `[{text, playbook_id}]` (§3.6) |
@@ -79,10 +79,10 @@ Run-dir sequencing ([02 §6.10](../02-architecture.md#610-causivra--explanation-
    | `NO_FAULT` | `NO_FAULT · no fault detected in the incident window` |
 
 2. Copy `status`, `root`, `confidence`, `candidate_set`.
-3. **Evidence table.** Atom set A = atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null) ∪ `claim_check` atoms on that candidate with `holds = true`; capped at `card.evidence_max`, keeping atoms referenced by trials first. `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<signal>` anomaly (`<window>`)").
+3. **Evidence table.** Atom set A = atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null) ∪ `claim_check` atoms on that candidate with `holds = true`; capped at `card.evidence_max`, keeping atoms referenced by trials first. `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<family>` anomaly (`<window>`)": anomaly atoms carry `family`, not `signal`, in `args_json`, 03 §7).
 4. **Timeline.** Entries: alert (`alert.t_alert_ns`, label `alert (<protocol>)`), incident onset (`onsets.t_onset_ns`), the root's internal and external onsets (`onsets.per_service`), every change in `changes` on a decision-pool candidate (`verdict.ranked`) with `t_ns` inside `alert.windows` (decoys included: the card shows them, the verdict weighs them). `cites` = atoms of kind `onset_precedence` or `change_proximity` whose `args_json` names that entry; may be empty for the alert line.
 5. **Path** as in §2.2.
-6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up, the first failing trial in ID order picks the template (e.g. `T2` → "{SVC:x} started after its dependents (failed T2, precedence)."); if no trial failed: "{SVC:x} passed the mandatory trials but its verified score was lower." `cites` = that trial's atoms, else the runner-up's first atom in the table.
+6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up, the first failing trial in ID order picks the template (e.g. `T2` → "{SVC:x} started after its dependents (failed T2, precedence)."); if no trial failed: "{SVC:x} passed the mandatory trials but its verified score did not exceed the leader's." when every mandatory trial (`causentra.mandatory`, plus T10 for proposal origin) passed, else "{SVC:x} failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's." (true under ties) `cites` = that trial's atoms, else the runner-up's first atom in the table.
 7. **Asks.** `verdict.asks` rendered by `asks.<kind>` templates: "`<kind>`: `<target>` — `<why>`".
 8. **Next steps** (§3.6). 9. **Summary** (§3.2 or §3.5). 10. `narrator`. 11. `card_hash`. 12. `card.md`.
 
@@ -137,7 +137,7 @@ svc_ref     = "SVC:" , node ;                               (* node: exact graph
 | `{CONF.level}` / `{CONF.set_size}` / `{CONF.margin}` | `confidence.level` / integer / margin, 2 decimals | always |
 | `{STATUS}` | `verdict.status` | always |
 | `{ONSET}` | `onsets.t_onset_ns` as `HH:MM:SS UTC` | `onsets.json` present |
-| `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` |
+| `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` ∪ `case_manifest.services` (the entity lexicon of §2.1, so a card stays writable while the graph is empty) |
 
 Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): 3 significant figures; plain notation for 0.001 ≤ |x| < 10⁶, otherwise `.3g`; integers below 10⁶ unchanged; `null`/NaN → `n/a`. Units are printed exactly as stored.
 
@@ -173,7 +173,7 @@ Template sentences may have empty `cites` only when no citable atom exists (for 
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (`PB-UNK-01` for `socket` and `availability`, which have no playbook of their own), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
@@ -201,7 +201,7 @@ Rendered from `card.json` only: title; status banner with `confidence.level`, se
 
 1. Read `run_manifest.json` (written by core after 10a) and check it lists `verdict.json`, `card.json`, `card.md` in `outputs`.
 2. `subject[0]` = `{name: "verdict.json", digest: {sha256: SHA-256(file bytes of verdict.json)}}`. Note this differs from `verdict_hash` (canonical JSON without the hash field); both are checked on replay.
-3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when there is no trace (`ai off`, or `status = skipped`).
+3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when `agent_trace.jsonl` is absent or has no lines (`ai off`, or `status = skipped`).
 4. `predicate` = `{run_manifest, verdict_hash, card_hash, agent_trace_head}`; Statement `_type` and `predicateType` exactly as 03 §11.2.
 5. Write `receipt.json` as `canonical_json` bytes.
 6. Optional signing (`signing.enabled`): sign the `receipt.json` bytes with a minisign-compatible Ed25519 key whose secret-key path comes from the environment variable `VEYLTRACE_MINISIGN_SECRET_KEY` (never from the repo); write `receipt.json.minisig`. The signature file is outside every hash. Tool or library choice is an ADR at X-09.
