@@ -246,7 +246,7 @@ resources: {workers: 2, timeout_s: 600, max_rss_mb: 3072}
 | `dataset.*` | case selection: `cases` is `all` or a path (from the repo root) to a YAML list of 12-hex case ids, `exclude` a path to such a list; case ids are unique across datasets, so one list serves every part; exclusions listed in the summary; `normal_windows` adds the §5.4 normal windows |
 | `split.*` | §5.4; `crossfit2` runs both folds and reports test predictions only |
 | `protocol.*` | §5.1–§5.2; each value maps to a pipeline hook and is recorded in every `run_manifest` (through the config hash) |
-| `methods[]` | `kind` ∈ {veyltrace, rcaeval, internal_baseline, agent_only}; `overrides` are dotted config keys; `seeds` multiply runs |
+| `methods[]` | `kind` ∈ {veyltrace, causatrix, rcaeval, internal_baseline, agent_only}; `overrides` are dotted config keys; `seeds` multiply runs. `causatrix` methods (§3 `causatrix:<ranker>` with `overrides: {causatrix.rankers.enabled: [<ranker>]}`, and `causatrix:rrf`) are scored on the slate, not the verdict: ranks = the top-K candidates as `{service}_{indicator}`, then the rest of U in `all_scores` order; the pool, set and fault-type columns stay empty. A `causatrix` method whose config equals a `veyltrace` method's shares that run and its `wall_ms` |
 | `calibration.*` | fit on the calibration fold and write `config/calibration/` before testing |
 | `metrics`, `statistics`, `resources` | §7, §8; `metrics` is required and `summary.json` holds only the listed metrics plus counts; `statistics` is recorded as not run until `bench/stats` (O-14) exists; `timeout_s` per case per method; a timeout is a miss |
 

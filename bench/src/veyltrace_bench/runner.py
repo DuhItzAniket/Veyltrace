@@ -4,7 +4,9 @@ Every (case × method) of the experiment's dataset parts runs through core's pub
 (`pipeline.run_case`, the entry `veyltrace diagnose` uses), so bench learns every outcome (ok,
 failed, no_alert, rejected) from the RunSummary. Runs go to bench's own, emptied
 `<runs root>/bench/<experiment_id>/`, so each is executed and timed: a reused run has no wall time,
-which would turn a timeout (a miss, 04 §9) into ok and lose its cost (04 §6). Results, in
+which would turn a timeout (a miss, 04 §9) into ok and lose its cost (04 §6). The one exception is
+a run another method of this experiment made with the same config and a different `kind` (e.g.
+`causatrix:rrf` and `veyltrace:off`, #172): it is scored again with that run's time. Results, in
 `<results root>/<experiment_id>/`: per_case.csv (bench_result, 03 §13.2, through core io),
 summary.json (the requested metrics per (dataset, system, method)) and manifest.json (experiment,
 code, uv.lock, answer-key, telemetry-input and config hashes, run ids; 04 §9, §10.2), both canonical
@@ -65,8 +67,31 @@ def run_outcome(outcome: str, wall_ms: float, timeout_s: int) -> str:
     return "timeout" if wall_ms > timeout_s * MS_PER_S else outcome
 
 
-def method_output(outcome: str, verdict: Verdict | None, slate: Slate | None) -> MethodOutput:
-    """A veyltrace run as metrics input; without outputs its channels stay, empty, so they miss."""
+def slate_ranks(slate: Slate) -> tuple[str, ...]:
+    """A slate-scored method's ranking (04 §3 `causatrix:*`): the top-K as `{service}_{indicator}`,
+    then the rest of U in `all_scores` order (service only; RCAEval's coarse transform reads both)."""
+    top = {c.service for c in slate.candidates}
+    rest = (s.service for s in slate.all_scores if s.service not in top)
+    return (*(f"{c.service}_{c.indicator}" for c in slate.candidates), *rest)
+
+
+def method_output(
+    outcome: str, verdict: Verdict | None, slate: Slate | None, *, slate_scored: bool = False
+) -> MethodOutput:
+    """A run as metrics input; without outputs its channels stay, empty, so they miss. A slate-scored
+    method (kind causatrix) has no verdict: no pool, set or fault type (they belong to the verifier)."""
+    if slate_scored:
+        if slate is None:
+            return MethodOutput(outcome=outcome, slate=())
+        ranks = slate_ranks(slate)
+        services = tuple(c.service for c in slate.candidates)
+        return MethodOutput(
+            outcome=outcome,
+            ranks=ranks,
+            rankers_active=tuple(slate.rankers_active),
+            slate=services,
+            slate_k=slate.k,
+        )
     if verdict is None or slate is None:
         return MethodOutput(outcome=outcome, slate=(), pool=(), candidate_set=(), has_verdict=True)
     root = verdict.root
@@ -93,7 +118,12 @@ def _read[M: (Verdict, Slate, CaseManifest)](name: str, run_dir: Path, model: ty
 
 
 def _run_one(
-    exp: Experiment, method: MethodSpec, cfg: ResolvedConfig, key: AnswerKeyRow, runs_root: Path
+    exp: Experiment,
+    method: MethodSpec,
+    cfg: ResolvedConfig,
+    key: AnswerKeyRow,
+    runs_root: Path,
+    timed: dict[str, tuple[float, str]],
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Diagnose one case with one method and score it: (per_case row, score, manifest run entry).
     n_i (its `services`) and the input hashes come from the run's case_manifest (Infralume, step 0):
@@ -101,16 +131,27 @@ def _run_one(
     start = time.perf_counter()
     summary = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root)
     wall_ms = (time.perf_counter() - start) * MS_PER_S
-    if summary.cached:  # only when two methods resolve to one run: its time would be unknown
-        raise ConfigError(f"method {method.id} reuses run {summary.run_id}: same config as another method")
+    if summary.cached:  # bench emptied its runs dir, so another method of this experiment ran it
+        earlier = timed.get(summary.run_id)
+        if earlier is None or earlier[1] == method.kind:  # unknown time, or a duplicated method
+            raise ConfigError(
+                f"method {method.id} reuses run {summary.run_id}: same config as another method"
+            )
+        wall_ms = earlier[0]  # e.g. causatrix:rrf and veyltrace:off: one run, scored two ways
+    timed.setdefault(summary.run_id, (wall_ms, method.kind))
     outcome = run_outcome(summary.outcome, wall_ms, exp.resources.timeout_s)
-    verdict = _read("verdict", summary.run_dir, Verdict) if outcome == "ok" else None
+    slate_scored = method.kind == "causatrix"
+    verdict = _read("verdict", summary.run_dir, Verdict) if outcome == "ok" and not slate_scored else None
     slate = _read("slate", summary.run_dir, Slate) if outcome == "ok" else None
-    if outcome == "ok" and (verdict is None or slate is None):
+    if outcome == "ok" and (slate is None or (verdict is None and not slate_scored)):
         outcome = "failed"  # a missing output is a failed run (04 §7)
     case = _read("case_manifest", summary.run_dir, CaseManifest)
     universe = tuple(case.services) if case is not None else None
-    score = score_case(Truth.from_answer_key(key), method_output(outcome, verdict, slate), universe=universe)
+    score = score_case(
+        Truth.from_answer_key(key),
+        method_output(outcome, verdict, slate, slate_scored=slate_scored),
+        universe=universe,
+    )
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
     # Every column starts null; the ones v0 leaves null are listed in run_experiment's docstring.
@@ -176,12 +217,13 @@ def run_experiment(
     runs: list[dict[str, object]] = []
     configs: list[dict[str, object]] = []
     groups: dict[tuple[str, str, str], list[CaseScore]] = {}
+    timed: dict[str, tuple[float, str]] = {}  # run_id -> (wall_ms, method kind) of runs made here
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
             cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
             configs.append({"dataset": dataset, "method": method.id, "config_sha256": config_sha256(cfg)})
             for case_id in cases:
-                row, score, run = _run_one(exp, method, cfg, keys[dataset][case_id], bench_runs)
+                row, score, run = _run_one(exp, method, cfg, keys[dataset][case_id], bench_runs, timed)
                 rows.append(row)
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)

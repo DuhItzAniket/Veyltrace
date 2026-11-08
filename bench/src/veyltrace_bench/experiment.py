@@ -82,7 +82,8 @@ class AISpec(_Strict):
 
 class MethodSpec(_Strict):
     id: str = Field(min_length=1)
-    kind: Literal["veyltrace", "rcaeval", "internal_baseline", "agent_only"]
+    # causatrix: the pipeline scored on its slate, not the verdict (04 §3 `causatrix:<ranker>`, `:rrf`)
+    kind: Literal["veyltrace", "causatrix", "rcaeval", "internal_baseline", "agent_only"]
     ai: AISpec = AISpec()
     overrides: dict[str, object] = Field(default_factory=dict)  # dotted config keys
     rcaeval: dict[str, object] | None = None  # {method, length}
@@ -178,7 +179,7 @@ def unsupported(exp: Experiment) -> list[str]:
     todo = [what for bad, what in checks if bad]
     todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
     for m in exp.methods:
-        if m.kind != "veyltrace":
+        if m.kind not in ("veyltrace", "causatrix"):
             todo.append(f"methods {m.id}: kind {m.kind} (baselines, R-05)")
         elif m.ai.mode != "off" or m.ai.seeds:
             todo.append(f"methods {m.id}: AI arms (ai.mode {m.ai.mode}, seeds)")
