@@ -99,13 +99,8 @@ def test_propagation_entry_and_anomalous_on_the_reversed_graph(hm: Any) -> None:
     assert got[("c", ENTRY)] == 1.0 and got[("c", ANOM)] == 1.0
     assert got[("b", ENTRY)] == 1.0 and got[("b", ANOM)] == 0.5  # reaches a, not c
     assert got[("a", ENTRY)] == 1.0 and got[("a", ANOM)] == 0.0  # an entry reaches itself
-
-
-def test_propagation_cites_the_edges_it_walked(hm: Any) -> None:
-    atoms = _by(propagation_atoms(_chain(hm)))
-    assert atoms["c", ENTRY]["refs"] == ["graph.edges#a-b", "graph.edges#b-c"]
-    assert atoms["b", ENTRY]["refs"] == ["graph.edges#a-b"]
-    assert atoms["a", ENTRY]["refs"] == []
+    refs = {c: a["refs"] for (c, args), a in _by(propagation_atoms(_chain(hm))).items() if args == ENTRY}
+    assert refs == {"c": ["graph.edges#a-b", "graph.edges#b-c"], "b": ["graph.edges#a-b"], "a": []}  # walked
 
 
 def test_is_entry_nodes_and_silence_count(hm: Any) -> None:
