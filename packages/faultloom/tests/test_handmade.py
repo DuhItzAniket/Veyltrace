@@ -64,7 +64,7 @@ def _evidence(run_dir: Path) -> list[dict[str, object]]:
 
 
 def test_robust_z_atoms_recover_the_max_score_norm(anomaly_dir: Path) -> None:
-    # 06 §7: log1p(value) = max score_norm of the referenced rows (Causentra NO_FAULT, 09 §3.8).
+    # 06 §7: log1p(value) = max score_norm of the refs (09 §3.8), to 1 ulp: libm log1p differs by OS.
     metrics = run(_ctx(anomaly_dir)).metrics
     assert (metrics["atoms.internal_anomaly"], metrics["atoms.external_anomaly"]) == (6, 2)
     anomalies = io.read_table("anomalies", anomaly_dir).to_pylist()
@@ -74,7 +74,7 @@ def test_robust_z_atoms_recover_the_max_score_norm(anomaly_dir: Path) -> None:
     for atom in robust:
         refs = atom["refs"]
         assert isinstance(refs, list) and isinstance(atom["value"], float)
-        assert math.log1p(atom["value"]) == max(norm[(ref, "robust_z")] for ref in refs)
+        assert math.isclose(math.log1p(atom["value"]), max(norm[r, "robust_z"] for r in refs), rel_tol=1e-12)
 
 
 def test_external_graph_nodes_get_atoms_only_inside_the_universe(anomaly_dir: Path) -> None:
