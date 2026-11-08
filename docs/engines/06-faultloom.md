@@ -65,7 +65,7 @@ Shared values used below:
 | `refs` | sorted, de-duplicated reference strings (§3.3) |
 | `origin` | `engine` (engine pass and `intervention` atoms) or `claim_check` |
 | `holds` | null for engine atoms; `true`, `false` or null (predicate not evaluable) for `claim_check` |
-| `producer` | `faultloom@<package version>` |
+| `producer` | `faultloom@<ALGO_VERSION>`: the algorithm revision in `veyltrace_faultloom/__init__.py`, bumped only when outputs change, not per release, so goldens do not churn (M0 lead decision 2026-11-06) |
 
 The writer (`veyltrace_core.io`) sorts by key, stamps `veyltrace.schema = evidence/<version>` and returns the file SHA-256. The claim pass rewrites `evidence.parquet` as engine atoms ∪ claim atoms; engine atoms are read back, never recomputed, so they are byte-identical before and after.
 
