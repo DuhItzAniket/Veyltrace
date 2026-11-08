@@ -1,0 +1,33 @@
+{
+ "synth-01": {
+  "entry_services": [
+   "frontend"
+  ],
+  "signal": "latency_p99",
+  "t_alert_ns": 1767226930000000000
+ },
+ "synth-02": {
+  "entry_services": [
+   "frontend"
+  ],
+  "signal": "latency_p99",
+  "t_alert_ns": 1767226920000000000
+ },
+ "synth-03": {
+  "entry_services": [
+   "frontend"
+  ],
+  "signal": "error_rate",
+  "t_alert_ns": 1767226920000000000
+ },
+ "synth-04": {
+  "entry_services": [
+   "frontend"
+  ],
+  "signal": "latency_p99",
+  "t_alert_ns": 1767226920000000000
+ },
+ "synth-05": {
+  "breach": null
+ }
+}
