@@ -3,7 +3,7 @@
 Why typed: every detector threshold is a named config key (AGENTS §5), and a malformed value
 should fail as a ConfigError before any series is scored, not as a TypeError deep in numpy.
 Sections arrive with the code that reads them (O-04c: grid; O-04d: robust_z; O-04e: nsigma,
-silence; O-04f: bocpd).
+silence; O-04f: bocpd; O-04g: onset, t_onset).
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ __all__ = [
     "BocpdConfig",
     "GridConfig",
     "NSigmaConfig",
+    "OnsetConfig",
     "RobustZConfig",
     "SilenceConfig",
     "anomara_config",
@@ -122,6 +123,14 @@ class BocpdConfig:
 
 
 @dataclass(frozen=True)
+class OnsetConfig:
+    """`onset.bocpd_max_lead_s` and `t_onset.clamp_s` (03-anomara §3.6–3.7), in ns."""
+
+    bocpd_max_lead_ns: int
+    clamp_ns: tuple[int, int]
+
+
+@dataclass(frozen=True)
 class AnomaraConfig:
     """The validated Anomara section."""
 
@@ -130,6 +139,7 @@ class AnomaraConfig:
     nsigma: NSigmaConfig
     silence: SilenceConfig
     bocpd: BocpdConfig
+    onset: OnsetConfig
 
 
 def _epsilon(section: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]]:
@@ -220,6 +230,20 @@ def _bocpd(section: Mapping[str, Any]) -> BocpdConfig:
     )
 
 
+def _onset(section: Mapping[str, Any]) -> OnsetConfig:
+    lead = _count(_mapping(section, "onset", "anomara"), "bocpd_max_lead_s", "anomara.onset")
+    clamp: object = _mapping(section, "t_onset", "anomara").get("clamp_s")
+    pair: list[object] = list(cast("list[object]", clamp)) if isinstance(clamp, list | tuple) else []
+    if len(pair) != 2 or not all(isinstance(v, int) and not isinstance(v, bool) for v in pair):
+        msg = f"anomara.t_onset.clamp_s must be a [low_s, high_s] pair of integers, got {clamp!r}"
+        raise ConfigError(msg)
+    low, high = cast("int", pair[0]), cast("int", pair[1])
+    if not low <= 0 <= high:
+        msg = f"anomara.t_onset.clamp_s must satisfy low <= 0 <= high, got {clamp!r}"
+        raise ConfigError(msg)
+    return OnsetConfig(bocpd_max_lead_ns=lead * NS_PER_S, clamp_ns=(low * NS_PER_S, high * NS_PER_S))
+
+
 def anomara_config(section: Mapping[str, Any]) -> AnomaraConfig:
     """Validate the Anomara config section (`ctx.config`, or the EngineConfig core passes)."""
     grid = _mapping(section, "grid", "anomara")
@@ -230,4 +254,5 @@ def anomara_config(section: Mapping[str, Any]) -> AnomaraConfig:
         nsigma=NSigmaConfig(threshold=_number(ns, "threshold", "anomara.nsigma", positive=True)),
         silence=_silence(section),
         bocpd=_bocpd(section),
+        onset=_onset(section),
     )

@@ -75,6 +75,15 @@ def test_grid_bucket_matches_signalyth_when_it_declares_one() -> None:
         (("robust_z", "persist_steps"), 1.5),
         (("robust_z", "epsilon", "cpu", "cores"), 0.0),
         (("robust_z", "epsilon", "other"), {"ms": 1.0}),
+        (("onset", "bocpd_max_lead_s"), 0),
+        (("t_onset", "clamp_s"), [60, 300]),
+        (("t_onset", "clamp_s"), [-60]),
+        (("nsigma", "threshold"), 0),
+        (("silence", "zero_signals"), "rps"),
+        (("silence", "min_baseline_coverage"), 1.5),
+        (("bocpd", "lambda"), 1),
+        (("bocpd", "threshold"), 0.0),
+        (("bocpd", "prior", "mu0"), "x"),
     ],
 )
 def test_malformed_values_are_config_errors(path: tuple[str, ...], value: object) -> None:
