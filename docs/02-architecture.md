@@ -300,7 +300,7 @@ Rules:
 | UI | React + Vite + TypeScript, ECharts (time series), Cytoscape.js (graph) | |
 | Lab | Docker Desktop + WSL2 (raise to 11–12 GB), Online Boutique on kind, OTel Demo 3.x on Compose, Chaos Mesh, OTel Collector contrib with `memory_limiter` | Train Ticket does not fit 16 GB |
 | Quality | ruff, pyright, pytest + hypothesis, eslint, prettier, vitest, pre-commit, towncrier, Conventional Commits | |
-| CI | GitHub Actions, `ubuntu-latest` only (public repo → free minutes) | |
+| CI | GitHub Actions, pinned `ubuntu-24.04` only (public repo → free minutes; [10 §5.3](10-sdlc-and-quality.md)) | |
 
 ## 9. Cross-cutting rules
 

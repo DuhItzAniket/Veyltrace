@@ -1,11 +1,20 @@
-# CI for Veyltrace. Linux only (public repo: standard runners are free).
-# Job names are the required status checks in branch protection (docs/08-collaboration-and-git.md §4.1).
+# CI for Veyltrace. Linux only, on the pinned `ubuntu-24.04` image (public repo: standard runners
+# are free). Pinned, not `ubuntu-latest`: the glibc/libm under the golden fixtures and the
+# determinism gate must not change without a commit here. Move to a newer image in its own PR,
+# after a green run on both (docs/10-sdlc-and-quality.md §5.3).
+# Job names are the required status checks in branch protection (docs/08-collaboration-and-git.md §4.1),
+# except `detect` (the gate below) and `fixtures-stale` (informational, NOT in branch protection).
 # What each job runs and why: docs/10-sdlc-and-quality.md §5.
 #
 # Path filtering is done per job with `if:` from the `detect` job, not with `paths:` on the
 # trigger: a workflow skipped by `paths:` never reports its checks, so required checks would
-# stay pending. A job skipped by `if:` reports as skipped and does not block the merge.
+# stay pending. A job skipped by `if:` reports as skipped, which branch protection counts as
+# passing, so the gates fail closed: a job skips only when `detect` wrote an explicit 'false'.
+# If `detect` fails, its outputs are empty and every gated job runs.
 # Code jobs also skip until the workspace exists (pyproject.toml lands in task R-02).
+#
+# Untrusted values (branch names, logins, labels) reach shell steps only through `env:`, never
+# through `${{ }}` inside `run:` (script injection).
 
 name: CI
 
@@ -18,7 +27,10 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # One run per PR: a newer push or label change cancels the older run (each run checks the PR's
+  # current head with every job). Pushes to main and manual runs get a group of their own, so one
+  # merge never cancels the CI of the merge before it (10 §12 needs to know which merge broke main).
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -26,103 +38,143 @@ permissions:
 
 env:
   UV_PYTHON: "3.12"
+  # The uv that wrote uv.lock (the lead's local uv). Bump it together with a re-lock.
+  CI_UV_VERSION: "0.13.0"
 
 jobs:
   detect:
     name: detect
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      python: ${{ steps.detect.outputs.python }}
-      python_changed: ${{ steps.detect.outputs.python_changed }}
-      console: ${{ steps.detect.outputs.console }}
-      console_changed: ${{ steps.detect.outputs.console_changed }}
+      # 'true' or 'false'. Gates test `!= 'false'`, so an empty output (detect failed) runs the job.
+      workspace: ${{ steps.detect.outputs.workspace }}
+      python_jobs: ${{ steps.detect.outputs.python_jobs }}
+      console_job: ${{ steps.detect.outputs.console_job }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # git diff against the PR base
+          persist-credentials: false
       - id: detect
         name: Detect workspace and changed areas
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
         run: |
-          python=false
-          if test -f pyproject.toml; then python=true; fi
+          workspace=false
+          if test -f pyproject.toml; then workspace=true; fi
           console=false
           if test -f console/package.json; then console=true; fi
           python_changed=true
           console_changed=true
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            git diff --name-only "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/changed.txt"
+            # A PR that deletes the root pyproject.toml still runs (and fails) the code jobs.
+            if git cat-file -e "origin/${BASE_REF}:pyproject.toml" 2>/dev/null; then workspace=true; fi
+            # --no-renames: a move lists both paths (a fixture moved into docs/ is not docs-only).
+            # core.quotePath=false: non-ASCII paths print as-is, so the patterns below match them.
+            git -c core.quotePath=false diff --name-only --no-renames "origin/${BASE_REF}...HEAD" > "$RUNNER_TEMP/changed.txt"
             echo "Changed files:"; cat "$RUNNER_TEMP/changed.txt"
-            # Python jobs skip when only docs, fragments, notes, paper or console files changed.
+            # Python jobs skip when every changed file is docs-only: under console/, docs/, changes/,
+            # research_notes/, reports/ or paper/, a top-level *.md, or an AGENTS.md/CLAUDE.md, and
+            # not a *.py/*.pyi file (ruff lints those anywhere). Other *.md files are inputs
+            # (golden card.md fixtures, package READMEs in the build).
             python_changed=false
-            if grep -Evq '^(console/|docs/|changes/|research_notes/|reports/|paper/)|\.md$' "$RUNNER_TEMP/changed.txt"; then python_changed=true; fi
-            # Console job runs when console/ or the contracts (TS types) changed.
+            if grep -Evq '^(console/|docs/|changes/|research_notes/|reports/|paper/)|^[^/]+\.md$|(^|/)(AGENTS|CLAUDE)\.md$' "$RUNNER_TEMP/changed.txt" \
+              || grep -Eq '\.pyi?$' "$RUNNER_TEMP/changed.txt"; then python_changed=true; fi
+            # Console job runs when console/, the contracts (TS types) or the workflows changed.
             console_changed=false
-            if grep -Eq '^(console/|contracts/)' "$RUNNER_TEMP/changed.txt"; then console_changed=true; fi
+            if grep -Eq '^(console/|contracts/|\.github/workflows/)' "$RUNNER_TEMP/changed.txt"; then console_changed=true; fi
           fi
+          python_jobs=false
+          if [ "$workspace" = true ] && [ "$python_changed" = true ]; then python_jobs=true; fi
+          console_job=false
+          if [ "$console" = true ] && [ "$console_changed" = true ]; then console_job=true; fi
           {
-            echo "python=$python"
-            echo "python_changed=$python_changed"
-            echo "console=$console"
-            echo "console_changed=$console_changed"
+            echo "workspace=$workspace"
+            echo "python_jobs=$python_jobs"
+            echo "console_job=$console_job"
           } | tee -a "$GITHUB_OUTPUT"
 
   lanes:
     name: lanes
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # read the PR's current labels
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
+          fetch-depth: 0 # git diff against the PR base
+          persist-credentials: false
+      # No uv cache: this job installs only the script's two inline dependencies, and its small
+      # cache could take the shared key (pyproject.toml + uv.lock) before the `uv sync` jobs save theirs.
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
-          enable-cache: true
+          version: ${{ env.CI_UV_VERSION }}
+          enable-cache: false
       - run: uv python install 3.12
       - name: Files stay inside the author's lane
         env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           BASE_REF: ${{ github.base_ref }}
-        run: uv run scripts/check_lanes.py --author "$PR_AUTHOR" --labels "$PR_LABELS" --base "origin/$BASE_REF"
+        # Labels come from the API, not the event payload: several label events at once (a PR
+        # opened with labels) leave only the last-queued run, whose payload may predate a label.
+        run: |
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '[.labels[].name] | join(",")')
+          echo "PR labels: $labels"
+          uv run scripts/check_lanes.py --author "$PR_AUTHOR" --labels "$labels" --base "origin/$BASE_REF"
       - name: CODEOWNERS matches lanes.yml
         run: uv run scripts/check_lanes.py --verify-codeowners
 
   agent-files:
     name: agent-files
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
+          enable-cache: false # stdlib script; see the lanes job
       - run: uv python install 3.12
       # --no-project: stdlib script, no need to install the workspace.
       - run: uv run --no-project python scripts/sync_agent_files.py --check
 
   docs:
     name: docs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
+          enable-cache: false # stdlib script; see the lanes job
       - run: uv python install 3.12
       - run: uv run --no-project python scripts/check_links.py
 
   lint:
     name: lint
     needs: detect
-    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
@@ -131,13 +183,16 @@ jobs:
   types:
     name: types
     needs: detect
-    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
@@ -146,13 +201,16 @@ jobs:
   tests:
     name: tests
     needs: detect
-    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
@@ -161,13 +219,16 @@ jobs:
   isolation:
     name: isolation
     needs: detect
-    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
@@ -176,28 +237,37 @@ jobs:
   determinism:
     name: determinism
     needs: detect
-    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
-      - run: uv run python scripts/check.py --determinism
+      # --require-synth: fail, not skip, if the synth adapter is missing. --ai-fake: FakeProvider
+      # record/replay arm. Both run in a temp data root of check.py's own. The real-case leg
+      # (--require-real-case, the only part that reads $VEYLTRACE_DATA) is added after O-01.
+      - run: uv run python scripts/check.py --determinism --require-synth --ai-fake
 
   contracts-in-sync:
     name: contracts-in-sync
     needs: detect
-    if: needs.detect.outputs.python == 'true' && needs.detect.outputs.python_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v5
-      - uses: astral-sh/setup-uv@v6
+      - uses: actions/checkout@v7
         with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
@@ -206,15 +276,17 @@ jobs:
   changelog:
     name: changelog
     needs: detect
-    if: github.event_name == 'pull_request' && needs.detect.outputs.python == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.detect.outputs.workspace != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
-      - uses: astral-sh/setup-uv@v6
+          fetch-depth: 0 # git diff against the PR base
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
+          version: ${{ env.CI_UV_VERSION }}
           enable-cache: true
       - run: uv python install 3.12
       - run: uv sync --locked --all-packages
@@ -223,19 +295,44 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
         run: uv run python scripts/check.py --changelog --base "origin/$BASE_REF"
 
+  # Informational, NOT in branch protection (lead decision 2026-11-06): fixtures older than their
+  # upstream.lock.json. The fix is `check.py --update-golden --cascade` by the lead, with the
+  # `cross-lane` label. Not run on pushes to main: a routine producer refresh leaves consumers
+  # stale until the cascade lands, and that must not turn main red (docs/10 §12). To check main,
+  # start the workflow by hand (workflow_dispatch).
+  fixtures-stale:
+    name: fixtures-stale
+    needs: detect
+    if: ${{ !cancelled() && github.event_name != 'push' && needs.detect.outputs.python_jobs != 'false' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - run: uv run python scripts/check.py --fixtures-stale
+
   console:
     name: console
     needs: detect
-    if: needs.detect.outputs.console == 'true' && needs.detect.outputs.console_changed == 'true'
-    runs-on: ubuntu-latest
+    if: ${{ !cancelled() && needs.detect.outputs.console_job != 'false' }}
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       # Reads the pnpm version from the packageManager field of console/package.json.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: console/package.json
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm

@@ -48,12 +48,16 @@ def lane_of(path: str, cfg: dict) -> str:
     raise SystemExit(f"lanes.yml has no catch-all lane; unmatched path: {path}")
 
 
-def changed_files(base: str) -> list[str]:
+def changed_files(base: str, cwd: Path = ROOT) -> list[str]:
+    """Paths changed on this branch since `base`. --no-renames lists a moved file at both its old
+    and new path, so moving another lane's file into yours still counts as touching their lane;
+    core.quotePath=false keeps non-ASCII paths unescaped so lane patterns match them."""
     out = subprocess.run(
-        ["git", "diff", "--name-only", f"{base}...HEAD"],
-        cwd=ROOT,
+        ["git", "-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", f"{base}...HEAD"],
+        cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=True,
     ).stdout
     return sorted(p for p in out.splitlines() if p.strip())
