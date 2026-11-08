@@ -15,6 +15,19 @@ dependencies = ["veyltrace-core", "veyltrace-contracts"]
 [project.entry-points."veyltrace.engines"]
 faultloom = "veyltrace_faultloom.api:run"
 
+# The predicate library (06 §3.5), the same objects as veyltrace_faultloom.predicates.LIBRARY.
+[project.entry-points."veyltrace.predicates"]
+change_before_onset = "veyltrace_faultloom.predicates:CHANGE_BEFORE_ONSET"
+edge_anomalous = "veyltrace_faultloom.predicates:EDGE_ANOMALOUS"
+error_rate_above = "veyltrace_faultloom.predicates:ERROR_RATE_ABOVE"
+on_critical_path = "veyltrace_faultloom.predicates:ON_CRITICAL_PATH"
+onset_before = "veyltrace_faultloom.predicates:ONSET_BEFORE"
+peer_gap_above = "veyltrace_faultloom.predicates:PEER_GAP_ABOVE"
+self_time_share_above = "veyltrace_faultloom.predicates:SELF_TIME_SHARE_ABOVE"
+silent = "veyltrace_faultloom.predicates:SILENT"
+template_new_in_incident = "veyltrace_faultloom.predicates:TEMPLATE_NEW_IN_INCIDENT"
+zscore_above = "veyltrace_faultloom.predicates:ZSCORE_ABOVE"
+
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
