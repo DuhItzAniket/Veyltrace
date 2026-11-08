@@ -6,10 +6,10 @@
 version: 1
 
 members:
-  # github_login: lane    (fill in the two placeholders at kickoff, task L-00)
-  DuhItzAniket: reason
-  ANNAPURNA_GITHUB_LOGIN: observe
-  LAKSHANAA_GITHUB_LOGIN: explain
+  # github_login: lane   (filled 2026-11-06, task L-00)
+  DuhItzAniket: reason       # Aniket Kumar (lead)
+  anu-082006: observe        # Annapurna S
+  C-LAKSHANAA: explain       # C Lakshanaa
 
 lead: DuhItzAniket
 
