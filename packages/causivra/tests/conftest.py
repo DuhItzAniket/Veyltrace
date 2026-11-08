@@ -79,8 +79,12 @@ def verdict_dict(status: str = "LIKELY", with_root: bool = True) -> dict[str, An
         else None
     )
     raw["candidate_set"] = [] if status == "NO_FAULT" else raw["candidate_set"]
+    # 03 §10: the level follows the status (CONFIRMED high, LIKELY medium, INCONCLUSIVE with a
+    # leader low, else none); NO_FAULT has an empty set.
+    level = {"CONFIRMED": "high", "LIKELY": "medium"}.get(status, "low" if raw["root"] else "none")
+    raw["confidence"] = {**raw["confidence"], "level": level}
     if status == "NO_FAULT":
-        raw["confidence"] = {**raw["confidence"], "level": "none", "set_size": 0}
+        raw["confidence"]["set_size"] = 0
     return raw
 
 

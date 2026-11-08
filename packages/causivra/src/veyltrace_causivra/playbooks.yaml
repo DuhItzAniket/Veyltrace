@@ -1,0 +1,88 @@
+# Deterministic playbooks of the incident card (docs/engines/10-causivra.md §3.6). Owner: Explain.
+#
+# Every step is a read-only diagnostic or "consider … after review": v1.0 never acts on a system
+# (02 §11; packages/causivra AGENTS Never list). Step texts contain no digits and use only the
+# placeholders {ROOT} and {ROOT.component}; they are filled by the card's placeholder filler and
+# kept in file order. Selection (10 §3.6): NO_FAULT -> PB-NOFAULT-01, INCONCLUSIVE -> PB-INCONC-01,
+# CONFIRMED/LIKELY -> the playbook whose fault_classes holds root.fault_class (PB-UNK-01 when none
+# does), then PB-CHANGE-01 when root.mode is change or the root passed T6.
+# Editing a step changes card_hash: a replay of an older run then exits 6 (narrative only).
+
+playbooks:
+  - id: PB-CPU-01
+    fault_classes: [cpu]
+    steps:
+      - "Compare CPU use with the limit and check throttling on {ROOT}."
+      - "Compare {ROOT} with its replicas."
+      - "Look for a deploy, config or traffic change before the onset."
+      - "Consider scaling out or raising the CPU limit after review."
+  - id: PB-MEM-01
+    fault_classes: [mem]
+    steps:
+      - "Compare memory use with the limit on {ROOT}."
+      - "Check restarts and memory kill events of {ROOT}."
+      - "Look for steady memory growth on {ROOT}, a sign of a leak."
+      - "Consider a restart or a rollback after review."
+  - id: PB-DISK-01
+    fault_classes: [disk]
+    steps:
+      - "Check disk latency and volume usage on {ROOT.component}."
+      - "Check disk pressure on the node that runs {ROOT.component}."
+      - "Look for noisy neighbours on the same node."
+  - id: PB-DELAY-01
+    fault_classes: [delay]
+    steps:
+      - "Compare the latency callers observe with the latency inside {ROOT} on its edges."
+      - "Check network policy and node networking for {ROOT}."
+      - "Check name resolution for {ROOT}."
+  - id: PB-LOSS-01
+    fault_classes: [loss]
+    steps:
+      - "Check connection errors, resets and retries on {ROOT}."
+      - "Check the network plugin and the node interfaces that serve {ROOT}."
+      - "Review the retry and timeout settings of the callers of {ROOT}."
+  - id: PB-ERROR-01
+    fault_classes: [error]
+    steps:
+      - "Inspect the error log templates that are new in the incident on {ROOT}."
+      - "Break the errors on {ROOT} down by operation and status code."
+      - "Check restarts and readiness of {ROOT}."
+  - id: PB-EXC-01
+    fault_classes: [exception]
+    steps:
+      - "Inspect exception records and stack traces on {ROOT}."
+      - "Map the exceptions to the code path in {ROOT}."
+      - "Check the latest code deploy of {ROOT}."
+  - id: PB-CONFIG-01
+    fault_classes: [config]
+    steps:
+      - "Diff the latest config or flag change on {ROOT} against the previous version."
+      - "Consider reverting that change after review."
+  - id: PB-DEP-01
+    fault_classes: [dependency]
+    steps:
+      - "Check the datastore or cache that {ROOT} uses: latency, connections and locks."
+      - "Compare the other callers of that dependency."
+  - id: PB-UNK-01
+    fault_classes: [unknown]
+    steps:
+      - "Review the evidence table."
+      - "Collect the telemetry listed under asks."
+  - id: PB-CHANGE-01
+    fault_classes: []
+    steps:
+      - "Identify the change that preceded the onset on the timeline."
+      - "Compare {ROOT} with its peers or with the previous version."
+      - "Consider a rollback after review."
+  - id: PB-INCONC-01
+    fault_classes: []
+    steps:
+      - "Collect the telemetry named in the asks."
+      - "Inspect each member of the candidate set."
+      - "Run the diagnosis again once the asks are answered."
+  - id: PB-NOFAULT-01
+    fault_classes: []
+    steps:
+      - "Confirm with the alert source whether the alert was spurious."
+      - "Check the service level thresholds of the entry services."
+      - "Check for silent services or gaps in the telemetry."
