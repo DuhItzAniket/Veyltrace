@@ -12,6 +12,11 @@
   "graph.paths (R-08b): rank-1 paths of checkout (both nodes externally anomalous: 1.0) and payment (2 of 3:",
   "payment has no external anomaly); a rank-2 path of checkout that propagation{path} must ignore. frontend is",
   "the anomalous entry, so propagation{entry} = 1.0 for every service that reaches it.",
+  "changes (R-08c): a component deploy on checkout-1 60 s before checkout's onset (proximity 0.8, peer gap 7.6 z),",
+  "a cluster-scope config change and a change on an entity no series names (both give no atom). templates: a new",
+  "error template on checkout (1200 lines), a new non-error one below templates.min_count, an old error template on",
+  "payment; error rates are lines/s over the 1080 s baseline and 600 s incident windows. signal_cube.series rows give",
+  "the component map only (one sample each).",
   "Partial on purpose: each table holds only the rows the atoms under test need."
  ],
  "alert": {"schema_version": "0.1.0", "protocol": "oracle", "t_alert_ns": 1767226920000000000, "shift_ns": 0, "detector": null, "windows": {"baseline": [1767225720000000000, 1767226800000000000], "incident": [1767226800000000000, 1767227400000000000]}, "clamped": false},
@@ -32,7 +37,12 @@
   {"series_id": "redis|redis|mem|metrics", "service": "redis", "component": "redis", "family": "mem", "klass": "internal", "source": "metrics", "detector": "robust_z", "score": 0.0, "score_norm": 0.0, "direction": "flat", "onset_ns": null, "threshold": 3.0, "above_threshold": false},
   {"series_id": "card-gateway.example|card-gateway.example|latency|traces", "service": "card-gateway.example", "component": "card-gateway.example", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 8.0, "score_norm": 2.1972245773362196, "direction": "up", "onset_ns": 1767226935000000000, "threshold": 3.0, "above_threshold": true}
  ],
- "case_manifest": {"schema_version": "0.1.0", "case_id": "b6bdf0930803", "dataset": "handmade", "system": "other", "t_alert_hint_ns": null, "hint_source": "none", "data_start_ns": 1767225600000000000, "data_end_ns": 1767227520000000000, "sources": {"metrics": true, "logs": true, "traces": true, "events": false}, "services": ["checkout", "frontend", "payment"], "inputs": [], "adapter": {"name": "handmade", "version": "1"}, "scrub": {"rules_version": "scrub-1", "dropped_attributes": 0, "dropped_rows": 0}},
+ "case_manifest": {"schema_version": "0.1.0", "case_id": "b6bdf0930803", "dataset": "handmade", "system": "other", "t_alert_hint_ns": null, "hint_source": "none", "data_start_ns": 1767225600000000000, "data_end_ns": 1767227520000000000, "sources": {"metrics": true, "logs": true, "traces": true, "events": true}, "services": ["checkout", "frontend", "payment"], "inputs": [], "adapter": {"name": "handmade", "version": "1"}, "scrub": {"rules_version": "scrub-1", "dropped_attributes": 0, "dropped_rows": 0}},
+ "changes": [
+  {"change_id": "Cb5ed83c522", "t_ns": 1767226861000000000, "entity": "checkout-1", "kind": "deploy", "scope": "component", "detail_json": "{\"to\":\"checkout:2.0.1\"}", "latest_before_onset": true, "delta_to_onset_ms": -60000.0, "proximity": 0.8, "peer_contrast": 7.6},
+  {"change_id": "Ce2368f653e", "t_ns": 1767226620000000000, "entity": "prod", "kind": "config", "scope": "cluster", "detail_json": "{\"key\":\"timeout\"}", "latest_before_onset": true, "delta_to_onset_ms": -600000.0, "proximity": 0.2, "peer_contrast": null},
+  {"change_id": "C76086bb19c", "t_ns": 1767226800000000000, "entity": "billing-job", "kind": "deploy", "scope": "service", "detail_json": "{\"to\":\"billing:9\"}", "latest_before_onset": false, "delta_to_onset_ms": null, "proximity": 0.0, "peer_contrast": null}
+ ],
  "graph.edges": [
   {"src": "checkout", "dst": "payment", "provenance": ["traces"], "calls_incident": 1185, "weight": 0.5, "anomalous": false},
   {"src": "checkout", "dst": "redis", "provenance": ["topology"], "calls_incident": null, "weight": 1.0, "anomalous": null},
@@ -55,5 +65,17 @@
   {"service": "checkout", "external_onset_ns": 1767227300000000000, "external_onset_source": "traces", "internal_onset_ns": 1767226920000000000, "internal_onset_source": "metrics", "silent": false},
   {"service": "frontend", "external_onset_ns": 1767226935000000000, "external_onset_source": "traces", "internal_onset_ns": null, "internal_onset_source": null, "silent": false},
   {"service": "payment", "external_onset_ns": null, "external_onset_source": null, "internal_onset_ns": 1767226965000000000, "internal_onset_source": "logs", "silent": false}
- ]}
+ ]},
+ "signal_cube.series": [
+  {"series_id": "checkout|checkout-1|cpu|metrics", "service": "checkout", "component": "checkout-1", "signal": "cpu", "family": "cpu", "klass": "internal", "source": "metrics", "unit": null, "t_ns": 1767226920000000000, "value": 1.0},
+  {"series_id": "checkout|checkout-2|cpu|metrics", "service": "checkout", "component": "checkout-2", "signal": "cpu", "family": "cpu", "klass": "internal", "source": "metrics", "unit": null, "t_ns": 1767226920000000000, "value": 1.0},
+  {"series_id": "frontend|frontend|latency|traces", "service": "frontend", "component": "frontend", "signal": "latency", "family": "latency", "klass": "external", "source": "traces", "unit": null, "t_ns": 1767226920000000000, "value": 1.0},
+  {"series_id": "payment|payment-1|errors|logs", "service": "payment", "component": "payment-1", "signal": "errors", "family": "errors", "klass": "internal", "source": "logs", "unit": null, "t_ns": 1767226920000000000, "value": 1.0},
+  {"series_id": "payment|payment-2|errors|logs", "service": "payment", "component": "payment-2", "signal": "errors", "family": "errors", "klass": "internal", "source": "logs", "unit": null, "t_ns": 1767226920000000000, "value": 1.0}
+ ],
+ "signal_cube.templates": [
+  {"service": "checkout", "template_id": "Td7e0013d", "template": "OutOfMemory while pricing cart <NUM>", "count_baseline": 0, "count_incident": 1200, "error_level": true, "first_seen_ns": 1767226922000000000},
+  {"service": "checkout", "template_id": "T06de2169", "template": "slow pricing call took <NUM> ms", "count_baseline": 0, "count_incident": 2, "error_level": false, "first_seen_ns": 1767226925000000000},
+  {"service": "payment", "template_id": "T92375853", "template": "card declined for order <NUM>", "count_baseline": 540, "count_incident": 300, "error_level": true, "first_seen_ns": 1767225920000000000}
+ ]
 }

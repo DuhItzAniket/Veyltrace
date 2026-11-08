@@ -10,7 +10,16 @@ import pytest
 
 from veyltrace_contracts import models
 from veyltrace_core.testing import fixture_run_dir
-from veyltrace_faultloom.inputs import AnomalyRow, CallEdge, EvidenceInputs, GraphNode, PathRow, ServiceOnset
+from veyltrace_faultloom.inputs import (
+    AnomalyRow,
+    CallEdge,
+    ChangeRow,
+    EvidenceInputs,
+    GraphNode,
+    PathRow,
+    ServiceOnset,
+    TemplateRow,
+)
 
 #: A t_onset and windows on a round grid (ns): baseline [0, 600 s), incident [600 s, 1200 s).
 T0 = 900 * 10**9
@@ -36,6 +45,9 @@ _BASE = EvidenceInputs(
     entry_services=(),
     edges=(),
     paths=(),
+    components={},
+    changes=(),
+    templates=(),
 )
 
 
@@ -66,6 +78,16 @@ class HandMade:
     @staticmethod
     def path(candidate: str, rank: int, fraction: float) -> PathRow:
         return PathRow(candidate, rank, fraction, f"graph.paths#{candidate}-{rank}")
+
+    @staticmethod
+    def change(
+        cid: str, entity: str, scope: str = "service", proximity: float = 0.5, peer: float | None = None
+    ) -> ChangeRow:
+        return ChangeRow(cid, entity, "deploy", scope, -60_000.0, proximity, peer)
+
+    @staticmethod
+    def template(service: str, tid: str, base: int, inc: int, *, error: bool = False) -> TemplateRow:
+        return TemplateRow(service, tid, base, inc, error)
 
     @staticmethod
     def anomaly(
