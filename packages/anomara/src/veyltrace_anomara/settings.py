@@ -2,7 +2,8 @@
 
 Why typed: every detector threshold is a named config key (AGENTS §5), and a malformed value
 should fail as a ConfigError before any series is scored, not as a TypeError deep in numpy.
-Sections arrive with the code that reads them (O-04c: grid; O-04d: robust_z; O-04e: nsigma, silence).
+Sections arrive with the code that reads them (O-04c: grid; O-04d: robust_z; O-04e: nsigma,
+silence; O-04f: bocpd).
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ __all__ = [
     "ANY_UNIT",
     "NS_PER_S",
     "AnomaraConfig",
+    "BocpdConfig",
     "GridConfig",
     "NSigmaConfig",
     "RobustZConfig",
@@ -106,6 +108,20 @@ class SilenceConfig:
 
 
 @dataclass(frozen=True)
+class BocpdConfig:
+    """`bocpd.*` (03-anomara §3.4); `lam` is `bocpd.lambda` (a Python keyword), the prior is flat."""
+
+    lam: float
+    mu0: float
+    kappa0: float
+    alpha0: float
+    beta0: float
+    r_max: int
+    short_run: int
+    threshold: float
+
+
+@dataclass(frozen=True)
 class AnomaraConfig:
     """The validated Anomara section."""
 
@@ -113,6 +129,7 @@ class AnomaraConfig:
     robust_z: RobustZConfig
     nsigma: NSigmaConfig
     silence: SilenceConfig
+    bocpd: BocpdConfig
 
 
 def _epsilon(section: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]]:
@@ -171,6 +188,38 @@ def _silence(section: Mapping[str, Any]) -> SilenceConfig:
     )
 
 
+def _bocpd(section: Mapping[str, Any]) -> BocpdConfig:
+    bc = _mapping(section, "bocpd", "anomara")
+    prior = _mapping(bc, "prior", "anomara.bocpd")
+    where, at = "anomara.bocpd", "anomara.bocpd.prior"
+    lam = _number(bc, "lambda", where, positive=True)
+    if lam <= 1.0:
+        msg = f"{where}.lambda must be > 1 (the hazard 1/lambda is a probability below 1), got {lam!r}"
+        raise ConfigError(msg)
+    mu0: object = prior.get("mu0")
+    if isinstance(mu0, bool) or not isinstance(mu0, int | float) or not math.isfinite(mu0):
+        msg = f"{at}.mu0 must be a finite number, got {mu0!r}"
+        raise ConfigError(msg)
+    short: object = bc.get("short_run")
+    if isinstance(short, bool) or not isinstance(short, int) or short < 0:
+        msg = f"{where}.short_run must be an integer >= 0, got {short!r}"
+        raise ConfigError(msg)
+    threshold = _share(bc, "threshold", where)
+    if threshold == 0.0:
+        msg = f"{where}.threshold must be in (0, 1], got {threshold!r}"
+        raise ConfigError(msg)
+    return BocpdConfig(
+        lam=lam,
+        mu0=float(mu0),
+        kappa0=_number(prior, "kappa0", at, positive=True),
+        alpha0=_number(prior, "alpha0", at, positive=True),
+        beta0=_number(prior, "beta0", at, positive=True),
+        r_max=_count(bc, "r_max", where),
+        short_run=short,
+        threshold=threshold,
+    )
+
+
 def anomara_config(section: Mapping[str, Any]) -> AnomaraConfig:
     """Validate the Anomara config section (`ctx.config`, or the EngineConfig core passes)."""
     grid = _mapping(section, "grid", "anomara")
@@ -180,4 +229,5 @@ def anomara_config(section: Mapping[str, Any]) -> AnomaraConfig:
         robust_z=_robust_z(section),
         nsigma=NSigmaConfig(threshold=_number(ns, "threshold", "anomara.nsigma", positive=True)),
         silence=_silence(section),
+        bocpd=_bocpd(section),
     )
