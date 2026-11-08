@@ -63,7 +63,7 @@ def check_suite(suite: str, budget_s: float) -> list[str]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description="Convert every fetched case of RCAEval suites (O-01 check).")
     parser.add_argument("suites", nargs="+", help="RCAEval suites, e.g. re2-ob re2-ss re2-tt")
     parser.add_argument("--budget-s", type=float, default=DEFAULT_BUDGET_S)
     args = parser.parse_args(argv)
