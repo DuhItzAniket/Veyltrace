@@ -1,4 +1,4 @@
-"""Shared inputs for the Causentra stub tests: contract examples and a fixture run directory.
+"""Shared inputs for the Causentra tests: contract examples and a fixture run directory.
 
 The contract examples (contracts/examples) give a populated slate and proposals for synth-01's
 case id; the fixture run dir gives every upstream artefact as the committed goldens hold it.
