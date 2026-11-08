@@ -71,3 +71,16 @@ desktop.ini
 # --- Local models (Ollama / GGUF files are multi-GB) ---
 *.gguf
 models/
+
+# --- Engine scratch (lead decision 2026-11-06) ---
+# DuckDB spill dirs (<run_dir>/.duck-tmp, set by veyltrace_core.duck.connect) and DuckDB's
+# in-memory default temp dir, so a spill never marks the tree dirty.
+.duck-tmp/
+.tmp/
+
+# Side venvs, e.g. the isolated RCAEval baseline venv (lead decision 2026-11-06).
+.venv-*/
+
+# --- Golden fixtures are committed (03 §1): re-include them after *.parquet above ---
+!packages/*/fixtures/**/*.parquet
+!lab/tests/fixtures/**

@@ -1,0 +1,37 @@
+# Pre-commit hooks (docs/10-sdlc-and-quality.md §5). Install once per worktree:
+#   uv run pre-commit install
+# Never bypass with --no-verify (AGENTS §4.7).
+# Fixtures and generated contract code are byte-exact artefacts: no fixer may touch them (03 §1).
+exclude: '(^|/)fixtures/|^contracts/generated/'
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-json
+
+  # ruff runs from the workspace venv, so the hook uses exactly the version pinned in uv.lock
+  # (no second pin to drift). --force-exclude applies [tool.ruff] excludes to the files passed.
+  - repo: local
+    hooks:
+      - id: ruff
+        name: ruff check
+        entry: uv run --frozen ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run --frozen ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+      # Guard against hand edits of generated code: regenerate into a temp dir and byte-compare
+      # (scripts/gen_contracts.py --check; AGENTS §4.1, 10 §5).
+      - id: contracts-in-sync
+        name: contracts in sync (gen_contracts.py --check)
+        entry: uv run scripts/gen_contracts.py --check
+        language: system
+        pass_filenames: false
+        files: '^(contracts/|scripts/gen_contracts\.py$)'

@@ -42,10 +42,24 @@ LANES = {"R": ["reason"], "O": ["observe"], "X": ["explain"], "all": ["reason", 
 
 # Issue type per task. Anything not listed is type:feat. Keep in step with docs/07-roadmap.md.
 TYPE_OF = {
-    "L-00": "chore", "L-01": "chore", "L-02": "docs", "L-03": "chore", "L-04": "chore",
-    "L-05": "chore", "L-06": "docs", "L-07": "adr",
-    "R-05": "exp", "R-07": "chore", "R-11": "exp", "R-13": "exp", "R-16": "exp", "R-17": "exp",
-    "R-18": "paper", "O-12": "docs", "X-11": "exp", "X-13": "paper",
+    "L-00": "chore",
+    "L-01": "chore",
+    "L-02": "docs",
+    "L-03": "chore",
+    "L-04": "chore",
+    "L-05": "chore",
+    "L-06": "docs",
+    "L-07": "adr",
+    "R-05": "exp",
+    "R-07": "chore",
+    "R-11": "exp",
+    "R-13": "exp",
+    "R-16": "exp",
+    "R-17": "exp",
+    "R-18": "paper",
+    "O-12": "docs",
+    "X-11": "exp",
+    "X-13": "paper",
 }
 
 GANTT_MILESTONE = re.compile(r"^\s*(M\d [^:]+?)\s*:milestone,\s*m\d+,\s*(\d{4}-\d{2}-\d{2})")
@@ -56,9 +70,9 @@ REL_LINK = re.compile(r"\]\((?!https?:|#)([^)\s]+)\)")
 
 @dataclass
 class Milestone:
-    key: str          # "M0"
-    title: str        # "M0 Ground ready"
-    due: str          # "2026-11-03"
+    key: str  # "M0"
+    title: str  # "M0 Ground ready"
+    due: str  # "2026-11-03"
     description: str = ""
 
 
@@ -82,6 +96,7 @@ def split_row(line: str) -> list[str]:
 
 def absolutise(text: str, repo: str) -> str:
     """Turn docs-relative links into absolute GitHub links so they work in issue bodies."""
+
     def fix(m: re.Match[str]) -> str:
         target = m.group(1)
         path = (ROADMAP.parent / target.split("#")[0]).resolve()
@@ -91,6 +106,7 @@ def absolutise(text: str, repo: str) -> str:
             return m.group(0)
         anchor = "#" + target.split("#", 1)[1] if "#" in target else ""
         return f"](https://github.com/{repo}/blob/main/{relp}{anchor})"
+
     return REL_LINK.sub(fix, text)
 
 
@@ -136,7 +152,7 @@ def parse(repo: str) -> tuple[list[Milestone], list[Task]]:
             continue
         if header is None or set("".join(cells)) <= set("-: "):
             continue
-        row = dict(zip(header, cells))
+        row = dict(zip(header, cells, strict=False))  # short rows: missing cells read as absent
         tid = row.get("ID", "")
         if not re.fullmatch(r"[LROX]-\d{2}", tid):
             continue
@@ -144,17 +160,19 @@ def parse(repo: str) -> tuple[list[Milestone], list[Task]]:
         if lane_code not in LANES:
             raise SystemExit(f"{tid}: unknown lane '{lane_code}' (expected R, O, X or all)")
         labels = [f"lane:{ln}" for ln in LANES[lane_code]] + [f"type:{TYPE_OF.get(tid, 'feat')}"]
-        tasks.append(Task(
-            id=tid,
-            task=absolutise(row.get("Task", ""), repo),
-            lane=lane_code,
-            est=row.get("Est", "?"),
-            depends=row.get("Depends", "—") or "—",
-            acceptance=absolutise(row.get("Acceptance criteria", ""), repo),
-            phase=phase,
-            milestone=milestone,
-            labels=labels,
-        ))
+        tasks.append(
+            Task(
+                id=tid,
+                task=absolutise(row.get("Task", ""), repo),
+                lane=lane_code,
+                est=row.get("Est", "?"),
+                depends=row.get("Depends", "—") or "—",
+                acceptance=absolutise(row.get("Acceptance criteria", ""), repo),
+                phase=phase,
+                milestone=milestone,
+                labels=labels,
+            )
+        )
     ids = [t.id for t in tasks]
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     if dupes:
@@ -163,7 +181,7 @@ def parse(repo: str) -> tuple[list[Milestone], list[Task]]:
 
 
 def plain_title(task: Task) -> str:
-    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", task.task)   # drop link targets
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", task.task)  # drop link targets
     text = text.replace("`", "")
     # Keep as many leading clauses as fit in ~90 characters; the full text is in the body.
     clauses = [c.strip() for c in text.split("; ") if c.strip()]
@@ -179,30 +197,43 @@ def plain_title(task: Task) -> str:
 
 def body(task: Task, numbers: dict[str, int], repo: str) -> str:
     def link_ids(text: str) -> str:
-        return re.sub(r"\b([LROX]-\d{2})\b", lambda m: f"{m.group(1)} (#{numbers[m.group(1)]})" if m.group(1) in numbers else m.group(1), text)
+        return re.sub(
+            r"\b([LROX]-\d{2})\b",
+            lambda m: f"{m.group(1)} (#{numbers[m.group(1)]})" if m.group(1) in numbers else m.group(1),
+            text,
+        )
 
     lanes = ", ".join(LANES[task.lane])
-    return "\n".join([
-        f"**Roadmap task** `{task.id}` · {task.phase} · milestone **{task.milestone}**",
-        f"**Lane:** {lanes} · **Estimate:** {task.est} person-days (*estimate*) · **Depends on:** {link_ids(task.depends)}",
-        "",
-        "### Task",
-        task.task,
-        "",
-        "### Acceptance criteria",
-        f"- [ ] {task.acceptance}",
-        "",
-        "### Before you start",
-        f"- Read [AGENTS.md](https://github.com/{repo}/blob/main/AGENTS.md), then the docs linked above, then the engine spec in `docs/engines/` if any.",
-        f"- Follow the session protocol in [docs/09-ai-agent-playbook.md §4](https://github.com/{repo}/blob/main/docs/09-ai-agent-playbook.md#4-session-protocol).",
-        "- The PR must tick the Definition of Done and carry `lane:*`, `type:*` and `agent:*` labels.",
-        "",
-        f"<sub>Generated by `scripts/create_issues.py` from [docs/07-roadmap.md](https://github.com/{repo}/blob/main/docs/07-roadmap.md). Change scope in the roadmap first.</sub>",
-    ])
+    return "\n".join(
+        [
+            f"**Roadmap task** `{task.id}` · {task.phase} · milestone **{task.milestone}**",
+            f"**Lane:** {lanes} · **Estimate:** {task.est} person-days (*estimate*)"
+            f" · **Depends on:** {link_ids(task.depends)}",
+            "",
+            "### Task",
+            task.task,
+            "",
+            "### Acceptance criteria",
+            f"- [ ] {task.acceptance}",
+            "",
+            "### Before you start",
+            f"- Read [AGENTS.md](https://github.com/{repo}/blob/main/AGENTS.md), then the docs linked above,"
+            " then the engine spec in `docs/engines/` if any.",
+            "- Follow the session protocol in [docs/09-ai-agent-playbook.md §4]"
+            f"(https://github.com/{repo}/blob/main/docs/09-ai-agent-playbook.md#4-session-protocol).",
+            "- The PR must tick the Definition of Done and carry `lane:*`, `type:*` and `agent:*` labels.",
+            "",
+            "<sub>Generated by `scripts/create_issues.py` from"
+            f" [docs/07-roadmap.md](https://github.com/{repo}/blob/main/docs/07-roadmap.md)."
+            " Change scope in the roadmap first.</sub>",
+        ]
+    )
 
 
 def gh(*args: str, stdin: str | None = None) -> str:
-    proc = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, encoding="utf-8")
+    proc = subprocess.run(  # returncode is checked below, to show gh's stderr
+        ["gh", *args], input=stdin, capture_output=True, text=True, encoding="utf-8", check=False
+    )
     if proc.returncode != 0:
         raise SystemExit(f"gh {' '.join(args[:3])} ... failed:\n{proc.stderr.strip()}")
     return proc.stdout
@@ -212,21 +243,40 @@ def apply(repo: str, milestones: list[Milestone], tasks: list[Task]) -> int:
     if shutil.which("gh") is None:
         raise SystemExit("gh CLI not found. Install it and run `gh auth login`.")
 
-    have_labels = {l["name"] for l in json.loads(gh("label", "list", "--repo", repo, "--limit", "500", "--json", "name"))}
-    missing = sorted({l for t in tasks for l in t.labels} - have_labels)
+    have_labels = {
+        lb["name"]
+        for lb in json.loads(gh("label", "list", "--repo", repo, "--limit", "500", "--json", "name"))
+    }
+    missing = sorted({lb for t in tasks for lb in t.labels} - have_labels)
     if missing:
-        raise SystemExit(f"labels missing in {repo}: {missing}\nRun first: uv run scripts/sync_labels.py --apply")
+        raise SystemExit(
+            f"labels missing in {repo}: {missing}\nRun first: uv run scripts/sync_labels.py --apply"
+        )
 
-    existing_ms = {m["title"] for m in json.loads(gh("api", f"repos/{repo}/milestones?state=all&per_page=100"))}
+    existing_ms = {
+        m["title"] for m in json.loads(gh("api", f"repos/{repo}/milestones?state=all&per_page=100"))
+    }
     for ms in milestones:
         if ms.title in existing_ms:
             print(f"skip milestone  {ms.title} (exists)")
             continue
-        gh("api", f"repos/{repo}/milestones", "-X", "POST",
-           "-f", f"title={ms.title}", "-f", f"due_on={ms.due}T12:00:00Z", "-f", f"description={ms.description}")
+        gh(
+            "api",
+            f"repos/{repo}/milestones",
+            "-X",
+            "POST",
+            "-f",
+            f"title={ms.title}",
+            "-f",
+            f"due_on={ms.due}T12:00:00Z",
+            "-f",
+            f"description={ms.description}",
+        )
         print(f"created milestone {ms.title} due {ms.due}")
 
-    issues = json.loads(gh("issue", "list", "--repo", repo, "--state", "all", "--limit", "1000", "--json", "number,title"))
+    issues = json.loads(
+        gh("issue", "list", "--repo", repo, "--state", "all", "--limit", "1000", "--json", "number,title")
+    )
     numbers: dict[str, int] = {}
     for it in issues:
         m = re.match(r"([LROX]-\d{2}) ", it["title"])
@@ -237,7 +287,18 @@ def apply(repo: str, milestones: list[Milestone], tasks: list[Task]) -> int:
         if t.id in numbers:
             print(f"skip issue      {t.id} (#{numbers[t.id]} exists)")
             continue
-        args = ["issue", "create", "--repo", repo, "--title", plain_title(t), "--body-file", "-", "--milestone", t.milestone]
+        args = [
+            "issue",
+            "create",
+            "--repo",
+            repo,
+            "--title",
+            plain_title(t),
+            "--body-file",
+            "-",
+            "--milestone",
+            t.milestone,
+        ]
         for label in t.labels:
             args += ["--label", label]
         url = gh(*args, stdin=body(t, numbers, repo)).strip()
@@ -254,7 +315,9 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     mode = ap.add_mutually_exclusive_group()
-    mode.add_argument("--dry-run", action="store_true", default=True, help="print the plan; call nothing (default)")
+    mode.add_argument(
+        "--dry-run", action="store_true", default=True, help="print the plan; call nothing (default)"
+    )
     mode.add_argument("--apply", action="store_true", help="create missing milestones and issues with gh")
     ap.add_argument("--repo", default=DEFAULT_REPO, help=f"OWNER/NAME (default {DEFAULT_REPO})")
     ap.add_argument("--show-body", action="store_true", help="dry run: also print each issue body")

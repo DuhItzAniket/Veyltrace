@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "veyltrace-signalyth"
+version = "0.1.0"
+description = "Veyltrace engine 2 (Signalyth): turns telemetry into the signal cube (series, edges, templates, critical path)."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+dependencies = ["veyltrace-core", "veyltrace-contracts"]
+
+# Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
+[project.entry-points."veyltrace.engines"]
+signalyth = "veyltrace_signalyth.api:run"
+
+[tool.uv.sources]
+veyltrace-core = { workspace = true }
+veyltrace-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/veyltrace_signalyth"]
+
+# Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
+# (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
+[tool.veyltrace.isolation]
+allow = []

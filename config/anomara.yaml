@@ -1,0 +1,10 @@
+# config/anomara.yaml: section "anomara" (file stem). Owner: Observe lane.
+# Spec: docs/engines/03-anomara.md §4. R-02 bootstrap: only the keys core needs now; the Observe
+# lane adds the rest in O-00 (detect_alert's slo.* keys arrive with O-04). Overrides must name
+# keys present here (packages/core/README.md: unknown keys are an error).
+
+duckdb:
+  # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06). 03-anomara states no
+  # values, so these are that decision's defaults (a priori).
+  threads: 1
+  memory_limit: "2GB"

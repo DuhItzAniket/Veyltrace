@@ -1,0 +1,31 @@
+# config/faultloom.yaml: section "faultloom" (file stem). Owner: Reason lane.
+# Spec: docs/engines/06-faultloom.md §4. R-02 bootstrap: only the keys core needs now; the Reason
+# lane adds the atom keys in R-00/R-08. Overrides must name keys present here
+# (packages/core/README.md: unknown keys are an error).
+
+duckdb:
+  # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06). 06-faultloom states no
+  # values, so these are that decision's defaults (a priori).
+  threads: 1
+  memory_limit: "2GB"
+
+predicates:
+  # Inclusive parameter ranges of the predicate library (06-faultloom §3.5 table; 03 §7). Ranges
+  # live here, not in contracts/predicates.json, so they enter the config lock (03 §7); widening
+  # one is a code-review item (06-faultloom §4). Float params are written as floats and int params
+  # as ints, because overrides are coerced to the base value's type.
+  # Predicates without numeric params (onset_before, edge_anomalous, silent) have no entry.
+  change_before_onset:
+    max_ms: {min: 0.0, max: 86400000.0}
+  error_rate_above:
+    x: {min: 0.0, max: 1.0}
+  on_critical_path:
+    min_share: {min: 0.0, max: 1.0}
+  peer_gap_above:
+    x: {min: 0.0, max: 100.0}
+  self_time_share_above:
+    x: {min: 0.0, max: 1.0}
+  template_new_in_incident:
+    min_count: {min: 1, max: 1000000}
+  zscore_above:
+    k: {min: 1.0, max: 100.0}

@@ -1,0 +1,36 @@
+# config/causentra.yaml: section "causentra" (file stem). Owner: Reason lane.
+# Spec: docs/engines/09-causentra.md §4. R-02 bootstrap: only the keys core needs now (calibration
+# selection and predicate weights); the Reason lane adds the trial keys in R-00/R-10. Overrides
+# must name keys present here (packages/core/README.md: unknown keys are an error).
+
+calibration:
+  # Benchmark family to load; null: chosen from family_map by dataset (09-causentra §4; set by
+  # experiments).
+  family: null
+  # Dataset pattern -> benchmark family (09-causentra §4; 02 §12 default). Matched with
+  # fnmatch.fnmatchcase, patterns sorted, exact key before glob (M0 lead decision
+  # 2026-11-06).
+  family_map:
+    "fse26-tt": fse26
+    "nezha-*": nezha
+    "re1-*": rcaeval-re1
+    "re2-*": rcaeval-re2
+    "re3-*": rcaeval-re3
+    synth: synth
+    "veyllab-*": veyllab
+  # Fold: the 4th family_id part, <family>.<ai_arm>.<alert_protocol>.<fold> (03 §12.1). Key added
+  # by the M0 lead decision 2026-11-06, default foldA; bench sets it per run.
+  fold: foldA
+
+predicates:
+  # Claim weight per predicate: the default-weight column of 03 §7 (a priori).
+  change_before_onset: {weight: 0.10}
+  edge_anomalous: {weight: 0.10}
+  error_rate_above: {weight: 0.05}
+  on_critical_path: {weight: 0.05}
+  onset_before: {weight: 0.10}
+  peer_gap_above: {weight: 0.10}
+  self_time_share_above: {weight: 0.10}
+  silent: {weight: 0.10}
+  template_new_in_incident: {weight: 0.05}
+  zscore_above: {weight: 0.10}
