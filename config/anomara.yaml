@@ -37,3 +37,16 @@ robust_z:
   persist_steps: 3          # p, grid steps a deviation must persist (a priori)
   threshold: 3.0            # z; PRISM's nominal threshold (rcaeval_facts §Anomaly scoring methods)
   min_baseline_steps: 5     # grid buckets the baseline must cover, else score 0 (a priori)
+
+nsigma:
+  threshold: 3.0            # sigma; a priori (common 3-sigma rule)
+
+silence:
+  # 03-anomara §3.5: a run qualifies when it lasts at least L = max(min_gap_s, min_steps * g).
+  min_gap_s: 60             # a priori
+  min_steps: 3              # grid steps, a priori
+  # Signals whose drop to exactly 0 is zero-silence (counts and resources); a priori.
+  zero_signals: [rps, workload, log_rate, cpu, mem]
+  max_baseline_zero_share: 0.2   # zero-silence needs a baseline at most 20% zero (a priori)
+  min_baseline_coverage: 0.8     # absence-silence needs 80% of baseline buckets observed (a priori)
+  service_metric_share: 0.5      # per_service.silent when half its metric series are silent (a priori)
