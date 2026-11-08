@@ -61,15 +61,37 @@ def test_two_stub_runs_are_byte_identical(off_run: RunSummary, tmp_path: Path) -
         assert sha256_file(io.path_of(name, again.run_dir)) == sha256_file(io.path_of(name, off_run.run_dir))
 
 
-def test_verdict_is_inconclusive_uncalibrated_and_self_hashed(off_run: RunSummary) -> None:
+def test_verdict_is_valid_uncalibrated_and_self_hashed(off_run: RunSummary) -> None:
+    # Since R-00 (#9) the installed Causentra is the package's own stub (later R-10/R-12), so this
+    # pipeline test keeps only contract-level invariants; the engine's behaviour is pinned by
+    # packages/causentra/tests and core's own writer by the placeholder test below.
+    io.read("verdict", off_run.run_dir, validate=True)
     verdict = io.read_model("verdict", off_run.run_dir, models.Verdict)
-    assert verdict.status == "INCONCLUSIVE"
-    assert verdict.root is None
-    assert verdict.candidate_set == [] and verdict.ranked == []
-    assert verdict.confidence.level == "none" and verdict.confidence.q_hat is None
+    assert verdict.confidence.set_size == len(verdict.candidate_set)
     assert verdict.calibration.family == stubs.UNCALIBRATED_FAMILY
     assert verdict.calibration.sha256 == sha256_json({"family": "uncalibrated"})
     assert verdict.run_id == off_run.run_id
+    assert verdict.verdict_hash == self_hash("verdict", verdict)
+
+
+def test_core_causentra_placeholder_still_writes_the_empty_verdict(
+    off_run: RunSummary, tmp_path: Path
+) -> None:
+    # Core's R-02 writer is kept (STUB_STEPS covers every engine sub-step); called directly it
+    # still writes the minimal placeholder: no pool, no set, q_hat null (+inf), uncalibrated.
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    for name in ("case_manifest", "slate", "evidence"):
+        source = io.path_of(name, off_run.run_dir)
+        (run_dir / source.name).write_bytes(source.read_bytes())
+    ctx = make_context("causentra", run_dir, case_id=CASE, run_id=off_run.run_id)
+    result = stubs.run_stub(ctx, "causentra")
+    assert result.notes == (stubs.STUB_NOTE,)
+    verdict = io.read_model("verdict", run_dir, models.Verdict)
+    assert verdict.status == "INCONCLUSIVE" and verdict.root is None
+    assert verdict.candidate_set == [] and verdict.ranked == []
+    assert verdict.confidence.level == "none" and verdict.confidence.q_hat is None
+    assert verdict.calibration.sha256 == sha256_json({"family": "uncalibrated"})
     assert verdict.verdict_hash == self_hash("verdict", verdict)
 
 

@@ -146,8 +146,10 @@ def test_invalid_dataset(cfg_dir: Path) -> None:
 
 
 def test_off_stays_a_string_in_the_lock(cfg_dir: Path) -> None:
-    append_yaml(cfg_dir, "causatrix", "fusion:\n  method: off\n")
-    assert resolve(cfg_dir).sections["causatrix"]["fusion"]["method"] == "off"
+    # A new top-level key, so the test does not collide with the keys config/causatrix.yaml
+    # declares (R-00 added fusion.method there; a duplicate key is a ConfigError).
+    append_yaml(cfg_dir, "causatrix", "yaml12_probe:\n  method: off\n")
+    assert resolve(cfg_dir).sections["causatrix"]["yaml12_probe"]["method"] == "off"
 
 
 def test_duplicate_yaml_key_is_a_config_error(cfg_dir: Path) -> None:

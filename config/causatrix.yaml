@@ -1,5 +1,77 @@
 # config/causatrix.yaml: section "causatrix" (file stem). Owner: Reason lane.
-# Spec: docs/engines/07-causatrix.md §4. R-02 bootstrap: core needs no Causatrix key yet; the Reason
-# lane adds them in R-00, including ablation keys such as fusion.method, which overrides can only
-# name once they are here (packages/core/README.md).
-{}
+# Spec: docs/engines/07-causatrix.md §4 (every key of that table, with its default) plus the §9
+# ablation key fusion.method. Overrides must name keys present here (packages/core/README.md:
+# unknown keys are an error), e.g. causatrix.slate.k=10 or causatrix.rrf.gate=false.
+# Shared values live in config/core.yaml: thresholds.anomaly_z (k_anom) and
+# universe.include_external (07 §2.1). The R-00 stub reads slate.k, rankers.enabled, fusion.method,
+# rrf.k, rrf.weights and indicator_map; the other keys are declared for R-09 and its ablations.
+
+slate:
+  # Top-K slate size (07 §4: 02 default 5; ablation {5, 10, 15}, DecompRCA retrieved 98-100% of
+  # roots at top-15 on RCAEval).
+  k: 5
+
+rankers:
+  # Enabled rankers, sorted by name (07 §4; 02 §6.7). Leave-one-ranker-out ablations override the
+  # whole list (07 §9). Each name needs an rrf.weights entry.
+  enabled: [baro_rs, change_prox, cp_sbfl, graph_walk, nsigma, prism_m]
+
+fusion:
+  # Fusion rule: rrf | combsum_minmax | borda (07 §9 fusion shoot-out; 03 §8). rrf is the default;
+  # the others are ablations, never the default.
+  method: rrf
+
+rrf:
+  # RRF constant (07 §4: Cormack et al. 2009, k = 60; 02). Written as slate.fusion.k for method rrf.
+  k: 60
+  # Fusion weight per ranker (07 §4: a priori 1.0; 02 fixes them, never tuned).
+  weights:
+    baro_rs: 1.0
+    change_prox: 1.0
+    cp_sbfl: 1.0
+    graph_walk: 1.0
+    nsigma: 1.0
+    prism_m: 1.0
+  # Gated RRF: a ranker votes only if its channel exists (07 §3.3; 02). false is an ablation.
+  gate: true
+
+# A ranker whose quantised scores are constant over U abstains (07 §3.2; a priori).
+abstain_on_constant: true
+
+prism_m:
+  # add: M = I' + E - ln(1 + I' + E) (PRISM default); conj: min(I', E) is an ablation (07 §3.2).
+  combine: add
+  # A silent service counts as this many robust z of internal deviation (07 §4: a priori;
+  # ablation 5 / 20).
+  silence_z: 10.0
+
+graph_walk:
+  # Personalised PageRank damping (07 §4: standard PageRank value, a priori).
+  damping: 0.85
+  # Fixed iteration count, no convergence test (07 §3.4: 0.85^200 < 1e-12).
+  iterations: 200
+  # Self-loop weight aI(u) on each row (07 §3.4: a priori; ablation false).
+  self_loop: true
+
+mode:
+  # R1 change proximity floor: e^-1, i.e. dt <= tau_change for exp(-dt/tau) (07 §3.5, §4).
+  change_min_proximity: 0.36787944
+  # R5 minimum incoming p50 edge gap in ms (07 §4: a priori).
+  edge_gap_min_ms: 5.0
+  # R5 loss rule: edge_gap{in,p50} / edge_gap{in,p99} at or below this means loss (07 §4: earlier
+  # notes' DELAY-vs-LOSS rule, untested).
+  tail_ratio: 0.5
+
+# Signal family -> RCAEval indicator string (07 §3.6; 03 common indicator vocabulary). RE1's
+# disk -> latency rule lives in bench's scorer, not here.
+indicator_map:
+  cpu: cpu
+  disk: diskio
+  errors: error
+  latency: latency
+  logs: logs
+  mem: mem
+  net: socket
+  other: unknown
+  self_time: latency
+  traffic: workload

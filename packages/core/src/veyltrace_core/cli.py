@@ -72,9 +72,11 @@ CASSETTE_DIR: Final = "cassette"
 #: Version tag of the error summary: the value pipeline.summary_dict writes as "schema" (a test
 #: checks the two agree).
 SUMMARY_SCHEMA: Final = "veyltrace.run_summary/1"
-#: Prefix of stubs.STUB_NOTE: diagnose warns when a step result carries it (the stubs module is
-#: not imported here, so the CLI stays importable without it).
-STUB_MARK: Final = "stub: R-02 bootstrap"
+#: Prefix of every stub note: core's stubs.STUB_NOTE ("stub: R-02 bootstrap ...") and each
+#: package's own stub ("stub: R-00 ...", likewise O-00 / X-00). diagnose warns when a step result
+#: note starts with it, since EngineResult.notes are not stored in any artefact (the stubs module
+#: is not imported here, so the CLI stays importable without it).
+STUB_MARK: Final = "stub: "
 #: Exit code click (vendored by typer) gives a usage error; mapped per command in main().
 _CLICK_USAGE_EXIT: Final = 2
 
@@ -245,9 +247,10 @@ def diagnose(
     if summary_path is not None:
         _check_outside(summary_path, summary.run_dir)
         write_summary(summary, summary_path)
-    if any(STUB_MARK in note for result in summary.results for note in result.notes):
+    if any(note.startswith(STUB_MARK) for result in summary.results for note in result.notes):
         typer.echo(
-            "warning: bootstrap stub engines wrote placeholder outputs (R-02); results are not analysis",
+            "warning: stub engines wrote placeholder outputs (R-02 bootstrap or package stubs); "
+            "results are not analysis",
             err=True,
         )
     typer.echo(f"outcome: {summary.outcome}")

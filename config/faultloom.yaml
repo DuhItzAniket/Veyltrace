@@ -1,7 +1,8 @@
 # config/faultloom.yaml: section "faultloom" (file stem). Owner: Reason lane.
-# Spec: docs/engines/06-faultloom.md §4. R-02 bootstrap: only the keys core needs now; the Reason
-# lane adds the atom keys in R-00/R-08. Overrides must name keys present here
-# (packages/core/README.md: unknown keys are an error).
+# Spec: docs/engines/06-faultloom.md §4 (every row of its table is declared here, R-00). The R-00
+# stub reads window.score_ms and alignment.missing_tolerance_ns; the other keys are declared now so
+# ablation overrides can name them (06 §9) and are read from R-06/R-08 on. Overrides must name keys
+# present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06). 06-faultloom states no
@@ -29,3 +30,63 @@ predicates:
     min_count: {min: 1, max: 1000000}
   zscore_above:
     k: {min: 1.0, max: 100.0}
+
+atoms:
+  # Detectors whose anomalies rows become internal_/external_anomaly atoms (06 §4: the detectors
+  # the rankers need, prism_m/baro_rs -> robust_z, nsigma -> nsigma; bocpd gives onsets only and
+  # tsfm is an Anomara ablation).
+  detectors: [robust_z, nsigma, silence]
+  # Atom kinds not emitted (06 §9 "Atom-kind drop" ablation, `atoms.disabled: [<kind>]`); empty
+  # by default (a priori: every kind is on).
+  disabled: []
+
+window:
+  # Length of W_score after t_onset, clamped to the incident window (06 §2.1, §4; a priori, after
+  # PRISM's early-window result; ablation 60000 / 600000).
+  score_ms: 300000
+
+alignment:
+  # tol_ns when alignment.json is absent (06 §6: 15 s, the common Prometheus scrape step).
+  missing_tolerance_ns: 15000000000
+
+self_time:
+  # Critical-path self-time quantile of self_time_share (06 §4; a priori, the median is robust to
+  # trace sampling; ablation p99).
+  quantile: p50
+  # Minimum sum of positive self-time increases before self_time_share is emitted (06 §4; a priori).
+  min_total_increase_ms: 5.0
+
+spectrum:
+  # Spectrum coefficient (06 §4: Ochiai outperformed other coefficients in an industrial SBFL
+  # study; ablation dstar2).
+  formula: ochiai
+  # Per-trace weighting (06 §4: CP-SBFL card; ablation none).
+  weighting: critical_path
+
+templates:
+  # min_count of log_new_template atoms, in lines (06 §4; a priori, filters one-off lines).
+  min_count: 3
+
+peer:
+  # Components a service needs before peer_contrast{anomalies} is emitted (06 §4: a peer needs at
+  # least one other replica).
+  min_components: 2
+
+edge_gap:
+  # Minimum incident calls on an edge for edge_gap (06 §4; a priori, medians over fewer calls are
+  # noise).
+  min_calls: 10
+
+cards:
+  # evidence_cards token budget, an *estimate* (06 §4, §3.7; a priori, fits Relentra's 16 K context
+  # with room for the brief and the schema).
+  max_tokens: 1500
+  # Bytes per token of the budget estimate (06 §4: *estimate* for English/JSON-like text).
+  bytes_per_token: 4
+  # Atoms per candidate card (06 §4; a priori; ablation 3 / 6 / 9).
+  k_default: 6
+
+intervention:
+  # Decision-pool members tested for T8 intervention atoms (06 §4: Causalith's ci.max_candidates
+  # limit, 05 §3.7).
+  max_candidates: 5
