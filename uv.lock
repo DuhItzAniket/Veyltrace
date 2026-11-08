@@ -1052,12 +1052,18 @@ name = "veyltrace-anomara"
 version = "0.1.0"
 source = { editable = "packages/anomara" }
 dependencies = [
+    { name = "numpy" },
+    { name = "pyarrow" },
+    { name = "veyltrace-causalith" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "pyarrow", specifier = ">=17" },
+    { name = "veyltrace-causalith", editable = "packages/causalith" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
 ]
@@ -1082,12 +1088,16 @@ name = "veyltrace-causalith"
 version = "0.1.0"
 source = { editable = "packages/causalith" }
 dependencies = [
+    { name = "numpy" },
+    { name = "pyarrow" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "pyarrow", specifier = ">=17" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
 ]
