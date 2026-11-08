@@ -1,7 +1,16 @@
 # config/causentra.yaml: section "causentra" (file stem). Owner: Reason lane.
-# Spec: docs/engines/09-causentra.md §4. R-02 bootstrap: only the keys core needs now (calibration
-# selection and predicate weights); the Reason lane adds the trial keys in R-00/R-10. Overrides
-# must name keys present here (packages/core/README.md: unknown keys are an error).
+# Spec: docs/engines/09-causentra.md §4 (every key of that table is declared here with its default,
+# so ablation overrides can name it; packages/core/README.md: unknown override keys are an error).
+# R-00 stub: the stub reads alpha, calibration.uncalibrated_q_hat, proposals.max,
+# status.likely_max_set and asks.max; the trial, factor, claim, other status and no_fault keys are
+# read from R-10/R-12 on.
+
+# Conformal miscoverage level alpha (09 §4; 02 §6.9).
+alpha: 0.10
+
+asks:
+  # Maximum number of code-generated asks in the verdict (09 §3.11, §4; a priori).
+  max: 5
 
 calibration:
   # Benchmark family to load; null: chosen from family_map by dataset (09-causentra §4; set by
@@ -21,6 +30,37 @@ calibration:
   # Fold: the 4th family_id part, <family>.<ai_arm>.<alert_protocol>.<fold> (03 §12.1). Key added
   # by the M0 lead decision 2026-11-06, default foldA; bench sets it per run.
   fold: foldA
+  # q_hat when no calibration file applies: 0.0 keeps the leader plus exact ties (09 §3.7 and §4,
+  # R-10 "no conformal yet"; 02 §6.9).
+  uncalibrated_q_hat: 0.0
+
+claims:
+  # Clip bounds of the claim sum in V (09 §3.5 and §4; 02 §6.9).
+  clip_low: -0.3
+  clip_high: 0.3
+
+factors:
+  # Trial factors in V (09 §3.5 and §4; 02 §6.9, a priori): pass; mandatory trial untestable /
+  # failed; supporting trial untestable / failed.
+  pass: 1.0
+  untestable_mandatory: 0.85
+  fail_mandatory: 0.25
+  untestable_supporting: 1.0
+  fail_supporting: 0.9
+
+# Mandatory trials for every candidate (09 §3.4 and §4; 02 §6.9). T10 is added for proposal-origin
+# candidates by the rule in 09 §3.4, not by this list.
+mandatory: [T1, T2, T3, T4]
+
+no_fault:
+  # NO_FAULT miss rate beta: tau_nf is the (1 - beta)-quantile of M over normal windows (09 §3.8
+  # and §4; 02 §6.9).
+  beta: 0.10
+  # Detector whose atoms enter the NO_FAULT statistic M (09 §3.8 and §4, §11 Q12; a priori).
+  detector: robust_z
+  # tau_nf when fewer than 9 normal windows exist: log1p(3.0), the 3-sigma rule, the same as
+  # core.thresholds.anomaly_z (09 §3.8 and §4).
+  default_tau: 1.386294361
 
 predicates:
   # Claim weight per predicate: the default-weight column of 03 §7 (a priori).
@@ -34,3 +74,41 @@ predicates:
   silent: {weight: 0.10}
   template_new_in_incident: {weight: 0.05}
   zscore_above: {weight: 0.10}
+
+proposals:
+  # Proposals eligible for the decision pool, in proposal_id order: Relentra's hypothesis budget
+  # (09 §3.2 and §4; 02 §6.8).
+  max: 5
+
+status:
+  # CONFIRMED needs a relative margin >= c_high (09 §3.9 and §4; 02 §6.9).
+  c_high: 0.30
+  # LIKELY needs a relative margin >= c_med (09 §3.9 and §4; 02 §6.9).
+  c_med: 0.15
+  # LIKELY needs a candidate set of at most this many members (09 §3.9 and §4; 02 §6.9).
+  likely_max_set: 3
+
+trials:
+  # Trials whose factor is forced to 1 for the trial leave-one-out ablation; empty: none
+  # (09 §9 "Trial leave-one-out"; a priori).
+  disabled: []
+  T2:
+    # Fraction of onset_precedence{dependents} required to pass T2: the literal reading of 02
+    # "<= dependents' onsets" (09 §3.4 and §4, §11 Q3).
+    min_fraction: 1.0
+  T3:
+    # Fraction of anomalous services on the propagation path required to pass T3 (09 §3.4 and
+    # §4; a priori).
+    min_path_anomalous_fraction: 0.5
+  T5:
+    # Self-time share of the entry latency increase required to pass T5 (09 §3.4 and §4;
+    # 02 §6.9).
+    min_share: 0.30
+  T6:
+    # Change proximity required to pass T6: e^-1, i.e. the change is at most tau_change before the
+    # onset (09 §3.4 and §4; Causync's tau).
+    min_proximity: 0.36787944
+  T7:
+    # Peer-contrast gap required to pass T7, in z (09 §3.4 and §4; a priori, same scale as
+    # core.thresholds.anomaly_z).
+    min_gap: 3.0

@@ -1,18 +1,15 @@
 """Engine entry point of Causatrix (registered as `veyltrace.engines:causatrix`).
 
-R-02 bootstrap stub: the pipeline, the e2e test and the determinism gate need every engine
-to resolve before the real one exists (M0 lead decision 2026-11-06, bootstrap).
-The Reason lane replaces this module in R-00; the signature
-`run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
+R-00 stub: reads `evidence`, `graph.nodes`, `graph.edges` and `case_manifest` (07 §2.1) and writes
+a schema-valid `slate.json` over the case's candidate universe with no ranker votes
+(`veyltrace_causatrix.stub`). R-09 replaces the stub with the six rankers, gated RRF and the rule
+table; the signature `run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
 """
 
+from veyltrace_causatrix.stub import run_stub
 from veyltrace_core.context import EngineResult, RunContext
-from veyltrace_core.stubs import run_stub
 
 
 def run(ctx: RunContext) -> EngineResult:
-    """Stub (R-02 bootstrap): writes schema-valid placeholder outputs.
-
-    The owning lane (Reason) replaces it in R-00.
-    """
-    return run_stub(ctx, "causatrix")
+    """Pipeline step 6 (R-00 stub): the slate over U, every ranker abstaining (see `stub`)."""
+    return run_stub(ctx)

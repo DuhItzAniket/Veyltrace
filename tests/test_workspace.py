@@ -41,6 +41,9 @@ CONFIG_SECTIONS = ("core", *ENGINES, "llm", "gateway")
 VERSION = "0.1.0"
 NUMERIC_PARAM_TYPES = ("float", "int")
 RUN_STUB_ARITY = 2  # run_stub(ctx, engine_name)
+# Engines whose api.run no longer calls core's R-02 bootstrap `run_stub(ctx, name)` because the
+# owning lane replaced it with the package's own implementation (R-00 Reason stubs, #9).
+PACKAGE_OWNED = frozenset({"faultloom", "causatrix", "causentra"})
 
 # 03 §7, "Default weight" column of the predicate library table.
 DEFAULT_WEIGHTS = {
@@ -129,6 +132,16 @@ def test_engine_api_stub_shape(engine: str) -> None:
     runs = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "run"]
     assert len(runs) == 1, f"{path}: exactly one top-level run()"
     assert [a.arg for a in runs[0].args.args] == ["ctx"]
+    if engine in PACKAGE_OWNED:
+        # The package's own implementation: core's bootstrap placeholder must be gone entirely.
+        core_stubs = [
+            n
+            for n in ast.walk(tree)
+            if (isinstance(n, ast.ImportFrom) and n.module == "veyltrace_core.stubs")
+            or (isinstance(n, ast.Import) and any(a.name == "veyltrace_core.stubs" for a in n.names))
+        ]
+        assert not core_stubs, f"{path}: a package-owned engine must not use veyltrace_core.stubs"
+        return
     names = [
         n.args[1].value
         for n in ast.walk(runs[0])

@@ -1,18 +1,23 @@
 """Engine entry point of FaultLoom (registered as `veyltrace.engines:faultloom`).
 
-R-02 bootstrap stub: the pipeline, the e2e test and the determinism gate need every engine
-to resolve before the real one exists (M0 lead decision 2026-11-06, bootstrap).
-The Reason lane replaces this module in R-00; the signature
-`run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
+FaultLoom runs twice (02 §4): the engine pass at step 5 (`ctx.phase == "main"`) and the claim
+pass at step 8 (`ctx.phase == "claim_pass"`); one `run(ctx) -> EngineResult` branches on the
+phase (M0 lead decision 2026-11-06, D-5). R-00: both phases are the package's stub
+(`veyltrace_faultloom.stub`); R-06/R-08/R-12 replace them. The signature is fixed (AGENTS §5).
 """
 
 from veyltrace_core.context import EngineResult, RunContext
-from veyltrace_core.stubs import run_stub
+from veyltrace_faultloom.stub import ENGINE, run_claim_pass, run_main
 
 
 def run(ctx: RunContext) -> EngineResult:
-    """Stub (R-02 bootstrap): writes schema-valid placeholder outputs.
-
-    The owning lane (Reason) replaces it in R-00.
-    """
-    return run_stub(ctx, "faultloom")
+    """Run the FaultLoom pass that `ctx.phase` names (main or claim_pass)."""
+    if ctx.engine != ENGINE:
+        msg = f"FaultLoom called with a context for engine {ctx.engine!r}"
+        raise ValueError(msg)
+    if ctx.phase == "main":
+        return run_main(ctx)
+    if ctx.phase == "claim_pass":
+        return run_claim_pass(ctx)
+    msg = f"FaultLoom has no phase {ctx.phase!r} (main | claim_pass)"
+    raise ValueError(msg)
