@@ -4,12 +4,17 @@ Why: engines 1–7 and 9 must stay offline and deterministic, and no engine may 
 Three independent checks enforce this, so one blind spot never lets a leak through:
 
 1. Fresh interpreter (`python -I`), baseline rule (M0 lead decision 2026-11-06, replacing D-22):
-   a baseline interpreter imports only pyarrow, numpy, pyyaml and veyltrace_contracts and defines
-   one pydantic model; every entry-point target of an engine distribution (every `veyltrace.*`
+   a baseline interpreter imports only pyarrow (with pyarrow.parquet, which every engine reads its
+   tables through), numpy, pyyaml and veyltrace_contracts and defines one pydantic model; every
+   entry-point target of an engine distribution (every `veyltrace.*`
    group except `veyltrace.fetchers`) is then imported in a fresh interpreter on top of that
    baseline. A deny-listed module that the target loads and the baseline did not load fails.
    `socket` is therefore tolerated exactly when the baseline already loads it (pyarrow and pydantic
-   do), while `ssl`, `http.client`, `asyncio`, … are not. Fetcher targets keep their own check:
+   do), while `ssl`, `http.client`, `asyncio`, … are not. One documented exception: on Linux the
+   pyarrow wheel's `pyarrow.fs` (imported by pyarrow.parquet) loads `ssl`, so the baseline may load
+   the modules in `BASELINE_TOLERATED` and nothing else from the deny-list. To compensate, engine and
+   core source may not import pyarrow's network-capable modules (`PYARROW_NETWORK`) nor write a
+   remote-filesystem URI (`REMOTE_FS_LITERALS`). Fetcher targets keep their own check:
    they may load `urllib.request` (and what it pulls in), nothing else from the deny-list.
 2. AST scan of engine and core source (tests excluded): banned imports (`socket`, the deny-list,
    `importlib.metadata`, `veyltrace_core.synth` / `.testing`, torch/transformers outside
@@ -105,6 +110,28 @@ DENY_MODULES: tuple[str, ...] = (
 #: the baseline already loads them): raw sockets, and importlib.metadata, which loads socket and
 #: makes outputs depend on installed versions (critic gaps: ALGO_VERSION instead).
 AST_EXTRA_BANNED: tuple[str, ...] = ("socket", "importlib.metadata")
+#: Deny-listed modules the baseline interpreter may load, each with the reason. Keep it minimal: a
+#: new entry is a lead decision. Found by CI run 42467001795 (ubuntu-latest), not on Windows.
+BASELINE_TOLERATED: Mapping[str, str] = {
+    "ssl": "pyarrow.parquet imports pyarrow.fs; the Linux pyarrow wheel's pyarrow._fs loads ssl "
+    "for its S3/GCS TLS setup (the Windows wheel does not)",
+}
+#: pyarrow modules that can reach the network (remote filesystems, Arrow Flight). The baseline loads
+#: some of them through pyarrow.parquet, so the sys.modules rule cannot see them; engine and core
+#: source must never import them (AST rule, compensating control for BASELINE_TOLERATED).
+PYARROW_NETWORK: tuple[str, ...] = (
+    "pyarrow.fs",
+    "pyarrow._fs",
+    "pyarrow._s3fs",
+    "pyarrow._gcsfs",
+    "pyarrow._azurefs",
+    "pyarrow._hdfs",
+    "pyarrow.flight",
+    "pyarrow._flight",
+)
+#: Remote-filesystem URI schemes pyarrow.parquet would resolve through pyarrow.fs on its own: engine
+#: and core source never write one (literal rule, same compensating control).
+REMOTE_FS_LITERALS: tuple[str, ...] = ("s3://", "gs://", "gcs://", "hdfs://", "abfs://", "abfss://")
 #: Test-only and ground-truth-bearing core modules: engines never import them (critic gap: the
 #: synth generator encodes the synth ground truth).
 CORE_PRIVATE = ("veyltrace_core.synth", "veyltrace_core.testing")
@@ -207,7 +234,7 @@ THREAD_PINS = ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
 _PROBE = r"""
 import importlib, json, sys, traceback
 args = json.loads(sys.argv[1])
-import numpy, pyarrow, yaml, veyltrace_contracts, pydantic
+import numpy, pyarrow, pyarrow.parquet, yaml, veyltrace_contracts, pydantic
 class _BaselineModel(pydantic.BaseModel):
     x: int
 _BaselineModel(x=1)
@@ -536,6 +563,7 @@ def _banned_imports(package: str, module: str) -> tuple[str, ...]:
         return tuple(banned)  # a server: network allowed, only its own bans (check_ci §3.3)
     banned.extend(_deny_for(package))
     banned.append("socket")
+    banned.extend(PYARROW_NETWORK)
     if not (package == "core" and _matches(module, CORE_METADATA_MODULES)):
         banned.append("importlib.metadata")
     if package != "core":
@@ -631,6 +659,7 @@ def _module_literal_problems(package: str, mod: SourceModule) -> list[str]:
     rules: list[tuple[str, bool]] = [(HINT_LITERAL, hint_ok), (UNREDACTED_TOKEN, unredacted_ok)]
     rules.extend((lit, truth_ok) for lit in GROUND_TRUTH_LITERALS)
     rules.extend((lit, False) for lit in PACKAGE_LITERALS.get(package, ()))
+    rules.extend((lit, package == "gateway") for lit in REMOTE_FS_LITERALS)
     problems: set[str] = set()
     for line, text in _string_literals(mod):
         problems.update(
@@ -661,8 +690,16 @@ def _literal_violations(package: str) -> list[str]:
 # --- tests ------------------------------------------------------------------------------------
 def test_baseline_loads_no_denied_module() -> None:
     """If a pyarrow/numpy/pydantic upgrade starts loading a denied module, the rule must be revisited."""
-    hits = sorted(m for m in _baseline() if _matches(m, DENY_MODULES))
+    hits = sorted(m for m in _baseline() if _matches(m, DENY_MODULES) and not _matches(m, BASELINE_TOLERATED))
     assert not hits, f"the baseline interpreter loads denied modules {hits}; ask the lead (decision §2.2)"
+
+
+def test_baseline_tolerated_modules_stay_banned() -> None:
+    """A tolerated baseline module stays on the deny-list and stays AST-banned in engine source."""
+    banned = _banned_imports("signalyth", "veyltrace_signalyth.api")
+    for module in BASELINE_TOLERATED:
+        assert _matches(module, DENY_MODULES), module
+        assert _matches(module, banned), module
 
 
 def test_engine_distributions_declare_targets() -> None:
@@ -729,6 +766,11 @@ _ENGINE_ALLOWED = ("veyltrace_core", "veyltrace_contracts", "veyltrace_signalyth
         ("import veyltrace_llm", "banned import 'veyltrace_llm'"),
         ("import torch", "banned import 'torch'"),
         ("import importlib\nimportlib.import_module('ssl')", "banned import 'ssl'"),
+        ("import ssl", "banned import 'ssl'"),
+        ("from pyarrow import fs", "banned import 'pyarrow.fs'"),
+        ("import pyarrow.fs", "banned import 'pyarrow.fs'"),
+        ("from pyarrow._s3fs import S3FileSystem", "banned import 'pyarrow._s3fs'"),
+        ("import pyarrow.flight", "banned import 'pyarrow.flight'"),
         ("import pandas", "import 'pandas' is not stdlib, first-party or in"),
         ("from veyltrace_causalith import graph", "import 'veyltrace_causalith' is not stdlib"),
     ],
@@ -857,3 +899,12 @@ def test_modules_under_src_tests_are_scanned() -> None:
     names = [m.name for m in _modules("core")]
     src = PACKAGES_DIR / "core" / "src"
     assert len(names) == len(list(src.rglob("*.py")))
+
+
+@pytest.mark.parametrize("uri", REMOTE_FS_LITERALS)
+def test_remote_fs_literals_are_banned_outside_gateway(uri: str) -> None:
+    """pyarrow.parquet resolves remote URIs through pyarrow.fs, so engines never write one."""
+    source = f'PATH = "{uri}bucket/table.parquet"'
+    assert _module_literal_problems("signalyth", _snippet(source)) != []
+    gateway = _snippet(source, "veyltrace_gateway.app", "gateway")
+    assert _module_literal_problems("gateway", gateway) == []
