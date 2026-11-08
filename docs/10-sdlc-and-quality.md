@@ -1,6 +1,6 @@
 # 10 · SDLC and quality
 
-> **Status:** v1.0 · **Owner:** lead · **Last updated:** 2026-10-30
+> **Status:** v1.0 · **Owner:** lead · **Last updated:** 2026-11-08
 > Goal: one way of moving work from an idea to a release, with quality gates a machine can check. Lanes, branching and PR rules are in [08](08-collaboration-and-git.md); tasks and dates in [07](07-roadmap.md); agent setup in [09](09-ai-agent-playbook.md). Where this doc and [02](02-architecture.md) disagree, 02 wins.
 > GitHub Free is enough for a team of three: issue forms, labels, milestones, one Projects board, a PR template with the Definition of Done, required CI checks, SemVer tags and towncrier release notes ([multi_agent_dev_and_sdlc §Q4][q4]).
 
@@ -101,23 +101,25 @@ Rules:
 
 ## 5. CI gates
 
-Workflow: [.github/workflows/ci.yml](../.github/workflows/ci.yml). Runs on every PR and every push to `main`, on `ubuntu-latest` only.
+Workflow: [.github/workflows/ci.yml](../.github/workflows/ci.yml). Runs on every PR and every push to `main`, all jobs on the pinned `ubuntu-24.04` image (§5.3).
 
 ### 5.1 Jobs
 
-| Job (= required check name) | Runs when | Command | Checks |
+| Job (= check name) | Runs when | Command | Checks |
 |---|---|---|---|
-| `lanes` | PRs (also on label changes) | `uv run scripts/check_lanes.py --author <login> --labels "<labels>" --base origin/<base>` and `--verify-codeowners` | changed files inside the author's lane or `cross-lane` label; `CODEOWNERS` generated from `lanes.yml` |
+| `detect` (not required) | always | shell step: `git -c core.quotePath=false diff --name-only --no-renames origin/<base>...HEAD` | decides which jobs below run (§5.3); the gates fail closed, so if `detect` fails the gated jobs run |
+| `lanes` | PRs (also on label changes) | `uv run scripts/check_lanes.py --author <login> --labels "<labels>" --base origin/<base>` and `--verify-codeowners` | changed files inside the author's lane or `cross-lane` label (labels read from the API when the job runs, not from the event); `CODEOWNERS` generated from `lanes.yml` |
 | `agent-files` | always | `uv run --no-project python scripts/sync_agent_files.py --check` | `.claude/skills` = `.agents/skills`; nested `CLAUDE.md` beside every nested `AGENTS.md`; no duplicate rule files; size limits |
 | `docs` | always | `uv run --no-project python scripts/check_links.py` | relative links and `#anchors` in every `*.md` |
 | `lint` | workspace exists and non-doc files changed | `uv run python scripts/check.py --lint` | ruff check + ruff format check |
 | `types` | same | `uv run python scripts/check.py --types` | pyright (strict in engines) |
 | `tests` | same | `uv run python scripts/check.py --tests` | pytest: unit, golden, property, integration, e2e synth, replay |
 | `isolation` | same | `uv run python scripts/check.py --isolation` | import ban (§4) |
-| `determinism` | same | `uv run python scripts/check.py --determinism` | two runs, identical hashes |
+| `determinism` | same | `uv run python scripts/check.py --determinism --require-synth --ai-fake` | two runs per synth case, identical hashes; fails instead of skipping if the synth adapter is missing; FakeProvider record/replay arm. The real case (`--require-real-case`, which reads `VEYLTRACE_DATA`) is added after O-01 |
 | `contracts-in-sync` | same | `uv run python scripts/check.py --contracts-in-sync` | regenerate contracts; fail on any diff |
 | `changelog` | PRs, workspace exists | `uv run python scripts/check.py --changelog --base origin/<base>` | a valid fragment for this PR |
-| `console` | `console/package.json` exists and `console/` or `contracts/` changed | `pnpm -C console install --frozen-lockfile` then `pnpm -C console check` | tsc, eslint, vitest |
+| `console` | `console/package.json` exists and `console/`, `contracts/` or `.github/workflows/` changed | `pnpm -C console install --frozen-lockfile` then `pnpm -C console check` | tsc, eslint, vitest |
+| `fixtures-stale` (not required) | as `lint`, but PRs and manual runs only (not pushes to `main`) | `uv run python scripts/check.py --fixtures-stale` | fixtures older than their `upstream.lock.json`. The lead fixes them with `check.py --update-golden --cascade` and the `cross-lane` label (lead decision 2026-11-06) |
 
 "Workspace exists" means `pyproject.toml` is at the repo root (lands in R-02). Until then the code jobs are skipped, which lets the CI file merge before the code it checks.
 
@@ -132,25 +134,33 @@ CI and humans call the same script, so a green local run predicts a green CI run
 | `--types` | pyright over the workspace (strict in engine packages) | |
 | `--tests` | pytest over all packages and `tests/`, hypothesis CI profile | `-x` off; print a summary line |
 | `--isolation` | `tests/test_isolation.py` | deny-list from [02 §9](02-architecture.md#9-cross-cutting-rules) |
-| `--determinism` | run the pipeline twice on `synth-01` and one small real case (or its committed fixture form), compare all artifact hashes, print the first differing artifact | AI off |
+| `--determinism` | run the pipeline twice on each of `synth-01…05` (the two arms differ in hash seed, TZ, locale, working directory and data-root path), compare every output file's hash, print the first differing file | AI off; skips if the synth adapter is missing |
+| `--require-synth` (with `--determinism`) | fail instead of skipping when the synth adapter is missing | on in CI |
+| `--ai-fake` (with `--determinism`) | add a FakeProvider record/replay arm on `synth-01` and compare the AI outputs and the cassette byte for byte | on in CI |
+| `--require-real-case` (with `--determinism`) | add the real case pinned in `scripts/ci_real_case.json`, after checking each pinned file's sha256 under `$VEYLTRACE_DATA` | off in CI until O-01 |
 | `--contracts-in-sync` | run `scripts/gen_contracts.py` into a temp dir, diff against `contracts/generated/` | exit 1 on any difference |
 | `--changelog [--base <ref>]` | the PR adds exactly one `changes/<issue>.<type>.md` with a known type and one sentence; a release PR that modifies `CHANGELOG.md` is exempt | issue number matches `Closes #N` if it can read the PR body (optional) |
-| `--update-golden` (with `--package`) | regenerate that package's fixtures from the current code | never in CI |
+| `--fixtures-stale` | `tests/test_fixture_consistency.py` with its opt-in flag: fixtures built from stale upstreams | the non-required `fixtures-stale` job; `--tests` skips these tests |
+| `--update-golden` (with `--package` or `--cascade`) | regenerate that package's fixtures from the current code | never in CI (refused when `CI` is set) |
+| `--cascade` (with `--update-golden`) | regenerate every producer in pipeline order, from `--package` if given | the fix for a red `fixtures-stale`: lead only, `cross-lane` label |
 
 Conventions: exit 0 = pass, 1 = check failed, 2 = usage error; one summary line per check (`OK lint`, `FAIL tests (3 failed)`), so the tail is easy to paste into a PR; stdlib plus workspace dev tools only.
 
 ### 5.3 Platform, path filters, caching, cost
 
-- **Linux only.** Windows runners cost more and are not needed; line endings are normalised by `.gitattributes`, so Linux CI sees the same bytes ([stack_and_market §A6][a6]).
+- **Linux, on a pinned image.** Every job runs on `ubuntu-24.04`, not `ubuntu-latest`. GitHub moves `ubuntu-latest` to Ubuntu 26.04 between 19 Oct and 19 Nov 2026 ([runner-images#14748](https://github.com/actions/runner-images/issues/14748)), and a new glibc/libm under the golden fixtures and the determinism gate must arrive with a commit, not silently. Move to a newer image in its own PR, after a green run on both. Line endings are normalised by `.gitattributes`, so Linux CI sees the same bytes ([stack_and_market §A6][a6]).
+- **No Windows job yet.** Golden fixtures are made on the Windows laptops (`--update-golden` never runs in CI) and compared by the Linux `tests` job, so Windows CRT vs glibc `math.log` drift ([07-causatrix §11 Q6](engines/07-causatrix.md#11-open-questions-each-with-a-default)) shows up there as a red check. A Windows leg for `--determinism` is an optional follow-up: [12-risks](12-risks.md) RK-15 covers Windows with a weekly gate run on one laptop, and [§A6][a6] advises against Windows CI until a Windows-specific bug appears.
 - **Public repo → standard runners are free.** If the repo ever turns private, the Free plan includes $12 of compute a month (about 2,000 Linux minutes); path filters and caching then matter ([§Q4][q4]).
-- **Path filters per job, not per workflow.** A workflow skipped by `on: paths:` never reports its checks, so required checks would wait forever. Instead a `detect` job decides, and jobs skip with `if:`. Docs-only PRs (`docs/`, `changes/`, `research_notes/`, `reports/`, `paper/`, `*.md`) skip the Python jobs; the console job runs only for `console/` or `contracts/` changes. Pushes to `main` run everything. GitHub reports a job skipped by `if:` as passing for branch protection (**verify** once on the repo).
-- **Caching.** `astral-sh/setup-uv` with `enable-cache: true` (keyed on `uv.lock`); pnpm store via `actions/setup-node` `cache: pnpm`. Cache limit 10 GB per repo ([§A6][a6]).
-- **Concurrency.** One run per PR; a new push cancels the old run.
-- **Action versions** are pinned to major tags (`actions/checkout@v5`, `astral-sh/setup-uv@v6`, `actions/setup-node@v4`, `pnpm/action-setup@v4`). The lead checks for newer majors at M0 (**verify** they are current).
+- **Path filters per job, not per workflow.** A workflow skipped by `on: paths:` never reports its checks, so required checks would wait forever. Instead a `detect` job decides, and jobs skip with `if:`. Docs-only PRs skip the Python jobs: every changed file is under `docs/`, `changes/`, `research_notes/`, `reports/`, `paper/` or `console/`, or is a top-level `*.md`, an `AGENTS.md` or a `CLAUDE.md`, and none is a `*.py`/`*.pyi` file (ruff lints those anywhere). Other `*.md` files count as code, because golden `card.md` fixtures and package READMEs (part of the package build) are inputs. `detect` lists the changes with `--no-renames` (a moved file counts at its old and its new path) and `core.quotePath=false` (non-ASCII paths stay matchable). The console job runs only for `console/`, `contracts/` or `.github/workflows/` changes. Pushes to `main` run everything except `fixtures-stale`. GitHub reports a job skipped by `if:` as passing for branch protection (**verify** once on the repo), so the gates fail closed: a job skips only when `detect` wrote an explicit `false`, and if `detect` fails, every gated job runs.
+- **Caching.** `astral-sh/setup-uv` with `enable-cache: true`. The key hashes every `pyproject.toml` and `uv.lock` (setup-uv's default `cache-dependency-glob`) and includes the OS version. Since setup-uv v9 the cache is not pruned, so it keeps the downloaded wheels ([v9.0.0](https://github.com/astral-sh/setup-uv/releases/tag/v9.0.0)). `lanes`, `agent-files` and `docs` install no workspace, so they run with `enable-cache: false`: otherwise their small cache could take the shared key first. The pnpm store is cached via `actions/setup-node` `cache: pnpm`. Cache limit 10 GB per repo ([§A6][a6]).
+- **Concurrency.** One run per PR: a newer push or label change cancels the older run, and the new run checks the same head with every job. Pushes to `main` never cancel each other, so each merge gets its own result ([§12](#12-when-main-is-red)).
+- **Least privilege.** The token is `contents: read`, plus `pull-requests: read` in `lanes`. Checkouts use `persist-credentials: false`. Branch names, logins and labels reach shell steps only through `env:`.
+- **Action versions** are the current majors as of 2026-11-08: `actions/checkout@v7`, `actions/setup-node@v7`, `pnpm/action-setup@v6`. setup-uv publishes no major tags since v8, so it is pinned to the exact tag `astral-sh/setup-uv@v10.3.3` ([v8.0.0](https://github.com/astral-sh/setup-uv/releases/tag/v8.0.0)). Breaking changes between the old and new majors were checked against each action's release notes on 2026-11-08; the only ones that affect this workflow are setup-uv's tag format (v8) and its unpruned cache (v9). The runner image is pinned the same way (`ubuntu-24.04`, above).
+- **uv is pinned** to 0.13.0 (`CI_UV_VERSION` in the workflow), the uv that wrote `uv.lock`. Bump it in the same PR as a re-lock. Python comes from `uv python install 3.12`. setup-uv's `python-version` input only sets `UV_PYTHON` and does not install a uv-managed interpreter, so it is not used.
 
 ### 5.4 Branch protection
 
-Required checks per [08 §4.1](08-collaboration-and-git.md#41-github-settings-lead-task-l-00): `lanes`, `agent-files`, `docs`, `lint`, `types`, `tests`, `isolation`, `determinism`, `contracts-in-sync`, `changelog`, `console` (jobs skipped by the `detect` job count as passing; verify once on the first PR). Plus: 1 approval, review from Code Owners, branch up to date before merging (the substitute for merge queue, which personal-account repos do not have), linear history, conversation resolution, no force pushes, auto-merge allowed.
+Required checks per [08 §4.1](08-collaboration-and-git.md#41-github-settings-lead-task-l-00): `lanes`, `agent-files`, `docs`, `lint`, `types`, `tests`, `isolation`, `determinism`, `contracts-in-sync`, `changelog`, `console` (jobs skipped by the `detect` job count as passing; verify once on the first PR). `detect` and `fixtures-stale` are not required: a red one shows on the PR but does not block the merge (if `detect` fails, the gated required jobs run instead of skipping, §5.3). Plus: 1 approval, review from Code Owners, branch up to date before merging (the substitute for merge queue, which personal-account repos do not have), linear history, conversation resolution, no force pushes, auto-merge allowed.
 
 ### 5.5 Local hooks
 
@@ -316,7 +326,7 @@ Blocked: none | blocked by #9 (needs anomalies fixture for synth-04)
 
 ## 12. When `main` is red
 
-A failing CI run on `main` blocks everyone, because "branch up to date" forces every PR to include the breakage.
+A failing CI run on `main` blocks everyone, because "branch up to date" forces every PR to include the breakage. Red `main` means a job of the push run on `main` failed. The informational `fixtures-stale` job does not run on those pushes: stale fixtures after a producer refresh are fixed by the lead's `check.py --update-golden --cascade` (§5.1), not by a revert.
 
 1. **Notice.** Anyone who sees a red `main` run posts the run link on the week's tracking issue and opens a `type:bug`, `priority:P0` issue.
 2. **Revert within 2 hours** ([08 §9](08-collaboration-and-git.md#9-when-things-go-wrong)). The author of the breaking PR uses the **Revert** button on the merged PR (or `git revert <sha>` on a branch `<lane>/<issue>-revert`) and opens the revert PR; any teammate approves it as soon as checks pass. If the author is unreachable, the lead reverts.

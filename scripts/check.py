@@ -364,7 +364,10 @@ def check_contracts_in_sync() -> Result:
 
 # --- changelog ----------------------------------------------------------------------------------
 def _changed(base: str, *filters: str) -> list[str] | None:
-    rc, out = git("diff", "--name-only", *filters, f"{base}...HEAD", "--")
+    # --no-renames: a moved fragment counts as deleted + added; quotePath=false: UTF-8 paths as-is.
+    rc, out = git(
+        "-c", "core.quotePath=false", "diff", "--name-only", "--no-renames", *filters, f"{base}...HEAD", "--"
+    )
     return sorted(line for line in out.splitlines() if line) if rc == 0 else None
 
 
