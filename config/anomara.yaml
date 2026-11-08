@@ -1,10 +1,17 @@
 # config/anomara.yaml: section "anomara" (file stem). Owner: Observe lane.
-# Spec: docs/engines/03-anomara.md §4. R-02 bootstrap: only the keys core needs now; the Observe
-# lane adds the rest in O-00 (detect_alert's slo.* keys arrive with O-04). Overrides must name
-# keys present here (packages/core/README.md: unknown keys are an error).
+# Spec: docs/engines/03-anomara.md §4. Keys arrive with the detectors that read them (O-04c: grid,
+# robust_z, nsigma; O-04d: bocpd, silence; O-04e: onset, t_onset; detect_alert: slo). Overrides
+# must name keys present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06). 03-anomara states no
   # values, so these are that decision's defaults (a priori).
   threads: 1
   memory_limit: "2GB"
+
+grid:
+  # Step g of bucketed series (traces, logs): Signalyth's epoch-aligned bucket (03-anomara §3.1;
+  # 02-signalyth §3.1 buckets.traces_s = buckets.logs_s = 10 s). Also the step of a metric series
+  # with fewer than two points, whose step cannot be inferred from t_ns (03 §3.1).
+  bucket_s: 10
+
