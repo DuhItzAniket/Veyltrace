@@ -200,3 +200,16 @@ def test_rejects_unknown_fault_target_or_level(fault_id: str, target: str, sever
 def test_loadgenerator_is_never_a_target() -> None:
     assert "loadgenerator" not in OB_SERVICES
     assert all("loadgenerator" not in f.targets for f in CATALOG.values())
+
+
+def test_f11_lowers_the_request_when_the_cut_limit_falls_below_it() -> None:
+    # Regression (live run 2026-11-09): Kubernetes rejected limit 50m below the frontend's 100m request.
+    from vlab.cluster import cpu_limits, load_pins
+
+    pins = load_pins()
+    limit, request = cpu_limits(pins)["frontend"], cpu_limits(pins, "requests")["frontend"]
+    assert (limit, request) == ("200m", "100m")
+    inj = injection(get_fault("F11", "frontend", "L1"), target="frontend", severity="L1", name="n",
+                    namespace="ns", duration_s=600, cpu_limit=limit, cpu_request=request)  # fmt: skip
+    assert inj.apply_args[0][-2:] == ("--limits=cpu=50m", "--requests=cpu=50m")
+    assert inj.revert_args[0][-2:] == ("--limits=cpu=200m", "--requests=cpu=100m")
