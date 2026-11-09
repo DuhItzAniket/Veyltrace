@@ -9,11 +9,12 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from veyltrace_contracts import models
+from veyltrace_core.canonical import canonical_json_str
 from veyltrace_core.config import load_config
 from veyltrace_core.testing.fixtures import repo_root
 from veyltrace_faultloom.claims import claim_atoms, valid_claims
-from veyltrace_faultloom.predicates import LIBRARY, ClaimView
-from veyltrace_faultloom.validation import CaseDomain, ValidClaim, domain_of
+from veyltrace_faultloom.predicates import ClaimView
+from veyltrace_faultloom.validation import CaseDomain, domain_of
 
 #: (predicate, args) options: valid, a float/int duplicate, and invalid ones (no atom).
 OPTIONS = [
@@ -56,10 +57,14 @@ def _view(hm: Any) -> ClaimView:
     return ClaimView(hm.view(**{**inputs.__dict__, "nodes": nodes, "signals": frozenset({"cpu"})}), ())
 
 
-def test_claim_atom_id_reproduces_the_worked_example(hm: Any) -> None:
-    # 06 §3.8: zscore_above(·, signal="cpu", k=4) for checkoutservice hashes to E7d69a580cc.
-    claim = ValidClaim(LIBRARY["zscore_above"], {"k": 4.0, "signal": "cpu"})
-    (atom,) = claim_atoms(ClaimView(hm.view(), ()), ["checkoutservice"], [claim])
+def test_claim_atom_id_and_args_json_come_from_the_validated_canonical_args(hm: Any) -> None:
+    # 06 §3.8: zscore_above(·, signal="cpu", k=4) for checkoutservice hashes to E7d69a580cc. The
+    # proposal's int k is stored as 4.0 (§3.5 step 4); Causentra finds the atom by args_json, so the
+    # raw args' text ('{"k":4,...}') must never be used to look it up.
+    proposals = _proposals([("a", [1])])
+    assert canonical_json_str(dict(proposals.proposals[0].claims[0].args)) == '{"k":4,"signal":"cpu"}'
+    claims, _ = valid_claims(proposals, _domain(_view(hm).inputs))
+    (atom,) = claim_atoms(ClaimView(hm.view(), ()), ["checkoutservice"], claims)
     assert atom["atom_id"] == "E7d69a580cc"
     assert (atom["args_json"], atom["kind"], atom["origin"]) == (
         '{"k":4.0,"signal":"cpu"}',

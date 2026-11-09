@@ -13,7 +13,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Final, get_args
+from typing import TYPE_CHECKING, Final, get_args
 
 from veyltrace_contracts.models import AtomKind
 from veyltrace_core.canonical import JSONLike, canonical_json_str
@@ -21,6 +21,9 @@ from veyltrace_core.errors import ConfigError, ContractValidationError
 from veyltrace_core.ids import atom_id
 from veyltrace_faultloom import ALGO_VERSION
 from veyltrace_faultloom.inputs import AnomalyRow
+
+if TYPE_CHECKING:  # predicates imports this module
+    from veyltrace_faultloom.predicates import Predicate, PredicateResult
 
 __all__ = [
     "ANOMALY_WINDOW",
@@ -31,6 +34,7 @@ __all__ = [
     "Atom",
     "anomaly_atoms",
     "check_unique",
+    "claim_atom",
     "drop_disabled",
     "engine_atom",
 ]
@@ -113,6 +117,28 @@ def engine_atom(
         "refs": sorted(set(refs)),
         "origin": "engine",
         "holds": None,
+        "producer": PRODUCER,
+    }
+
+
+def claim_atom(
+    predicate: Predicate, candidate: str, args: Mapping[str, JSONLike], got: PredicateResult
+) -> Atom:
+    """One `claim_check` row (06 §3.6 step 4). `args` must be the validated canonical args (06 §3.5
+    step 4): the id and args_json come from the same object, and Causentra matches on args_json."""
+    return {
+        "atom_id": atom_id("claim_check", candidate, {"args": dict(args), "predicate": predicate.name}),
+        "candidate": candidate,
+        "component": None,
+        "kind": "claim_check",
+        "predicate": predicate.name,
+        "args_json": canonical_json_str(args),
+        "value": got.value,
+        "unit": predicate.unit,
+        "window": predicate.window,
+        "refs": list(got.refs),
+        "origin": "claim_check",
+        "holds": got.holds,
         "producer": PRODUCER,
     }
 
