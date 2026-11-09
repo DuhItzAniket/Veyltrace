@@ -1115,6 +1115,7 @@ dependencies = [
     { name = "veyltrace-causatrix" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
+    { name = "veyltrace-faultloom" },
 ]
 
 [package.metadata]
@@ -1122,6 +1123,7 @@ requires-dist = [
     { name = "veyltrace-causatrix", editable = "packages/causatrix" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
+    { name = "veyltrace-faultloom", editable = "packages/faultloom" },
 ]
 
 [[package]]
