@@ -2,7 +2,8 @@
 
 Pipeline step 4 (parallel with Causync): the dependency graph from what the system shows. Nodes
 (services, edge endpoints and external hosts, with kinds, the shared entry rule and provenance) and
-trace edges; log and topology edges (O-05c) and paths (O-05d) follow, so `graph.paths` is empty.
+trace, log-mention and topology edges with their provenance; paths (O-05d) follow, so
+`graph.paths` is still empty.
 """
 
 from __future__ import annotations
@@ -11,15 +12,39 @@ from dataclasses import asdict
 from typing import Any
 
 from veyltrace_causalith.entry import entry_config, run_entry_services
-from veyltrace_causalith.graph import external_hosts, node_kinds, span_attrs, trace_edges
+from veyltrace_causalith.graph import Edge, external_hosts, node_kinds, span_attrs, trace_edges
+from veyltrace_causalith.mentions import Matcher, log_edges, topology_edges
 from veyltrace_causalith.settings import causalith_config
 from veyltrace_contracts import models
-from veyltrace_core import io
+from veyltrace_core import duck, io
 from veyltrace_core.context import EngineResult, RunContext
 
 __all__ = ["ENGINE", "run"]
 
 ENGINE = "causalith"
+#: Distinct (service, body) line counts over baseline and incident (05 §3.4: counting over distinct bodies).
+_LOG_COUNTS = """
+SELECT service, body, count(*) AS n FROM logs
+WHERE (t_ns >= ? AND t_ns < ?) OR (t_ns >= ? AND t_ns < ?)
+GROUP BY service, body ORDER BY service, body
+"""
+
+
+def _log_counts(ctx: RunContext, alert: models.Alert) -> list[tuple[str, str, int]]:
+    logs = ctx.read_table("telemetry.logs", columns=["service", "t_ns", "body"])
+    if logs.num_rows == 0:
+        return []
+    with duck.connect(ctx.config, ctx.run_dir) as con:
+        con.register("logs", logs)
+        found = con.execute(_LOG_COUNTS, [*alert.windows.baseline, *alert.windows.incident]).fetchall()
+    return [(str(s), str(b), int(n)) for s, b, n in found]
+
+
+def _merge(edges: dict[tuple[str, str], Edge], pairs: list[tuple[str, str]], tag: str) -> None:
+    """Union by (src, dst): provenance grows; calls, weight and anomaly stay from traces (05 §3.4)."""
+    for src, dst in pairs:
+        if src != dst:
+            edges.setdefault((src, dst), Edge(src, dst)).provenance.add(tag)
 
 
 def run(ctx: RunContext) -> EngineResult:
@@ -36,6 +61,13 @@ def run(ctx: RunContext) -> EngineResult:
         external_hosts(spans, known, cfg.graph.external_min_calls) if cfg.graph.include_external else {}
     )
     nodes = sorted(known | set(externals))
+    # Logs and topology hints only connect known nodes; they never create one (05 §3.1).
+    matcher, node_set = Matcher.build(nodes), frozenset(nodes)
+    _merge(edges, log_edges(_log_counts(ctx, alert), node_set, matcher, cfg.logs.min_mentions), "logs")
+    events = ctx.read_table("telemetry.events", columns=["entity", "kind", "detail_json"]).to_pylist()
+    hints = [(str(e["entity"]), str(e["kind"]), str(e["detail_json"])) for e in events]
+    _merge(edges, topology_edges(hints, node_set, matcher), "topology")
+    edges = dict(sorted(edges.items()))
     entries = run_entry_services(
         alert, signal_edges, manifest.services, manifest.system, entry_config(ctx.config)
     )

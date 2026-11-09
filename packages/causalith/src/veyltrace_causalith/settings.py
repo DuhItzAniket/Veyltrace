@@ -2,7 +2,7 @@
 
 Why typed: every threshold is a named config key (AGENTS §5), and a malformed value should fail as
 a ConfigError before the graph is built. Sections arrive with the code that reads them (O-05a: edges;
-O-05b: node_kinds, graph; entry.* is parsed by `veyltrace_causalith.entry`).
+O-05b: node_kinds, graph; O-05c: logs, topology; entry.* is parsed by `veyltrace_causalith.entry`).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Any, cast
 from veyltrace_causalith.graph import EdgeRules, KindRules
 from veyltrace_core.errors import ConfigError
 
-__all__ = ["CausalithConfig", "GraphConfig", "causalith_config"]
+__all__ = ["CausalithConfig", "GraphConfig", "LogsConfig", "causalith_config"]
 
 
 def _mapping(section: Mapping[str, Any], key: str, where: str) -> Mapping[str, Any]:
@@ -70,12 +70,20 @@ class GraphConfig:
 
 
 @dataclass(frozen=True)
+class LogsConfig:
+    """`logs.*` (05 §3.4): mentions a (speaker, target) pair needs to become an edge."""
+
+    min_mentions: int
+
+
+@dataclass(frozen=True)
 class CausalithConfig:
     """The validated Causalith section."""
 
     kinds: KindRules
     graph: GraphConfig
     edges: EdgeRules
+    logs: LogsConfig
 
 
 def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
@@ -83,6 +91,9 @@ def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
     nk = _mapping(section, "node_kinds", "causalith")
     gr = _mapping(section, "graph", "causalith")
     ed = _mapping(section, "edges", "causalith")
+    if _mapping(section, "topology", "causalith").get("static_path") is not None:
+        msg = "causalith.topology.static_path is not supported yet (off by default, 05 §3.4); set it to null"
+        raise ConfigError(msg)
     include: object = gr.get("include_external")
     if not isinstance(include, bool):
         msg = f"causalith.graph.include_external must be true or false, got {include!r}"
@@ -102,5 +113,8 @@ def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
             latency_min_ms=_number(ed, "anom_latency_min_ms", "causalith.edges"),
             error_delta=_number(ed, "anom_error_delta", "causalith.edges"),
             silence_min_baseline_calls=_count(ed, "silence_min_baseline_calls", "causalith.edges"),
+        ),
+        logs=LogsConfig(
+            min_mentions=_count(_mapping(section, "logs", "causalith"), "min_mentions", "causalith.logs")
         ),
     )
