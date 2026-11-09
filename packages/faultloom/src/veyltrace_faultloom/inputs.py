@@ -28,8 +28,10 @@ __all__ = [
     "MAIN_REQUIRED",
     "REF_HEX",
     "AnomalyRow",
+    "CallEdge",
     "EvidenceInputs",
     "GraphNode",
+    "PathRow",
     "ServiceOnset",
     "align",
     "anomaly_rows",
@@ -153,6 +155,26 @@ class ServiceOnset:
 
 
 @dataclass(frozen=True)
+class CallEdge:
+    """One graph.edges row (caller -> callee) as FaultLoom uses it; `ref` cites the whole row."""
+
+    src: str
+    dst: str
+    anomalous: bool | None
+    ref: str
+
+
+@dataclass(frozen=True)
+class PathRow:
+    """One graph.paths row (candidate -> ... -> entry); `ref` cites the whole row."""
+
+    candidate: str
+    path_rank: int
+    anomalous_fraction: float
+    ref: str
+
+
+@dataclass(frozen=True)
 class EvidenceInputs:
     """What both passes read, plus the shared values of 06 §2.1.
 
@@ -160,7 +182,8 @@ class EvidenceInputs:
     inputs that are not in the run directory (treated as zero rows, 06 §6). Windows are half-open
     [start_ns, end_ns) like alert.windows (03 §2.6). `anomalies` holds every anomalies row, sorted
     by the contract key (series_id, detector). `onsets` holds the aligned per-service onsets
-    (sorted by service) and `k_anom` is core `thresholds.anomaly_z` (06 §2.1).
+    (sorted by service), `edges` and `paths` the graph rows (sorted by key) and `k_anom` is core
+    `thresholds.anomaly_z` (06 §2.1).
     """
 
     case_id: str
@@ -179,6 +202,9 @@ class EvidenceInputs:
     notes: tuple[str, ...]
     k_anom: float
     onsets: tuple[ServiceOnset, ...]
+    entry_services: tuple[str, ...]
+    edges: tuple[CallEdge, ...]
+    paths: tuple[PathRow, ...]
 
     @property
     def node_names(self) -> frozenset[str]:
@@ -243,6 +269,26 @@ def service_onsets(onsets: models.Onsets, offsets: _Offsets) -> tuple[ServiceOns
         for e in onsets.per_service
     )
     return tuple(sorted(found, key=lambda o: o.service))
+
+
+def _graph_rows(ctx: RunContext, name: str) -> list[dict[str, Any]]:
+    """Every column of a graph table, so row_ref hashes the whole row (06 §3.3); [] if absent."""
+    return ctx.read_table(name).to_pylist() if ctx.exists(name) else []
+
+
+def _edges(ctx: RunContext) -> tuple[CallEdge, ...]:
+    rows = _graph_rows(ctx, "graph.edges")
+    found = (CallEdge(r["src"], r["dst"], r["anomalous"], row_ref("graph.edges", r)) for r in rows)
+    return tuple(sorted(found, key=lambda e: (e.src, e.dst)))
+
+
+def _paths(ctx: RunContext) -> tuple[PathRow, ...]:
+    rows = _graph_rows(ctx, "graph.paths")
+    found = (
+        PathRow(r["candidate"], r["path_rank"], r["anomalous_fraction"], row_ref("graph.paths", r))
+        for r in rows
+    )
+    return tuple(sorted(found, key=lambda p: (p.candidate, p.path_rank)))
 
 
 def _nodes(ctx: RunContext) -> tuple[GraphNode, ...]:
@@ -322,4 +368,7 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         notes=tuple(notes),
         k_anom=float(ctx.config.core["thresholds"]["anomaly_z"]),
         onsets=service_onsets(onsets, offsets),
+        entry_services=tuple(sorted(onsets.entry_services)),
+        edges=_edges(ctx),
+        paths=_paths(ctx),
     )

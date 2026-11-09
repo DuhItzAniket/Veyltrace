@@ -9,6 +9,9 @@
   "onsets follow 03-anomara 3.6-3.7: t_onset = the second external onset clamped to t_alert + 300 s. Alignment",
   "(R-08a): metrics of checkout +1 s, logs -2 s, so onset(checkout) = t_alert + 1 s (internal), onset(payment) =",
   "t_alert + 43 s; checkout precedes its anomalous caller frontend (1.0), payment precedes neither (0.0).",
+  "graph.paths (R-08b): rank-1 paths of checkout (both nodes externally anomalous: 1.0) and payment (2 of 3:",
+  "payment has no external anomaly); a rank-2 path of checkout that propagation{path} must ignore. frontend is",
+  "the anomalous entry, so propagation{entry} = 1.0 for every service that reaches it.",
   "Partial on purpose: each table holds only the rows the atoms under test need."
  ],
  "alert": {"schema_version": "0.1.0", "protocol": "oracle", "t_alert_ns": 1767226920000000000, "shift_ns": 0, "detector": null, "windows": {"baseline": [1767225720000000000, 1767226800000000000], "incident": [1767226800000000000, 1767227400000000000]}, "clamped": false},
@@ -42,6 +45,11 @@
   {"node": "frontend", "kind": "entry", "is_entry": true, "provenance": ["metrics", "traces"]},
   {"node": "payment", "kind": "service", "is_entry": false, "provenance": ["logs", "traces"]},
   {"node": "redis", "kind": "cache", "is_entry": false, "provenance": ["metrics", "topology"]}
+ ],
+ "graph.paths": [
+  {"candidate": "checkout", "path_rank": 1, "nodes": ["checkout", "frontend"], "anomalous_fraction": 1.0},
+  {"candidate": "checkout", "path_rank": 2, "nodes": ["checkout", "payment", "frontend"], "anomalous_fraction": 0.333333333},
+  {"candidate": "payment", "path_rank": 1, "nodes": ["payment", "checkout", "frontend"], "anomalous_fraction": 0.666666667}
  ],
  "onsets": {"schema_version": "0.1.0", "t_onset_ns": 1767227220000000000, "method": "second_external", "slo_breach_ns": null, "entry_services": ["frontend"], "per_service": [
   {"service": "checkout", "external_onset_ns": 1767227300000000000, "external_onset_source": "traces", "internal_onset_ns": 1767226920000000000, "internal_onset_source": "metrics", "silent": false},

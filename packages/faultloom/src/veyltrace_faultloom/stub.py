@@ -1,12 +1,11 @@
-"""FaultLoom R-00 stub, both passes wired end to end; the engine pass has R-06's anomaly atoms.
+"""FaultLoom R-00 stub, both passes wired end to end; the engine pass has the R-06/R-08 atoms built.
 
 Why this exists: the Reason engines must run on synth through the pipeline before their algorithms
 land (07 roadmap R-00, "stub: schema-valid evidence on synth"). The stub reads every input of
 06 §2.1 through the run context, derives the shared values (U, tol_ns, windows; claim-pass pool)
-and writes `evidence` only through the contract writer. The engine pass writes R-06's anomaly
-atoms (`veyltrace_faultloom.atoms`); every other kind of 03 §7 comes with R-08 (with the predicate
-library and the symmetric claim pass), and intervention atoms with R-12, so none is written yet.
-Absence is honest ("absence is no atom", 06 §6); a 0.0 value would look like a healthy measurement.
+and writes `evidence` only through the contract writer. The engine pass writes the kinds built so far
+(STUB_NOTE names those still missing; intervention atoms are R-12). Absence is "no atom" (06 §6), so
+a silence value of 0.0 is a measurement ("checked, not silent"), never "no data".
 
 Claim pass: engine atoms are read back and rewritten unchanged (06 §2.2), so the evidence file is
 byte-identical before and after when no claim is evaluated.
@@ -21,6 +20,7 @@ from veyltrace_contracts import models
 from veyltrace_core.context import EngineResult, RunContext
 from veyltrace_core.errors import ContractValidationError
 from veyltrace_faultloom.atoms import KINDS, Atom, anomaly_atoms, check_unique, drop_disabled
+from veyltrace_faultloom.graph import onset_atoms, propagation_atoms
 from veyltrace_faultloom.inputs import (
     CLAIM_REQUIRED,
     MAIN_REQUIRED,
@@ -35,7 +35,7 @@ __all__ = ["ENGINE", "STUB_NOTE", "claim_pool", "engine_atoms", "run_claim_pass"
 ENGINE: Final = "faultloom"
 #: EngineResult.notes entry of every stub result. It starts with veyltrace_core.cli.STUB_MARK
 #: ("stub: "), so diagnose warns that the run's outputs are not analysis.
-STUB_NOTE: Final = "stub: FaultLoom R-08 in progress: anomaly and silence atoms only, no claims yet"
+STUB_NOTE: Final = "stub: FaultLoom R-08 in progress: no change, peer, log, trace or claim atoms yet"
 #: proposals.status values whose proposals the claim pass would evaluate (03 §9.1).
 _EVALUATED_STATUSES: Final = frozenset({"complete", "budget_exhausted"})
 
@@ -66,7 +66,12 @@ def _notes(view: EvidenceInputs, *extra: str) -> tuple[str, ...]:
 def engine_atoms(ctx: RunContext, view: EvidenceInputs) -> list[Atom]:
     """Every engine atom of U built so far, minus `atoms.disabled` (06 §3.1 step 2, §9); ids unique."""
     detectors = (str(d) for d in ctx.config["atoms"]["detectors"])
-    found = [*anomaly_atoms(view.anomalies, view.universe, detectors), *silence_atoms(view)]
+    found = [
+        *anomaly_atoms(view.anomalies, view.universe, detectors),
+        *onset_atoms(view),
+        *propagation_atoms(view),
+        *silence_atoms(view),
+    ]
     atoms = drop_disabled(found, (str(k) for k in ctx.config["atoms"]["disabled"]))
     check_unique(atoms)
     return atoms
