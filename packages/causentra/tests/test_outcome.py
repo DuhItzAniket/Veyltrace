@@ -69,6 +69,11 @@ def _z(cand: str, kind: str, z: float) -> Atom:
     return Atom(f"E{next(_IDS):010x}", cand, None, kind, args, z)
 
 
+def _sil(cand: str, value: float) -> Atom:
+    """A 06 §3.4 silence atom: 1.0 if silent, else 0.0 (FaultLoom writes one per service)."""
+    return Atom(f"E{next(_IDS):010x}", cand, None, "silence", {"window": "incident"}, value)
+
+
 def _with(base: CausentraInputs, atoms: list[Atom], **changes: Any) -> CausentraInputs:
     members = ["a", "b", "c"]
     return replace(
@@ -125,9 +130,11 @@ def test_no_evidence_ask_uses_values_not_atom_existence(base: CausentraInputs) -
     no_ask = {"kind": "telemetry", "target": "all", "why": "no anomaly evidence in any source"}
     assert asks(empty, "INCONCLUSIVE", _with(base, []), CFG) == [no_ask]
     healthy = [
-        _z(s, "internal_anomaly", 0.0) for s in ("a", "b", "c")
-    ]  # R-06: healthy atoms are not evidence
+        *(_z(s, "internal_anomaly", 0.0) for s in ("a", "b", "c")),
+        *(_sil(s, 0.0) for s in ("a", "b", "c")),
+    ]  # R-06: healthy atoms (robust_z 0, silence 0.0) are not evidence
     assert asks(empty, "INCONCLUSIVE", _with(base, healthy), CFG) == [no_ask]
+    assert asks(empty, "INCONCLUSIVE", _with(base, [*healthy, _sil("c", 1.0)]), CFG) == []
     assert asks(empty, "INCONCLUSIVE", _with(base, [*healthy, _z("b", "external_anomaly", 3.0)]), CFG) == []
 
 
@@ -140,8 +147,8 @@ def test_no_fault_statistic(base: CausentraInputs) -> None:
     assert not nf([_z("a", "external_anomaly", 3.1)])
     assert nf([_z("a", "internal_anomaly", 0.5), _z("b", "external_anomaly", 10.0)])  # b is not an entry
     assert not nf([_z("a", "internal_anomaly", 0.5), _z("c", "internal_anomaly", 3.5)])
-    silent = Atom(f"E{next(_IDS):010x}", "c", None, "silence", {"window": "incident"}, 1.0)
-    assert not nf([_z("a", "internal_anomaly", 0.5), silent])
+    assert nf([_z("a", "internal_anomaly", 0.5), _sil("c", 0.0)])  # a 0.0 silence atom is not silent
+    assert not nf([_z("a", "internal_anomaly", 0.5), _sil("c", 1.0)])
 
 
 def _slate(scores: dict[str, float], k: int) -> models.Slate:
