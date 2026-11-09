@@ -1,0 +1,192 @@
+{
+ "synth-01": {
+  "cart": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "catalog": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "checkout": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "payment": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "recommend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  }
+ },
+ "synth-02": {
+  "cart": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "catalog": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "checkout": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "payment": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "recommend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  }
+ },
+ "synth-03": {
+  "cart": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "catalog": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "checkout": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "payment": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "recommend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  }
+ },
+ "synth-04": {
+  "cart": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "catalog": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "checkout": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "payment": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "recommend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  }
+ },
+ "synth-05": {
+  "cart": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "catalog": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "checkout": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "payment": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  },
+  "recommend": {
+   "independent_of_parents": null,
+   "parents": [],
+   "reason": "no_target",
+   "target_series_id": null
+  }
+ }
+}

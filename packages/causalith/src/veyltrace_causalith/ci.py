@@ -13,6 +13,7 @@ Anomara (Anomara imports `entry`); a cross-engine test pins the parity.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, cast
@@ -21,6 +22,7 @@ import numpy as np
 import numpy.typing as npt
 import pyarrow as pa
 
+from veyltrace_contracts.models import Alert
 from veyltrace_core.errors import ConfigError
 
 __all__ = [
@@ -30,7 +32,9 @@ __all__ = [
     "CISeries",
     "effective_step",
     "grid_matrix",
+    "intervention_test",
     "latency_quantile",
+    "partial_corr_test",
     "persistent_max",
     "ridge_fit",
     "robust_scale",
@@ -232,3 +236,122 @@ def ridge_fit(z: Floats, x: Floats, ridge: float) -> tuple[Floats, float, float]
     except np.linalg.LinAlgError:
         return None
     return b, float(zm @ b), xm
+
+
+def _untestable(
+    candidate: str, target: str | None, parents: tuple[str, ...], reason: str, n_b: int = 0, n_i: int = 0
+) -> CIResult:
+    return CIResult(candidate, target, parents, n_b, n_i, 0.0, 0.0, 0.0, 1.0, None, reason)
+
+
+def _standardise(column: Floats, base: npt.NDArray[np.bool_], s: CISeries, cfg: CIConfig) -> Floats:
+    med, scale = robust_scale(column[base], cfg.epsilon_for(s.family, s.unit), cfg)
+    return (column - med) / scale
+
+
+def _z_against_baseline(values: Floats, base: npt.NDArray[np.bool_], cfg: CIConfig, eps: float) -> Floats:
+    med, scale = robust_scale(values[base], eps, cfg)
+    return (values - med) / scale
+
+
+def _block_p_value(z_base: Floats, z_inc: Floats) -> float:
+    """Block-conformal p-value of the incident's median |z| among baseline blocks (05 §3.7 step 6)."""
+    length = max(1, min(z_inc.size, z_base.size // 4))
+    blocks = [z_base[i : i + length] for i in range(0, z_base.size - length + 1, length)]
+    g_inc = float(np.median(np.abs(z_inc)))
+    above = sum(1 for b in blocks if float(np.median(np.abs(b))) >= g_inc)
+    return (1 + above) / (len(blocks) + 1)
+
+
+def intervention_test(
+    series: pa.Table,
+    graph_edges: pa.Table,
+    alert: Alert,
+    candidate: str,
+    config: CIConfig,
+    target_series_id: str | None = None,
+) -> CIResult:
+    """Is the candidate's incident deviation explained by its parents? (05 §3.7 steps 1–7)."""
+    by_id = series_by_id(series)
+    target = by_id.get(target_series_id) if target_series_id is not None else target_of(candidate, by_id)
+    if target is None or target.service != candidate:
+        return _untestable(candidate, target_series_id, (), "no_target")
+    edges = graph_edges.select(["src", "dst", "weight", "anomalous"]).to_pylist()
+    callees = sorted(
+        (e for e in edges if e["src"] == candidate and e["dst"] != candidate),
+        key=lambda e: (not bool(e["anomalous"]), -float(e["weight"]), str(e["dst"])),
+    )
+    parents: list[CISeries] = []
+    for edge in callees:
+        found = target_of(str(edge["dst"]), by_id)
+        if found is not None and len(parents) < config.max_parents:
+            parents.append(found)
+    if len(parents) < config.max_parents:
+        load = sorted(
+            (s for s in by_id.values() if s.service == candidate and s.signal in _LOAD),
+            key=lambda s: (_LOAD.index(s.signal), s.series_id),
+        )
+        parents.extend(load[:1])
+    names = tuple(p.series_id for p in parents)
+    if not parents:
+        return _untestable(candidate, target.series_id, (), "no_parents")
+    baseline, incident = alert.windows.baseline, alert.windows.incident
+    starts, matrix = grid_matrix([target, *parents], (baseline[0], incident[1]))
+    base = (starts >= baseline[0]) & (starts < baseline[1])
+    inc = (starts >= incident[0]) & (starts < incident[1])
+    n_b, n_i = int(base.sum()), int(inc.sum())
+    if n_b < config.min_baseline_points or n_b <= 2 * (len(parents) + 1):
+        return _untestable(candidate, target.series_id, names, "short_baseline", n_b, n_i)
+    cols = [_standardise(matrix[:, j], base, s, config) for j, s in enumerate([target, *parents])]
+    x, z = cols[0], np.column_stack(cols[1:])
+    fit = ridge_fit(z[base], x[base], config.ridge)
+    if fit is None:
+        return _untestable(candidate, target.series_id, names, "singular", n_b, n_i)
+    b, z_offset, x_mean = fit
+    resid = x - (x_mean + z @ b - z_offset)
+    p = config.persist_steps
+    zx = _z_against_baseline(x, base, config, config.epsilon_for("other", None))
+    zr = _z_against_baseline(resid, base, config, config.epsilon_for("other", None))
+    stat_raw, stat_resid = persistent_max(zx[inc], p), persistent_max(zr[inc], p)
+    explained = 0.0 if stat_raw == 0.0 else min(max(1.0 - stat_resid / stat_raw, 0.0), 1.0)
+    p_value = _block_p_value(zr[base], zr[inc]) if n_i else 1.0
+    return CIResult(
+        candidate,
+        target.series_id,
+        names,
+        n_b,
+        n_i,
+        stat_raw,
+        stat_resid,
+        explained,
+        p_value,
+        stat_resid >= config.threshold,
+        None,
+    )
+
+
+def partial_corr_test(x: Floats, y: Floats, z: Floats) -> tuple[float, float]:
+    """(partial r, two-sided Fisher-z p-value) of x and y given the columns of z (05 §3.7).
+
+    Exposed for the ablation arm only: x and y are residualised on z with the same solver as the
+    intervention test (no penalty), then Fisher's z = atanh(r)·sqrt(n − dim(z) − 3).
+    """
+    zz = z.reshape(len(x), -1)
+    resid: list[Floats] = []
+    for v in (x, y):
+        if zz.shape[1] == 0:
+            resid.append(v - v.mean())
+            continue
+        fit = ridge_fit(zz, v, 0.0)
+        if fit is None:
+            return 0.0, 1.0
+        b, offset, mean = fit
+        resid.append(v - (mean + zz @ b - offset))
+    rx, ry = resid
+    denom = math.sqrt(float(rx @ rx) * float(ry @ ry))
+    r = 0.0 if denom == 0.0 else min(max(float(rx @ ry) / denom, -1.0 + 1e-15), 1.0 - 1e-15)
+    dof = len(x) - zz.shape[1] - 3
+    if dof <= 0:
+        return r, 1.0
+    stat = math.atanh(r) * math.sqrt(dof)
+    return r, math.erfc(abs(stat) / math.sqrt(2.0))
