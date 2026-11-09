@@ -16,21 +16,28 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from veyltrace_contracts import models
+from veyltrace_core.canonical import JSONLike
 from veyltrace_core.context import RunContext
 from veyltrace_core.errors import ContractValidationError
+from veyltrace_core.hashing import sha256_json
 
 __all__ = [
     "BOTH_PASS_TABLES",
     "CLAIM_REQUIRED",
     "EXTERNAL_KIND",
     "MAIN_REQUIRED",
+    "REF_HEX",
     "AnomalyRow",
     "EvidenceInputs",
     "GraphNode",
+    "ServiceOnset",
+    "align",
     "anomaly_rows",
     "load_inputs",
     "missing_required",
+    "row_ref",
     "score_window",
+    "service_onsets",
     "universe",
 ]
 
@@ -89,6 +96,16 @@ _NS_PER_MS: Final = 1_000_000
 
 #: graph.nodes.kind of nodes outside U unless core `universe.include_external` (06 §2.1).
 EXTERNAL_KIND: Final = "external"
+#: Hex digits of a row reference `<table>#<hex>` (06 §3.3).
+REF_HEX: Final = 12
+
+
+def row_ref(table: str, row: Mapping[str, JSONLike]) -> str:
+    """`<table>#<first 12 hex of sha256(canonical_json(row))>` for a row without its own id (06 §3.3).
+
+    `row` is the whole contract row (every column), so any consumer can recompute the reference.
+    """
+    return f"{table}#{sha256_json(row)[:REF_HEX]}"
 
 
 @dataclass(frozen=True)
@@ -116,13 +133,34 @@ class AnomalyRow:
 
 
 @dataclass(frozen=True)
+class ServiceOnset:
+    """One onsets.per_service entry with both onsets aligned (06 §2.1 "Onset of a service").
+
+    `ref` points at the raw entry (06 §3.3: `onsets#<hex>`), so the atom cites what Anomara wrote.
+    """
+
+    service: str
+    external_ns: int | None
+    internal_ns: int | None
+    silent: bool
+    ref: str
+
+    @property
+    def onset_ns(self) -> int | None:
+        """onset(s): the smaller non-null aligned onset, or None (06 §2.1)."""
+        found = [t for t in (self.internal_ns, self.external_ns) if t is not None]
+        return min(found) if found else None
+
+
+@dataclass(frozen=True)
 class EvidenceInputs:
     """What both passes read, plus the shared values of 06 §2.1.
 
     `rows` holds the row count of every table input that is present; `absent` names the optional
     inputs that are not in the run directory (treated as zero rows, 06 §6). Windows are half-open
     [start_ns, end_ns) like alert.windows (03 §2.6). `anomalies` holds every anomalies row, sorted
-    by the contract key (series_id, detector).
+    by the contract key (series_id, detector). `onsets` holds the aligned per-service onsets
+    (sorted by service) and `k_anom` is core `thresholds.anomaly_z` (06 §2.1).
     """
 
     case_id: str
@@ -139,11 +177,18 @@ class EvidenceInputs:
     rows: Mapping[str, int]
     absent: tuple[str, ...]
     notes: tuple[str, ...]
+    k_anom: float
+    onsets: tuple[ServiceOnset, ...]
 
     @property
     def node_names(self) -> frozenset[str]:
         """Every graph.nodes.node (the `service` parameter domain, 06 §3.5)."""
         return frozenset(n.node for n in self.nodes)
+
+    @property
+    def onset_of(self) -> Mapping[str, ServiceOnset]:
+        """onsets.per_service by service."""
+        return {o.service: o for o in self.onsets}
 
 
 def missing_required(ctx: RunContext, names: Iterable[str]) -> tuple[str, ...]:
@@ -173,6 +218,31 @@ def score_window(t_onset_ns: int, w_inc: tuple[int, int], score_ns: int) -> tupl
     start = min(max(t_onset_ns, start_inc), end_inc)
     end = min(max(t_onset_ns + score_ns, start), end_inc)
     return start, end
+
+
+type _Offsets = Mapping[tuple[str, str | None], int]
+
+
+def align(t_ns: int | None, source: str | None, service: str, offsets: _Offsets) -> int | None:
+    """Source time -> aligned time: + offset of (source, service), else (source, null), else + 0 (06 §2.1)."""
+    if t_ns is None or source is None:
+        return t_ns
+    return t_ns + offsets.get((source, service), offsets.get((source, None), 0))
+
+
+def service_onsets(onsets: models.Onsets, offsets: _Offsets) -> tuple[ServiceOnset, ...]:
+    """onsets.per_service with each onset aligned by its recorded *_onset_source (03 §4.2, §5.1)."""
+    found = (
+        ServiceOnset(
+            service=e.service,
+            external_ns=align(e.external_onset_ns, e.external_onset_source, e.service, offsets),
+            internal_ns=align(e.internal_onset_ns, e.internal_onset_source, e.service, offsets),
+            silent=e.silent,
+            ref=row_ref("onsets", e.model_dump(mode="json")),
+        )
+        for e in onsets.per_service
+    )
+    return tuple(sorted(found, key=lambda o: o.service))
 
 
 def _nodes(ctx: RunContext) -> tuple[GraphNode, ...]:
@@ -223,8 +293,11 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
     nodes = _nodes(ctx)
 
     notes: list[str] = []
+    offsets: dict[tuple[str, str | None], int] = {}
     if ctx.exists("alignment"):
-        tol_ns = ctx.read_model("alignment", models.Alignment).tolerance_ns
+        alignment = ctx.read_model("alignment", models.Alignment)
+        tol_ns = alignment.tolerance_ns
+        offsets = {(o.source, o.service): o.offset_ns for o in alignment.offsets}
     else:
         absent.append("alignment")
         tol_ns = int(ctx.config["alignment"]["missing_tolerance_ns"])
@@ -247,4 +320,6 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         rows=dict(sorted(rows.items())),
         absent=tuple(sorted(absent)),
         notes=tuple(notes),
+        k_anom=float(ctx.config.core["thresholds"]["anomaly_z"]),
+        onsets=service_onsets(onsets, offsets),
     )
