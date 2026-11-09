@@ -1,6 +1,6 @@
 # 04 · Evaluation protocol (pre-registered)
 
-> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-08
+> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-09
 > Master spec: [02-architecture](02-architecture.md) (wins on architecture; this file wins on protocol details, as [11](11-research-paper-plan.md) states). Targets: [01 §9](01-vision-and-requirements.md). Engine specs: [06 FaultLoom](engines/06-faultloom.md), [07 Causatrix](engines/07-causatrix.md), [09 Causentra](engines/09-causentra.md). Tasks: [07-roadmap](07-roadmap.md). Every reported number must come from the procedure below or be listed as a deviation (§12).
 
 ## 1. Scope and pre-registration
