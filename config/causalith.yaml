@@ -1,9 +1,9 @@
 # config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
 # Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with
-# O-04b, edges.* with O-05a, node_kinds.* and graph.* with O-05b, logs.* with O-05c; paths and
-# ci follow). topology.static_path (05 §4, off by default) stays absent while static topology is
-# unsupported. Overrides must name keys present here (packages/core/README.md: unknown keys are
-# an error).
+# O-04b, edges.* with O-05a, node_kinds.* and graph.* with O-05b, logs.* with O-05c, paths.* with
+# O-05d; ci follows). topology.static_path (05 §4, off by default) stays absent while static
+# topology is unsupported. Overrides must name keys present here (packages/core/README.md: unknown
+# keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
@@ -42,3 +42,9 @@ edges:
 
 logs:
   min_mentions: 3           # 05 §3.4: lines of A mentioning B needed for the edge A -> B (a priori)
+
+paths:
+  # 05 §3.6: k-best propagation paths from every node to the entry services (all a priori).
+  k: 3                      # paths kept per node
+  max_len: 10               # nodes per path (graphs have <= 100 nodes, 02 §8)
+  non_anomalous_penalty: 1.0   # extra cost of an arc whose edge and caller are both healthy

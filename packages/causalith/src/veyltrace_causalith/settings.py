@@ -2,7 +2,7 @@
 
 Why typed: every threshold is a named config key (AGENTS §5), and a malformed value should fail as
 a ConfigError before the graph is built. Sections arrive with the code that reads them (O-05a: edges;
-O-05b: node_kinds, graph; O-05c: logs; entry.* is parsed by `veyltrace_causalith.entry`).
+O-05b: node_kinds, graph; O-05c: logs; O-05d: paths; entry.* is parsed by `veyltrace_causalith.entry`).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from typing import Any, cast
 from veyltrace_causalith.graph import EdgeRules, KindRules
 from veyltrace_core.errors import ConfigError
 
-__all__ = ["CausalithConfig", "GraphConfig", "LogsConfig", "causalith_config"]
+__all__ = ["CausalithConfig", "GraphConfig", "LogsConfig", "PathsConfig", "causalith_config"]
 
 
 def _mapping(section: Mapping[str, Any], key: str, where: str) -> Mapping[str, Any]:
@@ -77,6 +77,15 @@ class LogsConfig:
 
 
 @dataclass(frozen=True)
+class PathsConfig:
+    """`paths.*` (05 §3.6)."""
+
+    k: int
+    max_len: int
+    non_anomalous_penalty: float
+
+
+@dataclass(frozen=True)
 class CausalithConfig:
     """The validated Causalith section."""
 
@@ -84,6 +93,7 @@ class CausalithConfig:
     graph: GraphConfig
     edges: EdgeRules
     logs: LogsConfig
+    paths: PathsConfig
 
 
 def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
@@ -91,6 +101,7 @@ def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
     nk = _mapping(section, "node_kinds", "causalith")
     gr = _mapping(section, "graph", "causalith")
     ed = _mapping(section, "edges", "causalith")
+    pa_ = _mapping(section, "paths", "causalith")
     include: object = gr.get("include_external")
     if not isinstance(include, bool):
         msg = f"causalith.graph.include_external must be true or false, got {include!r}"
@@ -110,6 +121,11 @@ def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
             latency_min_ms=_number(ed, "anom_latency_min_ms", "causalith.edges"),
             error_delta=_number(ed, "anom_error_delta", "causalith.edges"),
             silence_min_baseline_calls=_count(ed, "silence_min_baseline_calls", "causalith.edges"),
+        ),
+        paths=PathsConfig(
+            k=_count(pa_, "k", "causalith.paths"),
+            max_len=_count(pa_, "max_len", "causalith.paths"),
+            non_anomalous_penalty=_number(pa_, "non_anomalous_penalty", "causalith.paths"),
         ),
         logs=LogsConfig(
             min_mentions=_count(_mapping(section, "logs", "causalith"), "min_mentions", "causalith.logs")

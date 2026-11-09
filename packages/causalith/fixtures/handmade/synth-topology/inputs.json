@@ -1,7 +1,8 @@
 {
  "_comment": ["Hand-made Causalith inputs (O-05a): the synth toy topology (veyltrace_core.synth.layout SERVICES, EXPECTED_EDGES,", "EXTERNAL_HOST) as Signalyth would write it once O-02 lands. Not real data, no answer key. tests/test_handmade.py writes", "every input through io.write (contract-validated on each run). checkout -> payment is slower in the incident (anomalous);", "payment calls card-gateway.example on 12 client spans (an external node, no edge); checkout has a metrics series.",
   "O-05c: 4 frontend lines name checkout:8080 (a log edge) and recommend's config event names catalog:3550 (a topology edge);",
-  "both edges already exist from traces, so only their provenance grows."],
+  "both edges already exist from traces, so only their provenance grows.",
+  "O-05d: checkout and payment latency are anomalous (robust_z, external): node anomalies for the paths."],
  "case_manifest": {"schema_version": "0.1.0", "case_id": "d0d0d0d0d0d0", "dataset": "handmade", "system": "other", "t_alert_hint_ns": null, "hint_source": "none", "data_start_ns": 1767225600000000000, "data_end_ns": 1767227520000000000, "sources": {"metrics": true, "logs": false, "traces": true, "events": false}, "services": ["cart", "catalog", "checkout", "frontend", "payment", "recommend"], "inputs": [], "adapter": {"name": "handmade", "version": "1"}, "scrub": {"rules_version": "none", "dropped_attributes": 0, "dropped_rows": 0}},
  "alert": {"schema_version": "0.1.0", "protocol": "oracle", "t_alert_ns": 1767226920000000000, "shift_ns": 0, "detector": null, "windows": {"baseline": [1767225720000000000, 1767226800000000000], "incident": [1767226800000000000, 1767227400000000000]}, "clamped": false},
  "signal_cube.edges": [
@@ -58,5 +59,10 @@
   {"t_ns": 1767226852000000000, "service": "frontend", "component": "frontend", "severity": "INFO", "body": "upstream checkout:8080 responded in 12ms", "trace_id": null, "span_id": null, "attrs_json": null},
   {"t_ns": 1767226853000000000, "service": "frontend", "component": "frontend", "severity": "INFO", "body": "upstream checkout:8080 responded in 13ms", "trace_id": null, "span_id": null, "attrs_json": null},
   {"t_ns": 1767225900000000000, "service": "frontend", "component": "frontend", "severity": "INFO", "body": "GET /healthz 200", "trace_id": null, "span_id": null, "attrs_json": null}
+ ],
+ "anomalies": [
+  {"series_id": "checkout|checkout|latency_p99|traces", "service": "checkout", "component": "checkout", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 8.0, "score_norm": 2.1972245773362196, "direction": "up", "onset_ns": 1767226920000000000, "threshold": 3.0, "above_threshold": true},
+  {"series_id": "frontend|frontend|latency_p99|traces", "service": "frontend", "component": "frontend", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 1.0, "score_norm": 0.6931471805599453, "direction": "up", "onset_ns": null, "threshold": 3.0, "above_threshold": false},
+  {"series_id": "payment|payment|latency_p99|traces", "service": "payment", "component": "payment", "family": "latency", "klass": "external", "source": "traces", "detector": "robust_z", "score": 12.0, "score_norm": 2.5649493574615367, "direction": "up", "onset_ns": 1767226920000000000, "threshold": 3.0, "above_threshold": true}
  ]
 }
