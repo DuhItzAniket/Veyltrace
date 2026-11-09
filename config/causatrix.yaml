@@ -3,8 +3,8 @@
 # ablation key fusion.method. Overrides must name keys present here (packages/core/README.md:
 # unknown keys are an error), e.g. causatrix.slate.k=10 or causatrix.rrf.gate=false.
 # Shared values live in config/core.yaml: thresholds.anomaly_z (k_anom) and
-# universe.include_external (07 §2.1). The R-00 stub reads slate.k, rankers.enabled, fusion.method,
-# rrf.k, rrf.weights and indicator_map; the other keys are declared for R-09 and its ablations.
+# universe.include_external (07 §2.1). veyltrace_causatrix.config reads and validates every key; a bad
+# value is a ConfigError naming the key.
 
 slate:
   # Top-K slate size (07 §4: 02 default 5; ablation {5, 10, 15}, DecompRCA retrieved 98-100% of
