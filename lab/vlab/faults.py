@@ -33,17 +33,18 @@ class Fault:
     fault_id: str
     fault_class: str  # 03 §1 fault_class vocabulary
     indicator: str  # 03 §1 indicator vocabulary
+    mode: str | None  # 03 §1 mode vocabulary, by the fault's mechanism (synth uses the same pairs)
     chaos_kind: str
     levels: Mapping[str, Mapping[str, int]]
 
 
 CATALOG: Mapping[str, Fault] = {
     # 05 §6 F01: 2 workers at 80% / 100% load.
-    "F01": Fault("F01", "cpu", "cpu", "StressChaos", {"L1": {"workers": 2, "load": 80},
-                                                      "L2": {"workers": 2, "load": 100}}),
+    "F01": Fault("F01", "cpu", "cpu", "resource", "StressChaos",
+                 {"L1": {"workers": 2, "load": 80}, "L2": {"workers": 2, "load": 100}}),
     # 05 §6 F04: 200 ms / 1,000 ms, jitter 10%.
-    "F04": Fault("F04", "delay", "latency", "NetworkChaos", {"L1": {"latency_ms": 200, "jitter_pct": 10},
-                                                             "L2": {"latency_ms": 1000, "jitter_pct": 10}}),
+    "F04": Fault("F04", "delay", "latency", "network", "NetworkChaos",
+                 {"L1": {"latency_ms": 200, "jitter_pct": 10}, "L2": {"latency_ms": 1000, "jitter_pct": 10}}),
 }  # fmt: skip
 
 

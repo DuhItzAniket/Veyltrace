@@ -121,7 +121,8 @@ def _phases(
             key = answer_key.build(
                 capture_id=capture_id, dataset=plan.dataset, root_service=entry.target,
                 root_component=OB_CONTAINER, fault_id=fault.fault_id, fault_class=fault.fault_class,
-                indicator=fault.indicator, t_inject_ns=t_inject_ns, t_end_ns=t_end_ns, injection=injection,
+                indicator=fault.indicator, mode=fault.mode, t_inject_ns=t_inject_ns, t_end_ns=t_end_ns,
+                injection=injection,
             )  # fmt: skip
             answer_key.write(key, capture_id=capture_id, captures_dir=captures_dir)
             capture.write_orchestrator(capture_dir, {

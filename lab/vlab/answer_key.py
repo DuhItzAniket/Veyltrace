@@ -11,7 +11,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-#: Columns of 03 §13.1 `answer_key`; a key with any other column is a contract change.
+#: Columns of 03 §13.1 `answer_key`. Every key carries all of them (null when unknown), because the
+#: contract model requires each column; any other column would be a contract change.
 COLUMNS = frozenset({
     "case_id", "dataset", "system", "is_no_fault", "root_service", "root_component", "fault_class",
     "fault_label", "indicator", "mode", "t_inject_ns", "t_end_ns", "injection_json",
@@ -38,6 +39,7 @@ def build(
     fault_id: str,
     fault_class: str,
     indicator: str,
+    mode: str | None,
     t_inject_ns: int,
     t_end_ns: int,
     injection: dict[str, Any],
@@ -53,6 +55,7 @@ def build(
         "fault_class": fault_class,
         "fault_label": fault_id,
         "indicator": indicator,
+        "mode": mode,
         "t_inject_ns": t_inject_ns,
         "t_end_ns": t_end_ns,
         "injection_json": canonical_json(injection),
@@ -61,7 +64,7 @@ def build(
         "validated": None,
         "sli_impact_json": None,
     }
-    assert set(key) <= COLUMNS, sorted(set(key) - COLUMNS)
+    assert set(key) == COLUMNS, sorted(set(key) ^ COLUMNS)
     return key
 
 

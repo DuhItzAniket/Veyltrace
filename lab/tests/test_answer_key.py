@@ -13,7 +13,7 @@ def _key() -> dict[str, object]:
                  "params": {"workers": 2, "load": 80}, "severity": "L1", "seed": 7}  # fmt: skip
     return answer_key.build(
         capture_id=CAPTURE_ID, dataset="veyllab-ob", root_service="productcatalogservice",
-        root_component="server", fault_id="F01", fault_class="cpu", indicator="cpu",
+        root_component="server", fault_id="F01", fault_class="cpu", indicator="cpu", mode="resource",
         t_inject_ns=2_000, t_end_ns=3_000, injection=injection,
     )  # fmt: skip
 
@@ -24,7 +24,7 @@ def test_case_id_is_sha256_prefix_of_capture_id() -> None:
 
 def test_key_has_only_contract_columns_and_canonical_injection() -> None:
     key = _key()
-    assert set(key) <= answer_key.COLUMNS
+    assert set(key) == answer_key.COLUMNS  # the contract model requires every column
     assert key["is_no_fault"] is False
     assert key["validated"] is None
     injection = str(key["injection_json"])
@@ -42,3 +42,10 @@ def test_written_only_under_answer_keys(tmp_path: Path) -> None:
 def test_refuses_a_path_outside_answer_keys(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         answer_key.write(_key(), capture_id=f"../{CAPTURE_ID}/x", captures_dir=tmp_path)
+
+
+def test_key_validates_against_the_contract_model() -> None:
+    # Regression: keys without `mode` failed AnswerKeyRow when packaging (every column is required).
+    from veyltrace_contracts.models import AnswerKeyRow
+
+    assert AnswerKeyRow.model_validate(_key()).mode == "resource"
