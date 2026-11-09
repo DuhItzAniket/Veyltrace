@@ -33,15 +33,17 @@ def _remove(name: str, run_dir: Path) -> None:
 
 
 # --- engine pass ------------------------------------------------------------------------------
-def test_main_writes_an_empty_schema_valid_evidence_table(main_dir: Path) -> None:
+def test_main_writes_schema_valid_evidence_on_stub_upstreams(main_dir: Path) -> None:
+    # synth Observe outputs are stubs: only onsets.per_service has rows, so every service gets a
+    # silence atom (06 §3.4: it appears in onsets.per_service) and nothing else.
     ctx = make_context("faultloom", main_dir)
     result = run(ctx)
     assert result.status == "ok"
     assert result.outputs == (("evidence", sha256_file(io.path_of("evidence", main_dir))),)
     table = io.read_table("evidence", main_dir, validate=True)
-    assert table.num_rows == 0
     assert table.schema.equals(io.arrow_schema("evidence"), check_metadata=False)
-    assert result.metrics["atoms"] == 0 and result.metrics["universe"] == 6
+    assert set(table.column("kind").to_pylist()) == {"silence"}
+    assert result.metrics["atoms"] == result.metrics["atoms.silence"] == result.metrics["universe"] == 6
     assert result.notes == (STUB_NOTE,)
 
 
