@@ -32,6 +32,21 @@ X-06 automates the 05 §6 fault catalog and adds the 05 §10 packager. Building 
 - **Change records:** a Deployment record is a change when `metadata.generation > status.observedGeneration`. Its kind comes from the fields of the latest `Update` entry in `managedFields`: `f:image` → `deploy`, `restartedAt` → `restart`, otherwise `config`. k8s Events in the app namespace from the capture window become `k8s_event` (`restart` for `Killing`, `BackOff`, `OOMKilling`; a failed probe, `Unhealthy`, stays `k8s_event`). Records from `veyllab-obs` (the Collector's own capture restarts) are lab machinery and are dropped.
 - **Catalog:** F01, F02, F04–F08, F11, F13. L2 kills apply one PodChaos at `t_inject` and repeat it through a Chaos Mesh `Schedule` (`@every 120s`), because a Schedule fires first one period after creation (measured on the live run: exactly 120 s). F11 cuts the CPU limit read from the vendored manifest (and the request with it when the cut falls below it, since Kubernetes rejects a limit below the request: seen live) and restores exactly those values. F09 is deferred: HTTPChaos has no request percentage. Reset re-applies the overlay, which restores config, images and the load profile (10 or 30 users per plan entry).
 
+### Live run (2026-11-09/10, same laptop and pins as X-02)
+
+Each case ran the full 05 §8.1 protocol (10 min baseline, 10 min fault, 2 min recovery), was packaged once (deny-list scan passed) and its key loaded with bench's `load_answer_keys`. Frontend server spans, median / p95 latency and error rate, are an informal impact check; the §8.2 rule is X-11.
+
+| Fault (L1 unless stated) | Target | Baseline | Fault window | Impact |
+|---|---|---|---|---|
+| F02 memory 256 MB | recommendationservice | 18 / 80 ms | 15 / 78 ms | none: fits under the 450 MiB limit |
+| F05 loss 10%, 30 users | cartservice | 18 / 143 ms | 21 / 266 ms | p95 ×1.9; probe failures |
+| F06 L2 pod kill / 120 s | productcatalogservice | 0.1% errors | 3.8% errors | kills at 0, 119, 239 … 600 s |
+| F07 container kill | checkoutservice | 13 / 60 ms | 11 / 45 ms | none: restarted within seconds |
+| F08 pod failure 200 s | shippingservice | 0.0% errors | 12.7% errors | liveness kills every ~30 s |
+| F13 delay 200 ms | redis-cart | 20 / 142 ms | 219 / 419 ms | median ×11 |
+
+With F01 and F04 from X-02, eight fault types are captured. F02 and F07 at L1 moved no user-facing signal, so §8.2 would likely reject them; X-11 should schedule them at L2. Attempts lost on the way, all in `attempts.jsonl`: five `host_suspended` (an unstable charger), one F06 superseded by the Schedule timing fix, one F11 `inject_failed` (limit below request, fixed). During F05's baseline, emailservice was crash-looping (`BackOff`) without any fault: the HTTP-only baseline check passed it, which the X-11 p95/error check should catch.
+
 ## Alternatives considered
 
 | Option | Pros | Cons | Why not chosen |
