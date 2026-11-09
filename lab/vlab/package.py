@@ -29,7 +29,11 @@ RECORDS = {"resourceSpans": ("scopeSpans", "spans"), "resourceMetrics": ("scopeM
 DENY_TOKENS = ("chaos", "stress-ng", "netem", "inject", "fault", "decoy")
 FLAG_KEYS = ("emailMemoryLeak", "recommendationCacheFailure", "paymentFailure", "cartFailure", "adFailure",
              "productCatalogFailure", "productCatalogLockContention", "kafkaQueueProblems")  # fmt: skip
-DENY = re.compile(r"(?i)\b(" + "|".join(map(re.escape, DENY_TOKENS + FLAG_KEYS)) + ")")
+#: Artefacts of how a tool injects, not of the fault itself: Chaos Mesh pod-failure swaps the
+#: container image for this placeholder, and kubelet then logs pulling it (seen on the live F08 run).
+TOOL_ARTEFACTS = ("google-containers/pause",)
+_WORDS = "|".join(map(re.escape, DENY_TOKENS + FLAG_KEYS))
+DENY = re.compile(rf"(?i)\b(?:{_WORDS})|" + "|".join(map(re.escape, TOOL_ARTEFACTS)))
 DROP_ATTR = re.compile(r"^(feature_flag\.|chaos-mesh\.org/)")
 DROP_NAMESPACES = frozenset({"chaos-mesh"})
 DROP_SERVICES = frozenset({"flagd"})
@@ -182,6 +186,8 @@ def scrub_request(
                                else _k8s_event(obj, ctx))  # fmt: skip
                         if row is None:
                             report.lab_records += 1
+                        elif DENY.search(row["detail_json"]):  # e.g. pulling the pod-failure placeholder
+                            report.dropped_log_records += 1
                         else:
                             events.append(row)
                         continue
@@ -224,10 +230,10 @@ def deny_scan(folder: Path) -> list[str]:
     for path in sorted(p for p in folder.rglob("*") if p.is_file()):
         rel = path.relative_to(folder).as_posix()
         if m := DENY.search(rel):
-            hits.append(f"{rel}: path: {m.group(1)}")
+            hits.append(f"{rel}: path: {m.group(0)}")
         with path.open(encoding="utf-8") as fh:
             for n, line in enumerate(fh, 1):
-                hits += [f"{rel}:{n}: {token}" for token in sorted({m.group(1) for m in DENY.finditer(line)})]
+                hits += [f"{rel}:{n}: {token}" for token in sorted({m.group(0) for m in DENY.finditer(line)})]
     return hits
 
 

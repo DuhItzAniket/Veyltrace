@@ -111,6 +111,14 @@ def _write_capture(tmp: Path, extra_span_attrs: dict[str, str] | None = None) ->
                 ),
                 _k8s_record(_event_obj("Pulled", "frontend-1-2", "2020-01-01T00:00:00Z"), T0 + 14),  # replay
                 _k8s_record(_event_obj("Unhealthy", "frontend-1-2", "2027-01-15T08:00:02Z"), T0 + 15),
+                # Regression (live F08 run): pod-failure's placeholder image must not survive.
+                _k8s_record(
+                    {
+                        **_event_obj("Pulling", "frontend-1-2", "2027-01-15T08:00:03Z"),
+                        "message": 'Pulling image "gcr.io/google-containers/pause:latest"',
+                    },
+                    T0 + 16,
+                ),
             ],
         ),
     ]
@@ -138,7 +146,8 @@ def test_scrubs_moves_change_records_and_writes_the_layout(tmp_path: Path) -> No
     assert "feature_flag" not in traces and "chaos-mesh" not in traces and "/" in traces
     logs = (out / "otlp" / "logs.jsonl").read_text(encoding="utf-8")
     assert "healthz" in logs and "SCM Testing" not in logs and "veyllab-user" in logs
-    assert report.dropped_log_records == 1 and report.dropped_resources == 1
+    assert report.dropped_log_records == 2  # the apiserver line and the placeholder-image pull
+    assert report.dropped_resources == 1
     events = [json.loads(line) for line in (out / "events.jsonl").read_text(encoding="utf-8").splitlines()]
     assert [(e["entity"], e["kind"], e["source_system"]) for e in events] == [
         ("frontend", "config", "k8s"),
@@ -154,10 +163,16 @@ def test_scrubs_moves_change_records_and_writes_the_layout(tmp_path: Path) -> No
 
 
 def test_a_planted_leak_fails_packaging_and_removes_the_package(tmp_path: Path) -> None:
-    cap = _write_capture(tmp_path, {"note": "paymentFailure flag on", "tool": "stress-ng"})
+    planted = {
+        "note": "paymentFailure flag on",
+        "tool": "stress-ng",
+        "image": "gcr.io/google-containers/pause:1",
+    }
+    cap = _write_capture(tmp_path, planted)
     out = tmp_path / "pkg" / cap.name
     report = package_capture(cap, {"t_inject_ns": T0 + 5}, out, CTX)
-    assert {hit.split(": ")[-1] for hit in report.deny_hits} >= {"paymentFailure", "stress-ng"}
+    found = {hit.split(": ")[-1] for hit in report.deny_hits}
+    assert found >= {"paymentFailure", "stress-ng", "google-containers/pause"}
     assert not out.exists()
 
 
