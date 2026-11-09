@@ -39,11 +39,12 @@ ENGINES = (
 PACKAGES = ("core", *ENGINES, "llm", "gateway")
 CONFIG_SECTIONS = ("core", *ENGINES, "llm", "gateway")
 VERSION = "0.1.0"
+# Engine-to-engine dependencies a spec allows, beyond core + contracts (at most these).
+SPEC_ENGINE_DEPS: dict[str, tuple[str, ...]] = {
+    "anomara": ("veyltrace-causalith",),  # 03-anomara §5: the shared entry rule veyltrace_causalith.entry
+}
 NUMERIC_PARAM_TYPES = ("float", "int")
 RUN_STUB_ARITY = 2  # run_stub(ctx, engine_name)
-# Engines whose api.run no longer calls core's R-02 bootstrap `run_stub(ctx, name)` because the
-# owning lane replaced it with the package's own implementation (R-00 Reason stubs, #9; X-00 Relentra, #102).
-PACKAGE_OWNED = frozenset({"faultloom", "causatrix", "causentra", "relentra"})
 
 # 03 §7, "Default weight" column of the predicate library table.
 DEFAULT_WEIGHTS = {
@@ -90,12 +91,13 @@ def test_package_metadata(name: str) -> None:
     assert project["version"] == VERSION
     assert project["requires-python"] == ">=3.12"
     assert meta["build-system"]["build-backend"] == "hatchling.build"
-    assert meta["tool"]["veyltrace"]["isolation"]["allow"] == []
-    deps = [d for d in project["dependencies"] if d.startswith("veyltrace-")]
-    expected_deps = ["veyltrace-contracts"] if name == "core" else ["veyltrace-core", "veyltrace-contracts"]
-    assert sorted(deps) == sorted(expected_deps)
+    allow = meta["tool"]["veyltrace"]["isolation"]["allow"]  # the lane fills it; test_isolation checks it
+    assert isinstance(allow, list) and all(isinstance(a, str) and a for a in allow)
+    deps = {d for d in project["dependencies"] if d.startswith("veyltrace-")}
+    base = {"veyltrace-contracts"} if name == "core" else {"veyltrace-core", "veyltrace-contracts"}
+    assert base <= deps <= base | set(SPEC_ENGINE_DEPS.get(name, ())), sorted(deps)
     sources = meta["tool"]["uv"]["sources"]
-    assert all(sources[d] == {"workspace": True} for d in expected_deps)
+    assert all(sources[d] == {"workspace": True} for d in deps)
     module = _package_dir(name) / "src" / f"veyltrace_{name}"
     assert meta["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"] == [f"src/veyltrace_{name}"]
     assert (module / "py.typed").is_file()
@@ -132,16 +134,15 @@ def test_engine_api_stub_shape(engine: str) -> None:
     runs = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "run"]
     assert len(runs) == 1, f"{path}: exactly one top-level run()"
     assert [a.arg for a in runs[0].args.args] == ["ctx"]
-    if engine in PACKAGE_OWNED:
-        # The package's own implementation: core's bootstrap placeholder must be gone entirely.
-        core_stubs = [
-            n
-            for n in ast.walk(tree)
-            if (isinstance(n, ast.ImportFrom) and n.module == "veyltrace_core.stubs")
-            or (isinstance(n, ast.Import) and any(a.name == "veyltrace_core.stubs" for a in n.names))
-        ]
-        assert not core_stubs, f"{path}: a package-owned engine must not use veyltrace_core.stubs"
-        return
+    core_stubs = [
+        n
+        for n in ast.walk(tree)
+        if (isinstance(n, ast.ImportFrom) and n.module == "veyltrace_core.stubs")
+        or (isinstance(n, ast.Import) and any(a.name == "veyltrace_core.stubs" for a in n.names))
+    ]
+    if not core_stubs:
+        return  # the package's own implementation (R-00 Reason stubs #9, or the lane's real engine)
+    # Still core's R-02 bootstrap placeholder: it must be wired to its own engine name.
     names = [
         n.args[1].value
         for n in ast.walk(runs[0])
