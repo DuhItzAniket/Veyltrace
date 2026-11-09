@@ -2,7 +2,8 @@
 
 Why typed: every threshold is a named config key (AGENTS §5), and a malformed value should fail as
 a ConfigError before the graph is built. Sections arrive with the code that reads them (O-05a: edges;
-O-05b: node_kinds, graph; O-05c: logs; O-05d: paths; entry.* is parsed by `veyltrace_causalith.entry`).
+O-05b: node_kinds, graph; O-05c: logs, topology; O-05d: paths; entry.* is parsed by
+`veyltrace_causalith.entry`).
 """
 
 from __future__ import annotations
@@ -101,6 +102,9 @@ def causalith_config(section: Mapping[str, Any]) -> CausalithConfig:
     nk = _mapping(section, "node_kinds", "causalith")
     gr = _mapping(section, "graph", "causalith")
     ed = _mapping(section, "edges", "causalith")
+    if _mapping(section, "topology", "causalith").get("static_path") is not None:
+        msg = "causalith.topology.static_path is not supported yet (off by default, 05 §3.4); set it to null"
+        raise ConfigError(msg)
     pa_ = _mapping(section, "paths", "causalith")
     include: object = gr.get("include_external")
     if not isinstance(include, bool):
