@@ -14,8 +14,7 @@ from typing import Final
 
 from veyltrace_contracts import models
 from veyltrace_core.canonical import canonical_json_str
-from veyltrace_core.ids import atom_id
-from veyltrace_faultloom.atoms import PRODUCER, Atom
+from veyltrace_faultloom.atoms import Atom, claim_atom
 from veyltrace_faultloom.predicates import ClaimView
 from veyltrace_faultloom.validation import CaseDomain, Rejection, ValidClaim, validate
 
@@ -51,27 +50,8 @@ def claim_atoms(view: ClaimView, pool: Iterable[str], claims: Iterable[ValidClai
     """One claim_check atom per (valid claim, pool candidate): the subject is substituted, nothing
     else changes (06 §3.6 step 4). A = {"args": canonical args, "predicate": name} (06 §3.2)."""
     members = sorted(set(pool))
-    atoms: list[Atom] = []
-    for claim in claims:
-        p = claim.predicate
-        ident = {"args": dict(claim.args), "predicate": p.name}
-        for c in members:
-            got = p.evaluate(view, c, claim.args)
-            atoms.append(
-                {
-                    "atom_id": atom_id("claim_check", c, ident),
-                    "candidate": c,
-                    "component": None,
-                    "kind": "claim_check",
-                    "predicate": p.name,
-                    "args_json": canonical_json_str(dict(claim.args)),
-                    "value": got.value,
-                    "unit": p.unit,
-                    "window": p.window,
-                    "refs": list(got.refs),
-                    "origin": "claim_check",
-                    "holds": got.holds,
-                    "producer": PRODUCER,
-                }
-            )
-    return atoms
+    return [
+        claim_atom(claim.predicate, c, claim.args, claim.predicate.evaluate(view, c, claim.args))
+        for claim in claims
+        for c in members
+    ]
