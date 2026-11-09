@@ -48,4 +48,5 @@ uv run veyltrace diagnose --dataset synth --case synth-01 --ai off
   - Synth Observe outputs are still stubs, so the synth goldens hold only `silence = 0` atoms (from the stub onsets).
   - Every kind and predicate is pinned by the synth-shaped hand-made case `fixtures/handmade/cpu-hog/`. Its `inputs.json` is written through `io.write` by the tests, and `evidence.main.txt` is the expected canonical evidence. It carries the 06 §3.8 worked numbers.
   - Refresh: `VEYLTRACE_UPDATE_HANDMADE=1 uv run pytest packages/faultloom/tests/test_handmade.py`.
-- **Spec readings** made for R-08 are in 06 §11 Q13–Q17. `evidence_cards` (06 §3.7) is R-08h; `intervention` atoms are R-12.
+- **`evidence_cards(slate, k=None, *, ctx, order=None)`** (`cards.py`, 06 §3.7): a pure, read-only `CardDeck` for Relentra `brief` mode, callable with Relentra's own context (it reads the faultloom config section of the lock). `k` defaults to `cards.k_default`; the budget shrinks `k`, then the onset list, then drops cards (`truncated`).
+- **Spec readings** made for R-08 are in 06 §11 Q13–Q18; `intervention` atoms are R-12.
