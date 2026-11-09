@@ -55,13 +55,13 @@ data:
         protocols:
           grpc: {endpoint: "0.0.0.0:4317"}
           http: {endpoint: "0.0.0.0:4318"}
-      kubeletstats:
+      kubelet_stats:
         collection_interval: 15s
         auth_type: serviceAccount
         endpoint: "https://${env:K8S_NODE_IP}:10250"
         insecure_skip_verify: true    # kind's kubelet serves a self-signed certificate
         metric_groups: [container, pod, node]
-      filelog:
+      file_log:
         include: [/var/log/pods/*/*/*.log]
         # Own logs would loop back; chaos-mesh logs are scrubbed (05 §11).
         exclude: [/var/log/pods/veyllab-obs_*/*/*.log, /var/log/pods/chaos-mesh_*/*/*.log]
@@ -69,19 +69,21 @@ data:
         include_file_path: true
         operators:
           - type: container
-      k8sobjects:
+      k8s_objects:
         objects:
           - {name: events, mode: watch}
           - {name: deployments, group: apps, mode: watch}
     processors:
       memory_limiter: {check_interval: 1s, limit_mib: 448, spike_limit_mib: 96}  # a priori, 05 §3.3
-      k8sattributes:
+      k8s_attributes:
         extract:
           metadata: [k8s.namespace.name, k8s.pod.name, k8s.deployment.name, k8s.container.name, k8s.node.name]
-      # Leakage scrub, first of three passes (05 §11). Runs after k8sattributes so OTLP data
+      # Leakage scrub, first of three passes (05 §11). Runs after k8s_attributes so OTLP data
       # already carries its namespace.
       filter/scrub:
-        error_mode: ignore
+        # silent: a body["object"] rule on a plain-text pod log fails to evaluate and counts as
+        # "keep"; ignore would log a warning for every such record.
+        error_mode: silent
         traces:
           span:
             - resource.attributes["k8s.namespace.name"] == "chaos-mesh"
@@ -130,15 +132,15 @@ data:
       pipelines:
         traces:
           receivers: [otlp]
-          processors: [memory_limiter, k8sattributes, filter/scrub, transform/scrub, batch]
+          processors: [memory_limiter, k8s_attributes, filter/scrub, transform/scrub, batch]
           exporters: [file/traces]
         metrics:
-          receivers: [otlp, kubeletstats]
-          processors: [memory_limiter, k8sattributes, filter/scrub, transform/scrub, batch]
+          receivers: [otlp, kubelet_stats]
+          processors: [memory_limiter, k8s_attributes, filter/scrub, transform/scrub, batch]
           exporters: [file/metrics]
         logs:
-          receivers: [otlp, filelog, k8sobjects]
-          processors: [memory_limiter, k8sattributes, filter/scrub, transform/scrub, batch]
+          receivers: [otlp, file_log, k8s_objects]
+          processors: [memory_limiter, k8s_attributes, filter/scrub, transform/scrub, batch]
           exporters: [file/logs]
 ---
 apiVersion: apps/v1
@@ -157,7 +159,7 @@ spec:
       serviceAccountName: veyllab-collector
       containers:
         - name: otelcol
-          image: otel/opentelemetry-collector-contrib:0.164.0
+          image: otel/opentelemetry-collector-contrib:0.164.0@sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
           args: ["--config=/conf/config.yaml"]
           env:
             - {name: GOMEMLIMIT, value: 400MiB}   # 75–80% of the limit (05 §3.3)

@@ -25,8 +25,9 @@ from vlab.shell import Runner
 TOOLS = ("docker", "kind", "kubectl", "helm")
 #: Compose project of the OpenTelemetry Demo (`otel` profile); its name is confirmed at X-06.
 OTEL_PROJECT = "opentelemetry-demo"
-#: Readiness waits (a priori: generous for a laptop pulling images on first start).
-CHAOS_TIMEOUT = "300s"
+#: Readiness waits. First start pulls every image; Chaos Mesh alone took > 5 min from ghcr.io on
+#: 2026-11-09, so its wait is 15 min (measured once, generous).
+CHAOS_TIMEOUT = "900s"
 COLLECTOR_TIMEOUT = "300s"
 APP_TIMEOUT = "900s"
 
@@ -109,7 +110,7 @@ def vendor(pins: Mapping[str, Any]) -> int:
     digest = hashlib.sha256(body).hexdigest()
     target = manifest_path(pins)
     target.write_bytes(body)
-    sums_path(pins).write_text(f"{digest}  {target.name}\n", encoding="utf-8")
+    sums_path(pins).write_text(f"{digest}  {target.name}\n", encoding="utf-8", newline="\n")
     print(f"vendored {target.relative_to(LAB_DIR)} sha256={digest}")
     return 0
 

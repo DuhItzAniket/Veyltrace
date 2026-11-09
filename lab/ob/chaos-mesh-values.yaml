@@ -5,3 +5,7 @@ chaosDaemon:
   socketPath: /run/containerd/containerd.sock
 dashboard:
   create: false
+# One controller instead of the chart's three: leader election makes the others idle standbys,
+# and the laptop budget (05 §5) has no room for them.
+controllerManager:
+  replicaCount: 1

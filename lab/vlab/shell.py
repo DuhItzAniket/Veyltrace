@@ -8,9 +8,19 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TextIO
+
+#: A wall-clock jump this much longer than one sleep step means the host was suspended (a priori:
+#: far above scheduler jitter, far below a phase). On 2026-11-09 Windows Modern Standby froze a
+#: fault window for ~20 min; the cluster freezes with it, so such a capture has holes.
+SUSPEND_TOLERANCE_S = 30.0
+SLEEP_STEP_S = 5.0
+
+
+class HostSuspended(RuntimeError):
+    """The host slept during a timed phase, so the case's timings and telemetry are broken."""
 
 
 class CommandError(RuntimeError):
@@ -32,6 +42,8 @@ class Runner:
     dry_run: bool
     out: TextIO = field(default_factory=lambda: sys.stdout)
     log: list[str] = field(default_factory=list[str])
+    clock: Callable[[], float] = time.time
+    pause: Callable[[float], None] = time.sleep
 
     def _note(self, line: str) -> None:
         self.log.append(line)
@@ -52,9 +64,18 @@ class Runner:
         return proc.stdout
 
     def sleep(self, seconds: float, reason: str) -> None:
+        """Wait ``seconds`` of wall-clock time in short steps; raise HostSuspended on a clock jump."""
         self._note(f"sleep {seconds:g}  # {reason}")
-        if not self.dry_run:
-            time.sleep(seconds)
+        if self.dry_run:
+            return
+        last = self.clock()
+        end = last + seconds
+        while last < end:
+            self.pause(min(SLEEP_STEP_S, end - last))
+            now = self.clock()
+            if now - last > SLEEP_STEP_S + SUSPEND_TOLERANCE_S:
+                raise HostSuspended(f"wall clock jumped {now - last:.0f} s during {reason}")
+            last = now
 
     def http_ok(self, url: str, timeout_s: float = 10.0) -> bool:
         """True if ``url`` answers HTTP 2xx (always True in a dry run)."""

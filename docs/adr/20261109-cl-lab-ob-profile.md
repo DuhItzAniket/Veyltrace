@@ -38,6 +38,16 @@ We choose **1 and 4**.
 - Every `kubectl` and `helm` call names `--context kind-veyllab`, so the lab cannot act on another cluster.
 - The Collector runs `k8sattributes` before `filter/scrub` (05 §3.3 lists them the other way round), so OTLP data already carries its namespace when the chaos-mesh rule runs.
 
+### Verified on the first live run (2026-11-09, Windows 11, Docker Desktop 4.95, WSL kernel 6.18, 40 GB RAM)
+
+- kind v0.33.0 single node; netem loads inside the node (05 §2.2 check passes), so F04 runs on this laptop.
+- Chaos Mesh 2.8.7 StressChaos injects inside kind (`AllInjected=True`); the stressed `productcatalogservice` sat at its 200m CPU limit. One controller replica instead of the chart's three (laptop budget); first-start image pulls from ghcr.io took > 5 min, so the Helm wait is 15 min.
+- The OB manifest is a kustomize base (`lab/ob/upstream/kustomization.yaml`): kustomize refuses a single file outside the overlay.
+- otelcol-contrib 0.164.0 deprecates `k8sattributes`, `filelog`, `kubeletstats` and `k8sobjects` in favour of `k8s_attributes`, `file_log`, `kubelet_stats` and `k8s_objects`; the lab uses the new names. `filter/scrub` uses `error_mode: silent`, because its `body["object"]` rules cannot evaluate on plain-text pod logs and `ignore` logs a warning per record.
+- Spans arrived from frontend, checkoutservice, currencyservice, emailservice, productcatalogservice and paymentservice within minutes; no spooled record mentioned chaos after the Collector scrub (packaging re-checks, X-06).
+- Digests from that run are now pinned: `kindest/node:v1.37.0@sha256:a1ed56cf…` (identical to kind v0.33.0's published default), the Collector image, and all 12 OB images through the overlay's `images:` list.
+- Windows Modern Standby froze the first attempt for ~20 min mid-fault. `Runner.sleep` now waits in 5 s wall-clock steps and raises `HostSuspended` on a jump above 30 s (a priori); the case is logged `host_suspended`, its fault is removed and no answer key is written. Campaigns should run on mains power with the screen-off timeout disabled.
+
 ## Alternatives considered
 
 | Option | Pros | Cons | Why not chosen |

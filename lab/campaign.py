@@ -21,7 +21,7 @@ from vlab import CAPTURES_DIR, answer_key, capture
 from vlab.cluster import kubectl, load_pins
 from vlab.faults import OB_CONTAINER, chaos_manifest, get_fault
 from vlab.plan import Entry, Plan, load
-from vlab.shell import CommandError, Runner
+from vlab.shell import CommandError, HostSuspended, Runner
 
 ENTRY_URL = "http://127.0.0.1:8080/"
 #: Baseline check retry (05 §8.1: wait 2 min and retry once).
@@ -49,14 +49,39 @@ def baseline_ok(runner: Runner) -> bool:
 
 
 def run_case(runner: Runner, pins: Mapping[str, Any], plan: Plan, entry: Entry, captures_dir: Path) -> str:
-    """Run one plan entry and return its outcome."""
-    fault = get_fault(entry.fault, entry.target, entry.severity)
-    d = plan.durations_s
+    """Run one plan entry, log the attempt and return its outcome."""
     capture_id = capture.new_capture_id()
-    capture_dir = captures_dir / capture_id
     attempt: dict[str, Any] = {"capture_id": capture_id, "fault": entry.fault, "target": entry.target,
                                "severity": entry.severity}  # fmt: skip
     print(f"campaign: {entry.fault} {entry.severity} -> {entry.target} as {capture_id}")
+    try:
+        outcome = _phases(runner, pins, plan, entry, capture_id, captures_dir, attempt)
+    except HostSuspended as exc:  # timings and telemetry have holes: no answer key, no capture
+        attempt["error"] = str(exc)
+        outcome = "host_suspended"
+        app = str(pins["app_namespace"])
+        runner.run(kubectl(pins, "-n", app, "delete", CHAOS_KINDS, "--all", "--ignore-not-found"))
+    attempt["outcome"] = outcome
+    attempt["validated"] = None  # 05 §8.2 validation rule arrives with X-11
+    if not runner.dry_run:
+        capture.log_attempt(captures_dir, attempt)
+    print(f"campaign: {capture_id} {outcome}")
+    return outcome
+
+
+def _phases(
+    runner: Runner,
+    pins: Mapping[str, Any],
+    plan: Plan,
+    entry: Entry,
+    capture_id: str,
+    captures_dir: Path,
+    attempt: dict[str, Any],
+) -> str:
+    """Reset → … → export for one entry (05 §8.1); returns the outcome."""
+    fault = get_fault(entry.fault, entry.target, entry.severity)
+    d = plan.durations_s
+    capture_dir = captures_dir / capture_id
     app = str(pins["app_namespace"])
     name = f"vl-{capture_id[:8]}"
     manifest = chaos_manifest(
@@ -105,11 +130,6 @@ def run_case(runner: Runner, pins: Mapping[str, Any], plan: Plan, entry: Entry, 
                 "clock": clock, "versions": capture.versions(runner, pins), "host": capture.host_spec(),
                 "chaos_manifest": manifest,
             }, files)  # fmt: skip
-    attempt["outcome"] = outcome
-    attempt["validated"] = None  # 05 §8.2 validation rule arrives with X-11
-    if not runner.dry_run:
-        capture.log_attempt(captures_dir, attempt)
-    print(f"campaign: {capture_id} {outcome}")
     return outcome
 
 
