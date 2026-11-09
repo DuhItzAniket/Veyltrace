@@ -72,6 +72,9 @@ class Report:
     events: int = 0
     lab_records: int = 0
     deny_hits: list[str] = field(default_factory=list[str])
+    #: (deployment, generation) already emitted: kubectl and the controller each send one update
+    #: per spec change (seen on the live F11 run), and only the first is the change.
+    seen_changes: set[tuple[str, int]] = field(default_factory=set[tuple[str, int]])
 
 
 @dataclass
@@ -184,12 +187,17 @@ def scrub_request(
                         t_ns = int(rec.get("timeUnixNano") or rec.get("observedTimeUnixNano") or 0)
                         row = (_deployment_event(obj, t_ns, ctx) if obj.get("kind") == "Deployment"
                                else _k8s_event(obj, ctx))  # fmt: skip
-                        if row is None:
+                        change = None
+                        if row is not None and obj.get("kind") == "Deployment":
+                            change = (row["entity"], int(json.loads(row["detail_json"])["generation"]))
+                        if row is None or change in report.seen_changes:
                             report.lab_records += 1
                         elif DENY.search(row["detail_json"]):  # e.g. pulling the pod-failure placeholder
                             report.dropped_log_records += 1
                         else:
                             events.append(row)
+                            if change is not None:
+                                report.seen_changes.add(change)
                         continue
                     if DENY.search(json.dumps(body)):  # e.g. kube-apiserver naming a chaos CRD
                         report.dropped_log_records += 1

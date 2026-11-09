@@ -102,6 +102,7 @@ def _write_capture(tmp: Path, extra_span_attrs: dict[str, str] | None = None) ->
                     ),
                     T0 + 10,
                 ),
+                _k8s_record(_deployment("frontend", "veyllab-app", 5, 4, {}), T0 + 10),  # same change again
                 _k8s_record(_deployment("frontend", "veyllab-app", 5, 5, {}), T0 + 11),  # status only
                 _k8s_record(
                     _deployment("veyllab-collector", "veyllab-obs", 9, 8, {}), T0 + 12
