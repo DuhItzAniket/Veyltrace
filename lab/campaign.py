@@ -138,15 +138,15 @@ def _phases(
                 "capture_id": capture_id, "profile": plan.profile, "durations_s": d, "users": entry.users,
                 "t_capture_start_ns": t_capture_ns, "t_inject_ns": t_inject_ns, "t_end_ns": t_end_ns,
                 "clock": clock, "versions": versions, "host": capture.host_spec(),
-                "injection": {"manifest": inj.manifest, "apply": inj.apply_args, "revert": inj.revert_args},
+                "injection": {"manifests": inj.manifests, "apply": inj.apply_args, "revert": inj.revert_args},
             }, files)  # fmt: skip
     return outcome
 
 
 def inject(runner: Runner, pins: Mapping[str, Any], inj: Injection) -> None:
     """Apply the fault: its Chaos Mesh object, or its kubectl commands (F11)."""
-    if inj.manifest is not None:
-        runner.run(kubectl(pins, "apply", "-f", "-"), stdin=yaml.safe_dump(inj.manifest, sort_keys=True))
+    for manifest in inj.manifests:
+        runner.run(kubectl(pins, "apply", "-f", "-"), stdin=yaml.safe_dump(manifest, sort_keys=True))
     for args in inj.apply_args:
         runner.run(kubectl(pins, *args))
 

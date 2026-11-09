@@ -49,7 +49,7 @@ def test_every_entry_builds_an_injection_and_a_valid_answer_key(fault_id: str, s
         cpu_limit="200m",
     )
     assert inj.revert_args, "every fault can be removed"
-    assert (inj.manifest is None) != (not inj.apply_args)
+    assert bool(inj.manifests) != bool(inj.apply_args)
     key = answer_key.build(
         capture_id="ab" * 16,
         dataset="veyllab-ob",
@@ -74,7 +74,7 @@ def test_f01_stress_and_f02_memory() -> None:
         name="n",
         namespace="ns",
         duration_s=600,
-    ).manifest
+    ).manifests[0]
     assert cpu is not None and cpu["spec"]["stressors"] == {"cpu": {"workers": 2, "load": 100}}
     mem = injection(
         get_fault("F02", "frontend", "L1"),
@@ -83,7 +83,7 @@ def test_f01_stress_and_f02_memory() -> None:
         name="n",
         namespace="ns",
         duration_s=600,
-    ).manifest
+    ).manifests[0]
     assert mem is not None and mem["spec"]["stressors"] == {"memory": {"workers": 1, "size": "256MB"}}
     assert mem["spec"]["duration"] == "600s"
 
@@ -96,7 +96,7 @@ def test_f04_delay_and_f05_loss() -> None:
         name="n",
         namespace="ns",
         duration_s=60,
-    ).manifest
+    ).manifests[0]
     assert delay is not None and delay["spec"]["delay"] == {
         "latency": "200ms",
         "jitter": "20ms",
@@ -109,7 +109,7 @@ def test_f04_delay_and_f05_loss() -> None:
         name="n",
         namespace="ns",
         duration_s=60,
-    ).manifest
+    ).manifests[0]
     assert loss is not None and loss["spec"]["loss"] == {"loss": "50", "correlation": "0"}
 
 
@@ -122,8 +122,9 @@ def test_kills_are_one_shot_at_l1_and_scheduled_at_l2() -> None:
         namespace="ns",
         duration_s=600,
     )
-    assert one.manifest is not None and one.manifest["kind"] == "PodChaos"
-    assert "duration" not in one.manifest["spec"]
+    (kill,) = one.manifests
+    assert kill["kind"] == "PodChaos"
+    assert "duration" not in kill["spec"]
     rep = injection(
         get_fault("F07", "frontend", "L2"),
         target="frontend",
@@ -132,10 +133,17 @@ def test_kills_are_one_shot_at_l1_and_scheduled_at_l2() -> None:
         namespace="ns",
         duration_s=600,
     )
-    assert rep.manifest is not None and rep.manifest["kind"] == "Schedule"
-    assert rep.manifest["spec"]["schedule"] == "@every 120s"
-    assert rep.manifest["spec"]["podChaos"]["containerNames"] == ["server"]
-    assert rep.revert_args == (("-n", "ns", "delete", "schedules.chaos-mesh.org", "n", "--ignore-not-found"),)
+    # Regression (2026-11-09 live run): a Schedule fires one period late, so L2 also kills at once.
+    first, repeat = rep.manifests
+    assert (first["kind"], first["metadata"]["name"]) == ("PodChaos", "n")
+    assert (repeat["kind"], repeat["metadata"]["name"]) == ("Schedule", "n-r")
+    assert repeat["spec"]["schedule"] == "@every 120s"
+    assert repeat["spec"]["podChaos"] == first["spec"]
+    assert first["spec"]["containerNames"] == ["server"]
+    assert rep.revert_args == (
+        ("-n", "ns", "delete", "schedules.chaos-mesh.org", "n-r", "--ignore-not-found"),
+        ("-n", "ns", "delete", "podchaos", "n", "--ignore-not-found"),
+    )
 
 
 def test_f08_pod_failure_is_capped_by_its_level() -> None:
@@ -146,7 +154,7 @@ def test_f08_pod_failure_is_capped_by_its_level() -> None:
         name="n",
         namespace="ns",
         duration_s=600,
-    ).manifest
+    ).manifests[0]
     assert m is not None and m["spec"]["duration"] == "200s"
 
 
@@ -160,7 +168,7 @@ def test_f11_cuts_and_restores_the_manifest_cpu_limit() -> None:
         duration_s=600,
         cpu_limit="200m",
     )
-    assert inj.manifest is None
+    assert inj.manifests == ()
     assert inj.apply_args[0][-1] == "--limits=cpu=50m"
     assert inj.revert_args[0][-1] == "--limits=cpu=200m"
     with pytest.raises(ValueError):
