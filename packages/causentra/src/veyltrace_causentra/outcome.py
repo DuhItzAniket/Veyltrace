@@ -13,7 +13,7 @@ from typing import Final
 
 from veyltrace_causatrix.classify import classify
 from veyltrace_causentra.config import CausentraConfig
-from veyltrace_causentra.decision import Candidate, Decision, eligible_proposals
+from veyltrace_causentra.decision import Candidate, Decision, claim_key, eligible_proposals
 from veyltrace_causentra.inputs import DECIMALS, CausentraInputs
 from veyltrace_causentra.trials import FAIL, PASS, UNTESTABLE
 from veyltrace_contracts.predicates import PREDICATES
@@ -116,8 +116,8 @@ def proposal_outcomes(
 ) -> tuple[list[str], list[dict[str, str]]]:
     """(accepted ids, rejected {proposal_id, reason}) in the 09 §3.10 order, sorted by proposal_id.
 
-    `bad_args` needs FaultLoom's validate() and is not decided yet: such a proposal, never admitted,
-    is rejected `claim_false` (a decision for the lead until validate() is importable).
+    Rows 3–5 for a proposal not admitted: a non-library predicate, else a claim FaultLoom's
+    validate() rejects (`bad_args`, an unknown service argument included), else `claim_false`.
     """
     if inp.proposals is None:
         return [], []
@@ -132,9 +132,12 @@ def proposal_outcomes(
         elif p.hypothesis.service not in inp.graph_nodes:
             reason = "unknown_entity"
         elif p.proposal_id not in d.admitted:
-            reason = (
-                "unknown_predicate" if any(c.predicate not in _LIBRARY for c in p.claims) else "claim_false"
-            )
+            if any(c.predicate not in _LIBRARY for c in p.claims):
+                reason = "unknown_predicate"
+            elif any(claim_key(c, inp.domain) is None for c in p.claims):
+                reason = "bad_args"
+            else:
+                reason = "claim_false"
         elif p.hypothesis.service in failed:
             reason = "trial_failed"
         else:
