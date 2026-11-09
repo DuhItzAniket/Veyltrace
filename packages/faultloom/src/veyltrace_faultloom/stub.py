@@ -20,7 +20,7 @@ from typing import Final
 from veyltrace_contracts import models
 from veyltrace_core.context import EngineResult, RunContext
 from veyltrace_core.errors import ContractValidationError
-from veyltrace_faultloom.atoms import KIND_OF_KLASS, anomaly_atoms
+from veyltrace_faultloom.atoms import KINDS, Atom, anomaly_atoms, check_unique, drop_disabled
 from veyltrace_faultloom.inputs import (
     CLAIM_REQUIRED,
     MAIN_REQUIRED,
@@ -28,13 +28,14 @@ from veyltrace_faultloom.inputs import (
     load_inputs,
     missing_required,
 )
+from veyltrace_faultloom.onset import silence_atoms
 
-__all__ = ["ENGINE", "STUB_NOTE", "claim_pool", "run_claim_pass", "run_main"]
+__all__ = ["ENGINE", "STUB_NOTE", "claim_pool", "engine_atoms", "run_claim_pass", "run_main"]
 
 ENGINE: Final = "faultloom"
 #: EngineResult.notes entry of every stub result. It starts with veyltrace_core.cli.STUB_MARK
 #: ("stub: "), so diagnose warns that the run's outputs are not analysis.
-STUB_NOTE: Final = "stub: FaultLoom R-06 has anomaly atoms only; R-08/R-12 add the other kinds and claims"
+STUB_NOTE: Final = "stub: FaultLoom R-08 in progress: anomaly and silence atoms only, no claims yet"
 #: proposals.status values whose proposals the claim pass would evaluate (03 §9.1).
 _EVALUATED_STATUSES: Final = frozenset({"complete", "budget_exhausted"})
 
@@ -62,18 +63,26 @@ def _notes(view: EvidenceInputs, *extra: str) -> tuple[str, ...]:
     return (STUB_NOTE, *view.notes, *absent, *extra)
 
 
+def engine_atoms(ctx: RunContext, view: EvidenceInputs) -> list[Atom]:
+    """Every engine atom of U built so far, minus `atoms.disabled` (06 §3.1 step 2, §9); ids unique."""
+    detectors = (str(d) for d in ctx.config["atoms"]["detectors"])
+    found = [*anomaly_atoms(view.anomalies, view.universe, detectors), *silence_atoms(view)]
+    atoms = drop_disabled(found, (str(k) for k in ctx.config["atoms"]["disabled"]))
+    check_unique(atoms)
+    return atoms
+
+
 def run_main(ctx: RunContext) -> EngineResult:
-    """Engine pass (pipeline step 5): read every input, write the anomaly atoms of U (06 §3.1)."""
+    """Engine pass (pipeline step 5): read every input, write the engine atoms of U (06 §3.1)."""
     missing = missing_required(ctx, MAIN_REQUIRED)
     if missing:
         return _failed(missing)
     view = load_inputs(ctx)
-    detectors = (str(d) for d in ctx.config["atoms"]["detectors"])
-    atoms = anomaly_atoms(view.anomalies, view.universe, detectors)
+    atoms = engine_atoms(ctx, view)
     digest = ctx.write("evidence", atoms)
     metrics = _input_metrics(view)
     metrics["atoms"] = len(atoms)
-    for kind in KIND_OF_KLASS.values():
+    for kind in KINDS:
         metrics[f"atoms.{kind}"] = sum(1 for a in atoms if a["kind"] == kind)
     return EngineResult(
         engine=ENGINE, status="ok", outputs=(("evidence", digest),), metrics=metrics, notes=_notes(view)

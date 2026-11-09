@@ -1,4 +1,4 @@
-"""Golden tests of the anomaly atoms on hand-made inputs (06 §3.4, §7).
+"""Golden tests of the engine atoms on hand-made inputs (06 §3.4, §7).
 
 The synth anomalies stay empty until Anomara's detectors land, so the atom logic is pinned here.
 Each `fixtures/handmade/<case>/` holds `inputs.json` (contract name -> rows; "_" keys are comments),
@@ -56,7 +56,7 @@ def test_evidence_matches_the_handmade_golden(tmp_path: Path, case: str) -> None
 
 @pytest.fixture
 def anomaly_dir(tmp_path: Path) -> Path:
-    return _run_dir("anomaly-atoms", tmp_path)
+    return _run_dir("cpu-hog", tmp_path)
 
 
 def _evidence(run_dir: Path) -> list[dict[str, object]]:
@@ -69,7 +69,7 @@ def test_robust_z_atoms_recover_the_max_score_norm(anomaly_dir: Path) -> None:
     assert (metrics["atoms.internal_anomaly"], metrics["atoms.external_anomaly"]) == (6, 2)
     anomalies = io.read_table("anomalies", anomaly_dir).to_pylist()
     norm = {(r["series_id"], r["detector"]): r["score_norm"] for r in anomalies}
-    robust = [a for a in _evidence(anomaly_dir) if json.loads(str(a["args_json"]))["detector"] == "robust_z"]
+    robust = [a for a in _evidence(anomaly_dir) if '"detector":"robust_z"' in str(a["args_json"])]
     assert len(robust) == 6
     for atom in robust:
         refs = atom["refs"]
