@@ -30,7 +30,7 @@ from veyltrace_core.pipeline import code_commit
 PROTOCOL_KEYS = ("core.alert.protocol", "core.alert.shift_s", "infralume.sources.drop")
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
-    "coverage", "set_size", "risk_coverage", "no_fault_rates", "cost",
+    "onset_error", "coverage", "set_size", "risk_coverage", "no_fault_rates", "cost",
 ]  # fmt: skip
 #: The 04 §9 metrics v0 does not compute (summary.METRIC_KEYS has the rest), with the adding task.
 METRIC_TASKS = {

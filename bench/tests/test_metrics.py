@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -17,6 +18,7 @@ from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow
 from veyltrace_core import io
 from veyltrace_core.errors import ContractValidationError
 from veyltrace_core.rng import rng
+from veyltrace_core.synth import layout as lay
 from veyltrace_core.synth.truth import answer_key_rows
 
 SERVICES = ("cart", "catalog", "checkout", "frontend", "payment", "recommend")
@@ -46,6 +48,7 @@ def test_hand_computed_pipeline_case_and_fault_types() -> None:
     assert (score.position, score.fine_position, score.unranked, score.n_candidates) == (2, 2, False, 6)
     assert (score.in_universe, score.slate_k) == (True, 5)  # summary.json inputs (#64)
     expected = dict.fromkeys(["hit_at_3", "hit_at_5", "retrieval_hit", "pool_hit"], True) | {"set_size": 1}
+    expected |= {"onset_error_ms": None}  # oracle-style output: no onset passed (#215)
     assert score.columns() == expected | dict.fromkeys(["hit_at_1", "in_set", "fault_class_hit"], False) | {
         "ranks": list(ranks)
     }
@@ -70,7 +73,8 @@ def test_non_ok_outcomes_are_misses(outcome: str) -> None:
     root = ("checkout",)
     score = score_case(CHECKOUT, MethodOutput(outcome, ("checkout_cpu",), ("ns",), root, root, root, True))
     misses = dict.fromkeys(["hit_at_1", "hit_at_3", "hit_at_5", *CHANNELS], False)
-    assert score.columns() == {"ranks": [], "set_size": None, "fault_class_hit": False} | misses
+    nulls = {"ranks": [], "set_size": None, "fault_class_hit": False, "onset_error_ms": None}
+    assert score.columns() == nulls | misses
 
 
 def test_baseline_and_normal_window_columns_are_null() -> None:
@@ -85,9 +89,10 @@ def test_baseline_and_normal_window_columns_are_null() -> None:
 
 def test_answer_keys_map_to_truth_and_fit_the_bench_result_contract(tmp_path: Path) -> None:
     truths = {r["case_id"]: Truth.from_answer_key(AnswerKeyRow.model_validate(r)) for r in answer_key_rows()}
-    assert truths["59e0d31bcc42"] == CHECKOUT  # synth-01
-    assert truths["3263e227fcbe"] == Truth(None)  # synth-05, no fault
-    assert truths["9dfa7a46d130"] == Truth("cart")  # synth-05@silent: no indicator, class or mode
+    injected = {"t_inject_ns": lay.T_INJECT_NS}  # the onset-error reference (#215)
+    assert truths["59e0d31bcc42"] == replace(CHECKOUT, **injected)  # synth-01
+    assert truths["3263e227fcbe"] == Truth(None)  # synth-05, no fault: no injection time either
+    assert truths["9dfa7a46d130"] == Truth("cart", **injected)  # synth-05@silent: no indicator, class or mode
     with pytest.raises(ContractValidationError, match="no root_service"):
         Truth.from_answer_key(AnswerKeyRow.model_validate({**answer_key_rows()[0], "root_service": None}))
     score = score_case(truths["9dfa7a46d130"], ranked("catalog", "cart"))

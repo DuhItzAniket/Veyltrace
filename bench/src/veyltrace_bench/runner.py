@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import shutil
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import cast
 
@@ -33,7 +34,7 @@ from veyltrace_bench.experiment import (
 )
 from veyltrace_bench.metrics import CaseScore, MethodOutput, Truth, score_case
 from veyltrace_bench.summary import summarize
-from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Slate, Verdict
+from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
 from veyltrace_core import io, textio
 from veyltrace_core.canonical import JSONLike, canonical_json
 from veyltrace_core.config import ResolvedConfig, config_sha256, find_config_dir, resolve_config
@@ -50,6 +51,7 @@ RESULTS_DIR = ("bench", "results")  # default results root below the repo (04 §
 BENCH_RUNS = "bench"  # bench's own subdirectory of the runs root, one directory per experiment
 SYNTH = "synth"  # smoke cases, never reported (04 §3)
 MS_PER_S = 1000.0
+DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 STATISTICS_NOT_RUN = "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
 
 _log = get_logger(__name__)
@@ -109,7 +111,7 @@ def method_output(
     )
 
 
-def _read[M: (Verdict, Slate, CaseManifest)](name: str, run_dir: Path, model: type[M]) -> M | None:
+def _read[M: (Verdict, Slate, CaseManifest, Onsets)](name: str, run_dir: Path, model: type[M]) -> M | None:
     """A JSON output of the run, or None when the run did not write a valid one."""
     try:
         return io.read_model(name, run_dir, model)
@@ -147,11 +149,11 @@ def _run_one(
         outcome = "failed"  # a missing output is a failed run (04 §7)
     case = _read("case_manifest", summary.run_dir, CaseManifest)
     universe = tuple(case.services) if case is not None else None
-    score = score_case(
-        Truth.from_answer_key(key),
-        method_output(outcome, verdict, slate, slate_scored=slate_scored),
-        universe=universe,
-    )
+    detected = outcome == "ok" and exp.protocol.alert == DETECTED
+    onsets = _read("onsets", summary.run_dir, Onsets) if detected else None
+    out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
+    out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
+    score = score_case(Truth.from_answer_key(key), out, universe=universe)
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
     # Every column starts null; the ones v0 leaves null are listed in run_experiment's docstring.
@@ -190,8 +192,9 @@ def run_experiment(
     `table` and needs an explicit `out_root` outside the repository.
 
     per_case.csv columns v0 leaves null: seed and variant (no AI arms, no perturbed variants),
-    fold (split none), onset_error_ms, decoy_present and decoy_ranked_first (not evaluated yet),
-    peak_rss_mb (not measurable in-process) and tokens_in/out (AI off).
+    fold (split none), decoy_present and decoy_ranked_first (not evaluated yet), peak_rss_mb (not
+    measurable in-process) and tokens_in/out (AI off); onset_error_ms is filled under the detected
+    protocol only (04 §7).
     """
     exp = load_experiment(path)
     if todo := unsupported(exp):
