@@ -7,11 +7,10 @@ from pathlib import Path
 
 import pytest
 
-from veyltrace_causentra import api, stub
+from veyltrace_causentra import api
 from veyltrace_contracts import models
 from veyltrace_core import io, plugins, textio
 from veyltrace_core.calibration import write_calibration
-from veyltrace_core.cli import STUB_MARK
 from veyltrace_core.config import section_sha256
 from veyltrace_core.errors import ContractValidationError
 from veyltrace_core.hashing import sha256_json
@@ -62,11 +61,11 @@ def test_config_declares_every_spec_key_with_its_default(synth01_dir: Path) -> N
     assert list(cfg.get_path("trials.disabled")) == []
 
 
-def test_run_writes_a_valid_stub_verdict(synth01_dir: Path) -> None:
+def test_run_writes_a_valid_verdict(synth01_dir: Path) -> None:
     ctx = make_context("causentra", synth01_dir)
     result = api.run(ctx)
     assert result.status == "ok"
-    assert stub.STUB_NOTE in result.notes and stub.STUB_NOTE.startswith(f"{STUB_MARK}R-00")
+    assert not any(n.startswith("stub: ") for n in result.notes)
     assert [name for name, _ in result.outputs] == ["verdict"]
     io.read("verdict", synth01_dir, validate=True)
     verdict = _verdict(synth01_dir)
@@ -95,8 +94,11 @@ def test_populated_slate_is_ranked_whole(synth01_dir: Path, example_slate: model
     io.write("slate", example_slate, synth01_dir)
     api.run(make_context("causentra", synth01_dir))
     verdict = _verdict(synth01_dir)
+    assert sorted(r.service for r in verdict.ranked) == sorted(c.service for c in example_slate.candidates)
+    # No atoms: T1-T4 untestable (0.85 each), so V keeps the slate's order and the leader is rank 1.
     assert [r.service for r in verdict.ranked] == [c.service for c in example_slate.candidates]
-    assert verdict.candidate_set == []  # uncalibrated q_hat 0.0 and no leader
+    assert [c.service for c in verdict.candidate_set] == [verdict.ranked[0].service]  # uncalibrated q_hat 0
+    assert verdict.status == "INCONCLUSIVE" and verdict.confidence.level == "low"
     assert len(verdict.ranks_rcaeval) == len(example_slate.all_scores)
 
 
@@ -120,18 +122,20 @@ def test_wrong_engine_context_is_refused(synth01_dir: Path) -> None:
         api.run(make_context("causatrix", synth01_dir))
 
 
-def test_ai_on_proposals_get_bookkeeping_outcomes(
+def test_ai_on_every_proposal_gets_one_outcome(
     synth01_dir: Path, example_proposals: models.Proposals
 ) -> None:
     io.write("proposals", example_proposals, synth01_dir)
     nodes = set(io.read_table("graph.nodes", synth01_dir, columns=["node"]).column("node").to_pylist())
     result = api.run(make_context("causentra", synth01_dir, ai_mode="record"))
     verdict = _verdict(synth01_dir)
-    assert verdict.proposals_accepted == []
-    expected = sorted(p.proposal_id for p in example_proposals.proposals if p.hypothesis.service not in nodes)
-    assert [r.proposal_id for r in verdict.proposals_rejected] == expected
-    assert all(r.reason == "unknown_entity" for r in verdict.proposals_rejected)
-    assert result.metrics["proposals_undecided"] == len(example_proposals.proposals) - len(expected)
+    # No claim_check atom holds yet, so nothing is admitted (09 §3.10 rows 2 and 5).
+    assert verdict.proposals_accepted == [] and result.metrics["proposals_admitted"] == 0
+    want = {
+        p.proposal_id: "unknown_entity" if p.hypothesis.service not in nodes else "claim_false"
+        for p in example_proposals.proposals
+    }
+    assert {r.proposal_id: r.reason for r in verdict.proposals_rejected} == want
 
 
 def test_calibration_file_sets_family_hash_and_q_hat(
@@ -150,10 +154,11 @@ def test_calibration_file_sets_family_hash_and_q_hat(
     assert verdict.calibration.sha256 == ctx.config.calibration_sha256
     assert verdict.confidence.q_hat is None  # +inf: the whole decision pool is the set (09 §3.7)
     assert [c.service for c in verdict.candidate_set] == [r.service for r in verdict.ranked]
-    assert verdict.status == "INCONCLUSIVE" and verdict.confidence.level == "none"
-    # |C| = 5 > status.likely_max_set = 3: the 09 §3.11 priority-4 ask comes first.
-    assert verdict.asks[0].kind == "trial" and verdict.asks[0].target.startswith("set:")
-    assert verdict.asks[0].why == "candidate set has 5 members"
+    assert verdict.status == "INCONCLUSIVE" and verdict.confidence.level == "low"
+    # |C| = 5 > status.likely_max_set = 3: the 09 §3.11 priority-4 ask follows the leader's
+    # priority-3 asks (its T1-T4 are untestable without atoms).
+    assert [a.target.split(":")[0] for a in verdict.asks] == ["T1", "T2", "T3", "T4", "set"]
+    assert verdict.asks[-1].why == "candidate set has 5 members"
 
 
 def test_calibration_fitted_at_another_alpha_fails_the_step(synth01_dir: Path, tmp_path: Path) -> None:

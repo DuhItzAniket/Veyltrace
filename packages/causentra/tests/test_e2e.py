@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 
-from veyltrace_causentra import stub
 from veyltrace_contracts import models
 from veyltrace_core import io
 from veyltrace_core.hashing import self_hash
@@ -36,14 +35,16 @@ def _check_verdict(summary: RunSummary) -> models.Verdict:
     assert summary.outcome == "ok", summary.reason
     record = next(r for r in summary.results if r.engine == "causentra")
     assert record.status == "ok"
-    assert stub.STUB_NOTE in record.notes
+    assert not any(n.startswith("stub: ") for n in record.notes)
     io.read("verdict", summary.run_dir, validate=True)
     verdict = io.read_model("verdict", summary.run_dir, models.Verdict)
     slate = io.read_model("slate", summary.run_dir, models.Slate)
     assert verdict.case_id == summary.case_id and verdict.run_id == summary.run_id
-    assert verdict.status == "INCONCLUSIVE" and verdict.root is None
-    assert [r.service for r in verdict.ranked] == [c.service for c in slate.candidates]
-    assert all(t.result == "untestable" for r in verdict.ranked for t in r.trials)
+    # AI off: the decision pool is the slate, every slate candidate is ranked (09 §3.2, AGENTS Never 5).
+    assert sorted(r.service for r in verdict.ranked) == sorted(c.service for c in slate.candidates)
+    assert (verdict.root is None) == (
+        verdict.status == "NO_FAULT" or not verdict.ranked or verdict.ranked[0].v == 0
+    )
     assert verdict.verdict_hash == self_hash("verdict", verdict)
     return verdict
 

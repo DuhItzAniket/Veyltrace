@@ -54,12 +54,11 @@ def test_verdict_matches_golden(case: str, tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("case", CASES)
-def test_golden_verdict_is_stub_honest(case: str, tmp_path: Path) -> None:
-    """The committed verdict itself keeps the R-00 invariants against its own upstream slate."""
+def test_golden_verdict_ranks_every_slate_candidate(case: str, tmp_path: Path) -> None:
+    """The committed verdict keeps every slate candidate (AGENTS Never 5) and hashes itself."""
     run_dir = _run_on_fixtures(case, tmp_path)
     expected = golden("verdict", case)
     assert isinstance(expected, models.Verdict)
     slate = io.read_model("slate", run_dir, models.Slate)
-    assert expected.status == "INCONCLUSIVE" and expected.root is None
-    assert expected.confidence.level == "none"
-    assert [r.service for r in expected.ranked] == [c.service for c in slate.candidates]
+    assert {c.service for c in slate.candidates} <= {r.service for r in expected.ranked}
+    assert len(expected.ranks_rcaeval) == len(slate.all_scores)

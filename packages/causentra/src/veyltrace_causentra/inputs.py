@@ -105,7 +105,7 @@ def load_inputs(ctx: RunContext, cfg: CausentraConfig) -> CausentraInputs:
     onsets = ctx.read_model("onsets", models.Onsets)
     alignment = ctx.read_model("alignment", models.Alignment) if ctx.exists("alignment") else None
     proposals, notes = _proposals(ctx)
-    absent = [n for n in ("graph.edges", "alignment") if not ctx.exists(n)]
+    absent = [n for n in ("alignment", "graph.edges", "graph.paths") if not ctx.exists(n)]
     calibration = ctx.config.calibration
     if calibration is None:
         q_hat: float | None = cfg.uncalibrated_q_hat
