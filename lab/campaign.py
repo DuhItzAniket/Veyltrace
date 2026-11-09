@@ -1,0 +1,134 @@
+"""Run a fault campaign from a plan file (05 §8).
+
+    uv run python lab/campaign.py --plan lab/plans/x02-smoke.yaml [--dry-run]
+
+Per entry: reset → warm-up → baseline check → baseline → fault → recovery → export. Each case
+writes ``lab/captures/<capture_id>/`` (OTLP files + orchestrator.json), its answer key under
+``lab/captures/answer_keys/`` and one line in ``lab/captures/attempts.jsonl``. A dry run prints
+every command and writes nothing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any
+
+import yaml
+from vlab import CAPTURES_DIR, answer_key, capture
+from vlab.cluster import kubectl, load_pins
+from vlab.faults import OB_CONTAINER, chaos_manifest, get_fault
+from vlab.plan import Entry, Plan, load
+from vlab.shell import CommandError, Runner
+
+ENTRY_URL = "http://127.0.0.1:8080/"
+#: Baseline check retry (05 §8.1: wait 2 min and retry once).
+BASELINE_RETRY_S = 120
+RESET_TIMEOUT = "--timeout=300s"
+CHAOS_KINDS = "stresschaos,networkchaos"
+
+
+def reset(runner: Runner, pins: Mapping[str, Any]) -> None:
+    """Remove leftover faults and restart every app Deployment (05 §8.1 Reset)."""
+    app = str(pins["app_namespace"])
+    runner.run(kubectl(pins, "-n", app, "delete", CHAOS_KINDS, "--all", "--ignore-not-found"))
+    runner.run(kubectl(pins, "-n", app, "rollout", "restart", "deploy"))
+    runner.run(
+        kubectl(pins, "-n", app, "wait", "--for=condition=available", "deploy", "--all", RESET_TIMEOUT)
+    )
+
+
+def baseline_ok(runner: Runner) -> bool:
+    """Entry service answers. The p95/error-rate check of 05 §8.1 needs span parsing (X-11)."""
+    if runner.http_ok(ENTRY_URL):
+        return True
+    runner.sleep(BASELINE_RETRY_S, "baseline check retry")
+    return runner.http_ok(ENTRY_URL)
+
+
+def run_case(runner: Runner, pins: Mapping[str, Any], plan: Plan, entry: Entry, captures_dir: Path) -> str:
+    """Run one plan entry and return its outcome."""
+    fault = get_fault(entry.fault, entry.target, entry.severity)
+    d = plan.durations_s
+    capture_id = capture.new_capture_id()
+    capture_dir = captures_dir / capture_id
+    attempt: dict[str, Any] = {"capture_id": capture_id, "fault": entry.fault, "target": entry.target,
+                               "severity": entry.severity}  # fmt: skip
+    print(f"campaign: {entry.fault} {entry.severity} -> {entry.target} as {capture_id}")
+    app = str(pins["app_namespace"])
+    name = f"vl-{capture_id[:8]}"
+    manifest = chaos_manifest(
+        fault, target=entry.target, severity=entry.severity, name=name, namespace=app, duration_s=d["fault"]
+    )
+    reset(runner, pins)
+    runner.sleep(d["warmup"], "warm-up")
+    if not baseline_ok(runner):
+        outcome = "baseline_unrecovered"
+    else:
+        capture.start(runner, pins)
+        t_capture_ns = runner.time_ns()
+        runner.sleep(d["baseline"], "baseline")
+        clock = capture.clock_sample(runner, pins)
+        t_inject_ns: int | None = None
+        try:
+            runner.run(kubectl(pins, "apply", "-f", "-"), stdin=yaml.safe_dump(manifest, sort_keys=True))
+            t_inject_ns = runner.time_ns()
+            runner.sleep(d["fault"], "fault window")
+        except CommandError as exc:
+            attempt["error"] = str(exc)
+        finally:  # the fault never outlives the case, whatever failed above
+            runner.run(
+                kubectl(pins, "-n", app, "delete", fault.chaos_kind.lower(), name, "--ignore-not-found")
+            )
+        t_end_ns = runner.time_ns()
+        runner.sleep(d["recovery"], "recovery")
+        files = capture.stop_and_collect(runner, pins, capture_dir)
+        outcome = "inject_failed" if t_inject_ns is None else "captured"
+        if runner.dry_run:
+            outcome = "dry_run"
+        elif t_inject_ns is not None:
+            injection = {"fault_id": fault.fault_id, "tool": f"chaos-mesh/{fault.chaos_kind}",
+                         "tool_version": str(pins["chaos_mesh"]["version"]),
+                         "params": dict(fault.levels[entry.severity]), "severity": entry.severity,
+                         "seed": plan.seed}  # fmt: skip
+            key = answer_key.build(
+                capture_id=capture_id, dataset=plan.dataset, root_service=entry.target,
+                root_component=OB_CONTAINER, fault_id=fault.fault_id, fault_class=fault.fault_class,
+                indicator=fault.indicator, t_inject_ns=t_inject_ns, t_end_ns=t_end_ns, injection=injection,
+            )  # fmt: skip
+            answer_key.write(key, capture_id=capture_id, captures_dir=captures_dir)
+            capture.write_orchestrator(capture_dir, {
+                "capture_id": capture_id, "profile": plan.profile, "durations_s": d,
+                "t_capture_start_ns": t_capture_ns, "t_inject_ns": t_inject_ns, "t_end_ns": t_end_ns,
+                "clock": clock, "versions": capture.versions(runner, pins), "host": capture.host_spec(),
+                "chaos_manifest": manifest,
+            }, files)  # fmt: skip
+    attempt["outcome"] = outcome
+    attempt["validated"] = None  # 05 §8.2 validation rule arrives with X-11
+    if not runner.dry_run:
+        capture.log_attempt(captures_dir, attempt)
+    print(f"campaign: {capture_id} {outcome}")
+    return outcome
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(prog="lab/campaign.py", description=__doc__.splitlines()[0])
+    ap.add_argument("--plan", type=Path, required=True)
+    ap.add_argument("--dry-run", action="store_true", help="print every command; touch nothing")
+    ap.add_argument("--captures", type=Path, default=CAPTURES_DIR, help=argparse.SUPPRESS)
+    args = ap.parse_args(argv)
+    try:
+        plan = load(args.plan)
+    except (OSError, ValueError) as exc:
+        print(f"campaign: bad plan {args.plan}: {exc}", file=sys.stderr)
+        return 2
+    runner = Runner(dry_run=args.dry_run)
+    pins = load_pins()
+    outcomes = [run_case(runner, pins, plan, entry, args.captures) for entry in plan.entries]
+    return 0 if all(o in {"captured", "dry_run"} for o in outcomes) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
