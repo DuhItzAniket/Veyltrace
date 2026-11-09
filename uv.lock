@@ -1233,12 +1233,18 @@ name = "veyltrace-infralume"
 version = "0.1.0"
 source = { editable = "packages/infralume" }
 dependencies = [
+    { name = "duckdb" },
+    { name = "numpy" },
+    { name = "pyarrow" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", specifier = ">=1.1" },
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "pyarrow", specifier = ">=17" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
 ]
@@ -1278,12 +1284,18 @@ name = "veyltrace-signalyth"
 version = "0.1.0"
 source = { editable = "packages/signalyth" }
 dependencies = [
+    { name = "duckdb" },
+    { name = "numpy" },
+    { name = "pyarrow" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "duckdb", specifier = ">=1.1" },
+    { name = "numpy", specifier = ">=2.0" },
+    { name = "pyarrow", specifier = ">=17" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
 ]
