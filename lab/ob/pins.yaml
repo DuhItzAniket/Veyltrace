@@ -1,0 +1,23 @@
+# Pinned versions of the `ob` profile (05 §2.3; ADR docs/adr/20261109-cl-lab-ob-profile.md).
+# Versions are sourced in 05 §2.3. Image digests are not in the research notes: `lab/up.py` records
+# the digest of every running image in each capture's orchestrator.json, and the first live run
+# copies them here (`digest: null` until then).
+cluster_name: veyllab
+node_container: veyllab-control-plane   # kind names the single node <cluster>-control-plane
+app_namespace: veyllab-app
+obs_namespace: veyllab-obs
+chaos_namespace: chaos-mesh
+online_boutique:
+  version: v0.10.7
+  manifest: upstream/kubernetes-manifests.yaml
+  manifest_url: https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/v0.10.7/release/kubernetes-manifests.yaml
+chaos_mesh:
+  chart: chaos-mesh/chaos-mesh
+  repo: https://charts.chaos-mesh.org
+  version: 2.8.7
+collector:
+  image: otel/opentelemetry-collector-contrib:0.164.0
+  digest: null
+kind_node:
+  image: null    # null = the default node image of the installed kind binary; recorded per capture
+  digest: null

@@ -1,0 +1,12 @@
+# One-node kind cluster for the `ob` profile (05 §3.1). The node image is the kind binary's default
+# until the first live run pins it by digest (pins.yaml). No extraMounts: the Collector spool stays
+# inside the node container and is copied out with `docker cp` (ADR 20261109-cl-lab-ob-profile).
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: veyllab
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: 30080          # frontend NodePort
+        hostPort: 8080
+        listenAddress: "127.0.0.1"    # local only

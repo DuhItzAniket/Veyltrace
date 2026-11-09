@@ -65,17 +65,14 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: veyllab
 nodes:
   - role: control-plane
-    image: kindest/node:<version>@sha256:<digest>      # pinned at X-02
-    extraMounts:
-      - hostPath: <spool dir visible to Docker Desktop>  # verify path form at X-02
-        containerPath: /veyllab/spool
+    image: kindest/node:<version>@sha256:<digest>      # pinned after the first live run
     extraPortMappings:
       - containerPort: 30080          # frontend NodePort
         hostPort: 8080
         listenAddress: "127.0.0.1"    # local only
 ```
 
-One node keeps memory down; k3d is an equivalent fallback if kind misbehaves ([bt §Q3][bt-q3]).
+One node keeps memory down; k3d is an equivalent fallback if kind misbehaves ([bt §Q3][bt-q3]). The Collector spool (`/veyllab/spool`) stays inside the node container and is copied out with `docker cp` at export, so no `extraMounts` host path is needed; image digests are recorded in every capture's `orchestrator.json` and copied into `lab/ob/pins.yaml` after the first live run ([ADR 20261109-cl-lab-ob-profile](adr/20261109-cl-lab-ob-profile.md)).
 
 ### 3.2 Application
 

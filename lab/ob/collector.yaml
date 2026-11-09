@@ -1,0 +1,194 @@
+# Lab Collector, otelcol-contrib 0.164.0, one replica (05 §3.3: k8sobjects must run once).
+# Writes OTLP JSON to /veyllab/spool on the kind node; lab/vlab/capture.py copies it out with
+# `docker cp` (ADR 20261109-cl-lab-ob-profile: no extraMounts host path).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: veyllab-obs
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: veyllab-collector
+  namespace: veyllab-obs
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: veyllab-collector
+rules:
+  - apiGroups: [""]
+    resources: [pods, namespaces, nodes, events]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [nodes/stats, nodes/proxy]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [events.k8s.io]
+    resources: [events]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: veyllab-collector
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: veyllab-collector
+subjects:
+  - kind: ServiceAccount
+    name: veyllab-collector
+    namespace: veyllab-obs
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: veyllab-collector
+  namespace: veyllab-obs
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: {endpoint: "0.0.0.0:4317"}
+          http: {endpoint: "0.0.0.0:4318"}
+      kubeletstats:
+        collection_interval: 15s
+        auth_type: serviceAccount
+        endpoint: "https://${env:K8S_NODE_IP}:10250"
+        insecure_skip_verify: true    # kind's kubelet serves a self-signed certificate
+        metric_groups: [container, pod, node]
+      filelog:
+        include: [/var/log/pods/*/*/*.log]
+        # Own logs would loop back; chaos-mesh logs are scrubbed (05 §11).
+        exclude: [/var/log/pods/veyllab-obs_*/*/*.log, /var/log/pods/chaos-mesh_*/*/*.log]
+        start_at: end
+        include_file_path: true
+        operators:
+          - type: container
+      k8sobjects:
+        objects:
+          - {name: events, mode: watch}
+          - {name: deployments, group: apps, mode: watch}
+    processors:
+      memory_limiter: {check_interval: 1s, limit_mib: 448, spike_limit_mib: 96}  # a priori, 05 §3.3
+      k8sattributes:
+        extract:
+          metadata: [k8s.namespace.name, k8s.pod.name, k8s.deployment.name, k8s.container.name, k8s.node.name]
+      # Leakage scrub, first of three passes (05 §11). Runs after k8sattributes so OTLP data
+      # already carries its namespace.
+      filter/scrub:
+        error_mode: ignore
+        traces:
+          span:
+            - resource.attributes["k8s.namespace.name"] == "chaos-mesh"
+            - resource.attributes["service.name"] == "flagd"
+        metrics:
+          metric:
+            - resource.attributes["k8s.namespace.name"] == "chaos-mesh"
+            - resource.attributes["service.name"] == "flagd"
+        logs:
+          log_record:
+            - resource.attributes["k8s.namespace.name"] == "chaos-mesh"
+            - resource.attributes["service.name"] == "flagd"
+            - IsMatch(body["object"]["involvedObject"]["apiVersion"], "chaos-mesh\\.org")
+            - IsMatch(body["object"]["reportingController"], "chaos")
+            - IsMatch(body["object"]["source"]["component"], "chaos")
+      transform/scrub:
+        error_mode: ignore
+        trace_statements:
+          - context: resource
+            statements: ['delete_matching_keys(attributes, "^(feature_flag\\.|chaos-mesh\\.org/)")']
+          - context: span
+            statements: ['delete_matching_keys(attributes, "^(feature_flag\\.|chaos-mesh\\.org/)")']
+        metric_statements:
+          - context: resource
+            statements: ['delete_matching_keys(attributes, "^(feature_flag\\.|chaos-mesh\\.org/)")']
+        log_statements:
+          - context: resource
+            statements: ['delete_matching_keys(attributes, "^(feature_flag\\.|chaos-mesh\\.org/)")']
+          - context: log
+            statements: ['delete_matching_keys(attributes, "^(feature_flag\\.|chaos-mesh\\.org/)")']
+      batch: {}
+    exporters:
+      file/traces:
+        path: /veyllab/spool/traces.jsonl
+        format: json
+        rotation: {max_megabytes: 100, max_backups: 100}
+      file/metrics:
+        path: /veyllab/spool/metrics.jsonl
+        format: json
+        rotation: {max_megabytes: 100, max_backups: 100}
+      file/logs:
+        path: /veyllab/spool/logs.jsonl
+        format: json
+        rotation: {max_megabytes: 100, max_backups: 100}
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, filter/scrub, transform/scrub, batch]
+          exporters: [file/traces]
+        metrics:
+          receivers: [otlp, kubeletstats]
+          processors: [memory_limiter, k8sattributes, filter/scrub, transform/scrub, batch]
+          exporters: [file/metrics]
+        logs:
+          receivers: [otlp, filelog, k8sobjects]
+          processors: [memory_limiter, k8sattributes, filter/scrub, transform/scrub, batch]
+          exporters: [file/logs]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: veyllab-collector
+  namespace: veyllab-obs
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: veyllab-collector}
+  template:
+    metadata:
+      labels: {app: veyllab-collector}
+    spec:
+      serviceAccountName: veyllab-collector
+      containers:
+        - name: otelcol
+          image: otel/opentelemetry-collector-contrib:0.164.0
+          args: ["--config=/conf/config.yaml"]
+          env:
+            - {name: GOMEMLIMIT, value: 400MiB}   # 75–80% of the limit (05 §3.3)
+            - name: K8S_NODE_IP
+              valueFrom: {fieldRef: {fieldPath: status.hostIP}}
+          resources:
+            limits: {memory: 512Mi}
+          securityContext:
+            runAsUser: 0   # reads /var/log/pods and writes the root-owned spool (lab only)
+          ports:
+            - {name: otlp-grpc, containerPort: 4317}
+            - {name: otlp-http, containerPort: 4318}
+          volumeMounts:
+            - {name: conf, mountPath: /conf}
+            - {name: spool, mountPath: /veyllab/spool}
+            - {name: podlogs, mountPath: /var/log/pods, readOnly: true}
+      volumes:
+        - name: conf
+          configMap: {name: veyllab-collector}
+        - name: spool
+          hostPath: {path: /veyllab/spool, type: DirectoryOrCreate}
+        - name: podlogs
+          hostPath: {path: /var/log/pods}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: veyllab-collector
+  namespace: veyllab-obs
+spec:
+  selector: {app: veyllab-collector}
+  ports:
+    - {name: otlp-grpc, port: 4317, targetPort: 4317}
+    - {name: otlp-http, port: 4318, targetPort: 4318}

@@ -1,0 +1,17 @@
+# Online Boutique v0.10.7 overlay (05 §3.2): NodePort frontend, load-generator settings, tracing.
+# Image digests are recorded per capture (pins.yaml note), not patched here yet.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: veyllab-app
+resources:
+  - namespace.yaml
+  - ../upstream/kubernetes-manifests.yaml
+patches:
+  - path: frontend-nodeport.yaml
+  - path: loadgenerator.yaml
+  # Every OB application Deployment names its container `server`; loadgenerator (`main`) and
+  # redis-cart (`redis`) are left alone.
+  - path: tracing.yaml
+    target:
+      kind: Deployment
+      name: "^(adservice|cartservice|checkoutservice|currencyservice|emailservice|frontend|paymentservice|productcatalogservice|recommendationservice|shippingservice)$"
