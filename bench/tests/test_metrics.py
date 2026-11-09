@@ -89,10 +89,10 @@ def test_baseline_and_normal_window_columns_are_null() -> None:
 
 def test_answer_keys_map_to_truth_and_fit_the_bench_result_contract(tmp_path: Path) -> None:
     truths = {r["case_id"]: Truth.from_answer_key(AnswerKeyRow.model_validate(r)) for r in answer_key_rows()}
-    injected = {"t_inject_ns": lay.T_INJECT_NS}  # the onset-error reference (#215)
-    assert truths["59e0d31bcc42"] == replace(CHECKOUT, **injected)  # synth-01
+    injected = lay.T_INJECT_NS  # the onset-error reference (#215)
+    assert truths["59e0d31bcc42"] == replace(CHECKOUT, t_inject_ns=injected)  # synth-01
     assert truths["3263e227fcbe"] == Truth(None)  # synth-05, no fault: no injection time either
-    assert truths["9dfa7a46d130"] == Truth("cart", **injected)  # synth-05@silent: no indicator, class or mode
+    assert truths["9dfa7a46d130"] == Truth("cart", t_inject_ns=injected)  # synth-05@silent: root only
     with pytest.raises(ContractValidationError, match="no root_service"):
         Truth.from_answer_key(AnswerKeyRow.model_validate({**answer_key_rows()[0], "root_service": None}))
     score = score_case(truths["9dfa7a46d130"], ranked("catalog", "cart"))

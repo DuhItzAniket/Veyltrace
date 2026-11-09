@@ -21,7 +21,7 @@ from veyltrace_contracts.models import CaseManifest, Onsets
 from veyltrace_core import cli, io, plugins, textio
 from veyltrace_core.adapters import AlertDetection, TelemetryTables
 from veyltrace_core.ids import case_id
-from veyltrace_core.pipeline import RunSummary
+from veyltrace_core.pipeline import RunSummary, run_case
 from veyltrace_core.plugins import Plugin
 from veyltrace_core.synth import layout as lay
 
@@ -103,7 +103,6 @@ def test_detected_runs_fill_onset_error(tmp_path: Path, monkeypatch: pytest.Monk
     discover = plugins.discover
     monkeypatch.setattr(plugins, "discover", lambda g: found if g == plugins.ALERT_DETECTORS else discover(g))
     run_dirs: dict[str, Path] = {}
-    run_case = runner.run_case
 
     def spy(dataset: str, cid: str, *args: Any, **kwargs: Any) -> RunSummary:
         summary = run_case(dataset, cid, *args, **kwargs)
