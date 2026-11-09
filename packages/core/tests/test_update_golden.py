@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from veyltrace_contracts.models import RunManifest
+from veyltrace_core import plugins
 from veyltrace_core.ids import case_id as make_case_id
 from veyltrace_core.steps import STEPS
 from veyltrace_core.testing import fixtures, stale_upstream
@@ -77,7 +78,20 @@ def test_upstream_change_makes_the_consumer_stale(tree: Path) -> None:
     assert any("removed upstream fixture" in r for r in stale_upstream("signalyth", CASE))
 
 
-def test_missing_upstream_fails_and_plugin_gaps_skip(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep testing the missing-detector path once Anomara registers veyltrace.alert_detectors (O-04)."""
+    real = plugins.discover
+
+    def discover(group: str) -> tuple[plugins.Plugin, ...]:
+        return () if group == plugins.ALERT_DETECTORS else real(group)
+
+    monkeypatch.setattr(plugins, "discover", discover)
+
+
+def test_missing_upstream_fails_and_plugin_gaps_skip(
+    tree: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _hide_alert_detectors(monkeypatch)  # the plugin gap: no alert detector installed
     assert _update("signalyth") == 1  # no infralume/core fixtures yet
     assert "FAIL signalyth synth-01" in capsys.readouterr().out
     _update("infralume", case="synth-01@detected")
@@ -97,9 +111,12 @@ def test_generator_variant_is_its_own_case(tree: Path, capsys: pytest.CaptureFix
     assert manifest["case_id"] == make_case_id(case) != make_case_id("synth-05")
 
 
-def test_consumer_of_a_skipped_producer_skips_too(tree: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_consumer_of_a_skipped_producer_skips_too(
+    tree: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     # Regression: the cascade failed on signalyth synth-01@detected because core's alert was
-    # SKIPped (no detector before O-04) and left no alert.json upstream.
+    # SKIPped (no detector installed) and left no alert.json upstream.
+    _hide_alert_detectors(monkeypatch)
     case = "synth-01@detected"
     assert _update("infralume", case=case) == 0
     assert _update("core", "alert", case=case) == 0
