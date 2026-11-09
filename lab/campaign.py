@@ -91,6 +91,7 @@ def _phases(
     inj = injection(
         fault, target=entry.target, severity=entry.severity, name=f"vl-{capture_id[:8]}", namespace=app,
         duration_s=d["fault"], cpu_limit=cpu_limits(pins).get(entry.target),
+        cpu_request=cpu_limits(pins, "requests").get(entry.target),
     )  # fmt: skip
     reset(runner, pins, entry.users)
     runner.sleep(d["warmup"], "warm-up")

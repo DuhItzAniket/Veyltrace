@@ -70,7 +70,7 @@ def manifest_problem(pins: Mapping[str, Any]) -> str | None:
     return None
 
 
-def cpu_limits(pins: Mapping[str, Any]) -> dict[str, str]:
+def cpu_limits(pins: Mapping[str, Any], field: str = "limits") -> dict[str, str]:
     """CPU limit of each Deployment's first container in the vendored OB manifest ({} if absent).
 
     F11 cuts the target's limit and restores exactly this value, so the restore never depends on
@@ -84,7 +84,7 @@ def cpu_limits(pins: Mapping[str, Any]) -> dict[str, str]:
         for doc in yaml.safe_load_all(fh):
             if isinstance(doc, dict) and doc.get("kind") == "Deployment":
                 container = doc["spec"]["template"]["spec"]["containers"][0]
-                cpu = container.get("resources", {}).get("limits", {}).get("cpu")
+                cpu = container.get("resources", {}).get(field, {}).get("cpu")
                 if cpu is not None:
                     limits[str(doc["metadata"]["name"])] = str(cpu)
     return limits

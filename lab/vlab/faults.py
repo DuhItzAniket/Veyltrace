@@ -152,19 +152,25 @@ def injection(
     namespace: str,
     duration_s: int,
     cpu_limit: str | None = None,
+    cpu_request: str | None = None,
 ) -> Injection:
-    """The injection for one plan entry. ``cpu_limit`` is the target's limit in the vendored
-    manifest, which F11 cuts and later restores."""
+    """The injection for one plan entry. ``cpu_limit`` and ``cpu_request`` are the target's values in
+    the vendored manifest: F11 cuts the limit (and the request with it, because Kubernetes rejects a
+    limit below the request, seen live on 2026-11-09) and later restores both exactly."""
     params = fault.levels[severity]
     if fault.tool == "kubectl/set-resources":
         if cpu_limit is None:
             raise ValueError("F11 needs the target's CPU limit")
         cut = max(1, cpu_millicores(cpu_limit) // int(params["cpu_divisor"]))
         deploy, container = f"deploy/{target}", f"--containers={CONTAINER[target]}"
+        apply_, revert = [f"--limits=cpu={cut}m"], [f"--limits=cpu={cpu_limit}"]
+        if cpu_request is not None and cpu_millicores(cpu_request) > cut:
+            apply_.append(f"--requests=cpu={cut}m")
+            revert.append(f"--requests=cpu={cpu_request}")
         return Injection(
             (),
-            (("-n", namespace, "set", "resources", deploy, container, f"--limits=cpu={cut}m"),),
-            (("-n", namespace, "set", "resources", deploy, container, f"--limits=cpu={cpu_limit}"),),
+            (("-n", namespace, "set", "resources", deploy, container, *apply_),),
+            (("-n", namespace, "set", "resources", deploy, container, *revert),),
         )
     kind = fault.tool.split("/", 1)[1]
     spec = _chaos_spec(fault, target, params, namespace, duration_s)
