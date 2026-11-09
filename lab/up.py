@@ -46,8 +46,9 @@ def otel_project_up(runner: Runner) -> bool:
     return any(p.get("Name") == OTEL_PROJECT for p in json.loads(out))
 
 
-def missing_tools() -> list[str]:
-    return [t for t in TOOLS if shutil.which(t) is None]
+def missing_tools(*, down: bool = False) -> list[str]:
+    """Tools the action needs that are not on PATH; deleting the cluster needs only kind."""
+    return [t for t in (("kind",) if down else TOOLS) if shutil.which(t) is None]
 
 
 def up_ob(runner: Runner, pins: Mapping[str, Any]) -> int:
@@ -127,7 +128,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return vendor(pins)
     if args.profile is None:
         ap.error("--profile is required unless --vendor is given")
-    if not args.dry_run and (missing := missing_tools()):
+    if not args.dry_run and (missing := missing_tools(down=args.down)):
         print(f"up: missing tools on PATH: {', '.join(missing)} (05 §2)", file=sys.stderr)
         return 1
     runner = Runner(dry_run=args.dry_run)

@@ -65,3 +65,9 @@ def test_up_refuses_without_vendored_manifest(
 
 def test_up_otel_is_not_available_yet(capsys: pytest.CaptureFixture[str]) -> None:
     assert up.main(["--profile", "otel", "--dry-run"]) == 2
+
+
+def test_down_needs_only_kind(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(up.shutil, "which", lambda tool: None if tool == "helm" else f"/bin/{tool}")
+    assert up.missing_tools(down=True) == []
+    assert up.missing_tools() == ["helm"]
