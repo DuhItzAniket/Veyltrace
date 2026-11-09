@@ -33,8 +33,9 @@ DENY = re.compile(r"(?i)\b(" + "|".join(map(re.escape, DENY_TOKENS + FLAG_KEYS))
 DROP_ATTR = re.compile(r"^(feature_flag\.|chaos-mesh\.org/)")
 DROP_NAMESPACES = frozenset({"chaos-mesh"})
 DROP_SERVICES = frozenset({"flagd"})
-#: k8s Event reasons that record a container or pod stopping (05 §7: restart records).
-RESTART_REASONS = frozenset({"Killing", "BackOff", "OOMKilling", "Unhealthy"})
+#: k8s Event reasons that record a container or pod stopping (05 §7: restart records). A failed
+#: probe (Unhealthy) is not a restart: it stays a k8s_event, and the Killing that may follow is one.
+RESTART_REASONS = frozenset({"Killing", "BackOff", "OOMKilling"})
 
 
 def _attrs(items: Iterable[Mapping[str, Any]] | None) -> dict[str, Any]:

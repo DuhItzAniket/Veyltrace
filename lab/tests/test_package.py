@@ -110,6 +110,7 @@ def _write_capture(tmp: Path, extra_span_attrs: dict[str, str] | None = None) ->
                     _event_obj("Killing", "cartservice-6b4b97d848-w5png", "2027-01-15T08:00:01Z"), T0 + 13
                 ),
                 _k8s_record(_event_obj("Pulled", "frontend-1-2", "2020-01-01T00:00:00Z"), T0 + 14),  # replay
+                _k8s_record(_event_obj("Unhealthy", "frontend-1-2", "2027-01-15T08:00:02Z"), T0 + 15),
             ],
         ),
     ]
@@ -142,6 +143,7 @@ def test_scrubs_moves_change_records_and_writes_the_layout(tmp_path: Path) -> No
     assert [(e["entity"], e["kind"], e["source_system"]) for e in events] == [
         ("frontend", "config", "k8s"),
         ("cartservice", "restart", "k8s"),
+        ("frontend", "k8s_event", "k8s"),  # a failed probe is not a restart
     ]
     assert json.loads(events[0]["detail_json"])["fields"] == ["resources"]
     assert json.loads((out / "oracle_alert.json").read_text(encoding="utf-8")) == {"t_alert_ns": T0 + 5}
