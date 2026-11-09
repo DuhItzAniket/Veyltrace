@@ -11,7 +11,7 @@ import pytest
 
 from veyltrace_contracts import models
 from veyltrace_contracts.registry import CONTRACTS
-from veyltrace_core import io, stubs
+from veyltrace_core import io, plugins, stubs
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import self_hash, sha256_file, sha256_json
 from veyltrace_core.ids import AIMode
@@ -135,8 +135,19 @@ def test_ai_on_stub_relentra_writes_skipped_proposals_and_empty_trace(tmp_path: 
     assert receipt.predicate.agent_trace_head is None
 
 
-def test_detected_protocol_needs_an_alert_detector(tmp_path: Path) -> None:
-    # Until Anomara registers veyltrace.alert_detectors:default (O-04) this is a config error.
+def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep testing the missing-detector path once Anomara registers veyltrace.alert_detectors (O-04)."""
+    real = plugins.discover
+
+    def discover(group: str) -> tuple[plugins.Plugin, ...]:
+        return () if group == plugins.ALERT_DETECTORS else real(group)
+
+    monkeypatch.setattr(plugins, "discover", discover)
+
+
+def test_detected_protocol_needs_an_alert_detector(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Without a veyltrace.alert_detectors:default plugin this is a config error.
+    _hide_alert_detectors(monkeypatch)
     with pytest.raises(ConfigError):
         _run(tmp_path, "off", {"core.alert.protocol": "detected"})
 
