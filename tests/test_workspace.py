@@ -83,8 +83,9 @@ def test_root_is_a_virtual_workspace_with_all_members() -> None:
         assert (ROOT / member / "pyproject.toml").is_file(), member
 
 
-# Causentra imports Causatrix's rank(), classify() and views (09 §5), beside the #98 table above.
-SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix",)
+# 09 §2.1 and §5 (allowed imports): Causentra imports Causatrix's rank(), classify() and views, and
+# FaultLoom's predicate library, validate() and atom_sources(); beside the #98 table above.
+SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix", "veyltrace-faultloom")
 
 
 @pytest.mark.parametrize("name", [*PACKAGES, "bench"])
