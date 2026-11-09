@@ -68,3 +68,23 @@ def manifest_problem(pins: Mapping[str, Any]) -> str | None:
     if actual != expected:
         return f"{manifest.name} hash {actual} does not match SHA256SUMS {expected}"
     return None
+
+
+def cpu_limits(pins: Mapping[str, Any], field: str = "limits") -> dict[str, str]:
+    """CPU limit of each Deployment's first container in the vendored OB manifest ({} if absent).
+
+    F11 cuts the target's limit and restores exactly this value, so the restore never depends on
+    reading the live cluster.
+    """
+    path = manifest_path(pins)
+    if not path.is_file():
+        return {}
+    limits: dict[str, str] = {}
+    with path.open(encoding="utf-8") as fh:
+        for doc in yaml.safe_load_all(fh):
+            if isinstance(doc, dict) and doc.get("kind") == "Deployment":
+                container = doc["spec"]["template"]["spec"]["containers"][0]
+                cpu = container.get("resources", {}).get(field, {}).get("cpu")
+                if cpu is not None:
+                    limits[str(doc["metadata"]["name"])] = str(cpu)
+    return limits

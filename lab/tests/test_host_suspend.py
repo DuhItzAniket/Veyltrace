@@ -8,6 +8,7 @@ from typing import Any
 import campaign
 import pytest
 from vlab.cluster import load_pins
+from vlab.faults import CHAOS_KINDS
 from vlab.plan import parse
 from vlab.shell import SLEEP_STEP_S, SUSPEND_TOLERANCE_S, HostSuspended, Runner
 
@@ -64,4 +65,4 @@ def test_suspended_case_is_logged_cleaned_up_and_has_no_answer_key(
     assert attempt["outcome"] == "host_suspended"
     assert not (tmp_path / "answer_keys").exists()
     assert any("delete stresschaos vl-" in c for c in runner.log)  # the fault's own finally
-    assert "delete stresschaos,networkchaos --all" in runner.log[-1]  # and the case-level sweep
+    assert f"delete {CHAOS_KINDS} --all" in runner.log[-1]  # and the case-level sweep

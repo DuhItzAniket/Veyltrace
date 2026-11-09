@@ -102,3 +102,11 @@ def log_attempt(captures_dir: Path, record: Mapping[str, Any]) -> None:
     captures_dir.mkdir(parents=True, exist_ok=True)
     with (captures_dir / "attempts.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def kubectl_client_version(versions: Mapping[str, Any]) -> str:
+    """`clientVersion.gitVersion` from the recorded `kubectl version -o json`, or "unknown"."""
+    try:
+        return str(json.loads(str(versions["kubectl"]))["clientVersion"]["gitVersion"])
+    except (KeyError, TypeError, ValueError):
+        return "unknown"
