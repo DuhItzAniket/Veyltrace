@@ -45,6 +45,7 @@ class CausentraInputs:
     slate: models.Slate
     ev: EvidenceView
     graph: GraphView
+    graph_nodes: frozenset[str]
     claims: tuple[Claim, ...]
     entry_services: tuple[str, ...]
     tol_ms: float
@@ -116,6 +117,7 @@ def load_inputs(ctx: RunContext, cfg: CausentraConfig) -> CausentraInputs:
         slate=slate,
         ev=evidence_view(engine_atoms(rows), graph.universe),
         graph=graph,
+        graph_nodes=frozenset(n for n, _ in nodes),
         claims=tuple(claims),
         entry_services=tuple(sorted(set(onsets.entry_services))),
         tol_ms=0.0 if alignment is None else alignment.tolerance_ns / 1e6,
