@@ -90,9 +90,9 @@ def get_fault(fault_id: str, target: str, severity: str) -> Fault:
 
 @dataclass(frozen=True)
 class Injection:
-    """How to inject and remove one fault: a manifest to apply, or kubectl argument lists."""
+    """How to inject and remove one fault: Chaos Mesh objects to apply, or kubectl argument lists."""
 
-    manifest: dict[str, Any] | None
+    manifests: tuple[dict[str, Any], ...]
     apply_args: tuple[tuple[str, ...], ...]
     revert_args: tuple[tuple[str, ...], ...]
 
@@ -162,19 +162,28 @@ def injection(
         cut = max(1, cpu_millicores(cpu_limit) // int(params["cpu_divisor"]))
         deploy, container = f"deploy/{target}", f"--containers={CONTAINER[target]}"
         return Injection(
-            None,
+            (),
             (("-n", namespace, "set", "resources", deploy, container, f"--limits=cpu={cut}m"),),
             (("-n", namespace, "set", "resources", deploy, container, f"--limits=cpu={cpu_limit}"),),
         )
     kind = fault.tool.split("/", 1)[1]
     spec = _chaos_spec(fault, target, params, namespace, duration_s)
+    objects = [(kind, name, spec)]
     if int(params.get("repeat_s", 0)):
-        # Repeated kills go through a Schedule, which owns (and deletes) the PodChaos it creates.
+        # A Schedule fires first one period after it is created (measured 2026-11-09: 120 s), so the
+        # one-shot object above kills at t_inject and the Schedule repeats it; the Schedule owns (and
+        # deletes) the PodChaos objects it creates.
         every = f"@every {params['repeat_s']}s"
-        spec = {"schedule": every, "type": "PodChaos", "historyLimit": 1, "concurrencyPolicy": "Forbid",
-                "podChaos": spec}  # fmt: skip
-        kind = "Schedule"
-    manifest = {"apiVersion": CHAOS_API, "kind": kind, "metadata": {"name": name, "namespace": namespace},
-                "spec": spec}  # fmt: skip
-    resource = "schedules.chaos-mesh.org" if kind == "Schedule" else kind.lower()
-    return Injection(manifest, (), (("-n", namespace, "delete", resource, name, "--ignore-not-found"),))
+        repeat = {"schedule": every, "type": "PodChaos", "historyLimit": 1, "concurrencyPolicy": "Forbid",
+                  "podChaos": spec}  # fmt: skip
+        objects.append(("Schedule", f"{name}-r", repeat))
+    manifests = tuple(
+        {"apiVersion": CHAOS_API, "kind": k, "metadata": {"name": n, "namespace": namespace}, "spec": s}
+        for k, n, s in objects
+    )
+    reverts = tuple(
+        ("-n", namespace, "delete", "schedules.chaos-mesh.org" if k == "Schedule" else k.lower(), n,
+         "--ignore-not-found")
+        for k, n, _ in reversed(objects)
+    )  # fmt: skip
+    return Injection(manifests, (), reverts)
