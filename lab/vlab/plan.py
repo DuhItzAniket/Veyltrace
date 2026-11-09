@@ -14,7 +14,9 @@ from vlab.faults import get_fault
 #: recorded in every capture's orchestrator.json.
 DEFAULT_DURATIONS_S = {"warmup": 180, "baseline": 600, "fault": 600, "recovery": 120}
 PLAN_KEYS = frozenset({"profile", "dataset", "seed", "durations_s", "entries"})
-ENTRY_KEYS = frozenset({"fault", "target", "severity", "decoy"})
+ENTRY_KEYS = frozenset({"fault", "target", "severity", "decoy", "users"})
+#: Load profiles (05 §3.2: the bundled Locust default of 10 users, and 30).
+USERS = (10, 30)
 
 
 @dataclass(frozen=True)
@@ -22,6 +24,7 @@ class Entry:
     fault: str
     target: str
     severity: str
+    users: int = 10
 
 
 @dataclass(frozen=True)
@@ -55,7 +58,12 @@ def parse(data: Any) -> Plan:
             raise ValueError(f"entry {i}: keys must be a subset of {sorted(ENTRY_KEYS)}")
         if raw.get("decoy"):
             raise ValueError(f"entry {i}: decoy changes arrive with X-06")
-        entry = Entry(str(raw.get("fault")), str(raw.get("target")), str(raw.get("severity", "L1")))
+        users = raw.get("users", USERS[0])
+        if users not in USERS or isinstance(users, bool):
+            raise ValueError(f"entry {i}: users must be one of {list(USERS)}")
+        entry = Entry(
+            str(raw.get("fault")), str(raw.get("target")), str(raw.get("severity", "L1")), int(users)
+        )
         try:
             get_fault(entry.fault, entry.target, entry.severity)
         except ValueError as exc:

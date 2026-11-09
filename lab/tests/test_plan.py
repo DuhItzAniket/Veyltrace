@@ -51,3 +51,12 @@ def test_load_reads_yaml(tmp_path: Path) -> None:
     path.write_text("profile: ob\nseed: 3\nentries:\n  - {fault: F04, target: cartservice, severity: L2}\n",
                     encoding="utf-8")  # fmt: skip
     assert load(path).entries[0].severity == "L2"
+
+
+def test_load_profile_per_entry() -> None:
+    plan = parse(_plan(entries=[{"fault": "F01", "target": "frontend", "users": 30}]))
+    assert plan.entries[0].users == 30
+    assert parse(_plan()).entries[0].users == 10
+    for bad in (20, True, "30"):
+        with pytest.raises(ValueError):
+            parse(_plan(entries=[{"fault": "F01", "target": "frontend", "users": bad}]))
