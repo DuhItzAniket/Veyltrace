@@ -56,6 +56,8 @@ def _r(result: Any) -> tuple[str, str | None]:
 def test_t1_origin() -> None:
     assert _r(origin("c", _t([], []))) == ("untestable", "no_internal_series")
     assert _r(origin("c", _t([_i("c", 2.9)], []))) == ("fail", "no_internal_anomaly")
+    quiet = _a("c", "silence", 0.0, window="incident")  # 06 §3.4: present, not silent
+    assert _r(origin("c", _t([quiet], []))) == ("fail", "no_internal_anomaly")  # testable, no origin signal
     hot = [_i("c", 8.0), _onset("c", 100.0)]
     assert _r(origin("c", _t(hot, [("c", "d")]))) == ("pass", None)
     # A callee as anomalous and not later explains c; later than onset + tolerance does not.
