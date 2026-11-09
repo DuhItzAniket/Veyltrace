@@ -1,7 +1,7 @@
 # config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
 # Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with
 # O-04b, edges.* with O-05a, node_kinds.* and graph.* with O-05b, logs.* with O-05c, paths.* with
-# O-05d; ci follows). topology.static_path (05 §4, off by default) stays absent while static
+# O-05d, ci.* with O-05e). topology.static_path (05 §4, off by default) stays absent while static
 # topology is unsupported. Overrides must name keys present here (packages/core/README.md: unknown
 # keys are an error).
 
@@ -48,3 +48,11 @@ paths:
   k: 3                      # paths kept per node
   max_len: 10               # nodes per path (graphs have <= 100 nodes, 02 §8)
   non_anomalous_penalty: 1.0   # extra cost of an arc whose edge and caller are both healthy
+
+ci:
+  # 05-causalith §3.7: the restricted conditional-independence test behind trial T8 (IDI-lite).
+  max_parents: 5            # regressors; 02 §6.5 (at most 5 neighbourhoods)
+  max_candidates: 5         # candidates per case, applied by the caller (FaultLoom's claim pass)
+  ridge: 0.001              # a priori, numerical stability of the tiny solves
+  min_baseline_points: 20   # baseline buckets needed, a priori
+  threshold: 3.0            # z; the same as anomara robust_z.threshold
