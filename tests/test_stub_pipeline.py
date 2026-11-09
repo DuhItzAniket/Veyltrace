@@ -246,8 +246,21 @@ def test_stub_pipeline_is_deterministic(tmp_path: Path, fake_adapter: FakeAdapte
         assert (first.run_dir / rel).read_bytes() == (second.run_dir / rel).read_bytes(), rel
 
 
-def test_detected_protocol_needs_a_detector(tmp_path: Path, fake_adapter: FakeAdapter) -> None:
-    # No alert detector is installed before O-04, so preflight refuses the run before any step.
+def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep testing the missing-detector path once Anomara registers veyltrace.alert_detectors (O-04)."""
+    real = plugins.discover
+
+    def discover(group: str) -> tuple[plugins.Plugin, ...]:
+        return () if group == plugins.ALERT_DETECTORS else real(group)
+
+    monkeypatch.setattr(plugins, "discover", discover)
+
+
+def test_detected_protocol_needs_a_detector(
+    tmp_path: Path, fake_adapter: FakeAdapter, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without an alert detector, preflight refuses the run before any step.
+    _hide_alert_detectors(monkeypatch)
     with pytest.raises(ConfigError, match="alert_detectors"):
         _run(tmp_path, overrides={"core.alert.protocol": "detected"})
     assert not (tmp_path / "runs").exists()
