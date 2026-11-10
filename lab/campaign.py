@@ -59,7 +59,8 @@ def run_case(runner: Runner, pins: Mapping[str, Any], plan: Plan, entry: Entry, 
     attempt: dict[str, Any] = {"capture_id": capture_id, "fault": entry.fault, "target": entry.target,
                                "severity": entry.severity, "users": entry.users,
                                "t_ns": runner.time_ns(), "validated": None}  # fmt: skip
-    print(f"campaign: {entry.fault} {entry.severity} -> {entry.target} as {capture_id}")
+    what = "(no fault)" if entry.fault == NO_FAULT else f"{entry.severity} -> {entry.target}"
+    print(f"campaign: {entry.fault} {what} as {capture_id}")
     try:
         outcome = _phases(runner, pins, plan, entry, capture_id, captures_dir, attempt)
     except HostSuspended as exc:  # timings and telemetry have holes: no answer key, no capture

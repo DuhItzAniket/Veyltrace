@@ -168,7 +168,7 @@ Parameters are a priori defaults with two severity levels; every value used is w
 | F11 | Config change regression | `config` / `cpu` or `errors` | `kubectl set resources` (CPU limit cut) or Service `targetPort` misconfiguration (AIOpsLab) / `docker update` limits | limit ÷ 4 / ÷ 10; wrong port | rollout event, then throttling and latency, or connection errors | — |
 | F12 | Bad deploy (image change) | `error` or `delay` (by patch) / `errors` or `latency` | `kubectl set image` to a locally built OB variant (`kind load docker-image`) / Compose image swap | one-line patch adding errors / delay | deploy event, onset after rollout | stretch: image build effort |
 | F13 | Dependency (DB/cache) slowdown | `dependency` / `latency` | NetworkChaos delay or StressChaos on `redis-cart` / flags `productCatalogLockContention`, `kafkaQueueProblems` | as F04 / F01 | callers of the datastore slow; datastore signals | — |
-| F14 | No fault | — (`is_no_fault = true`) | none | — | none (control) | — |
+| F14 | No fault | — (`is_no_fault = true`) | none | — | none (control) | implemented (X-11): no target, same phases, `t_inject_ns` = reference time |
 | F15 | Multi-fault | per root | two of F01, F04, F05 on two different services, overlapping | L1 each | both patterns | — |
 | F16 | Benign noise | — (added to another case) | 2-minute load spike (30 users) on the load generator | — | transient traffic change, no SLI breach expected | — |
 
@@ -196,7 +196,7 @@ The orchestrator `lab/campaign.py` executes a plan file `lab/plans/<plan>.yaml` 
 |---|---|---|
 | Reset | ≤ 5 min | delete leftover chaos CRDs; restore config, flags and images; `kubectl rollout restart` every app Deployment (every 10th case: delete and recreate the namespace); wait until all are ready, else mark `reset_failed` and skip |
 | Warm-up | 3 min | traffic on; not part of the capture's baseline |
-| Baseline check | ≈ 0.5 min | entry-service p95 latency ≤ 1.5 × the reference p95 measured at setup, and error rate ≤ 1% (a priori); on failure wait 2 min and retry once, else `baseline_unrecovered` |
+| Baseline check | ≈ 0.5 min | entry-service p95 latency ≤ 1.5 × the reference p95 measured at setup, and error rate ≤ 1% (a priori; *not built yet*: the campaign checks only that the entry service answers HTTP 200); on failure wait 2 min and retry once, else `baseline_unrecovered` |
 | Baseline | 10 min | capture on; decoy change if scheduled |
 | Fault | 10 min | inject at `t_inject`; record host clock ns and kind node clock ns (`docker exec veyllab-control-plane date +%s%N`) for skew |
 | Recovery | 2 min | remove the fault; keep capturing |
@@ -209,8 +209,8 @@ Total ≈ 25–30 min per case, matching the ≈ 25 min the notes assume ([bt §
 Keep a fault case only if user-facing impact is measurable, as the FSE'26 benchmark did (1,430 of 9,152 injections kept) ([bt §Q5][bt-q5]):
 
 1. SLI series: entry-service (`frontend`) server-span p95 latency and error rate in 30 s buckets, computed by lab code from the capture's spans.
-2. Baseline: median and MAD of each SLI over the baseline buckets, MAD floored at 1% of the median (a priori).
-3. Keep if, within 5 minutes after `t_inject`, at least 2 consecutive buckets exceed `median + 5 × MAD` for either SLI (k = 5, N = 5 min: a priori).
+2. Baseline: median and MAD of each SLI over the baseline buckets, MAD floored at 1% of the median and at an absolute 1 ms (p95) or 0.5 percentage points (error rate), because an error-free baseline has median and MAD 0; at least 6 baseline buckets (3 min), else the case is not validated (`insufficient_baseline`) (all a priori; [ADR 20261110-cl-lab-validation](adr/20261110-cl-lab-validation.md)).
+3. Buckets are aligned to `t_inject` (for an F14 control: the reference time where a fault would start). Keep if, within 5 minutes after `t_inject`, at least 2 consecutive buckets exceed `median + 5 × MAD` for either SLI (k = 5, N = 5 min: a priori).
 4. No-fault cases are kept only if **no** such breach occurs (a clean control).
 5. Every attempt, kept or not, is logged with its reason; acceptance rate is reported per fault type and system.
 
