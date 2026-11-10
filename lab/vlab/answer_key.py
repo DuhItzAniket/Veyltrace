@@ -68,6 +68,26 @@ def build(
     return key
 
 
+def build_no_fault(
+    *, capture_id: str, dataset: str, t_ref_ns: int, t_end_ns: int, injection: dict[str, Any]
+) -> dict[str, Any]:
+    """A no-fault control (F14). ``t_inject_ns`` holds the reference time where a fault would have
+    started: the oracle hint and the 05 §8.2 rule both need one; the root columns stay null."""
+    key: dict[str, Any] = dict.fromkeys(COLUMNS)
+    key |= {
+        "case_id": case_id(capture_id),
+        "dataset": dataset,
+        "system": "ob",
+        "is_no_fault": True,
+        "fault_label": "F14",
+        "t_inject_ns": t_ref_ns,
+        "t_end_ns": t_end_ns,
+        "injection_json": canonical_json(injection),
+        "decoy_changes_json": canonical_json([]),
+    }
+    return key
+
+
 def write(key: dict[str, Any], *, capture_id: str, captures_dir: Path) -> Path:
     """Write ``key`` to ``<captures_dir>/answer_keys/<capture_id>.json`` and return the path."""
     folder = captures_dir / ANSWER_KEYS
