@@ -32,6 +32,7 @@ __all__ = [
 ]
 
 NS_PER_S = 1_000_000_000
+NS_PER_MS = 1_000_000
 #: `robust_z.epsilon.<family>` key matching any unit not listed for that family (03-anomara §3.2).
 ANY_UNIT = "*"
 #: Family whose ε applies to (family, unit) pairs the table does not list (03-anomara §3.2).
@@ -139,6 +140,8 @@ class SloConfig:
 
     bucket_ns: int
     min_spans: int
+    infer_client_spans: bool
+    skew_tolerance_ns: int
     window_ns: int
     gap_ns: int
     k: float
@@ -286,9 +289,16 @@ def _regex(value: object, where: str) -> re.Pattern[str]:
 def _slo(section: Mapping[str, Any]) -> SloConfig:
     sc = _mapping(section, "slo", "anomara")
     where = "anomara.slo"
+    infer: object = sc.get("infer_client_spans")
+    if not isinstance(infer, bool):
+        msg = f"{where}.infer_client_spans must be true or false, got {infer!r}"
+        raise ConfigError(msg)
+    skew_ms = _number(sc, "skew_tolerance_ms", where, positive=False)
     return SloConfig(
         bucket_ns=_count(sc, "bucket_s", where) * NS_PER_S,
         min_spans=_count(sc, "min_spans", where),
+        infer_client_spans=infer,
+        skew_tolerance_ns=round(skew_ms * NS_PER_MS),
         window_ns=_count(sc, "window_s", where) * NS_PER_S,
         gap_ns=_count(sc, "gap_s", where) * NS_PER_S,
         k=_number(sc, "k", where, positive=True),

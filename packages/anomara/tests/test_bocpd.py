@@ -97,3 +97,13 @@ def test_no_incident_bucket_is_flat(r_max: int) -> None:
     (score,) = bocpd([_standardised(_y(10, 5.0, n=20))], (T0 + 100 * G, T0 + 100 * G), 3,
                      dataclasses.replace(B, r_max=r_max))  # fmt: skip
     assert (score.score, score.direction, score.onset_ns) == (0.0, "flat", None)
+
+
+def test_a_series_with_no_incident_points_is_flat() -> None:
+    # 03-anomara §6: a shift at the end of the baseline, then no incident points at all.
+    values = _y(N_BASE - 1, 8.0, n=N_BASE)
+    t = T0 + np.arange(values.size, dtype=np.int64) * G
+    g = grid(t, values, G, (T0, INC[1]))
+    assert g.within(INC).any() and not (g.within(INC) & g.observed).any()
+    (score,) = bocpd([Standardised(g, 0.0, 1.0)], INC, 3, B)
+    assert (score.score, score.direction, score.onset_ns, score.above_threshold) == (0.0, "flat", None, False)

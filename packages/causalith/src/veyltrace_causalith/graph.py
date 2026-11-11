@@ -8,6 +8,7 @@ shows: calls in traces, hints in events, mentions in logs, each edge with its pr
 from __future__ import annotations
 
 import json
+import math
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -56,10 +57,16 @@ def _rows(table: pa.Table) -> list[dict[str, Any]]:
     return table.to_pylist()
 
 
+def _at_least(value: float, threshold: float) -> bool:
+    """`value ≥ threshold`, counting a value equal up to float rounding (0.06 − 0.01 is
+    0.049999999999999996, and an exact +0.05 step must meet a 0.05 threshold, 05 §3.4)."""
+    return value >= threshold or math.isclose(value, threshold)
+
+
 def _ratio_up(inc: float | None, base: float | None, rules: EdgeRules) -> bool:
     if inc is None or base is None:
         return False
-    return inc >= (1.0 + rules.latency_ratio) * base and inc - base >= rules.latency_min_ms
+    return _at_least(inc, (1.0 + rules.latency_ratio) * base) and _at_least(inc - base, rules.latency_min_ms)
 
 
 def trace_edges(edges: pa.Table, rules: EdgeRules) -> dict[tuple[str, str], Edge]:
@@ -84,12 +91,12 @@ def trace_edges(edges: pa.Table, rules: EdgeRules) -> dict[tuple[str, str], Edge
         if i is None:  # a missing row means calls = 0 in that window (03 §3.2)
             anomalous = b is not None and int(b["calls"]) >= rules.silence_min_baseline_calls
         elif b is None:
-            anomalous = float(i["error_rate"]) >= rules.error_delta
+            anomalous = _at_least(float(i["error_rate"]), rules.error_delta)
         else:
             anomalous = (
                 _ratio_up(i["p99_callee_ms"], b["p99_callee_ms"], rules)
                 or _ratio_up(i["p99_gap_ms"], b["p99_gap_ms"], rules)
-                or float(i["error_rate"]) - float(b["error_rate"]) >= rules.error_delta
+                or _at_least(float(i["error_rate"]) - float(b["error_rate"]), rules.error_delta)
             )
         out[src, dst] = Edge(src, dst, {"traces"}, calls, weight, bool(anomalous))
     return out

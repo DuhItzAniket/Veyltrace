@@ -77,6 +77,13 @@ def test_weights_are_incident_call_shares_else_baseline_shares() -> None:
         ({"p99_callee_ms": None}, {"p99_callee_ms": 50.0}, False),  # no baseline quantile
         ({"error_rate": 0.01}, {"error_rate": 0.07}, True),  # +6 points
         ({"error_rate": 0.01}, {"error_rate": 0.05}, False),
+        (
+            {"error_rate": 0.01},
+            {"error_rate": 0.06},
+            True,
+        ),  # exactly +5 points (0.06 - 0.01 < 0.05 in floats)
+        ({"error_rate": 1 / 100}, {"error_rate": 3 / 50}, True),
+        ({"p99_callee_ms": 10.0}, {"p99_callee_ms": 15.0}, True),  # exactly 1.5x and +5 ms
         ({"calls": 10}, None, True),  # went silent
         ({"calls": 9}, None, False),  # too few baseline calls to call it silent
         (None, {"error_rate": 0.05}, True),  # new edge with errors
