@@ -85,3 +85,66 @@ def test_settings_validation(card_settings: CardSettings) -> None:
         assemble.settings_from(section, {"mandatory": ["T1"]})
     with pytest.raises(ConfigError):
         assemble.settings_from({**section, "card": {"evidence_max": 0}}, {"mandatory": ["T1"]})
+
+
+def test_table_atoms_take_display_fields_from_the_table_and_the_rest_from_the_row(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    table = _table(make_verdict(), scenario, card_settings)
+    atoms = assemble.table_atoms(table, scenario.evidence)
+    assert list(atoms) == [r["atom_id"] for r in table]  # one per table row, in table order
+    a = atoms[scenario.a_int]
+    assert (a.atom_id, a.label, a.value, a.unit) == (
+        scenario.a_int,
+        "payment cpu anomaly (incident)",
+        9.42,
+        "z",
+    )
+    assert (a.candidate, a.window) == ("payment", "incident")  # from the evidence row
+
+
+def test_fill_context_copies_the_verdict(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    verdict = make_verdict()
+    table = assemble.table_atoms(_table(verdict, scenario, card_settings), scenario.evidence)
+    ctx = assemble.fill_context(verdict, table, scenario.nodes, None, card_settings.sig_digits)
+    assert (ctx.status, ctx.root_service) == ("LIKELY", "payment")
+    assert ctx.root_fields == {
+        "component": "payment-1",
+        "fault_class": "cpu",
+        "indicator": "cpu",
+        "mode": "resource",
+    }
+    assert ctx.runner_up is not None and (ctx.runner_up.service, ctx.runner_up.fault_class) == (
+        "cart",
+        "delay",
+    )
+    assert (ctx.conf_level, ctx.conf_set_size, ctx.conf_margin) == (
+        verdict.confidence.level,
+        verdict.confidence.set_size,
+        verdict.confidence.margin,
+    )
+    assert ctx.table is table and ctx.nodes == frozenset(scenario.nodes) and ctx.onset_ns is None
+    no_component = verdict.model_copy(
+        update={"root": verdict.root.model_copy(update={"component": None}) if verdict.root else None}
+    )
+    assert assemble.fill_context(no_component, table, [], None, 3).root_fields["component"] == "payment"
+    alone = verdict.model_copy(update={"ranked": verdict.ranked[:1]})
+    assert assemble.fill_context(alone, table, [], None, 3).runner_up is None  # {RUNNER_UP} needs ranked[1]
+    no_root = assemble.fill_context(make_verdict("NO_FAULT", False), {}, [], None, 3)
+    assert no_root.root_service is None and no_root.root_fields == {}
+
+
+def test_settings_need_every_ask_template(card_settings: CardSettings) -> None:
+    section: dict[str, Any] = {
+        "card": {"evidence_max": 20},
+        "why_not": {"max": 3},
+        "format": {"sig_digits": 3},
+        "labels": dict(card_settings.labels),
+        "asks": {k: v for k, v in card_settings.asks.items() if k != "telemetry"},
+    }
+    with pytest.raises(ConfigError, match="telemetry"):
+        assemble.settings_from(section, {"mandatory": ["T1"]})
+    with pytest.raises(ConfigError, match="mandatory"):
+        assemble.settings_from({**section, "asks": dict(card_settings.asks)}, {"mandatory": "T1"})
