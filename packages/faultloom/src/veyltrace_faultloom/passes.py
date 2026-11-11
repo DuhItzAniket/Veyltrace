@@ -1,20 +1,14 @@
-"""FaultLoom R-00 stub, both passes wired end to end; the engine pass has R-06's anomaly atoms.
+"""FaultLoom's two passes (02 §4): the engine pass (step 5) and the symmetric claim pass (step 8).
 
-Why this exists: the Reason engines must run on synth through the pipeline before their algorithms
-land (07 roadmap R-00, "stub: schema-valid evidence on synth"). The stub reads every input of
-06 §2.1 through the run context, derives the shared values (U, tol_ns, windows; claim-pass pool)
-and writes `evidence` only through the contract writer. The engine pass writes R-06's anomaly
-atoms (`veyltrace_faultloom.atoms`); every other kind of 03 §7 comes with R-08 (with the predicate
-library and the symmetric claim pass), and intervention atoms with R-12, so none is written yet.
-Absence is honest ("absence is no atom", 06 §6); a 0.0 value would look like a healthy measurement.
-
-Claim pass: engine atoms are read back and rewritten unchanged (06 §2.2), so the evidence file is
-byte-identical before and after when no claim is evaluated.
+Engine pass: every engine atom kind of 06 §3.4 for every service in U, minus `atoms.disabled`,
+written only through the contract writer (06 §3.1). Claim pass: the main-pass evidence is read back
+unchanged and the `claim_check` atoms of 06 §3.6 are appended, so engine atoms are byte-identical
+before and after (06 §2.2). `intervention` atoms (06 §3.6 step 6, trial T8) are R-12, so Causentra
+marks T8 untestable until then; every claim-pass result says so in a note.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Final
 
 from veyltrace_contracts import models
@@ -22,6 +16,7 @@ from veyltrace_core.context import EngineResult, RunContext
 from veyltrace_core.errors import ContractValidationError
 from veyltrace_faultloom.atoms import KINDS, Atom, anomaly_atoms, check_unique, drop_disabled
 from veyltrace_faultloom.change import change_atoms, log_atoms, peer_atoms
+from veyltrace_faultloom.claims import claim_atoms, valid_claims
 from veyltrace_faultloom.graph import onset_atoms, propagation_atoms
 from veyltrace_faultloom.inputs import (
     CLAIM_REQUIRED,
@@ -31,16 +26,15 @@ from veyltrace_faultloom.inputs import (
     missing_required,
 )
 from veyltrace_faultloom.onset import silence_atoms
+from veyltrace_faultloom.predicates import ClaimView
 from veyltrace_faultloom.trace import critical_path_atoms, edge_gap_atoms, self_time_atoms, spectrum_atoms
+from veyltrace_faultloom.validation import domain_of
 
-__all__ = ["ENGINE", "STUB_NOTE", "claim_pool", "engine_atoms", "run_claim_pass", "run_main"]
+__all__ = ["ENGINE", "INTERVENTION_NOTE", "claim_pool", "engine_atoms", "run_claim_pass", "run_main"]
 
 ENGINE: Final = "faultloom"
-#: EngineResult.notes entry of every stub result. It starts with veyltrace_core.cli.STUB_MARK
-#: ("stub: "), so diagnose warns that the run's outputs are not analysis.
-STUB_NOTE: Final = "stub: FaultLoom R-08 in progress: every engine atom kind, no claim atoms yet"
-#: proposals.status values whose proposals the claim pass would evaluate (03 §9.1).
-_EVALUATED_STATUSES: Final = frozenset({"complete", "budget_exhausted"})
+#: Note of every claim-pass result until R-12 adds the T8 intervention atoms (06 §3.6 step 6).
+INTERVENTION_NOTE: Final = "no intervention atoms yet (R-12): Causentra marks T8 untestable"
 
 
 def _failed(missing: tuple[str, ...]) -> EngineResult:
@@ -48,7 +42,7 @@ def _failed(missing: tuple[str, ...]) -> EngineResult:
     return EngineResult(
         engine=ENGINE,
         status="failed",
-        notes=(STUB_NOTE, f"required input(s) absent: {', '.join(missing)} (06 §6)"),
+        notes=(f"required input(s) absent: {', '.join(missing)} (06 §6)",),
     )
 
 
@@ -63,7 +57,7 @@ def _notes(view: EvidenceInputs, *extra: str) -> tuple[str, ...]:
     absent = tuple(
         f"optional input absent: {name} (no rows, 06 §6)" for name in view.absent if name != "alignment"
     )
-    return (STUB_NOTE, *view.notes, *absent, *extra)
+    return (*view.notes, *absent, *extra)
 
 
 def engine_atoms(ctx: RunContext, view: EvidenceInputs) -> list[Atom]:
@@ -136,18 +130,11 @@ def _read_proposals(ctx: RunContext) -> tuple[models.Proposals | None, tuple[str
         return None, (f"proposals.json is schema-invalid, claims skipped (06 §6): {exc}",)
 
 
-def _claim_count(proposals: models.Proposals | None) -> int:
-    if proposals is None or proposals.status not in _EVALUATED_STATUSES:
-        return 0
-    return sum(len(p.claims) for p in proposals.proposals)
-
-
 def run_claim_pass(ctx: RunContext) -> EngineResult:
-    """Claim pass (pipeline step 8): carry the main-pass evidence forward unchanged.
+    """Claim pass (pipeline step 8): engine atoms carried forward, claim_check atoms appended.
 
-    No claim is evaluated (R-08) and no intervention atom is computed (R-12). The step is
-    `degraded` when proposals.json is schema-invalid (06 §6) or when it holds claims the stub
-    cannot evaluate, so a run with real proposals is never reported as fully checked.
+    Every distinct valid (predicate, args) pair runs for every candidate of the claim-pass pool
+    (06 §3.6). The step is `degraded` only when proposals.json is schema-invalid (06 §6).
     """
     missing = missing_required(ctx, CLAIM_REQUIRED)
     if missing:
@@ -159,26 +146,26 @@ def run_claim_pass(ctx: RunContext) -> EngineResult:
         raise ContractValidationError("slate", msg)
     proposals, problems = _read_proposals(ctx)
     pool = claim_pool(slate, proposals, view.node_names)
-    claims = _claim_count(proposals)
-
-    evidence = ctx.read_table("evidence")
-    digest = ctx.write("evidence", evidence)
-
-    extra = list(problems)
-    if claims:
-        extra.append(f"{claims} claim(s) not evaluated: the predicate library arrives in R-08 (06 §3.5)")
-    metrics: Mapping[str, int | float] = {
+    # Only engine rows are carried forward, so re-running the step never duplicates claim atoms.
+    engine: list[Atom] = [a for a in ctx.read_table("evidence").to_pylist() if a["origin"] == "engine"]
+    claims, rejected = valid_claims(proposals, domain_of(view, ctx.config))
+    found = claim_atoms(ClaimView(view, tuple(engine)), pool, claims)
+    added = drop_disabled(found, (str(k) for k in ctx.config["atoms"]["disabled"]))
+    check_unique([*engine, *added])
+    digest = ctx.write("evidence", [*engine, *added])
+    metrics: dict[str, int | float] = {
         **_input_metrics(view),
-        "atoms": evidence.num_rows,
-        "atoms.claim_check": 0,
-        "claims.seen": claims,
-        "claims.evaluated": 0,
+        "atoms": len(engine) + len(added),
+        "atoms.claim_check": len(added),
+        "claims.seen": sum(len(p.claims) for p in proposals.proposals) if proposals is not None else 0,
+        "claims.valid": len(claims),
         "pool": len(pool),
     }
+    metrics.update({f"claims.rejected.{reason}": n for reason, n in rejected.items()})
     return EngineResult(
         engine=ENGINE,
-        status="degraded" if extra else "ok",
+        status="degraded" if problems else "ok",
         outputs=(("evidence", digest),),
         metrics=metrics,
-        notes=_notes(view, *extra),
+        notes=_notes(view, *problems, INTERVENTION_NOTE),
     )

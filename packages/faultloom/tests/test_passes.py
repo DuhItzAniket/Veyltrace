@@ -1,4 +1,4 @@
-"""Unit tests of the R-00 stub: both passes, required/optional inputs, claim-pass carry-forward."""
+"""Unit tests of both passes: required/optional inputs, claim-pass carry-forward and claim atoms."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from veyltrace_core.testing import content_lines, make_context
 from veyltrace_core.testing.fixtures import repo_root
 from veyltrace_faultloom.api import run
 from veyltrace_faultloom.inputs import CLAIM_REQUIRED, MAIN_REQUIRED
-from veyltrace_faultloom.stub import STUB_NOTE, claim_pool
+from veyltrace_faultloom.passes import INTERVENTION_NOTE, claim_pool
 
 
 def _example(name: str) -> Any:
@@ -44,12 +44,12 @@ def test_main_writes_schema_valid_evidence_on_stub_upstreams(main_dir: Path) -> 
     assert table.schema.equals(io.arrow_schema("evidence"), check_metadata=False)
     assert set(table.column("kind").to_pylist()) == {"silence"}
     assert result.metrics["atoms"] == result.metrics["atoms.silence"] == result.metrics["universe"] == 6
-    assert result.notes == (STUB_NOTE,)
+    assert result.notes == ()  # R-08 is no stub: diagnose prints no "placeholder outputs" warning
 
 
-def test_stub_note_carries_the_cli_stub_mark() -> None:
-    # diagnose warns about "placeholder outputs" for every note starting with cli.STUB_MARK.
-    assert STUB_NOTE.startswith(STUB_MARK)
+def test_claim_pass_notes_carry_no_stub_mark(claim_dir: Path) -> None:
+    result = run(make_context("faultloom", claim_dir, phase="claim_pass"))
+    assert result.notes == (INTERVENTION_NOTE,) and not any(n.startswith(STUB_MARK) for n in result.notes)
 
 
 @pytest.mark.parametrize("name", MAIN_REQUIRED)
@@ -114,16 +114,24 @@ def _write_proposals(run_dir: Path, **changes: Any) -> models.Proposals:
     return io.read_model("proposals", run_dir, models.Proposals)
 
 
-def test_claim_pass_with_claims_is_degraded_and_adds_no_atom(claim_dir: Path) -> None:
-    proposals = _write_proposals(claim_dir)
-    claims = sum(len(p.claims) for p in proposals.proposals)
-    assert claims > 0
-    before = sha256_file(io.path_of("evidence", claim_dir))
+def test_claim_pass_appends_claim_atoms_for_the_pool(claim_dir: Path) -> None:
+    # Contract example claims on synth-01 (stub upstreams: no graph nodes, no series): only
+    # template_new_in_incident{min_count: 3} is valid; it runs for the 5 slate candidates.
+    _write_proposals(claim_dir)
+    engine = content_lines("evidence", io.path_of("evidence", claim_dir))
     result = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
-    assert result.status == "degraded"
-    assert result.metrics["claims.seen"] == claims and result.metrics["claims.evaluated"] == 0
-    assert any("R-08" in note for note in result.notes)
-    assert result.outputs == (("evidence", before),)
+    assert result.status == "ok"
+    m = result.metrics
+    assert (m["claims.seen"], m["claims.valid"], m["atoms.claim_check"], m["pool"]) == (4, 1, 5, 5)
+    assert (m["claims.rejected.bad_args"], m["claims.rejected.unknown_entity"]) == (2, 1)
+    rows = io.read_table("evidence", claim_dir, validate=True).to_pylist()
+    claims = [r for r in rows if r["origin"] == "claim_check"]
+    assert {(r["predicate"], r["args_json"], r["holds"]) for r in claims} == {
+        ("template_new_in_incident", '{"min_count":3}', None)  # synth templates are empty
+    }
+    assert all(line in content_lines("evidence", io.path_of("evidence", claim_dir)) for line in engine[1:])
+    again = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
+    assert again.outputs == result.outputs  # re-running the step is idempotent
 
 
 def test_claim_pass_with_skipped_proposals_is_ok(claim_dir: Path) -> None:
