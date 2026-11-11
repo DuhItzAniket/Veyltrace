@@ -7,6 +7,7 @@
 # ollama | llamacpp | openai_compat | fake (08-relentra §4).
 provider: ollama
 # Localhost only; a remote endpoint needs VEYLTRACE_ALLOW_REMOTE_LLM=1 (02 §9; 08-relentra §5.4).
+# The server root: llamacpp and openai_compat refuse a base_url ending in /v1 (their route adds it).
 base_url: "http://127.0.0.1:11434"
 model:
   name: "qwen3.5:9b"            # 02 §12; exact tag pinned at M0 (08-relentra §4)

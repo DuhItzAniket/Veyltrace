@@ -47,6 +47,11 @@ class JsonReply:
         return self.request.key
 
 
+def _reject_constant(token: str) -> object:
+    """NaN, Infinity and -Infinity are not JSON (RFC 8259); json.loads would accept them."""
+    raise ValueError(f"{token} is not a JSON value")
+
+
 class LLMClient:
     """Calls in one AI mode; `cassette_dir` is required unless the mode is off."""
 
@@ -101,6 +106,7 @@ class LLMClient:
         if completion.error is not None:
             raise_for(completion.error, completion)
         try:
-            return JsonReply(request, completion, json.loads(completion.content or ""), None)
+            value = json.loads(completion.content or "", parse_constant=_reject_constant)
+            return JsonReply(request, completion, value, None)
         except ValueError as exc:
             return JsonReply(request, completion, None, f"content is not JSON: {exc}")
