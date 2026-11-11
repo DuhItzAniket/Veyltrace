@@ -1,6 +1,6 @@
 # 04 · Evaluation protocol (pre-registered)
 
-> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-10-30
+> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-08
 > Master spec: [02-architecture](02-architecture.md) (wins on architecture; this file wins on protocol details, as [11](11-research-paper-plan.md) states). Targets: [01 §9](01-vision-and-requirements.md). Engine specs: [06 FaultLoom](engines/06-faultloom.md), [07 Causatrix](engines/07-causatrix.md), [09 Causentra](engines/09-causentra.md). Tasks: [07-roadmap](07-roadmap.md). Every reported number must come from the procedure below or be listed as a deviation (§12).
 
 ## 1. Scope and pre-registration
@@ -141,18 +141,18 @@ LLM budget (*estimate*): 270 RE2 cases × 3 seeds × ~1.5 min per `brief` call �
 
 ## 7. Metrics
 
-Notation: *F* = fault cases of the evaluated split, *N* = normal windows; for case *i*: truth `r_i`; ranking `R_i` = services from `verdict.ranks_rcaeval` (or the baseline's `ranks`) after RCAEval's coarse transform `x.split("_")[0].replace("-db", "")`, de-duplicated in order [rcaeval_facts, "Ground truth and scoring"][rc]; `n_i` = candidate services; `C_i` = conformal set.
+Notation: *F* = fault cases of the evaluated split, *N* = normal windows; for case *i*: truth `r_i`; ranking `R_i` = services from `verdict.ranks_rcaeval` (or the baseline's `ranks`) after RCAEval's coarse transform `x.split("_")[0].replace("-db", "")`, de-duplicated in order [rcaeval_facts, "Ground truth and scoring"][rc]; `n_i` = number of the case's services (`case_manifest.services`, not the universe U of [06 §2.1](engines/06-faultloom.md); the same for every method); `C_i` = conformal set.
 
 | Metric | Definition | Notes / `per_case.csv` column |
 |---|---|---|
 | AC@k (k = 1, 3, 5) | (1/\|F\|) Σ 1[r_i ∈ R_i[:k]] | headline AC@1 per (dataset, system); `hit_at_1/3/5` |
 | Avg@5 | mean of AC@1…AC@5 | RCAEval definition |
 | MRR | mean of 1/position of `r_i` in `R_i` (0 if absent) | from `ranks` |
-| Fine-grained AC@k | (service, indicator) match; answers cpu→cpu, mem→mem, delay→latency, loss→latency, disk→diskio (RE2/RE3) or latency (RE1), socket→socket | RCAEval convention [rcaeval_facts, "Ground truth and scoring"][rc]; RE3 F1–F5 not scored at this level |
+| Fine-grained AC@k | (service, indicator) match; answers cpu→cpu, mem→mem, delay→latency, loss→latency, disk→diskio (RE2/RE3) or latency (RE1), socket→socket | RCAEval convention [rcaeval_facts, "Ground truth and scoring"][rc]; the ranking is RCAEval's `indicator_ranks` ([scoring.py](https://github.com/phamquiluan/RCAEval/blob/main/RCAEval/benchmark/scoring.py), main; recheck at the commit pinned in §4) of the raw `ranks`, (`x.split("_")[0]`, `x.split("_")[1]` or `unknown`), with no `-db` fold and no de-duplication; cases without an answer-key `indicator` are outside its denominator; RE3 F1–F5 not scored at this level |
 | Fault-type accuracy | `root.fault_class` vs mapped answer (socket → `socket`, [03 §1](03-contracts.md)); RE3: `mode = code` | `fault_class_hit` |
-| Retrieval@K | (1/\|F\|) Σ 1[r_i ∈ slate top-K] | `retrieval_hit`; also decision-pool retrieval (`pool_hit`) |
+| Retrieval@K | (1/\|F\|) Σ 1[r_i ∈ slate top-K] | `retrieval_hit`; K = the slate's own `k`; also decision-pool retrieval (`pool_hit`) |
 | Rerank@1 | AC@1 / Retrieval@K | AC@1 = Retrieval@K × Rerank@1 (DecompRCA; RCAEval `--report-decomposition`) [sota_methods §Q1][sm] |
-| Chance@k, Lift@k | Chance@k = mean_i min(k, n_i)/n_i; Lift@k = AC@k / Chance@k; also AC@k − Chance@k | RCAEval's `--report-chance` output stored alongside (§13 Q4) |
+| Chance@k, Lift@k | Chance@k = mean_i min(k, n_i)/n_i, where a case whose root is not among its n_i services contributes 0, and Chance@k is null unless every fault case has n_i (RCAEval `Evaluator.chance_accuracy`, [evaluation.py](https://github.com/phamquiluan/RCAEval/blob/main/RCAEval/benchmark/evaluation.py), main; recheck at the commit pinned in §4), so Chance, Lift and AC share one denominator; Lift@k = AC@k / Chance@k; also AC@k − Chance@k | RCAEval's `--report-chance` output stored alongside (§13 Q4) |
 | Prior-only floor | AC@k of `prior-only` | |
 | Onset error | \|`onsets.t_onset_ns` − `answer_key.t_inject_ns`\| / 1e6 | `onset_error_ms`; detected protocol |
 | Coverage | (1/\|F\|) Σ 1[r_i ∈ C_i] on held-out folds; gap = coverage − (1 − α); coverage given decision-pool retrieval | `in_set`; per system, per fold, pooled over folds |
@@ -170,7 +170,9 @@ Notation: *F* = fault cases of the evaluated split, *N* = normal windows; for ca
 
 **Failed runs** (crash, timeout, missing output) count as misses in every accuracy metric and are reported as a count; denominators are always the full split [benchmarks_and_testbed §Q2][bt].
 
-**AC@k ignores status.** It is computed on `ranks_rcaeval`, which Causentra fills for every status, so abstention cannot raise accuracy; abstention quality is measured separately (coverage, risk–coverage, `NO_FAULT` rates).
+**Unranked runs.** An `ok` run whose `ranks` are empty, or whose slate has `rankers_active == []` (no ranker scored any candidate, e.g. the R-00 stubs, whose slate orders the candidate universe U ([06 §2.1](engines/06-faultloom.md)) by tie-break only), is *unranked*: a miss in every accuracy metric, with an empty `ranks` cell in `per_case.csv`. Its slate, decision pool, set and fault type are not scored either (they count as misses; `set_size` is empty), and `summary.json` reports the number of unranked fault-case runs as `n_unranked` (no-truth rows are not counted).
+
+**AC@k ignores status.** It is computed on `ranks_rcaeval`, which Causentra fills for every status, so abstention cannot raise accuracy; abstention quality is measured separately (coverage, risk–coverage, `NO_FAULT` rates). An unranked run is not an abstention: it is a miss whatever its status, because no ranker produced the order.
 
 **ECE is not used.** Veyltrace outputs a set and a status, not a probability; ECE needs a predicted probability per case. Coverage, set size and risk–coverage measure what the system claims. Practitioners also found numeric confidences hard to interpret [verified_agents §Q6][va].
 
@@ -190,7 +192,7 @@ Implemented in `bench/stats/` (O-14, Observe lane), validated on a toy example w
 
 ## 9. Experiment YAML and result outputs
 
-`veyltrace bench run bench/experiments/<name>.yaml` reads one YAML, runs every method on every case and writes `bench/results/<experiment_id>/` ([03 §13.2](03-contracts.md)).
+`veyltrace bench run bench/experiments/<name>.yaml` reads one YAML, runs every method on every case and writes `bench/results/<experiment_id>/` (`--out <root>`: `<root>/<experiment_id>/`; [03 §13.2](03-contracts.md)).
 
 ```yaml
 experiment_id: re2-oracle-rq1-v1        # unique; output directory name
@@ -199,8 +201,8 @@ prereg: true                            # part of the frozen set (tag prereg-v1)
 rq: [RQ1]
 dataset:
   parts: [re2-ob, re2-ss, re2-tt]       # case_manifest.dataset ids
-  cases: all                            # or a path to a case-id list
-  exclude: bench/dev_cases.yaml
+  cases: all                            # or a path to a YAML list of 12-hex case ids
+  exclude: bench/dev_cases.yaml         # same format; one list serves every part
   normal_windows: rcaeval_pre_injection # none | rcaeval_pre_injection | veyllab
 split:
   family: rcaeval-re2
@@ -241,18 +243,20 @@ resources: {workers: 2, timeout_s: 600, max_rss_mb: 3072}
 | Field | Meaning |
 |---|---|
 | `experiment_id`, `description`, `prereg`, `rq` | identity; `prereg: true` files change only through §12 |
-| `dataset.*` | case selection; exclusions listed in the summary; `normal_windows` adds the §5.4 normal windows |
+| `dataset.*` | case selection: `cases` is `all` or a path (from the repo root) to a YAML list of 12-hex case ids, `exclude` a path to such a list; case ids are unique across datasets, so one list serves every part; exclusions listed in the summary; `normal_windows` adds the §5.4 normal windows |
 | `split.*` | §5.4; `crossfit2` runs both folds and reports test predictions only |
 | `protocol.*` | §5.1–§5.2; each value maps to a pipeline hook and is recorded in every `run_manifest` (through the config hash) |
 | `methods[]` | `kind` ∈ {veyltrace, rcaeval, internal_baseline, agent_only}; `overrides` are dotted config keys; `seeds` multiply runs |
 | `calibration.*` | fit on the calibration fold and write `config/calibration/` before testing |
-| `metrics`, `statistics`, `resources` | §7, §8; `timeout_s` per case per method; a timeout is a miss |
+| `metrics`, `statistics`, `resources` | §7, §8; `metrics` is required and `summary.json` holds only the listed metrics plus counts; `statistics` is recorded as not run until `bench/stats` (O-14) exists; `timeout_s` per case per method; a timeout is a miss |
 
 Outputs ([03 §13.2](03-contracts.md)):
 
-- `per_case.csv` — UTF-8 CSV, committed to git, sorted by `case_id, method, seed`; columns `case_id, dataset, system, method, ai_mode, seed, fold, protocol, run_outcome, pool_hit, shift_s, sources_dropped, status, ranks, hit_at_1, hit_at_3, hit_at_5, retrieval_hit, fault_class_hit, in_set, set_size, onset_error_ms, decoy_present, decoy_ranked_first, wall_ms, peak_rss_mb, tokens_in, tokens_out, verdict_hash` (booleans `0/1`, missing values empty; `run_outcome` ∈ `ok`, `failed`, `timeout`, `no_alert`; `pool_hit` = truth in the decision pool);
-- `summary.json` — metrics per (dataset, system, method) with bootstrap CIs and test results;
-- `manifest.json` — experiment config hash, code commit, dataset hashes.
+- `per_case.csv` — UTF-8 CSV, committed to git, sorted by `case_id, method, seed, variant`; columns `case_id, dataset, system, method, ai_mode, seed, variant, fold, protocol, run_outcome, pool_hit, shift_s, sources_dropped, status, ranks, hit_at_1, hit_at_3, hit_at_5, retrieval_hit, fault_class_hit, in_set, set_size, onset_error_ms, decoy_present, decoy_ranked_first, wall_ms, peak_rss_mb, tokens_in, tokens_out, verdict_hash` (booleans `0/1`, missing values empty; `run_outcome` ∈ `ok`, `failed`, `timeout`, `no_alert`, `rejected`; `pool_hit` = truth in the decision pool);
+- `summary.json` — per (dataset, system, method), the listed `metrics` plus counts (`n_rows`, `n_fault`, `n_no_truth`, `n_unranked`, `n_fine`, `n_chance`, `n_outside_universe`, `outcomes`; `n_outside_universe` counts the fault cases whose root is not among the case's `case_manifest.services`, each contributing 0 to Chance@k, §7); the excluded case ids per dataset; bootstrap CIs and test results come from `bench/stats` (O-14), and until then `statistics` reads "not run";
+- `manifest.json` — experiment hash and the validated experiment (defaults filled), code commit and dirtiness (`code.commit`, `code.dirty`, `code.bench_dirty`), `uv.lock` hash, per dataset the answer-key and telemetry-input hashes with the run and excluded case ids, the config hash per (dataset, method), `seeds`, and each run's `run_id` and input hash.
+
+Synth (§3, Smoke) is never reported: bench refuses `--table` for it and requires an `--out` outside the repository, so synth results are never written under `bench/results/`.
 
 `bench/results/tables/*.md` are generated from `summary.json` files only (R-17).
 
@@ -292,7 +296,7 @@ Outputs ([03 §13.2](03-contracts.md)):
 
 ## 13. Open questions (each with a default)
 
-1. **`per_case.csv` columns still missing.** *Resolved in 02/03 (2026-10-30):* [03 §13.2](03-contracts.md) now has `fold`, `pool_hit` and `run_outcome` (`ok`, `failed`, `timeout`, `no_alert`).
+1. **`per_case.csv` columns still missing.** *Resolved in 02/03 (2026-10-30):* [03 §13.2](03-contracts.md) now has `fold`, `pool_hit` and `run_outcome` (`ok`, `failed`, `timeout`, `no_alert`; later also `rejected`, 03 §13.2).
 2. **Detected protocol without a breach.** *Resolved in 03 (2026-10-30):* the case is a miss, counted under `run_outcome = no_alert`.
 3. **FSE'26 TT feasibility.** *Default:* stretch; decided at R-07 after checking size, format and licence.
 4. **RCAEval's Lift@5 definition** is not in our notes. *Default:* ours is the ratio (§7); RCAEval's printed value is stored beside it and its definition checked against the code at M1.
