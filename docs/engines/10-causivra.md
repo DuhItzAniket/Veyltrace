@@ -173,7 +173,7 @@ Template sentences may have empty `cites` only when no citable atom exists (for 
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (`PB-UNK-01` for `socket` and `availability`, which have no playbook of their own), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
