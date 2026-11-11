@@ -1,0 +1,7 @@
+# X-02 acceptance plan (05 §14): one CPU fault (F01) and one delay fault (F04), L1, full phases.
+profile: ob
+dataset: veyllab-ob
+seed: 20261109
+entries:
+  - {fault: F01, target: productcatalogservice, severity: L1}
+  - {fault: F04, target: currencyservice, severity: L1}
