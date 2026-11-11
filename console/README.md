@@ -11,3 +11,5 @@ pnpm -C console install
 pnpm -C console dev      # start the gateway first: uv run python -m veyltrace_gateway
 pnpm -C console check
 ```
+
+**Status (X-00 scaffold).** A page shell only (heading and main landmark) with its toolchain: Vite 8, React 19, TypeScript 5.9 (`strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`), type-checked ESLint (`no-explicit-any` is an error), Prettier (Markdown excluded) and Vitest with Testing Library on jsdom. Runtime libraries of 06 §5.1 (openapi-fetch, TanStack Query, React Router, ECharts 6.1, Cytoscape.js) are pinned exactly but not used yet; views arrive in X-05 and X-10. `packageManager` pins pnpm 12.11.2 for Corepack and CI; CI runs Node 24.
