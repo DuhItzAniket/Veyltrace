@@ -127,7 +127,9 @@ def bocpd(
     scores: list[Score] = []
     for k, s in enumerate(series):
         starts = s.grid.starts
-        in_i = s.grid.within(incident)
+        # Only observed incident buckets are scored: an unobserved bucket moves the posterior by the
+        # hazard alone, and a series with no incident points scores 0 (03-anomara §6).
+        in_i = s.grid.within(incident) & observed[k]
         if not in_i.any():
             scores.append(Score.flat(cfg.threshold))
             continue

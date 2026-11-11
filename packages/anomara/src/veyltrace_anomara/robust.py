@@ -126,6 +126,16 @@ def robust_z(
     return Score(score, math.log1p(score), direction, onset, cfg.threshold)
 
 
+def _is_constant(x: FloatArray, mean: float, std: float) -> bool:
+    """scikit-learn's near-constant test (`_is_constant_feature`, which `StandardScaler` uses to give
+    a feature unit scale): the variance is within float rounding of zero. A constant baseline whose
+    mean is not exact in binary (0.3 repeated) has a std of a few ULPs, which is not a real scale."""
+    eps = float(np.finfo(np.float64).eps)
+    n = x.size
+    var = std * std
+    return var <= n * eps * var + (n * mean * eps) ** 2
+
+
 def nsigma(
     t: IntArray,
     x: FloatArray,
@@ -137,8 +147,8 @@ def nsigma(
     cfg: NSigmaConfig,
 ) -> Score:
     """Raw-max N-Sigma (03-anomara §3.3): RCAEval's zero-scale convention (unit scale when the
-    baseline std is 0), and a `score_norm` over the floored scale `max(std_B, ε, η·|mean_B|)` so it
-    compares across series."""
+    baseline is constant, up to float rounding), and a `score_norm` over the floored scale
+    `max(std_B, ε, η·|mean_B|)` so it compares across series."""
     b = in_window(t, baseline)
     i = in_window(t, incident)
     if covered_buckets(t[b], step) < rz.min_baseline_steps or not i.any():
@@ -146,7 +156,7 @@ def nsigma(
     mu = float(np.mean(x[b]))
     sigma = float(np.std(x[b]))
     dev = np.abs(x[i] - mu)
-    ratio = dev / (sigma if sigma > 0.0 else 1.0)
+    ratio = dev / (1.0 if _is_constant(x[b], mu, sigma) else sigma)
     k = int(np.argmax(ratio))
     score = float(ratio[k])
     if score == 0.0:
