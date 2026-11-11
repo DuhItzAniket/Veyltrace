@@ -283,7 +283,7 @@ A 3-service trace case: `frontend` (entry) → `checkoutservice` → `paymentser
 | `window.score_ms` | 300000 | ms | a priori; PRISM's early-window result (81% vs 68% Top-1 with the first 10% of post-fault data) argues for short windows [rcaeval_facts §Anomaly scoring methods][rf-methods]; ablation 60000 / 600000 |
 | `self_time.quantile` | `p50` | — | a priori (median is robust to trace sampling); ablation `p99` |
 | `self_time.min_total_increase_ms` | 5.0 | ms | a priori; below this there is no latency increase to account for |
-| `spectrum.formula` | `ochiai` | — | Ochiai outperformed other coefficients in an industrial SBFL study [rcaeval_facts §Traces][rf-traces]; ablation `dstar2` |
+| `spectrum.formula` | `ochiai` | — | Ochiai outperformed other coefficients in an industrial SBFL study [rcaeval_facts §Traces][rf-traces]; ablation `dstar2` (no formula in §3.4 yet, so it raises `ConfigError`) |
 | `spectrum.weighting` | `critical_path` | — | CP-SBFL card [novel_building_blocks §Q3][nbb]; ablation `none` |
 | `templates.min_count` | 3 | lines | a priori; filters one-off lines |
 | `peer.min_components` | 2 | components | a peer needs at least one other replica |
@@ -370,7 +370,7 @@ All arms are config overrides in an experiment YAML ([04 §9](../04-evaluation-p
 | Atom-kind drop | `atoms.disabled: [<kind>]` | which evidence channel carries accuracy |
 | Detector set | `atoms.detectors` | robust_z vs nsigma as the base scorer |
 | Score window | `window.score_ms` ∈ {60000, 300000, 600000} | early-window effect |
-| Spectrum weighting | `spectrum.weighting: none`, `formula: dstar2` | does CP weighting add to plain SBFL |
+| Spectrum weighting | `spectrum.weighting: none`, `formula: dstar2` (raises `ConfigError` until §3.4 defines it) | does CP weighting add to plain SBFL |
 | Self-time quantile | `self_time.quantile: p99` | T5 sensitivity |
 | Card size | `cards.k_default` ∈ {3, 6, 9}; `cards.max_tokens` | proposer lift vs tokens (RQ2, RQ5) |
 

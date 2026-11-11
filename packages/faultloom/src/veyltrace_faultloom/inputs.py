@@ -30,6 +30,8 @@ __all__ = [
     "AnomalyRow",
     "CallEdge",
     "ChangeRow",
+    "CriticalPathRow",
+    "EdgeStat",
     "EvidenceInputs",
     "GraphNode",
     "PathRow",
@@ -201,6 +203,36 @@ class TemplateRow:
 
 
 @dataclass(frozen=True)
+class CriticalPathRow:
+    """One signal_cube.critical_path row (03 §3.4); `ref` cites the whole row."""
+
+    window: str
+    service: str
+    traces: int
+    cp_self_ms_p50: float
+    cp_self_ms_p99: float
+    cp_share_mean: float
+    traces_total: int
+    traces_slow: int
+    cp_share_sum_slow: float
+    ref: str
+
+
+@dataclass(frozen=True)
+class EdgeStat:
+    """One signal_cube.edges row (03 §3.2) with the fields 06 §2.1 reads; `ref` cites the whole row."""
+
+    caller: str
+    callee: str
+    window: str
+    calls: int
+    error_rate: float
+    p50_gap_ms: float | None
+    p99_gap_ms: float | None
+    ref: str
+
+
+@dataclass(frozen=True)
 class EvidenceInputs:
     """What both passes read, plus the shared values of 06 §2.1.
 
@@ -210,7 +242,8 @@ class EvidenceInputs:
     by the contract key (series_id, detector). `onsets` holds the aligned per-service onsets
     (sorted by service), `edges` and `paths` the graph rows (sorted by key) and `k_anom` is core
     `thresholds.anomaly_z` (06 §2.1). `components` is the component map (service -> components in
-    signal_cube.series); `changes` and `templates` are sorted by their contract keys.
+    signal_cube.series); `changes`, `templates`, `critical_path` and `edge_stats` (signal_cube.edges)
+    are sorted by their contract keys.
     """
 
     case_id: str
@@ -235,6 +268,8 @@ class EvidenceInputs:
     components: Mapping[str, frozenset[str]]
     changes: tuple[ChangeRow, ...]
     templates: tuple[TemplateRow, ...]
+    critical_path: tuple[CriticalPathRow, ...]
+    edge_stats: tuple[EdgeStat, ...]
 
     @property
     def node_names(self) -> frozenset[str]:
@@ -301,6 +336,23 @@ def service_onsets(onsets: models.Onsets, offsets: _Offsets) -> tuple[ServiceOns
     return tuple(sorted(found, key=lambda o: o.service))
 
 
+#: Signalyth tables whose rows atoms cite by `row_ref`, so they are read with every column (06 §3.3).
+_WHOLE_ROWS: Final = ("signal_cube.critical_path", "signal_cube.edges")
+
+
+def _critical_path(rows: Iterable[Mapping[str, Any]]) -> tuple[CriticalPathRow, ...]:
+    fields = BOTH_PASS_TABLES["signal_cube.critical_path"]
+    ref = "signal_cube.critical_path"
+    found = (CriticalPathRow(**{f: r[f] for f in fields}, ref=row_ref(ref, r)) for r in rows)
+    return tuple(sorted(found, key=lambda r: (r.window, r.service)))
+
+
+def _edge_stats(rows: Iterable[Mapping[str, Any]]) -> tuple[EdgeStat, ...]:
+    fields = BOTH_PASS_TABLES["signal_cube.edges"]
+    found = (EdgeStat(**{f: r[f] for f in fields}, ref=row_ref("signal_cube.edges", r)) for r in rows)
+    return tuple(sorted(found, key=lambda e: (e.caller, e.callee, e.window)))
+
+
 def _graph_rows(ctx: RunContext, name: str) -> list[dict[str, Any]]:
     """Every column of a graph table, so row_ref hashes the whole row (06 §3.3); [] if absent."""
     return ctx.read_table(name).to_pylist() if ctx.exists(name) else []
@@ -365,9 +417,9 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         columns = (
             ("service", "component", "signal") if name == "signal_cube.series" else BOTH_PASS_TABLES[name]
         )
-        table = ctx.read_table(name, columns=columns)
+        table = ctx.read_table(name, columns=None if name in _WHOLE_ROWS else columns)
         rows[name] = table.num_rows
-        if name in ("anomalies", "changes", "signal_cube.series", "signal_cube.templates"):
+        if name in ("anomalies", "changes", "signal_cube.series", "signal_cube.templates", *_WHOLE_ROWS):
             found[name] = table.to_pylist()
     pairs = {(str(r["service"]), str(r["component"])) for r in found.get("signal_cube.series", [])}
     changes = (ChangeRow(**{f: r[f] for f in BOTH_PASS_TABLES["changes"]}) for r in found.get("changes", []))
@@ -410,4 +462,6 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         components={s: frozenset(c for t, c in pairs if t == s) for s in sorted({s for s, _ in pairs})},
         changes=tuple(sorted(changes, key=lambda c: (c.entity, c.change_id))),
         templates=tuple(sorted(templates, key=lambda t: (t.service, t.template_id))),
+        critical_path=_critical_path(found.get("signal_cube.critical_path", [])),
+        edge_stats=_edge_stats(found.get("signal_cube.edges", [])),
     )

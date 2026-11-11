@@ -17,6 +17,11 @@
   "error template on checkout (1200 lines), a new non-error one below templates.min_count, an old error template on",
   "payment; error rates are lines/s over the 1080 s baseline and 600 s incident windows. signal_cube.series rows give",
   "the component map only (one sample each).",
+  "signal_cube.critical_path (R-08d) carries the 06 3.8 worked numbers: incident traces_total 800, cp_share_mean",
+  "0.20 / 0.70 / 0.10, traces_slow 500 / 500 / 300, cp_share_sum_slow 60 / 400 / 40 (frontend / checkout /",
+  "payment), so spectrum = 0.2121 / 0.7559 / 0.2000; self-time p50 12 -> 13, 20 -> 95, 8 -> 9.5 ms, so",
+  "self_time_share(checkout) = 75 / 77.5. signal_cube.edges: frontend -> checkout p50 gap 2 -> 12 ms; checkout ->",
+  "payment 2 -> 2.5 ms; checkout -> redis has 6 incident calls (below edge_gap.min_calls).",
   "Partial on purpose: each table holds only the rows the atoms under test need."
  ],
  "alert": {"schema_version": "0.1.0", "protocol": "oracle", "t_alert_ns": 1767226920000000000, "shift_ns": 0, "detector": null, "windows": {"baseline": [1767225720000000000, 1767226800000000000], "incident": [1767226800000000000, 1767227400000000000]}, "clamped": false},
@@ -66,6 +71,22 @@
   {"service": "frontend", "external_onset_ns": 1767226935000000000, "external_onset_source": "traces", "internal_onset_ns": null, "internal_onset_source": null, "silent": false},
   {"service": "payment", "external_onset_ns": null, "external_onset_source": null, "internal_onset_ns": 1767226965000000000, "internal_onset_source": "logs", "silent": false}
  ]},
+ "signal_cube.critical_path": [
+  {"window": "baseline", "service": "checkout", "traces": 1000, "cp_self_ms_p50": 20.0, "cp_self_ms_p99": 31.0, "cp_share_mean": 0.5, "traces_total": 1000, "traces_slow": 50, "cp_share_sum_slow": 25.0},
+  {"window": "baseline", "service": "frontend", "traces": 1000, "cp_self_ms_p50": 12.0, "cp_self_ms_p99": 18.0, "cp_share_mean": 0.3, "traces_total": 1000, "traces_slow": 50, "cp_share_sum_slow": 15.0},
+  {"window": "baseline", "service": "payment", "traces": 500, "cp_self_ms_p50": 8.0, "cp_self_ms_p99": 12.0, "cp_share_mean": 0.2, "traces_total": 1000, "traces_slow": 30, "cp_share_sum_slow": 6.0},
+  {"window": "incident", "service": "checkout", "traces": 800, "cp_self_ms_p50": 95.0, "cp_self_ms_p99": 140.0, "cp_share_mean": 0.7, "traces_total": 800, "traces_slow": 500, "cp_share_sum_slow": 400.0},
+  {"window": "incident", "service": "frontend", "traces": 800, "cp_self_ms_p50": 13.0, "cp_self_ms_p99": 19.0, "cp_share_mean": 0.2, "traces_total": 800, "traces_slow": 500, "cp_share_sum_slow": 60.0},
+  {"window": "incident", "service": "payment", "traces": 400, "cp_self_ms_p50": 9.5, "cp_self_ms_p99": 13.0, "cp_share_mean": 0.1, "traces_total": 800, "traces_slow": 300, "cp_share_sum_slow": 40.0}
+ ],
+ "signal_cube.edges": [
+  {"caller": "checkout", "callee": "payment", "window": "baseline", "calls": 900, "error_rate": 0.0, "p50_caller_ms": 12.0, "p99_caller_ms": 23.0, "p50_callee_ms": 10.0, "p99_callee_ms": 20.0, "p50_gap_ms": 2.0, "p99_gap_ms": 3.0},
+  {"caller": "checkout", "callee": "payment", "window": "incident", "calls": 600, "error_rate": 0.02, "p50_caller_ms": 12.5, "p99_caller_ms": 23.5, "p50_callee_ms": 10.0, "p99_callee_ms": 20.0, "p50_gap_ms": 2.5, "p99_gap_ms": 3.5},
+  {"caller": "checkout", "callee": "redis", "window": "baseline", "calls": 50, "error_rate": 0.0, "p50_caller_ms": 11.0, "p99_caller_ms": 21.0, "p50_callee_ms": 10.0, "p99_callee_ms": 20.0, "p50_gap_ms": 1.0, "p99_gap_ms": 1.0},
+  {"caller": "checkout", "callee": "redis", "window": "incident", "calls": 6, "error_rate": 0.0, "p50_caller_ms": 19.0, "p99_caller_ms": 29.0, "p50_callee_ms": 10.0, "p99_callee_ms": 20.0, "p50_gap_ms": 9.0, "p99_gap_ms": 9.0},
+  {"caller": "frontend", "callee": "checkout", "window": "baseline", "calls": 1000, "error_rate": 0.0, "p50_caller_ms": 12.0, "p99_caller_ms": 24.0, "p50_callee_ms": 10.0, "p99_callee_ms": 20.0, "p50_gap_ms": 2.0, "p99_gap_ms": 4.0},
+  {"caller": "frontend", "callee": "checkout", "window": "incident", "calls": 800, "error_rate": 0.05, "p50_caller_ms": 22.0, "p99_caller_ms": 50.0, "p50_callee_ms": 10.0, "p99_callee_ms": 20.0, "p50_gap_ms": 12.0, "p99_gap_ms": 30.0}
+ ],
  "signal_cube.series": [
   {"series_id": "checkout|checkout-1|cpu|metrics", "service": "checkout", "component": "checkout-1", "signal": "cpu", "family": "cpu", "klass": "internal", "source": "metrics", "unit": null, "t_ns": 1767226920000000000, "value": 1.0},
   {"series_id": "checkout|checkout-2|cpu|metrics", "service": "checkout", "component": "checkout-2", "signal": "cpu", "family": "cpu", "klass": "internal", "source": "metrics", "unit": null, "t_ns": 1767226920000000000, "value": 1.0},

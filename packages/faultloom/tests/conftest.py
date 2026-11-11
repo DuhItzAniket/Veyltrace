@@ -14,6 +14,8 @@ from veyltrace_faultloom.inputs import (
     AnomalyRow,
     CallEdge,
     ChangeRow,
+    CriticalPathRow,
+    EdgeStat,
     EvidenceInputs,
     GraphNode,
     PathRow,
@@ -48,6 +50,8 @@ _BASE = EvidenceInputs(
     components={},
     changes=(),
     templates=(),
+    critical_path=(),
+    edge_stats=(),
 )
 
 
@@ -88,6 +92,22 @@ class HandMade:
     @staticmethod
     def template(service: str, tid: str, base: int, inc: int, *, error: bool = False) -> TemplateRow:
         return TemplateRow(service, tid, base, inc, error)
+
+    @staticmethod
+    def cp(
+        window: str, service: str, total: int, mean: float, slow: int, sum_slow: float, **kw: Any
+    ) -> CriticalPathRow:
+        """A critical_path row; kw: traces, p50, p99 (self-time ms)."""
+        p50, p99, traces = kw.get("p50", 0.0), kw.get("p99", 0.0), kw.get("traces", slow)
+        return CriticalPathRow(
+            window, service, traces, p50, p99, mean, total, slow, sum_slow, f"cp#{window}-{service}"
+        )
+
+    @staticmethod
+    def edge_stat(
+        caller: str, callee: str, window: str, calls: int, p50: float | None, p99: float | None
+    ) -> EdgeStat:
+        return EdgeStat(caller, callee, window, calls, 0.0, p50, p99, f"edges#{caller}-{callee}-{window}")
 
     @staticmethod
     def anomaly(
