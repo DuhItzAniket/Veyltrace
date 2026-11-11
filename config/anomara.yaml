@@ -71,6 +71,11 @@ slo:
   # detect_alert (03-anomara §3.8): the first sustained entry-service SLO breach (detected protocol).
   bucket_s: 10              # a priori, the same grid as Signalyth's traces
   min_spans: 5              # a priori, as signalyth traces.min_spans_per_quantile
+  # Client-like spans are not entry spans (02-signalyth §3.3 item 2). These mirror Signalyth's
+  # traces.infer_client_spans and traces.skew_tolerance_ms (02-signalyth §4 defaults), which do
+  # not exist in config/signalyth.yaml before O-02.
+  infer_client_spans: true  # RCAEval spans have no kind (02-signalyth §4)
+  skew_tolerance_ms: 1.0    # a priori (02-signalyth §4)
   window_s: 300             # trailing baseline, a priori
   gap_s: 30                 # gap between the baseline and the judged bucket, a priori
   k: 3.0                    # one-sided z threshold, a priori

@@ -179,6 +179,8 @@ Zero-shot time-series foundation models only tie classical detectors on TSB-AD-U
 | `t_onset.clamp_s` | `[-60, 300]` | s | [02 §6.3](../02-architecture.md) |
 | `slo.bucket_s` | `10` | s | a priori, same grid as Signalyth traces |
 | `slo.min_spans` | `5` | spans | a priori, as `traces.min_spans_per_quantile` |
+| `slo.infer_client_spans` | `true` | — | as Signalyth `traces.infer_client_spans` (RCAEval spans have no kind) |
+| `slo.skew_tolerance_ms` | `1.0` | ms | as Signalyth `traces.skew_tolerance_ms`, a priori |
 | `slo.window_s` | `300` | s | a priori trailing baseline |
 | `slo.gap_s` | `30` | s | a priori |
 | `slo.k` | `3.0` | z | a priori |

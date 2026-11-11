@@ -18,7 +18,7 @@ import numpy as np
 
 from veyltrace_anomara.robust import robust_scale
 from veyltrace_anomara.settings import RobustZConfig, SloConfig, anomara_config
-from veyltrace_anomara.slis import Sli, span_call_pairs, span_parents, trace_slis
+from veyltrace_anomara.slis import Sli, client_like, span_call_pairs, span_parents, trace_slis
 from veyltrace_causalith.entry import entry_config, entry_services
 from veyltrace_contracts.models import CaseManifest
 from veyltrace_core.adapters import AlertDetection, TelemetryTables
@@ -71,8 +71,8 @@ def detect_alert(telemetry: TelemetryTables, manifest: CaseManifest, config: Any
         return None
     slis: list[Sli] = []
     if spans.num_rows:
-        parents = span_parents(spans)
-        slis = [s for e in entries for s in trace_slis(spans, parents, e, cfg.slo)]
+        parents, client = span_parents(spans), client_like(spans, cfg.slo)
+        slis = [s for e in entries for s in trace_slis(spans, parents, client, e, cfg.slo)]
     found: list[tuple[int, int, str, str]] = []
     for sli in slis:
         t = scan(sli, manifest.data_start_ns, cfg.slo, cfg.robust_z)
