@@ -89,7 +89,7 @@ TODO: paste here
 | Item | Value |
 |---|---|
 | Time zone | IST (UTC+5:30) |
-| Usual working hours | TODO |
-| Focused hours per week (*estimate*) | TODO |
-| Unavailable dates (31 Oct – 1 Dec) | TODO |
-| Laptop free for overnight runs | TODO (Laptop 1, on mains power only) |
+| Usual working hours | 17:00 - 22:00  |
+| Focused hours per week (*estimate*) | 5-10 |
+| Unavailable dates (31 Oct – 1 Dec) | Nil |
+| Laptop free for overnight runs | Not available |
