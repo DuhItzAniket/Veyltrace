@@ -1,5 +1,20 @@
 # config/gateway.yaml: section "gateway" (file stem). Owner: Explain lane.
 # Spec: docs/06-gateway-and-console.md §6. Loaded only by the gateway (load_section_file("gateway"))
-# and never written to config.lock.json (03 §12.2). R-02 bootstrap: core needs no
-# gateway key; the Explain lane adds them in X-00.
-{}
+# and never written to config.lock.json (03 §12.2), so these keys never change a run id.
+# X-00: the keys the empty app reads; X-04 (routes, jobs) and X-10 (live) add the rest of 06 §6.
+
+api:
+  # Loopback by default: v1 has no authentication (06 §3.6). A non-loopback host needs the
+  # explicit start flag --allow-lan (split demo only).
+  host: "127.0.0.1"
+  port: 8000
+  # Origins allowed by CORS: the Vite dev server only; the built console is served same-origin (06 §3.6).
+  cors_origins: ["http://127.0.0.1:5173"]
+
+jobs:
+  # AI mode of runs the console starts: AI on is opt-in (06 §6).
+  default_ai_mode: "off"
+
+live:
+  # The OTLP receiver and alert watcher run only on the demo laptop (06 §6; built in X-10).
+  enabled: false

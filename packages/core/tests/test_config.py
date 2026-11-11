@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -99,18 +100,31 @@ def test_lock_shape_and_bytes(cfg_dir: Path) -> None:
         section_sha256(resolved, "gateway")
 
 
+def _top_keys(cfg_dir: Path, section: str) -> set[str]:
+    """The top-level keys a lane's real config file (copied into cfg_dir) already defines."""
+    loaded = yaml.safe_load((cfg_dir / f"{section}.yaml").read_text(encoding="utf-8"))
+    return set(loaded or {})
+
+
 def test_environment_keys_stay_out_of_the_lock(cfg_dir: Path) -> None:
-    append_yaml(cfg_dir, "infralume", "fetch:\n  mirror: https://example.invalid/x\n")
-    append_yaml(cfg_dir, "causalith", "paths:\n  k: 3\n")
+    # Append the probes only where the lane's file lacks them (05 §4 gives Causalith its own paths.*).
+    probe_fetch = "fetch" not in _top_keys(cfg_dir, "infralume")
+    probe_paths = "paths" not in _top_keys(cfg_dir, "causalith")
+    if probe_fetch:
+        append_yaml(cfg_dir, "infralume", "fetch:\n  mirror: https://example.invalid/x\n")
+    if probe_paths:
+        append_yaml(cfg_dir, "causalith", "paths:\n  k: 3\n")
     resolved = resolve(cfg_dir)
     lock = json.loads(resolved.lock_bytes())
     assert "paths" not in lock["sections"]["core"]
     assert "fetch" not in lock["sections"]["infralume"]
     assert b"VEYLTRACE_DATA" not in resolved.lock_bytes()
-    # `paths` is environment only in core: causalith.paths.* are analysis keys (05 §4).
-    assert lock["sections"]["causalith"]["paths"] == {"k": 3}
+    # `paths` is environment only in core: causalith.paths.* are analysis keys kept in the lock.
+    paths = lock["sections"]["causalith"]["paths"]
+    assert paths == {"k": 3} if probe_paths else paths
     assert resolved.environment["core.paths"]["runs"] == "runs"
-    assert resolved.environment["infralume.fetch"]["mirror"] == "https://example.invalid/x"
+    fetch = resolved.environment["infralume.fetch"]
+    assert fetch["mirror"] == "https://example.invalid/x" if probe_fetch else fetch
 
 
 def test_config_dir_location_never_enters_the_lock(cfg_dir: Path, tmp_path: Path) -> None:
@@ -153,8 +167,8 @@ def test_off_stays_a_string_in_the_lock(cfg_dir: Path) -> None:
 
 
 def test_duplicate_yaml_key_is_a_config_error(cfg_dir: Path) -> None:
-    append_yaml(cfg_dir, "relentra", "mode: investigate\n")
-    with pytest.raises(ConfigError, match=r"relentra\.yaml: duplicate key 'mode'"):
+    append_yaml(cfg_dir, "relentra", "zz_dup_probe: 1\nzz_dup_probe: 2\n")  # whatever keys the lane has
+    with pytest.raises(ConfigError, match=r"relentra\.yaml: duplicate key 'zz_dup_probe'"):
         resolve(cfg_dir)
 
 
@@ -177,15 +191,15 @@ def test_empty_file_is_an_empty_section(cfg_dir: Path) -> None:
 
 @pytest.mark.parametrize("value", [".nan", ".inf", "-.inf", "1.0e-10", "0.1234567891"])
 def test_lossy_floats_are_rejected(cfg_dir: Path, value: str) -> None:
-    append_yaml(cfg_dir, "causatrix", f"eps: {value}\n")
-    with pytest.raises(ConfigError, match=r"causatrix\.eps"):
+    append_yaml(cfg_dir, "causatrix", f"zz_float_probe: {value}\n")  # a key no lane defines
+    with pytest.raises(ConfigError, match=r"causatrix\.zz_float_probe"):
         resolve(cfg_dir)
 
 
 def test_floats_with_nine_decimals_are_kept_exactly(cfg_dir: Path) -> None:
-    append_yaml(cfg_dir, "causatrix", "eps: 1.0e-9\nbig: 1.0e+20\nneg: -0.123456789\n")
-    section = resolve(cfg_dir).sections["causatrix"]
-    assert (section["eps"], section["big"], section["neg"]) == (1e-9, 1e20, -0.123456789)
+    append_yaml(cfg_dir, "causatrix", "zz_float_probe:\n  eps: 1.0e-9\n  big: 1.0e+20\n  neg: -0.123456789\n")
+    probe = resolve(cfg_dir).sections["causatrix"]["zz_float_probe"]
+    assert (probe["eps"], probe["big"], probe["neg"]) == (1e-9, 1e20, -0.123456789)
 
 
 # ---------------------------------------------------------------------------------------------
@@ -208,7 +222,8 @@ def test_floats_with_nine_decimals_are_kept_exactly(cfg_dir: Path) -> None:
     ],
 )
 def test_bad_path_values_are_rejected(cfg_dir: Path, value: str) -> None:
-    append_yaml(cfg_dir, "infralume", f"events:\n  overlay_path: {value}\n")
+    # Path keys are found by suffix at any depth, so a probe section no lane defines tests them.
+    append_yaml(cfg_dir, "infralume", f"zz_path_probe:\n  overlay_path: {value}\n")
     with pytest.raises(ConfigError, match="overlay_path"):
         resolve(cfg_dir)
 
@@ -217,20 +232,21 @@ def test_relative_path_values_and_lists_are_accepted(cfg_dir: Path) -> None:
     append_yaml(
         cfg_dir,
         "infralume",
-        "events:\n  overlay_path: overlays/exp-1/abc/events.parquet\n"
+        "zz_path_probe:\n  overlay_path: overlays/exp-1/abc/events.parquet\n"
         "  extra_paths: [a/b.parquet, c.parquet]\n",
     )
-    append_yaml(cfg_dir, "anomara", "tsfm:\n  weights_path: null\n")
+    append_yaml(cfg_dir, "anomara", "zz_path_probe:\n  weights_path: null\n")
     section = resolve(cfg_dir).sections["infralume"]
-    assert section["events"]["overlay_path"] == "overlays/exp-1/abc/events.parquet"
-    append_yaml(cfg_dir, "causalith", "topology:\n  static_dirs: [ok, /abs]\n")
+    assert section["zz_path_probe"]["overlay_path"] == "overlays/exp-1/abc/events.parquet"
+    append_yaml(cfg_dir, "causalith", "zz_path_probe:\n  static_dirs: [ok, /abs]\n")
     with pytest.raises(ConfigError, match=r"static_dirs\[1\]"):
         resolve(cfg_dir)
 
 
 def test_backslashes_in_regex_strings_are_fine(cfg_dir: Path) -> None:
-    append_yaml(cfg_dir, "signalyth", "metrics:\n  counter_name_patterns: ['_total$', '\\d+_count$']\n")
-    patterns = resolve(cfg_dir).sections["signalyth"]["metrics"]["counter_name_patterns"]
+    # A key no lane defines, so the copy of the lane's real signalyth.yaml never gets a duplicate key.
+    append_yaml(cfg_dir, "signalyth", "zz_regex_probe:\n  patterns: ['_total$', '\\d+_count$']\n")
+    patterns = resolve(cfg_dir).sections["signalyth"]["zz_regex_probe"]["patterns"]
     assert patterns == ("_total$", "\\d+_count$")
 
 
@@ -333,8 +349,8 @@ def test_overrides_are_validated_like_files(cfg_dir: Path) -> None:
     with pytest.raises(ConfigError, match="decimals"):
         resolve(cfg_dir, {"core.thresholds.anomaly_z": 3.0000000001})
     with pytest.raises(ConfigError, match="overlay_path"):
-        append_yaml(cfg_dir, "infralume", "events:\n  overlay_path: null\n")
-        resolve(cfg_dir, {"infralume.events.overlay_path": "C:\\data\\x.parquet"})
+        append_yaml(cfg_dir, "infralume", "zz_path_probe:\n  overlay_path: null\n")
+        resolve(cfg_dir, {"infralume.zz_path_probe.overlay_path": "C:\\data\\x.parquet"})
     with pytest.raises(ConfigError, match="not a JSON value"):
         resolve(cfg_dir, {"core.alert.protocol": b"oracle"})
 
@@ -379,8 +395,8 @@ def test_engine_config_is_a_read_only_view_from_the_lock(cfg_dir: Path) -> None:
     cfg = resolved.engine("infralume")
     assert cfg.engine == "infralume"
     assert cfg["duckdb"]["threads"] == 1
-    assert sorted(cfg) == ["duckdb", "sources"]
-    assert len(cfg) == 2
+    section = yaml.safe_load((cfg_dir / "infralume.yaml").read_text(encoding="utf-8"))
+    assert sorted(cfg) == sorted(section) and len(cfg) == len(section)  # whatever keys the lane adds
     assert cfg.core["alert"]["protocol"] == "oracle"
     assert cfg.section("causalith")["duckdb"]["memory_limit"] == "2GB"
     assert cfg.get_path("duckdb.memory_limit") == "1GB"
@@ -611,8 +627,9 @@ def test_find_config_dir_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_load_section_file(cfg_dir: Path) -> None:
-    gateway = load_section_file("gateway", config_dir=cfg_dir)
-    assert dict(gateway) == {}
+    append_yaml(cfg_dir, "gateway", "zz_section_probe: {port: 1}\n")  # a key no lane defines
+    gateway = load_section_file("gateway", config_dir=cfg_dir)  # the Explain lane fills it (06 §6)
+    assert set(gateway) == _top_keys(cfg_dir, "gateway") and gateway["zz_section_probe"]["port"] == 1
     core = load_section_file("core", config_dir=cfg_dir)
     assert core["paths"]["runs"] == "runs" and "data" not in core["paths"]  # no dead keys
     with pytest.raises(ConfigError):

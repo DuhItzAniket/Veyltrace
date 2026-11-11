@@ -9,11 +9,16 @@ description = "Veyltrace engine 1 (Infralume): turns one case into canonical tel
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+# Third-party imports allowed by the engine spec (01 §5); minimums only, uv.lock pins.
+dependencies = ["veyltrace-core", "veyltrace-contracts", "duckdb>=1.1", "numpy>=2.0", "pyarrow>=17"]
 
 # Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
 [project.entry-points."veyltrace.engines"]
 infralume = "veyltrace_infralume.api:run"
+
+# `veyltrace data fetch rcaeval` (01 §3.11): the single network exemption, never imported by api.py.
+[project.entry-points."veyltrace.fetchers"]
+rcaeval = "veyltrace_infralume.fetch.rcaeval:fetch"
 
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
@@ -25,4 +30,4 @@ packages = ["src/veyltrace_infralume"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-allow = []
+allow = ["duckdb", "numpy", "pyarrow"]  # 01 §5
