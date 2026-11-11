@@ -60,8 +60,21 @@ def test_diagnose_rejected_case_exits_3(tmp_path: Path) -> None:
     assert summary["outcome"] == "rejected" and summary["exit_code"] == DiagnoseExit.REJECTED
 
 
-def test_diagnose_config_error_exits_4_and_still_writes_summary(tmp_path: Path) -> None:
-    # No alert detector is registered before O-04, so the detected protocol is a config error.
+def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep testing the missing-detector path once Anomara registers veyltrace.alert_detectors (O-04)."""
+    real = plugins.discover
+
+    def discover(group: str) -> tuple[plugins.Plugin, ...]:
+        return () if group == plugins.ALERT_DETECTORS else real(group)
+
+    monkeypatch.setattr(plugins, "discover", discover)
+
+
+def test_diagnose_config_error_exits_4_and_still_writes_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without an alert detector the detected protocol is a config error.
+    _hide_alert_detectors(monkeypatch)
     summary_path = tmp_path / "summary.json"
     code = cli.main(_diagnose(tmp_path, "--protocol", "detected", "--summary-json", str(summary_path)))
     assert code == DiagnoseExit.CONFIG
@@ -303,5 +316,7 @@ def test_diagnose_warns_about_stub_outputs(tmp_path: Path, capsys: pytest.Captur
 
 def test_stub_infralume_refuses_real_datasets_without_an_adapter(tmp_path: Path) -> None:
     runs = (tmp_path / "runs").as_posix()
-    argv = ["diagnose", "--dataset", "re2-ob", "--case", "abcdefabcdef", "--set", f"core.paths.runs={runs}"]
-    assert cli.main(argv) == DiagnoseExit.CONFIG  # no adapter: exit 4, not "ok" on fake data
+    # A dataset no adapter claims (re2-ob gets one in O-01): exit 4, not "ok" on placeholder data.
+    argv = ["diagnose", "--dataset", "no-adapter-ob", "--case", "abcdefabcdef"]
+    argv += ["--set", f"core.paths.runs={runs}"]
+    assert cli.main(argv) == DiagnoseExit.CONFIG
