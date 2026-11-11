@@ -28,6 +28,9 @@ from veyltrace_core.pipeline import code_commit
 
 #: Config keys the protocol block sets (04 §9: "each value maps to a pipeline hook"; §5.1, §5.2).
 PROTOCOL_KEYS = ("core.alert.protocol", "core.alert.shift_s", "infralume.sources.drop")
+RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method runs alone (04 §3, §9)
+CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
+FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
     "onset_error", "coverage", "set_size", "risk_coverage", "no_fault_rates", "cost",
@@ -87,6 +90,29 @@ class MethodSpec(_Strict):
     ai: AISpec = AISpec()
     overrides: dict[str, object] = Field(default_factory=dict)  # dotted config keys
     rcaeval: dict[str, object] | None = None  # {method, length}
+
+    @model_validator(mode="after")
+    def _causatrix_id_names_what_runs(self) -> MethodSpec:
+        """A slate-scored method's id must say what runs, so results are never mislabelled (04 §3):
+        causatrix:rrf has no ranker override; causatrix:<r> overrides rankers.enabled to [r]."""
+        if self.kind != "causatrix":
+            return self
+        where = f"method {self.id}"
+        if not self.id.startswith(CAUSATRIX_PREFIX):
+            raise ValueError(f"{where}: a causatrix method id is causatrix:rrf or causatrix:<ranker>")
+        ranker = self.id.removeprefix(CAUSATRIX_PREFIX)
+        override = self.overrides.get(RANKERS_KEY)
+        if ranker == FUSED and RANKERS_KEY in self.overrides:
+            raise ValueError(f"{where}: causatrix:rrf fuses the configured rankers; drop {RANKERS_KEY}")
+        if ranker != FUSED and override != [ranker]:
+            raise ValueError(f"{where}: needs overrides {{{RANKERS_KEY}: [{ranker}]}}, got {override!r}")
+        return self
+
+    @property
+    def ranker(self) -> str | None:
+        """The one ranker a causatrix:<ranker> method runs; None for causatrix:rrf and other kinds."""
+        name = self.id.removeprefix(CAUSATRIX_PREFIX)
+        return name if self.kind == "causatrix" and name != FUSED else None
 
 
 class CalibrationSpec(_Strict):

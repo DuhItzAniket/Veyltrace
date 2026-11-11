@@ -12,8 +12,10 @@ from pathlib import Path
 
 import pyarrow as pa
 import pytest
+from pydantic import ValidationError
 
 from veyltrace_bench import runner
+from veyltrace_bench.experiment import RANKERS_KEY, MethodSpec
 from veyltrace_contracts.models import Slate
 from veyltrace_core import cli, io, textio
 from veyltrace_core.errors import ConfigError
@@ -82,4 +84,47 @@ def test_a_duplicated_method_is_still_refused(tmp_path: Path) -> None:
     with pytest.raises(ConfigError, match="reuses run"):
         runner.run_experiment(
             _experiment(tmp_path, OFF + dup), out_root=tmp_path / "r", runs_root=tmp_path / "runs"
+        )
+
+
+@pytest.mark.parametrize(
+    ("fields", "match"),
+    [
+        ({"id": "causatrix:baro_rs"}, "needs overrides"),  # labelled baro_rs, would run the fused slate
+        ({"id": "causatrix:baro_rs", "overrides": {RANKERS_KEY: ["nsigma"]}}, "needs overrides"),
+        ({"id": "causatrix:baro_rs", "overrides": {RANKERS_KEY: ["baro_rs", "nsigma"]}}, "needs overrides"),
+        ({"overrides": {RANKERS_KEY: ["baro_rs"]}}, "drop causatrix.rankers.enabled"),  # causatrix:rrf
+        ({"id": "slate:baro_rs"}, "causatrix:rrf or causatrix:<ranker>"),
+    ],
+)
+def test_a_causatrix_id_must_name_what_runs(fields: dict[str, object], match: str) -> None:
+    with pytest.raises(ValidationError, match=match):
+        MethodSpec.model_validate({"id": "causatrix:rrf", "kind": "causatrix", "overrides": {}} | fields)
+
+
+def test_ranker_of_a_method() -> None:
+    one = MethodSpec.model_validate(
+        {"id": "causatrix:baro_rs", "kind": "causatrix", "overrides": {RANKERS_KEY: ["baro_rs"]}}
+    )
+    fused = MethodSpec.model_validate({"id": "causatrix:rrf", "kind": "causatrix"})
+    other = MethodSpec.model_validate({"id": "causatrix:baro_rs", "kind": "veyltrace"})  # not slate-scored
+    assert (one.ranker, fused.ranker, other.ranker) == ("baro_rs", None, None)
+
+
+def test_an_unknown_ranker_is_refused_before_the_first_case(tmp_path: Path) -> None:
+    assert cli.main(["data", "fetch", "synth"]) == 0
+    typo = BARO.replace("baro_rs", "baro_rz")  # id and override agree, but no such ranker
+    with pytest.raises(ConfigError, match=r"unknown rankers \['baro_rz'\]"):
+        runner.run_experiment(
+            _experiment(tmp_path, OFF + typo), out_root=tmp_path / "r", runs_root=tmp_path / "runs"
+        )
+    assert not (tmp_path / "runs").exists()
+
+
+def test_a_duplicate_is_refused_whatever_kind_ran_first(tmp_path: Path) -> None:
+    assert cli.main(["data", "fetch", "synth"]) == 0
+    dup = OFF.replace('"veyltrace:off"', '"veyltrace:again"')  # causatrix:rrf runs first, then two equal offs
+    with pytest.raises(ConfigError, match="reuses run"):
+        runner.run_experiment(
+            _experiment(tmp_path, RRF + OFF + dup), out_root=tmp_path / "r", runs_root=tmp_path / "runs"
         )
