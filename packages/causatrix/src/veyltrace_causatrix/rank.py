@@ -43,6 +43,14 @@ class RankResult:
         """Sorted names of the rankers that voted (slate.rankers_active)."""
         return tuple(v.ranker for v in self.votes if v.active)
 
+    def __hash__(self) -> int:
+        """Hash by content: `fused` and each vote's scores and ranks are mappings, so hash them sorted."""
+        votes = tuple(
+            (v.ranker, v.abstained, tuple(sorted(v.scores.items())), tuple(sorted(v.ranks.items())))
+            for v in self.votes
+        )
+        return hash((self.universe, votes, tuple(sorted(self.fused.items())), self.order))
+
 
 def fuse(votes: tuple[Vote, ...], universe: tuple[str, ...], cfg: CausatrixConfig) -> dict[str, float]:
     """F(s) = fsum over the active rankers of w_r / (rrf.k + rank_r(s)); 0.0 with no voter."""
