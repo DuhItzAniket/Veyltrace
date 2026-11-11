@@ -65,17 +65,14 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: veyllab
 nodes:
   - role: control-plane
-    image: kindest/node:<version>@sha256:<digest>      # pinned at X-02
-    extraMounts:
-      - hostPath: <spool dir visible to Docker Desktop>  # verify path form at X-02
-        containerPath: /veyllab/spool
+    image: kindest/node:<version>@sha256:<digest>      # pinned after the first live run
     extraPortMappings:
       - containerPort: 30080          # frontend NodePort
         hostPort: 8080
         listenAddress: "127.0.0.1"    # local only
 ```
 
-One node keeps memory down; k3d is an equivalent fallback if kind misbehaves ([bt §Q3][bt-q3]).
+One node keeps memory down; k3d is an equivalent fallback if kind misbehaves ([bt §Q3][bt-q3]). The Collector spool (`/veyllab/spool`) stays inside the node container and is copied out with `docker cp` at export, so no `extraMounts` host path is needed; image digests are recorded in every capture's `orchestrator.json` and copied into `lab/ob/pins.yaml` after the first live run ([ADR 20261109-cl-lab-ob-profile](adr/20261109-cl-lab-ob-profile.md)).
 
 ### 3.2 Application
 
@@ -175,6 +172,8 @@ Parameters are a priori defaults with two severity levels; every value used is w
 | F15 | Multi-fault | per root | two of F01, F04, F05 on two different services, overlapping | L1 each | both patterns | — |
 | F16 | Benign noise | — (added to another case) | 2-minute load spike (30 users) on the load generator | — | transient traffic change, no SLI breach expected | — |
 
+**Implemented** (X-06, `lab/vlab/faults.py`; [ADR 20261109-cl-lab-catalog-packager](adr/20261109-cl-lab-catalog-packager.md)): F01, F02, F04–F08, F11, F13. The indicator column above uses `family` names; answer keys use the 03 §1 `indicator` vocabulary (`errors` → `error`, F05's `net` → `error`). F09 is deferred: HTTPChaos has no request percentage, so 10% / 50% abort cannot be expressed.
+
 **Targets.** OB: the 10 application services plus `redis-cart` (F03, F13); `loadgenerator` is never a target. Default grid (a priori, following the notes): 5 target services × 9 fault types (F01, F02, F04–F09, F11) × 3 repetitions per severity schedule, plus ≈ 10% no-fault cases, ≈ 10% noisy cases and up to 20 multi-fault cases ([bt §Q5][bt-q5]). The plan file fixes the order from a recorded seed.
 
 ## 7. Change events
@@ -247,7 +246,7 @@ This is the layout [engines/01 §`veyllab`](engines/01-infralume.md) expects, to
 2. Move `k8sobjects` records and orchestrator change records from the logs into `events.jsonl` (§7); hash flag keys.
 3. Write the scrubbed OTLP files, `oracle_alert.json` (from the orchestrator's `t_inject`) and `capture.json`.
 4. Post-scan every packaged file for deny-listed tokens; any hit fails the run.
-5. Append the answer key to `lab/captures/answer_keys/<dataset>.parquet` ([03 §13.1](03-contracts.md#131-answer_key--key-case_id)), keyed by `case_id`; bench loads it from there.
+5. Merge the answer key into `${VEYLTRACE_DATA}/answer_keys/<dataset>.parquet`, the registry path of [03 §13.1](03-contracts.md#131-answer_key--key-case_id), keyed by `case_id`, through bench's `write_answer_keys` (core io: schema, unique `case_id`, refuses a git work tree); bench loads it from there. Every key carries all 03 §13.1 columns, null where unknown.
 
 **Release build** (`lab/release.py`, X-14): for each validated case, convert the packaged capture to canonical `telemetry.{metrics,logs,spans,events}` Parquet with Infralume's converter library `veyltrace_infralume.otlp` (Observe lane, O-07; the lab does not parse OTLP itself); assemble `cases/<case_id>/telemetry/*.parquet`, `answer_keys/answer_key.parquet` (including `validated` and `sli_impact_json`), `metadata/lab_metadata.parquet` (host spec, versions, skew) and `MANIFEST.json` (every file with SHA-256) in a staging folder under `lab/captures/release/`.
 
