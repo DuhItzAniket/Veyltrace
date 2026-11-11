@@ -1,4 +1,4 @@
-"""Golden tests of the anomaly atoms on hand-made inputs (06 §3.4, §7).
+"""Golden tests of the engine atoms on hand-made inputs (06 §3.4, §7).
 
 The synth anomalies stay empty until Anomara's detectors land, so the atom logic is pinned here.
 Each `fixtures/handmade/<case>/` holds `inputs.json` (contract name -> rows; "_" keys are comments),
@@ -56,7 +56,7 @@ def test_evidence_matches_the_handmade_golden(tmp_path: Path, case: str) -> None
 
 @pytest.fixture
 def anomaly_dir(tmp_path: Path) -> Path:
-    return _run_dir("anomaly-atoms", tmp_path)
+    return _run_dir("cpu-hog", tmp_path)
 
 
 def _evidence(run_dir: Path) -> list[dict[str, object]]:
@@ -69,7 +69,7 @@ def test_robust_z_atoms_recover_the_max_score_norm(anomaly_dir: Path) -> None:
     assert (metrics["atoms.internal_anomaly"], metrics["atoms.external_anomaly"]) == (6, 2)
     anomalies = io.read_table("anomalies", anomaly_dir).to_pylist()
     norm = {(r["series_id"], r["detector"]): r["score_norm"] for r in anomalies}
-    robust = [a for a in _evidence(anomaly_dir) if json.loads(str(a["args_json"]))["detector"] == "robust_z"]
+    robust = [a for a in _evidence(anomaly_dir) if '"detector":"robust_z"' in str(a["args_json"])]
     assert len(robust) == 6
     for atom in robust:
         refs = atom["refs"]
@@ -82,3 +82,25 @@ def test_external_graph_nodes_get_atoms_only_inside_the_universe(anomaly_dir: Pa
     assert "card-gateway.example" not in {a["candidate"] for a in _evidence(anomaly_dir)}
     run(_ctx(anomaly_dir, {"core.universe.include_external": True}))
     assert "card-gateway.example" in {a["candidate"] for a in _evidence(anomaly_dir)}
+
+
+def test_onset_and_propagation_values(anomaly_dir: Path) -> None:
+    # inputs.json _comment: aligned onsets checkout t_alert + 1 s, frontend + 15 s, payment + 43 s;
+    # t_onset = t_alert + 300 s; calls frontend -> checkout -> {payment, redis}.
+    run(_ctx(anomaly_dir))
+    got = {
+        (a["candidate"], json.loads(str(a["args_json"]))["scope"]): a["value"]
+        for a in _evidence(anomaly_dir)
+        if a["kind"] == "propagation"
+    }
+    assert got[("checkout", "anomalous")] == 0.5  # reaches frontend, not payment
+    assert got[("redis", "anomalous")] == 2 / 3 and got[("payment", "anomalous")] == 1.0
+    assert got[("payment", "path")] == 0.666666667 and got[("checkout", "path")] == 1.0  # rank 1 only
+    onset = {
+        (a["candidate"], str(a["args_json"])): a["value"]
+        for a in _evidence(anomaly_dir)
+        if a["kind"] == "onset_precedence"
+    }
+    assert onset[("checkout", '{"scope":"dependents","window":"onset"}')] == 1.0  # precedes frontend
+    assert onset[("payment", '{"scope":"dependents","window":"onset"}')] == 0.0  # later than both + 15 s
+    assert onset[("checkout", '{"scope":"self","window":"onset"}')] == -299_000.0
