@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pytest
 
-from veyltrace_causatrix.stub import STUB_NOTE
 from veyltrace_contracts import models
 from veyltrace_core import io
 from veyltrace_core.pipeline import run_case
@@ -33,13 +32,11 @@ def test_pipeline_through_causatrix(case: str, tmp_path: Path, monkeypatch: pyte
     assert summary.outcome == "ok", (summary.reason, summary.failed_step)
     result = next(r for r in summary.results if r.engine == "causatrix")
     assert result.status == "ok"
-    assert STUB_NOTE in result.notes
+    assert not any(n.startswith("stub: ") for n in result.notes)
     slate = io.read_model("slate", summary.run_dir, models.Slate, validate=True)
     manifest = io.read_model("case_manifest", summary.run_dir, models.CaseManifest)
     assert slate.case_id == manifest.case_id == summary.case_id
     services = {s.service for s in slate.all_scores}
     assert set(manifest.services) <= services  # every manifest service is in U
-    assert len(slate.candidates) == min(slate.k, len(services))
-    assert slate.rankers_active == []
-    # No ranker votes in the stub: nothing is scored, nothing is classified.
-    assert all(c.fused_score == 0.0 and c.mode == "unknown" for c in slate.candidates)
+    # 07 §3.1: no ranker voted -> empty slate; otherwise the top min(K, |U|) services.
+    assert len(slate.candidates) == (min(slate.k, len(services)) if slate.rankers_active else 0)

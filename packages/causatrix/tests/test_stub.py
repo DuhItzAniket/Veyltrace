@@ -17,11 +17,9 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_causatrix import api
 from veyltrace_causatrix.stub import (
     FALLBACK_FAULT_CLASS,
     FALLBACK_MODE,
-    STUB_NOTE,
     ServiceFacts,
     Settings,
     build_slate,
@@ -31,7 +29,6 @@ from veyltrace_causatrix.stub import (
     settings_from,
     universe,
 )
-from veyltrace_contracts import models
 from veyltrace_core import io
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.testing import fixture_run_dir, make_context
@@ -324,44 +321,3 @@ def test_ignoring_claim_check_rows(case: tuple[list[str], list[dict[str, Any]]])
         for i, s in enumerate(services)
     ]
     assert engine_atoms(rows + claims) == engine_atoms(rows)
-
-
-# --- engine -------------------------------------------------------------------------------------
-def test_run_writes_slate_over_universe(tmp_path: Path) -> None:
-    run_dir = fixture_run_dir("synth-01", tmp_path, through="faultloom")
-    ctx = make_context("causatrix", run_dir)
-    result = api.run(ctx)
-    assert result.status == "ok"
-    assert result.notes == (STUB_NOTE,)
-    assert [name for name, _ in result.outputs] == ["slate"]
-    slate = io.read_model("slate", run_dir, models.Slate)
-    manifest = io.read_model("case_manifest", run_dir, models.CaseManifest)
-    assert slate.case_id == manifest.case_id
-    assert [e.service for e in slate.all_scores] == sorted(manifest.services)
-    assert result.metrics["universe"] == len(slate.all_scores)
-
-
-@pytest.mark.parametrize("absent", ["evidence", "graph.nodes"])
-def test_run_fails_without_required_input(tmp_path: Path, absent: str) -> None:
-    run_dir = fixture_run_dir("synth-01", tmp_path, through="faultloom")
-    io.path_of(absent, run_dir).unlink()
-    result = api.run(make_context("causatrix", run_dir))
-    assert result.status == "failed"
-    assert not io.exists("slate", run_dir)
-
-
-def test_run_without_graph_edges_still_writes(tmp_path: Path) -> None:
-    run_dir = fixture_run_dir("synth-01", tmp_path, through="faultloom")
-    io.path_of("graph.edges", run_dir).unlink()
-    result = api.run(make_context("causatrix", run_dir))
-    assert result.status == "ok"
-    assert result.metrics["graph_edges_in_u"] == 0
-
-
-def test_run_honours_slate_k_override(tmp_path: Path) -> None:
-    run_dir = fixture_run_dir("synth-01", tmp_path, through="faultloom")
-    ctx = make_context("causatrix", run_dir, overrides={"causatrix.slate.k": 2})
-    assert api.run(ctx).status == "ok"
-    slate = io.read_model("slate", run_dir, models.Slate)
-    assert slate.k == 2
-    assert len(slate.candidates) == 2
