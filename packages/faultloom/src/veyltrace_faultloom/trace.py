@@ -87,6 +87,8 @@ def self_time_atoms(view: EvidenceInputs, quantile: str, min_total_ms: float) ->
     if quantile not in _QUANTILES:
         msg = f"faultloom.self_time.quantile must be one of {_QUANTILES}, got {quantile!r}"
         raise ConfigError(msg)
+    if not view.sources.traces:
+        return []
     base, inc = _rows(view, _BASE), _rows(view, _INC)
 
     ms = {
@@ -114,6 +116,8 @@ def edge_gap_atoms(view: EvidenceInputs, min_calls: int) -> list[Atom]:
 
     Qualifying: incident calls >= `min_calls` and a non-null gap in both windows.
     """
+    if not view.sources.traces:
+        return []
     pairs: dict[tuple[str, str], dict[str, EdgeStat]] = {}
     for e in view.edge_stats:
         pairs.setdefault((e.caller, e.callee), {})[e.window] = e

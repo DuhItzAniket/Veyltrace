@@ -14,6 +14,7 @@ from types import MappingProxyType
 from typing import Final
 
 from veyltrace_core.canonical import JSONLike
+from veyltrace_core.errors import ContractValidationError
 
 __all__ = ["KIND_SOURCES", "atom_sources"]
 
@@ -36,7 +37,9 @@ _SERIES_SEPARATORS: Final = 3
 def atom_sources(atom: Mapping[str, JSONLike]) -> frozenset[str]:
     """Sources of every series in `refs` plus the kind's tag; `peer_contrast{source: changes}` is events."""
     refs = atom["refs"]
-    listed = [str(r) for r in refs] if isinstance(refs, list | tuple) else []
+    if not isinstance(refs, list | tuple):
+        raise ContractValidationError("evidence", f"refs must be a list, got {type(refs).__name__}")
+    listed = [str(r) for r in refs]
     found = {r.rsplit("|", 1)[1] for r in listed if r.count("|") == _SERIES_SEPARATORS}
     kind = str(atom["kind"])
     if kind == "peer_contrast" and json.loads(str(atom["args_json"])).get("source") == "changes":
