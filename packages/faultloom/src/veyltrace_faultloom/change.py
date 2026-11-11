@@ -13,6 +13,7 @@ import math
 from collections.abc import Iterable, Mapping
 from typing import Final
 
+from veyltrace_core.errors import ConfigError
 from veyltrace_faultloom.atoms import Atom, engine_atom
 from veyltrace_faultloom.inputs import AnomalyRow, ChangeRow, EvidenceInputs, TemplateRow
 
@@ -24,8 +25,10 @@ _CLUSTER: Final = "cluster"
 
 
 def median(values: Iterable[float]) -> float:
-    """Median; an even count gives the mean of the two middle values after sorting (06 §3.4)."""
+    """Median (06 §3.4): an even count averages the sorted middle pair; no values is a ValueError."""
     xs = sorted(values)
+    if not xs:
+        raise ValueError("median of no values")
     mid = len(xs) // 2
     return xs[mid] if len(xs) % 2 else math.fsum(xs[mid - 1 : mid + 1]) / 2
 
@@ -70,7 +73,9 @@ def change_atoms(view: EvidenceInputs) -> list[Atom]:
 
 def peer_atoms(view: EvidenceInputs, min_components: int) -> list[Atom]:
     """`peer_contrast{anomalies}`: top component's max internal robust_z minus the median of the
-    other components' max, for services with >= `min_components` such components (06 §3.4)."""
+    other components' max, for services with >= `min_components` (at least 2) such components."""
+    if min_components < 2:
+        raise ConfigError(f"faultloom.peer.min_components must be >= 2, got {min_components}")
     per: dict[str, dict[str, list[AnomalyRow]]] = {}
     for r in view.anomalies:
         if r.klass == "internal" and r.detector == "robust_z":
