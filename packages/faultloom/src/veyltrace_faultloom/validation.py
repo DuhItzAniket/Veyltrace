@@ -68,9 +68,13 @@ def read_domain(ctx: RunContext) -> CaseDomain:
 
 
 def _number(value: object, kind: str, bounds: tuple[float, float]) -> float | int | None:
-    if isinstance(value, bool) or not isinstance(value, int | float) or not math.isfinite(value):
+    """Ints are compared with the bounds exactly (int/float comparison never converts), so a huge
+    JSON integer is out of range, never an OverflowError; only floats need the finite check."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    if (kind == "int" and not float(value).is_integer()) or not bounds[0] <= value <= bounds[1]:
+    if isinstance(value, float) and not (math.isfinite(value) and (kind == "float" or value.is_integer())):
+        return None
+    if not bounds[0] <= value <= bounds[1]:
         return None
     return int(value) if kind == "int" else float(value)
 
@@ -88,7 +92,10 @@ def validate(predicate_name: str, args: object, domain: CaseDomain) -> ValidClai
     for p in predicate.params:
         value = given[p.name]
         if p.type in ("float", "int"):
-            number = _number(value, p.type, domain.ranges[predicate_name][p.name])
+            bounds = domain.ranges.get(predicate_name, {}).get(p.name)
+            if bounds is None:  # a config override dropped the range: never a KeyError
+                return Rejection("bad_args", f"{predicate_name}.{p.name} has no configured range")
+            number = _number(value, p.type, bounds)
             if number is None:
                 return Rejection("bad_args", f"{predicate_name}.{p.name} = {value!r} is not a valid {p.type}")
             canonical[p.name] = number
