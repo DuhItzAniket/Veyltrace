@@ -22,17 +22,18 @@ CONTRACTS = ("case_manifest", *TELEMETRY_CONTRACTS.values())
 KEY = "re2ob_cartservice_cpu_1"  # the Hugging Face tree of conftest.py
 
 
-def _synth(case: str, run_dir: Path, **overrides: Any) -> models.CaseManifest:
+def _synth(case: str, run_dir: Path, **overrides: Any) -> tuple[models.CaseManifest, dict[str, Any]]:
     variant = VARIANTS.get(case)
     key = case if variant is None or variant.generator else variant.base_case  # update_golden's rule
     ctx = make_context(
         "infralume", run_dir, case_id=make_case_id(key),
         overrides={**(variant.overrides if variant else {}), **overrides},
     )  # fmt: skip
-    assert run(ctx).status == "ok"
+    result = run(ctx)
+    assert result.status == "ok"
     manifest = io.read_unredacted("case_manifest", run_dir)
     assert isinstance(manifest, models.CaseManifest)
-    return manifest
+    return manifest, dict(result.metrics)
 
 
 @pytest.mark.parametrize("case", CASES)
@@ -51,16 +52,17 @@ def test_matches_golden(tmp_path: Path, case: str) -> None:
      ("synth-01@events", "events")],
 )  # fmt: skip
 def test_single_source_variants(tmp_path: Path, variant: str, kept: str) -> None:
-    manifest = _synth(variant, tmp_path)
+    manifest, metrics = _synth(variant, tmp_path)
     assert {s for s, on in manifest.sources.model_dump().items() if on} == {kept}
     rows = {s: io.read_table(c, tmp_path).num_rows for s, c in TELEMETRY_CONTRACTS.items()}
     assert {("traces" if s == "spans" else s) for s, n in rows.items() if n} == {kept}
+    assert metrics == {f"rows_{s}": n for s, n in rows.items()}  # dropped sources report 0 rows
     if kept == "events":
         assert manifest.services == []  # event entities are not telemetry services (01 §3.8)
 
 
 def test_detected_protocol_blanks_the_hint(tmp_path: Path) -> None:
-    manifest = _synth("synth-01", tmp_path, **{"core.alert.protocol": "detected"})
+    manifest, _ = _synth("synth-01", tmp_path, **{"core.alert.protocol": "detected"})
     assert (manifest.t_alert_hint_ns, manifest.hint_source) == (None, "none")
 
 
