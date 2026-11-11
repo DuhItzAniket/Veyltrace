@@ -1,9 +1,11 @@
-"""Anomaly evidence atoms (R-06): `internal_anomaly` and `external_anomaly` (06 §3.4), stable ids.
+"""Evidence atom rows (03 §7) and the anomaly kinds `internal_anomaly`, `external_anomaly` (06 §3.4).
 
-Why: they carry Anomara's per-series scores to the rankers and the verifier. Anomara writes one row
-per series and detector even below threshold (03 §4.1), so healthy services get atoms too, which
-lets rankers order them. Every service in U is treated alike; nothing here ranks or drops one. The
-output depends only on the set of input rows, never on their order (06 §5).
+`engine_atom` builds every engine atom one way (stable id, canonical args, sorted refs), so the
+kind modules only compute values. Anomaly atoms carry Anomara's per-series scores to the rankers
+and the verifier. Anomara writes one row per series and detector even below threshold (03 §4.1),
+so healthy services get atoms too, which lets rankers order them. Every service in U is treated
+alike; nothing here ranks or drops one. The output depends only on the set of input rows, never
+on their order (06 §5).
 """
 
 from __future__ import annotations
@@ -11,15 +13,27 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable, Mapping
 from types import MappingProxyType
-from typing import Final
+from typing import Final, get_args
 
+from veyltrace_contracts.models import AtomKind
 from veyltrace_core.canonical import JSONLike, canonical_json_str
 from veyltrace_core.errors import ConfigError, ContractValidationError
 from veyltrace_core.ids import atom_id
 from veyltrace_faultloom import ALGO_VERSION
 from veyltrace_faultloom.inputs import AnomalyRow
 
-__all__ = ["ANOMALY_WINDOW", "KIND_OF_KLASS", "PRODUCER", "UNIT_OF_DETECTOR", "anomaly_atoms", "check_unique"]
+__all__ = [
+    "ANOMALY_WINDOW",
+    "KINDS",
+    "KIND_OF_KLASS",
+    "PRODUCER",
+    "UNIT_OF_DETECTOR",
+    "Atom",
+    "anomaly_atoms",
+    "check_unique",
+    "drop_disabled",
+    "engine_atom",
+]
 
 #: evidence.producer (03 §7); the algorithm revision, not the release, so goldens do not churn.
 PRODUCER: Final = f"faultloom@{ALGO_VERSION}"
@@ -33,6 +47,9 @@ UNIT_OF_DETECTOR: Final[Mapping[str, str]] = MappingProxyType(
 )
 #: Anomara scores every series over the incident window (03 §4.1, 06 §3.4).
 ANOMALY_WINDOW: Final = "incident"
+
+#: The 15 atom kinds of 03 §7, in contract order (the 06 §3.4 table order).
+KINDS: Final[tuple[str, ...]] = get_args(AtomKind)
 
 type Atom = dict[str, JSONLike]
 #: (kind, candidate, detector, family, source): one anomaly atom.
@@ -71,12 +88,18 @@ def anomaly_atoms(
     return atoms
 
 
-def _atom(key: _Key, group: list[AnomalyRow]) -> Atom:
-    kind, candidate, detector, family, source = key
-    value = max(r.score for r in group)
-    top = [r for r in group if r.score == value]
-    component = min(r.component for r in top)
-    args = {"detector": detector, "family": family, "source": source, "window": ANOMALY_WINDOW}
+def engine_atom(
+    kind: str,
+    candidate: str,
+    args: Mapping[str, JSONLike],
+    *,
+    value: float,
+    unit: str | None,
+    refs: Iterable[str],
+    component: str | None = None,
+) -> Atom:
+    """One `origin = engine` evidence row (06 §2.2): window = args["window"], refs sorted and unique,
+    a component equal to the candidate stored as null."""
     return {
         "atom_id": atom_id(kind, candidate, args),
         "candidate": candidate,
@@ -84,14 +107,40 @@ def _atom(key: _Key, group: list[AnomalyRow]) -> Atom:
         "kind": kind,
         "predicate": None,
         "args_json": canonical_json_str(args),
-        "value": value,
-        "unit": UNIT_OF_DETECTOR[detector],
-        "window": ANOMALY_WINDOW,
-        "refs": sorted({r.series_id for r in top}),
+        "value": float(value),
+        "unit": unit,
+        "window": args["window"],
+        "refs": sorted(set(refs)),
         "origin": "engine",
         "holds": None,
         "producer": PRODUCER,
     }
+
+
+def _atom(key: _Key, group: list[AnomalyRow]) -> Atom:
+    kind, candidate, detector, family, source = key
+    value = max(r.score for r in group)
+    top = [r for r in group if r.score == value]
+    args = {"detector": detector, "family": family, "source": source, "window": ANOMALY_WINDOW}
+    unit = UNIT_OF_DETECTOR[detector]
+    refs = (r.series_id for r in top)
+    return engine_atom(
+        kind, candidate, args, value=value, unit=unit, refs=refs, component=min(r.component for r in top)
+    )
+
+
+def drop_disabled(atoms: Iterable[Atom], disabled: Iterable[str]) -> list[Atom]:
+    """The atoms whose kind is not in `atoms.disabled` (06 §9 atom-kind drop ablation).
+
+    A name that is not one of the 15 kinds of 03 §7 is a ConfigError, so a typo never silently
+    keeps a channel on.
+    """
+    off = frozenset(disabled)
+    unknown = sorted(off - frozenset(KINDS))
+    if unknown:
+        msg = f"faultloom.atoms.disabled: {unknown} are not atom kinds (03 §7: {', '.join(KINDS)})"
+        raise ConfigError(msg)
+    return [a for a in atoms if a["kind"] not in off]
 
 
 def check_unique(atoms: Iterable[Atom]) -> None:
