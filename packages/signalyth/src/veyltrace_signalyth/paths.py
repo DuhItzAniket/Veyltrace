@@ -15,7 +15,7 @@ from typing import Any, Final
 import numpy as np
 
 from veyltrace_core import io
-from veyltrace_signalyth.spans import MS, Forest, TraceRules, sample_hash
+from veyltrace_signalyth.spans import MS, Forest, TraceRules, sample_hash, tree_roots
 
 __all__ = ["TracePath", "critical_path_rows", "edge_rows", "trace_paths", "walk"]
 
@@ -129,9 +129,7 @@ def trace_paths(
     n = f.size
     if n == 0:
         return []
-    top = np.where(f.parent >= 0, f.parent, np.arange(n))
-    while not np.array_equal(top[top], top):
-        top = top[top]
+    top = tree_roots(f.parent, f.trace, f.trace_ids)  # fails on a parent cycle, never loops
     tree = np.bincount(top, minlength=n)
     per_trace = np.bincount(f.trace)
     roots = np.nonzero(f.parent < 0)[0]

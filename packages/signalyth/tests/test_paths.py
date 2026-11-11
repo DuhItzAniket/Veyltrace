@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
+import numpy as np
 import pyarrow as pa
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from veyltrace_core.config import resolve_config
+from veyltrace_core.errors import ContractValidationError
 from veyltrace_signalyth.paths import critical_path_rows, edge_rows, trace_paths, walk
 from veyltrace_signalyth.spans import Forest, TraceRules, build_forest
 
@@ -107,6 +111,31 @@ def test_critical_path_table_and_slow_spectrum() -> None:
     assert abs(cols["cp_share_mean"][b_a] - 0.30) < 1e-9 and cols["traces_slow"][b_a] == 0
     assert (cols["traces_total"][i_c], cols["traces_slow"][i_c]) == (1, 1)
     assert (cols["traces"][i_b], cols["cp_self_ms_p50"][i_b], cols["cp_share_mean"][i_b]) == (0, 0.0, 0.0)
+
+
+def test_kindless_server_span_keeps_its_incoming_edge_and_path_share() -> None:
+    """RCAEval shape (every kind unspecified): fe calls co, co calls cur (review of #192)."""
+    rows = [
+        span("t", "fe", None, "fe", 0, 100, kind="unspecified"),
+        span("t", "co", "fe", "co", 10, 90, kind="unspecified"),
+        span("t", "cur", "co", "cur", 20, 22, kind="unspecified"),
+    ]
+    f = forest(rows)
+    cols = edge_rows(f, RULES, WINDOWS)
+    assert list(zip(cols["caller"], cols["callee"], strict=True)) == [("co", "cur"), ("fe", "co")]
+    (path,) = trace_paths(f, RULES, WINDOWS, "case")
+    assert {f.services[s]: v // MS for s, v in path.self_ns.items()} == {"fe": 20, "co": 78, "cur": 2}
+
+
+def test_parent_cycle_in_a_forest_fails_instead_of_hanging() -> None:
+    """build_forest already rejects cycles; trace_paths must not loop if handed one anyway."""
+    f = forest([span("t", "r", None, "a", 0, 100), *(span("t", s, "r", s, 10, 50) for s in ("x", "y", "z"))])
+    x, y, z = (list(f.span_ids).index(s) for s in ("x", "y", "z"))
+    parent = f.parent.copy()
+    parent[[x, y, z]] = [z, x, y]  # a cross-service 3-cycle: odd, so doubling never settles
+    cyclic = dataclasses.replace(f, parent=np.asarray(parent))
+    with pytest.raises(ContractValidationError, match="cycle in trace 't'"):
+        trace_paths(cyclic, RULES, WINDOWS, "case")
 
 
 @st.composite

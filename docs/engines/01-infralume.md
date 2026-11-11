@@ -132,7 +132,7 @@ Rules version `scrub.rules_version` (default `scrub-1`); counts go to `case_mani
 | Deny-listed attribute keys: key starts with `feature_flag.`, or any dot-separated key segment matches `chaos*`, `fault*`, `inject*` (case-insensitive) | `attrs_json`, `detail_json`, OTLP resource and span attributes | drop the attribute; count `dropped_attributes` |
 | Fault-tool services: `flagd`, `flagd-ui`, Chaos Mesh components (`scrub.drop_services`) | all telemetry rows | drop rows; count `dropped_rows` |
 | Chaos objects in events (any detail key or value containing `chaos`, case-insensitive) | events | drop row |
-| Folder tokens: canonical case key, original relative path, original directory names, capture id | every string column and JSON value | replace by `<case>` |
+| Folder tokens: canonical case key, original relative path, original directory names, capture id | every string column and JSON value, attribute keys included | replace by `<case>`; a service or pod name that holds one rejects the case (`invalid_name`), since `<case>` makes no valid name |
 | Flag-change events (`kind = flag`) | events | keep; any flag key in `detail_json` that is not already an 8-hex digest is replaced by the first 8 hex of its SHA-256, the same rule the lab packager applies ([05 §7](../05-fault-lab-and-dataset.md)); kept as decided in [02 §6.1](../02-architecture.md) |
 
 Log bodies are not rewritten except for folder tokens: rewriting words like "fault" would destroy legitimate evidence.
@@ -286,7 +286,7 @@ Isolation: the fetcher needs HTTP, which engines 1–7 must not import (AGENTS �
 
 ## 8. Performance budget
 
-Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocation from the 30 s / 3 GB budget). Convert (excluded from the budget) ≤ 10 s (O-01 criterion). RE2-TT is the stress case: median ≈ 778k spans, max 1.54 M ([rcaeval_facts §Metric step and windows][rf-step]); read traces with column pruning, never pandas `read_csv` of the whole file. Built (O-01): the pyarrow Parquet/CSV readers prune columns and the conversion is vectorised Arrow/NumPy, about 1 s per RE2-OB case; DuckDB is not needed for ingest.
+Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocation from the 30 s / 3 GB budget). Convert (excluded from the budget) ≤ 10 s (O-01 criterion). RE2-TT is the stress case: median ≈ 778k spans, max 1.54 M ([rcaeval_facts §Metric step and windows][rf-step]); read traces with column pruning, never pandas `read_csv` of the whole file. Built (O-01): the pyarrow Parquet/CSV readers prune columns and the conversion is vectorised Arrow/NumPy; DuckDB is not needed for ingest. Measured with `scripts/observe/ingest_check.py --expect-cases 90` on all 270 RE2 cases (one 16 GB Windows laptop, 2026-11-09; the time includes resolve and the contract encode, so it bounds convert from above): median 2.43 s (max 2.75 s) for RE2-OB, 0.48 s (max 0.60 s) for RE2-SS, 5.04 s (max 7.84 s) for RE2-TT.
 
 ## 9. Evaluation hooks and ablations
 

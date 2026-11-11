@@ -25,6 +25,12 @@ type Vec = np.ndarray[Any, Any]
 NS: Final = 1_000_000_000
 #: Latency units → factor to ms (02 §3.2 step 2).
 _TO_MS: Final = {"s": 1000.0, "ms": 1.0, "us": 0.001, "\u00b5s": 0.001}
+#: Memory units → factor to bytes (02 §3.2 step 2; SI prefixes are powers of 10, IEC of 2). A
+#: memory series in any other unit (a percentage, an unknown or missing unit) keeps its unit.
+_TO_BYTES: Final = {
+    "b": 1.0, "byte": 1.0, "bytes": 1.0, "kb": 1e3, "mb": 1e6, "gb": 1e9,
+    "kib": 2.0**10, "mib": 2.0**20, "gib": 2.0**30,
+}  # fmt: skip
 _SANITISE: Final = re.compile(r"[|\s]")
 #: A quantile in a name: `quantile="0.99"`, `-50`, `_p99`, `p90` (02 §3.2 rule 5).
 _QUANTILE: Final = re.compile(r'quantile="?(0?\.\d+)|(?:[-_]p?|\bp)(\d{2,3})(?!\d)')
@@ -108,11 +114,16 @@ class MetricRules:
                 return rule
         raise ValueError(f"no metrics.family_rules entry matches {name!r}; the table needs a catch-all")
 
+    def is_named_counter(self, name: str) -> bool:
+        """A counter by name (`metrics.counter_name_patterns`): monotone by contract, so any
+        decrease is a reset (Prometheus semantics)."""
+        return any(p.search(name) for p in self.counters.name_patterns)
+
     def is_counter(self, name: str, family: str, values: Vec) -> bool:
         """Name rule, else the shape test: ≥ 0, enough increases, ≥ 99 % of changes increases
         (a drop below `reset_ratio` of the previous value is a reset, not a decrease)."""
         c = self.counters
-        if any(p.search(name) for p in c.name_patterns):
+        if self.is_named_counter(name):
             return True
         if not c.shape_test or family in c.exclude_families or values.size < 2 or bool((values < 0).any()):
             return False
@@ -122,12 +133,15 @@ class MetricRules:
         return increases >= c.min_increases and increases >= c.min_increase_share * (increases + decreases)
 
 
-def _rate(t_ns: Vec, values: Vec) -> tuple[Vec, Vec]:
-    """Per-second rate between consecutive points, at the later point; a reset (a drop) counts
-    the new value from zero (Prometheus semantics); the first point has no rate."""
+def _rate(t_ns: Vec, values: Vec, reset_ratio: float) -> tuple[Vec, Vec]:
+    """Per-second rate between consecutive points, at the later point; the first point has no
+    rate. A reset, a drop below `reset_ratio` of the previous value, counts the new value from
+    zero; any other step is `(v2 - v1) / dt` (02 §3.2 step 3). Named counters pass 1.0 (every
+    decrease is a reset); shape counters pass `counter_shape.reset_ratio`, so the small dips the
+    shape test admits stay small steps instead of becoming spikes."""
     dt = np.diff(t_ns).astype(np.float64) / NS
-    dv = np.diff(values)
-    rate = np.where(dv < 0, values[1:], dv) / dt
+    reset = values[1:] < reset_ratio * values[:-1]
+    rate = np.where(reset, values[1:], np.diff(values)) / dt
     return t_ns[1:], rate
 
 
@@ -160,10 +174,10 @@ def metric_series(metrics: pa.Table, rules: MetricRules) -> dict[str, list[Any]]
         t, v, unit = t_all[a:b], v_all[a:b], cast("str | None", units[a])
         if rule.family == "latency" and unit is not None and unit.lower() in _TO_MS:
             v, unit = v * _TO_MS[unit.lower()], "ms"
-        if rule.family == "mem":
-            unit = "bytes"
+        if rule.family == "mem" and unit is not None and unit.lower() in _TO_BYTES:
+            v, unit = v * _TO_BYTES[unit.lower()], "bytes"
         if rules.is_counter(name, rule.family, v):
-            t, v = _rate(t, v)
+            t, v = _rate(t, v, 1.0 if rules.is_named_counter(name) else rules.counters.reset_ratio)
             unit = f"{unit}/s" if unit else "1/s"
         n = int(t.size)
         for key, value in (
