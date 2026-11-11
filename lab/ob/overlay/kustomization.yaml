@@ -1,0 +1,41 @@
+# Online Boutique v0.10.7 overlay (05 §3.2): NodePort frontend, load-generator settings, tracing.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: veyllab-app
+resources:
+  - namespace.yaml
+  - ../upstream
+patches:
+  - path: frontend-nodeport.yaml
+  - path: loadgenerator.yaml
+  # Every OB application Deployment names its container `server`; loadgenerator (`main`) and
+  # redis-cart (`redis`) are left alone.
+  - path: tracing.yaml
+    target:
+      kind: Deployment
+      name: "^(adservice|cartservice|checkoutservice|currencyservice|emailservice|frontend|paymentservice|productcatalogservice|recommendationservice|shippingservice)$"
+images:  # digests recorded by the first live capture, 2026-11-09 (ADR 20261109-cl-lab-ob-profile)
+  - name: redis
+    digest: sha256:71885d8cc6e42f2bc0aa2eb853bfc4be200b5108a46ac50e117ae1df0531fb80
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/adservice
+    digest: sha256:7b26b5ea1a6472ca62b3c20c6f6ac12dd1fbcf18ba596a2c174982bcccdfc0c8
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/cartservice
+    digest: sha256:e5310c2aa45732e351c55c88051700d958dc7ed2693e66405fc6c70cf080109e
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/checkoutservice
+    digest: sha256:f0e72ff7b438dd2e8776fb142d5132cfa5ba02c523466f1491270c576412d33f
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/currencyservice
+    digest: sha256:c581681bbf9abec8563e520aac3f3dbe3e7498853b6eb263193bc80c87e42f74
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/emailservice
+    digest: sha256:1142813191b50f7e74bd1d8957d3b272496e9648b745d2c9914752b94356eade
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/frontend
+    digest: sha256:e1cbd4561d3c9d27497dc0e8b1c12da194c4bf2ea82648f58bf38f073698f483
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/loadgenerator
+    digest: sha256:f86f07c0da48bc00e7843e060b6811b56b1ad8a184d3962f5e80e15f42370cc8
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/paymentservice
+    digest: sha256:e1ff27c553f7e0c31f4a10f1950ec0ee34cd41d77dd819b1fcfa139273891602
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/productcatalogservice
+    digest: sha256:ba573405e9b03ea29970185eeaf0a9de9db7400b9104695e39d4dfc0fb651cb5
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/recommendationservice
+    digest: sha256:69291992f5511e9199d08c24a3ceb6470b39461933304fbdad1c7ddfc7358fd9
+  - name: us-central1-docker.pkg.dev/online-boutique-ci/microservices-demo/shippingservice
+    digest: sha256:3984397422ef1b45bd8a7c6736f935f4b6a41a1724ea39f9563b26733ed633e4

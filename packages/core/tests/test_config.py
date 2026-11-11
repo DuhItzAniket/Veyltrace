@@ -627,8 +627,9 @@ def test_find_config_dir_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPat
 
 
 def test_load_section_file(cfg_dir: Path) -> None:
-    gateway = load_section_file("gateway", config_dir=cfg_dir)
-    assert dict(gateway) == {}
+    append_yaml(cfg_dir, "gateway", "zz_section_probe: {port: 1}\n")  # a key no lane defines
+    gateway = load_section_file("gateway", config_dir=cfg_dir)  # the Explain lane fills it (06 §6)
+    assert set(gateway) == _top_keys(cfg_dir, "gateway") and gateway["zz_section_probe"]["port"] == 1
     core = load_section_file("core", config_dir=cfg_dir)
     assert core["paths"]["runs"] == "runs" and "data" not in core["paths"]  # no dead keys
     with pytest.raises(ConfigError):
