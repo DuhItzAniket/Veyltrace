@@ -1,12 +1,15 @@
 """Convert every fetched case of RCAEval suites through the `rcaeval` adapter (O-01 acceptance).
 
-Usage: `uv run python scripts/observe/ingest_check.py re2-ob re2-ss re2-tt [--budget-s 10]`
+Usage: `uv run python scripts/observe/ingest_check.py re2-ob re2-ss re2-tt [--expect-cases 90]
+[--budget-s 10]`
 
-For each case of each suite's private index under `${VEYLTRACE_DATA}`: convert (no cache, so the
-time is the convert time of 01 §3.1), check the tables against their contracts, and record the
-time, row counts and sources. Prints one line per suite and every failure; exits 1 if any case
-fails or exceeds the budget (O-01: "all RE2 cases ingest; ≤ 10 s/case"). Case ids only: the
-canonical names stay inside the adapter.
+For each case of each suite's private index under `${VEYLTRACE_DATA}`: resolve and convert it (no
+cache), encode the tables against their contracts, and record the time, row counts and sources.
+The time covers resolve, convert and encode, so it is an upper bound on the 01 §3.1 convert time.
+Prints one line per suite and every failure; exits 1 if any case fails or exceeds the budget, if a
+suite has no fetched case, or if `--expect-cases` is given and a suite has another number (O-01:
+"all RE2 cases ingest; ≤ 10 s/case"; RE2 has 90 cases per system). Case ids only: the canonical
+names stay inside the adapter.
 """
 
 from __future__ import annotations
@@ -26,11 +29,15 @@ from veyltrace_infralume.cache import full_table
 DEFAULT_BUDGET_S = 10.0  # O-01 acceptance criterion
 
 
-def check_suite(suite: str, budget_s: float) -> list[str]:
-    """Convert every case of `suite`; returns the failure lines (empty when all pass)."""
+def check_suite(suite: str, budget_s: float, expect: int | None = None) -> list[str]:
+    """Convert every case of `suite`; returns the failure lines (empty when all pass). A suite
+    with no fetched case fails, so the check never passes on missing data."""
     cfg = resolve_config({}, ai_mode="off").engine("infralume")
     adapter, root = RcaevalAdapter(), data_root()
     ids = adapter.list_cases(suite, root)
+    if not ids:
+        print(f"{suite}: 0 cases")
+        return [f"{suite}: no fetched case (run `veyltrace data fetch rcaeval --suite {suite}` first)"]
     times: list[float] = []
     rows = {source: 0 for source in TELEMETRY_CONTRACTS}
     no_traces = 0
@@ -59,6 +66,8 @@ def check_suite(suite: str, budget_s: float) -> list[str]:
         )
     else:
         print(f"{suite}: {len(ids)} cases, none converted")
+    if expect is not None and len(ids) != expect:
+        failures.append(f"{suite}: {len(ids)} cases fetched, expected {expect}")
     return failures
 
 
@@ -66,11 +75,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Convert every fetched case of RCAEval suites (O-01 check).")
     parser.add_argument("suites", nargs="+", help="RCAEval suites, e.g. re2-ob re2-ss re2-tt")
     parser.add_argument("--budget-s", type=float, default=DEFAULT_BUDGET_S)
+    parser.add_argument("--expect-cases", type=int, default=None, help="cases each suite must have (RE2: 90)")
     args = parser.parse_args(argv)
-    failures = [line for suite in args.suites for line in check_suite(suite, args.budget_s)]
+    failures = [
+        line for suite in args.suites for line in check_suite(suite, args.budget_s, args.expect_cases)
+    ]
     for line in failures:
         print(f"FAIL {line}", file=sys.stderr)
-    print("OK ingest" if not failures else f"FAIL ingest ({len(failures)} case(s))")
+    print("OK ingest" if not failures else f"FAIL ingest ({len(failures)} failure(s))")
     return 1 if failures else 0
 
 

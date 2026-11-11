@@ -286,7 +286,7 @@ Isolation: the fetcher needs HTTP, which engines 1–7 must not import (AGENTS �
 
 ## 8. Performance budget
 
-Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocation from the 30 s / 3 GB budget). Convert (excluded from the budget) ≤ 10 s (O-01 criterion). RE2-TT is the stress case: median ≈ 778k spans, max 1.54 M ([rcaeval_facts §Metric step and windows][rf-step]); read traces with column pruning, never pandas `read_csv` of the whole file. Built (O-01): the pyarrow Parquet/CSV readers prune columns and the conversion is vectorised Arrow/NumPy, about 1 s per RE2-OB case; DuckDB is not needed for ingest.
+Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocation from the 30 s / 3 GB budget). Convert (excluded from the budget) ≤ 10 s (O-01 criterion). RE2-TT is the stress case: median ≈ 778k spans, max 1.54 M ([rcaeval_facts §Metric step and windows][rf-step]); read traces with column pruning, never pandas `read_csv` of the whole file. Built (O-01): the pyarrow Parquet/CSV readers prune columns and the conversion is vectorised Arrow/NumPy; DuckDB is not needed for ingest. Measured with `scripts/observe/ingest_check.py --expect-cases 90` on all 270 RE2 cases (one 16 GB Windows laptop, 2026-11-09; the time includes resolve and the contract encode, so it bounds convert from above): median 2.43 s (max 2.75 s) for RE2-OB, 0.48 s (max 0.60 s) for RE2-SS, 5.04 s (max 7.84 s) for RE2-TT.
 
 ## 9. Evaluation hooks and ablations
 
