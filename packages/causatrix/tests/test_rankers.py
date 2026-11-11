@@ -53,6 +53,16 @@ def test_competition_ranks_share_ties_after_rounding_to_1e12() -> None:
     assert competition_ranks({}) == {}
 
 
+@given(st.dictionaries(st.sampled_from("abcdefgh"), st.floats(-1e6, 1e6, allow_nan=False), max_size=8))
+def test_competition_ranks_count_the_strictly_better(scores: dict[str, float]) -> None:
+    # 07 §3.1 step 3: rank = 1 + |{t : q(t) > q(s)}|, q = round(·, 12); ties share the best rank.
+    ranks = competition_ranks(scores)
+    q = {s: round(x, 12) for s, x in scores.items()}
+    assert ranks == {s: 1 + sum(1 for t in q if q[t] > q[s]) for s in q}
+    assert all(1 <= r <= len(scores) for r in ranks.values())
+    assert competition_ranks(dict(reversed(list(scores.items())))) == ranks  # input order never matters
+
+
 def test_worked_example_scores_and_ranks() -> None:
     prism = vote(load_ranker("prism_m"), _view(EXAMPLE), GRAPH, NO_EVENTS, CFG)
     expected = {"checkout": 16.955, "currency": 4.485, "frontend": 12.415, "payment": 0.770}
