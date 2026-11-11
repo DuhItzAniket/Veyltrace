@@ -242,7 +242,8 @@ class EvidenceInputs:
     by the contract key (series_id, detector). `onsets` holds the aligned per-service onsets
     (sorted by service), `edges` and `paths` the graph rows (sorted by key) and `k_anom` is core
     `thresholds.anomaly_z` (06 §2.1). `components` is the component map (service -> components in
-    signal_cube.series); `changes`, `templates`, `critical_path` and `edge_stats` (signal_cube.edges)
+    signal_cube.series), `signals` every series signal (the `signal` param domain, 06 §3.5);
+    `changes`, `templates`, `critical_path` and `edge_stats` (signal_cube.edges)
     are sorted by their contract keys.
     """
 
@@ -266,6 +267,7 @@ class EvidenceInputs:
     edges: tuple[CallEdge, ...]
     paths: tuple[PathRow, ...]
     components: Mapping[str, frozenset[str]]
+    signals: frozenset[str]
     changes: tuple[ChangeRow, ...]
     templates: tuple[TemplateRow, ...]
     critical_path: tuple[CriticalPathRow, ...]
@@ -460,6 +462,7 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         edges=_edges(ctx),
         paths=_paths(ctx),
         components={s: frozenset(c for t, c in pairs if t == s) for s in sorted({s for s, _ in pairs})},
+        signals=frozenset(str(r["signal"]) for r in found.get("signal_cube.series", [])),
         changes=tuple(sorted(changes, key=lambda c: (c.entity, c.change_id))),
         templates=tuple(sorted(templates, key=lambda t: (t.service, t.template_id))),
         critical_path=_critical_path(found.get("signal_cube.critical_path", [])),
