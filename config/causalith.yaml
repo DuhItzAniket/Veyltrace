@@ -1,9 +1,22 @@
 # config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
-# Spec: docs/engines/05-causalith.md §4. R-02 bootstrap: only the keys core needs now; the Observe
-# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
+# Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with O-04b);
+# the rest come with O-05. Overrides must name keys present here (packages/core/README.md:
 # unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
   threads: 1             # determinism (05-causalith §4)
   memory_limit: "2GB"    # 05-causalith states no value: lead default (a priori)
+
+entry:
+  # Shared entry-service rule (05-causalith §3.3), also read by Anomara (run() and detect_alert).
+  # Per-system entry hints: a priori architecture knowledge, not fault labels (05 §4; RCAEval TT has
+  # ts-ui-dashboard_istio-latency-90, rcaeval_facts §Dataset layout). Names are checked on RE2 data
+  # at O-05 and change only by ADR (05 §11 Q6). Systems without a hint (other) use call pairs.
+  hints:
+    ob: [frontend]
+    ss: [front-end]
+    tt: [ts-ui-dashboard]
+    otel: [frontend-proxy]
+  # Traffic sources are not entries (05 §4): their calls do not make a service a callee.
+  exclude: [load-generator, loadgenerator, locust]
