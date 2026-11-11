@@ -65,9 +65,32 @@ ErrorKind = Literal["connection", "timeout", "http", "bad_response", "unscripted
 ERROR_KINDS: Final[tuple[str, ...]] = get_args(ErrorKind)
 
 
+#: Any run of CRs before a LF is one line break (D1 (a) on #227). Idempotent, so normalising
+#: twice keeps the key: "a\r\r\nb" becomes "a\nb", not "a\r\nb".
+_CRLF_RE: Final = re.compile(r"\r+\n")
+
+
 def _lf(text: str) -> str:
-    """CRLF → LF, so a Windows checkout hashes prompts identically (08 §3.5)."""
-    return text.replace("\r\n", "\n")
+    """CR…CRLF → LF, so a Windows checkout hashes prompts identically (08 §3.5)."""
+    return _CRLF_RE.sub("\n", text)
+
+
+def _freeze(value: Any) -> Any:
+    """A read-only view of plain JSON: mappings become MappingProxyType, lists tuples, at every depth."""
+    if isinstance(value, dict):
+        return MappingProxyType({k: _freeze(v) for k, v in cast(dict[str, Any], value).items()})
+    if isinstance(value, list):
+        return tuple(_freeze(v) for v in cast(list[Any], value))
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    """The inverse of _freeze: a fresh plain-JSON copy the caller may change."""
+    if isinstance(value, MappingProxyType):
+        return {k: _thaw(v) for k, v in cast(Mapping[str, Any], value).items()}
+    if isinstance(value, tuple):
+        return [_thaw(v) for v in cast(tuple[Any, ...], value)]
+    return value
 
 
 @dataclass(frozen=True)
@@ -161,9 +184,13 @@ class LLMRequest:
         object.__setattr__(self, "messages", messages)
         object.__setattr__(self, "params", MappingProxyType(_check_params(self.params)))
         if self.schema is not None:
-            # A plain-JSON private copy: rejects non-JSON values early; later edits cannot move the key.
-            frozen = cast(dict[str, Any], normalize(dict(self.schema)))
-            object.__setattr__(self, "schema", MappingProxyType(frozen))
+            # A deep read-only copy of the plain JSON: rejects non-JSON values early, and no edit of
+            # the caller's dict, or of this view at any depth, can move the key.
+            object.__setattr__(self, "schema", _freeze(normalize(dict(self.schema))))
+
+    def schema_json(self) -> dict[str, Any] | None:
+        """A fresh plain-dict copy of the schema, for a provider body (editing it changes nothing)."""
+        return None if self.schema is None else cast(dict[str, Any], _thaw(self.schema))
 
     def canonical(self) -> dict[str, Any]:
         """The JSON object whose canonical bytes are hashed into the key."""
@@ -172,7 +199,7 @@ class LLMRequest:
             "purpose": self.purpose,
             "model": self.model.as_json(),
             "messages": [m.as_json() for m in self.messages],
-            "schema": None if self.schema is None else dict(self.schema),
+            "schema": self.schema_json(),
             "params": dict(self.params),
         }
 
