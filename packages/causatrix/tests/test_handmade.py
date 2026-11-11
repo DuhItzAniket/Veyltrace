@@ -60,6 +60,7 @@ def test_slate_matches_the_handmade_golden(tmp_path: Path, case: str) -> None:
 
 def test_worked_example_reproduces_07_3_7(tmp_path: Path) -> None:
     slate = _slate("worked-example", tmp_path, {"causatrix.slate.k": 2})
+    assert slate.k == 2  # the slate.k override (the synth slate is empty, so it is checked here)
     assert slate.rankers_active == ["baro_rs", "cp_sbfl", "graph_walk", "nsigma", "prism_m"]
     first, second = slate.candidates
     assert (first.service, first.mode, first.fault_class, first.indicator) == (
