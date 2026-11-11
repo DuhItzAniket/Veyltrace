@@ -600,12 +600,20 @@ def _module_import_problems(package: str, mod: SourceModule, allowed: tuple[str,
     return problems
 
 
+def _allow_entry_deny(package: str) -> tuple[str, ...]:
+    """What a package's allow-list may never name: the bans `_banned_imports` applies to its source.
+    The gateway is a server (network allowed), so only its own bans hold there (check_ci §3.3)."""
+    if package == "gateway":
+        return PACKAGE_DENY.get(package, ())
+    return (*_deny_for(package), *AST_EXTRA_BANNED)
+
+
 def _import_violations(package: str) -> list[str]:
     allow = _allow_list(package)
     allowed = (*_first_party_allowed(package), *allow)
     problems: list[str] = []
     for entry in allow:
-        if entry in _deny_for(package) or entry in AST_EXTRA_BANNED or _matches(entry, CORE_PRIVATE):
+        if entry in _allow_entry_deny(package) or _matches(entry, CORE_PRIVATE):
             problems.append(
                 f"packages/{package}/pyproject.toml: allow-list entry {entry!r} is on the lead's deny-list"
             )
@@ -892,6 +900,14 @@ def test_fetcher_targets_allow_their_own_modules() -> None:
     assert not _matches("urllib.request", deny)
     assert _matches("ssl", deny) and _matches("veyltrace_llm", deny)
     assert _matches("veyltrace_infralume.fetch.rcaeval", _deny_for("infralume"))
+
+
+def test_allow_list_entries_follow_the_package_bans() -> None:
+    """The gateway may allow-list its server stack; every other package still may not (#98)."""
+    assert {"fastapi", "starlette", "uvicorn"}.isdisjoint(_allow_entry_deny("gateway"))
+    assert {"kubernetes", "docker"} <= set(_allow_entry_deny("gateway"))
+    for package in ("anomara", "core", "relentra"):
+        assert {"fastapi", "uvicorn", "ssl", "socket"} <= set(_allow_entry_deny(package)), package
 
 
 def test_modules_under_src_tests_are_scanned() -> None:

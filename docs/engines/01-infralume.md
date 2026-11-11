@@ -207,7 +207,7 @@ All three come from config, so they change the config hash and therefore `run_id
 
 ### 3.11 Dataset fetcher
 
-`veyltrace data fetch <dataset> [--suite re2-ob] [--source hf|zenodo] [--cases N]` downloads into `${VEYLTRACE_DATA}` (default `~/veyltrace-data`; the fetcher refuses a target inside the git work tree, so data cannot be committed and nothing lands under `bench/` or `lab/`) and writes `${VEYLTRACE_DATA}/index/<dataset>.json` plus a `fetch.lock.json` with the SHA-256 and size of every file.
+`veyltrace data fetch <dataset> [--suite re2-ob] [--source hf|zenodo] [--cases N]` downloads into `${VEYLTRACE_DATA}` (default `~/veyltrace-data`; the fetcher refuses a target inside the git work tree, so data cannot be committed and nothing lands under `bench/` or `lab/`) and writes `${VEYLTRACE_DATA}/index/<dataset>.json` plus a `fetch.lock.json` with the SHA-256 and size of every file. Built (O-01b2): Hugging Face cases land in `rcaeval/hf/<case>/` (allow-listed files and `inject_time.txt` only; `root_cause.txt` is not fetched), the lock is `rcaeval/fetch.lock.json`, each file is checked against the tree API's size and LFS SHA-256 (git blob id for plain files); `--source zenodo` is a usage error until a follow-up adds it.
 
 | Dataset | Source (from [rcaeval_facts §Downloads and licence][rf-downloads], [benchmarks_and_testbed §Q1][bt]) | Size |
 |---|---|---|
