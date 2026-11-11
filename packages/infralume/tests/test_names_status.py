@@ -46,6 +46,8 @@ def test_normalise_steps() -> None:
     assert SS.normalise("frontendservice") == Normalised("frontendservice", "frontendservice")  # OB only
     assert SS.normalise("carts-db") == Normalised("carts", "carts-db")
     assert SS.normalise("user_db") == Normalised("user", "user-db")  # steps 4-6 to a fixed point
+    # an alias that applies only after folding keeps the original as component (step 5; #233)
+    assert OB.normalise("frontendservice-db") == Normalised("frontend", "frontendservice-db")
     assert OB.normalise("cartservice-6f9c7b5d4c-x2kqz", pod=True) == Normalised(
         "cartservice", "cartservice-6f9c7b5d4c-x2kqz"
     )
