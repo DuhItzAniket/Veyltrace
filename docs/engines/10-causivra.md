@@ -180,10 +180,12 @@ Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `C
 | `PB-CPU-01` | `cpu` | compare CPU use with the limit and check throttling on {ROOT}; compare replicas; look for a deploy, config or traffic change; consider scaling out or raising the limit after review |
 | `PB-MEM-01` | `mem` | compare memory with the limit; check restarts and OOM-kill events; look for steady growth (leak); consider restart or rollback after review |
 | `PB-DISK-01` | `disk` | check I/O latency and volume usage on {ROOT.component}; check node disk pressure; look for noisy neighbours |
+| `PB-SOCK-01` | `socket` | compare open connections and sockets on {ROOT.component} with its limits; check connection pool use and waits in callers; look for connections opened but never closed (leak); consider raising connection limits or a restart after review |
 | `PB-DELAY-01` | `delay` | compare caller-observed and callee-side latency on edges of {ROOT} (edge gap); check network policy and node networking; check DNS |
 | `PB-LOSS-01` | `loss` | check connection errors, resets and retries on {ROOT}; check CNI and node interface health; review retry and timeout settings |
 | `PB-ERROR-01` | `error` | inspect error-level log templates new in the incident on {ROOT}; break errors down by operation and status code; check restarts and readiness |
 | `PB-EXC-01` | `exception` | inspect exception records and stack traces on {ROOT}; map them to the code path; check the latest code deploy |
+| `PB-AVAIL-01` | `availability` | check pod restarts, terminations and exit reasons of {ROOT}; check readiness and liveness probes; check scheduling and eviction events on the node of {ROOT.component}; check whether callers retried or failed over |
 | `PB-CONFIG-01` | `config` | diff the latest config or flag change on {ROOT} against the previous version; consider reverting after review |
 | `PB-DEP-01` | `dependency` | check the datastore or cache used by {ROOT}: latency, connections, locks; compare callers of the dependency |
 | `PB-UNK-01` | `unknown` | review the evidence table; collect the telemetry listed under asks |

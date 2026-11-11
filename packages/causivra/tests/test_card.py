@@ -46,8 +46,16 @@ def _with(verdict: models.Verdict, **root: Any) -> models.Verdict:
 def test_playbooks_file_is_valid_and_covers_every_fault_class() -> None:
     playbooks = load_playbooks()
     covered = {c for p in playbooks.values() for c in p.fault_classes}
-    assert covered <= set(get_args(models.FaultClass))
-    assert set(get_args(models.FaultClass)) - covered == {"socket", "availability"}  # fall back to PB-UNK-01
+    assert covered == set(get_args(models.FaultClass))  # 02 §6.10: a playbook per fault class
+    owners = [c for p in playbooks.values() for c in p.fault_classes]
+    assert len(owners) == len(set(owners))  # no class is claimed twice
+
+
+@pytest.mark.parametrize("fault_class", sorted(get_args(models.FaultClass)))
+def test_every_fault_class_selects_its_own_playbook(make_verdict: MakeVerdict, fault_class: str) -> None:
+    playbooks = load_playbooks()
+    (pb_id,) = select(_with(make_verdict("LIKELY", True), fault_class=fault_class), playbooks)
+    assert fault_class in playbooks[pb_id].fault_classes
 
 
 @pytest.mark.parametrize(
@@ -58,7 +66,9 @@ def test_playbooks_file_is_valid_and_covers_every_fault_class() -> None:
         ("INCONCLUSIVE", False, {}, ["PB-INCONC-01"]),
         ("LIKELY", True, {}, ["PB-CPU-01"]),
         ("CONFIRMED", True, {"fault_class": "delay"}, ["PB-DELAY-01"]),
-        ("CONFIRMED", True, {"fault_class": "socket"}, ["PB-UNK-01"]),
+        ("CONFIRMED", True, {"fault_class": "socket"}, ["PB-SOCK-01"]),
+        ("CONFIRMED", True, {"fault_class": "availability"}, ["PB-AVAIL-01"]),
+        ("LIKELY", True, {"fault_class": "unknown"}, ["PB-UNK-01"]),
         ("LIKELY", True, {"mode": "change", "fault_class": "config"}, ["PB-CONFIG-01", "PB-CHANGE-01"]),
     ],
 )
