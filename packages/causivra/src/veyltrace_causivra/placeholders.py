@@ -16,7 +16,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Final, Literal
+from typing import Final, Literal, cast
 
 from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc
 
@@ -89,46 +89,71 @@ def placeholders(text: str) -> list[str]:
     return _BRACED.findall(text)
 
 
-def _resolve(body: str, cites: frozenset[str], ctx: FillContext) -> str:
+@dataclass(frozen=True)
+class _Ref:
+    """One placeholder that passed C1: the grammar alternative it matched."""
+
+    body: str
+    kind: Literal["atom", "role", "svc"]
+    match: re.Match[str]
+
+
+def _parse(body: str) -> _Ref:
+    """C1 for one placeholder body."""
     if (m := _ATOM.fullmatch(body)) is not None:
-        atom = ctx.table.get(m["atom"])
-        if atom is None:
-            raise PlaceholderError("C2", body, "atom is not in the evidence table")
-        if atom.atom_id not in cites:
-            raise PlaceholderError("C3", body, "atom placeholder without a citation of that atom")
+        return _Ref(body, "atom", m)
+    if (m := _ROLE.fullmatch(body)) is not None:
+        return _Ref(body, "role", m)
+    if (m := _SVC.fullmatch(body)) is not None:
+        return _Ref(body, "svc", m)
+    raise PlaceholderError("C1", body, "not a placeholder of the grammar")
+
+
+def _check_resolvable(ref: _Ref, ctx: FillContext) -> None:
+    """C2: the placeholder's "valid when" condition holds for this card (10 §3.3)."""
+    m, body = ref.match, ref.body
+    if ref.kind == "atom" and m["atom"] not in ctx.table:
+        raise PlaceholderError("C2", body, "atom is not in the evidence table")
+    if ref.kind == "svc" and m["node"] not in ctx.nodes:
+        raise PlaceholderError("C2", body, "not a graph node")
+    if ref.kind != "role":
+        return
+    if body.startswith("ROOT") and ctx.root_service is None:
+        raise PlaceholderError("C2", body, f"no root under {ctx.status}")
+    if body.startswith("RUNNER_UP") and ctx.runner_up is None:
+        raise PlaceholderError("C2", body, "no runner-up")
+    if m["onset"] and ctx.onset_ns is None:
+        raise PlaceholderError("C2", body, "onsets.json is absent")
+
+
+def _value(ref: _Ref, ctx: FillContext) -> str:
+    """The text of a placeholder that passed C1–C3."""
+    m, body = ref.match, ref.body
+    if ref.kind == "atom":
+        atom = ctx.table[m["atom"]]
         field = m["field"]
         if field == "value":
             return format_number(atom.value, ctx.sig_digits)
         if field == "unit":
             return atom.unit or ""
         return {"label": atom.label, "candidate": atom.candidate, "window": atom.window}[field]
-    if (m := _ROLE.fullmatch(body)) is not None:
-        if body.startswith("ROOT"):
-            if ctx.root_service is None:
-                raise PlaceholderError("C2", body, f"no root under {ctx.status}")
-            return ctx.root_fields[m["root"]] if m["root"] else ctx.root_service
-        if body.startswith("RUNNER_UP"):
-            if ctx.runner_up is None:
-                raise PlaceholderError("C2", body, "no runner-up")
-            return {"fault_class": ctx.runner_up.fault_class, "indicator": ctx.runner_up.indicator}.get(
-                m["ru"] or "", ctx.runner_up.service
-            )
-        if m["conf"] == "level":
-            return ctx.conf_level
-        if m["conf"] == "set_size":
-            return str(ctx.conf_set_size)
-        if m["conf"] == "margin":
-            return format_margin(ctx.conf_margin)
-        if m["status"]:
-            return ctx.status
-        if ctx.onset_ns is None:
-            raise PlaceholderError("C2", body, "onsets.json is absent")
-        return format_time_utc(ctx.onset_ns)
-    if (m := _SVC.fullmatch(body)) is not None:
-        if m["node"] not in ctx.nodes:
-            raise PlaceholderError("C2", body, "not a graph node")
+    if ref.kind == "svc":
         return m["node"]
-    raise PlaceholderError("C1", body, "not a placeholder of the grammar")
+    if body.startswith("ROOT"):
+        return ctx.root_fields[m["root"]] if m["root"] else cast(str, ctx.root_service)
+    if body.startswith("RUNNER_UP"):
+        runner_up = cast(RunnerUp, ctx.runner_up)
+        by_field = {"fault_class": runner_up.fault_class, "indicator": runner_up.indicator}
+        return by_field.get(m["ru"] or "", runner_up.service)
+    if m["conf"] == "level":
+        return ctx.conf_level
+    if m["conf"] == "set_size":
+        return str(ctx.conf_set_size)
+    if m["conf"] == "margin":
+        return format_margin(ctx.conf_margin)
+    if m["status"]:
+        return ctx.status
+    return format_time_utc(cast(int, ctx.onset_ns))
 
 
 def check_cites(cites: Sequence[str], ctx: FillContext) -> None:
@@ -139,8 +164,20 @@ def check_cites(cites: Sequence[str], ctx: FillContext) -> None:
 
 
 def fill(text: str, cites: Sequence[str], ctx: FillContext) -> str:
-    """`text` with every placeholder replaced; PlaceholderError on the first C1–C3 violation."""
+    """`text` with every placeholder replaced.
+
+    Rules run in 10 §3.4 order, each over the whole sentence before the next: C1 on every
+    placeholder, then C2 on every placeholder, then C3 (the cite list, then each atom placeholder's
+    cite). PlaceholderError reports the first failing rule, at its first offending token, so a
+    sentence breaking two rules always reports the earlier rule (X-09 repairs by rule id).
+    """
+    refs = [_parse(body) for body in placeholders(text)]
+    for ref in refs:
+        _check_resolvable(ref, ctx)
     check_cites(cites, ctx)
-    placeholders(text)  # C1 first, for the whole sentence
     cited = frozenset(cites)
-    return _BRACED.sub(lambda m: _resolve(m.group(1), cited, ctx), text)
+    for ref in refs:
+        if ref.kind == "atom" and ref.match["atom"] not in cited:
+            raise PlaceholderError("C3", ref.body, "atom placeholder without a citation of that atom")
+    values = iter([_value(ref, ctx) for ref in refs])
+    return _BRACED.sub(lambda _m: next(values), text)

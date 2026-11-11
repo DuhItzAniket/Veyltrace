@@ -70,6 +70,29 @@ def test_margin_and_time() -> None:
     assert format_time_utc(1_767_225_599_000_000_000) == "23:59:59 UTC"
 
 
+@pytest.mark.parametrize(
+    ("margin", "text"),
+    [
+        (float("nan"), "n/a"),
+        (float("inf"), "n/a"),
+        (float("-inf"), "n/a"),
+        (-0.0, "0.00"),
+        (-0.004, "0.00"),  # rounds to zero: no "-0.00"
+        (-0.006, "-0.01"),
+        (1.0, "1.00"),
+    ],
+)
+def test_format_margin_edges(margin: float, text: str) -> None:
+    assert format_margin(margin) == text
+
+
+@given(st.floats(allow_nan=True, allow_infinity=True))
+def test_format_margin_is_total(x: float) -> None:
+    out = format_margin(x)
+    assert out != "-0.00"
+    assert out == "n/a" if not math.isfinite(x) else len(out.split(".")[1]) == 2
+
+
 def _ctx(**changes: Any) -> FillContext:
     fields: dict[str, Any] = {
         "status": "LIKELY",
@@ -138,7 +161,8 @@ def test_component_falls_back_to_the_service_via_root_fields() -> None:
         ("{ROOT.service}", [], {}, "C1"),
         ("{root}", [], {}, "C1"),
         ("{E0000000000.value}", [], {}, "C2"),  # 10 §7: unknown atom
-        ("{E0000000000.value}", ["E0000000000"], {}, "C3"),  # its cite is not in the table either
+        ("{E0000000000.value}", ["E0000000000"], {}, "C2"),  # also a bad cite (C3), but C2 comes first
+        ("{ROOT} leads.", ["E0000000000"], {}, "C3"),  # cite not in the evidence table
         (f"{{{ATOM}.value}}", [], {}, "C3"),  # atom placeholder without its cite
         ("{SVC:paymentservice-v2}", [], {}, "C2"),
         (
@@ -159,6 +183,28 @@ def test_fill_rejects_with_its_rule(
     with pytest.raises(PlaceholderError) as exc:
         fill(text, cites, _ctx(**ctx_changes))
     assert exc.value.rule == rule
+
+
+NO_ROOT: dict[str, Any] = {"root_service": None, "status": "NO_FAULT"}
+
+
+@pytest.mark.parametrize(
+    ("text", "cites", "ctx_changes", "rule", "token"),
+    [
+        ("{ROOT} {bogus}", [], NO_ROOT, "C1", "bogus"),  # an earlier C2 placeholder loses to C1
+        ("{ROOT", ["E0000000000"], {}, "C1", "{ROOT"),  # unbalanced brace beats a bad cite
+        ("{SVC:nope} {Ea4217049F6.value}", [], {}, "C1", "Ea4217049F6.value"),  # uppercase hex: C1
+        (f"{{{ATOM}.value}} {{ROOT}}", [], NO_ROOT, "C2", "ROOT"),  # an earlier C3 placeholder loses to C2
+        ("{SVC:nope}", ["E0000000000"], {}, "C2", "SVC:nope"),  # unknown node beats a bad cite
+        (f"{{{ATOM}.value}} {{{OTHER}.value}}", [OTHER], {}, "C3", f"{ATOM}.value"),
+    ],
+)
+def test_a_sentence_breaking_two_rules_reports_the_earlier_rule(
+    text: str, cites: list[str], ctx_changes: dict[str, Any], rule: str, token: str
+) -> None:
+    with pytest.raises(PlaceholderError) as exc:
+        fill(text, cites, _ctx(**ctx_changes))
+    assert (exc.value.rule, exc.value.token) == (rule, token)
 
 
 def test_placeholders_lists_bodies_in_order() -> None:

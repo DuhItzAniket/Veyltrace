@@ -10,7 +10,7 @@ the clock.
 from __future__ import annotations
 
 import math
-from decimal import ROUND_HALF_EVEN, Decimal
+from decimal import ROUND_HALF_EVEN, Context, Decimal
 from typing import Final
 
 __all__ = ["MARGIN_DECIMALS", "NOT_AVAILABLE", "format_margin", "format_number", "format_time_utc"]
@@ -26,6 +26,9 @@ _S_PER_HOUR: Final = 3_600
 _S_PER_MIN: Final = 60
 #: Decimal places of {CONF.margin} (10 §3.3 table: "margin, 2 decimals").
 MARGIN_DECIMALS: Final = 2
+#: Decimal precision for format_margin: the 309 integer digits of the largest float, plus the
+#: decimals, rounded up (a priori; only keeps quantize total).
+_MARGIN_PREC: Final = 320
 
 
 def format_number(value: float | int | None, sig_digits: int) -> str:
@@ -53,9 +56,18 @@ def format_number(value: float | int | None, sig_digits: int) -> str:
 
 
 def format_margin(margin: float) -> str:
-    """{CONF.margin}: the relative margin with two decimals, half-even."""
+    """{CONF.margin}: the relative margin with two decimals, half-even.
+
+    Total over floats, like format_number: NaN and ±inf print as "n/a", and a margin that rounds to
+    zero prints "0.00", never "-0.00".
+    """
+    if not math.isfinite(margin):
+        return NOT_AVAILABLE
     step = Decimal(1).scaleb(-MARGIN_DECIMALS)
-    return format(Decimal(repr(float(margin))).quantize(step, rounding=ROUND_HALF_EVEN), "f")
+    # Enough digits for any finite float (max ~1.8e308) plus the decimals, so quantize never raises.
+    exact = Context(prec=_MARGIN_PREC).create_decimal(repr(float(margin)))
+    rounded = exact.quantize(step, rounding=ROUND_HALF_EVEN, context=Context(prec=_MARGIN_PREC))
+    return format(rounded.copy_abs() if rounded.is_zero() else rounded, "f")
 
 
 def format_time_utc(t_ns: int) -> str:
