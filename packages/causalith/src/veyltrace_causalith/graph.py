@@ -172,15 +172,20 @@ def node_kinds(
     return out
 
 
+#: Span kinds whose attributes describe the remote side, not the span's own service (03 §2.4).
+_REMOTE_KINDS = frozenset({"client", "producer", "consumer"})
+
+
 def span_attrs(
     spans: pa.Table, externals: Mapping[str, Sequence[Mapping[str, Any]]]
 ) -> dict[str, list[Mapping[str, Any]]]:
-    """Attributes that describe each node (05 §3.2): a service's own non-client spans, and for an
-    external host the client spans that call it. A client span describes its callee, so a service
-    whose client spans carry `db.system` (it *calls* a database) does not become a db itself."""
+    """Attributes that describe each node (05 §3.2): a service's own server and internal spans, and
+    for an external host the client spans that call it. A client span describes its callee, and a
+    producer or consumer span the broker, so a service that calls a database (`db.system`) or
+    publishes to or consumes from a queue (`messaging.system`) does not become a db or a queue."""
     out: dict[str, list[Mapping[str, Any]]] = {host: list(attrs) for host, attrs in externals.items()}
     for row in _rows(spans.select(["service", "kind", "attrs_json"])):
-        if row["kind"] == "client":
+        if row["kind"] in _REMOTE_KINDS:
             continue
         attrs = _attrs(row["attrs_json"])
         if attrs:
