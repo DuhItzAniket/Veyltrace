@@ -13,6 +13,8 @@ from veyltrace_core.config import EngineConfig, data_root
 from veyltrace_core.errors import CaseRejected, UsageError
 from veyltrace_core.ids import case_id
 from veyltrace_infralume.adapters.rcaeval import HF, ZENODO, ForbiddenFile, Layout, RcaevalAdapter, _Case
+from veyltrace_infralume.casekey import parse_case_dir
+from veyltrace_infralume.index import write_index
 
 NS = 1_000_000_000
 KEY = "re2ob_cartservice_cpu_1"  # the trees of conftest.py
@@ -84,3 +86,17 @@ def test_rejections(hf_case: Path, infralume_cfg: EngineConfig) -> None:
         (hf_case / name).unlink()
     with pytest.raises(CaseRejected, match="unsupported_format"):
         _convert(infralume_cfg)
+
+
+def test_zenodo_re1_repeated_time_header(infralume_cfg: EngineConfig) -> None:
+    """pyarrow keeps a repeated `time` header (pandas reads it as `time.1`); 01 §3.3 drops it."""
+    case = data_root().joinpath("rcaeval", "zenodo", "RE1", "RE1-OB", "cartservice_cpu", "1")
+    case.mkdir(parents=True)
+    (case / "data.csv").write_bytes(b"time,cartservice_cpu,time\n1705353846,0.5,1705353846\n")
+    key = parse_case_dir(case.parts)
+    assert key is not None
+    write_index(data_root(), key.suite, {key.case_id: "rcaeval/zenodo/RE1/RE1-OB/cartservice_cpu/1"})
+    out = ADAPTER.convert(ADAPTER.resolve("re1-ob", key.key, data_root()), infralume_cfg)
+    assert out.tables.metrics.select(["service", "name", "value"]).to_pylist() == [
+        {"service": "cartservice", "name": "cpu", "value": 0.5}
+    ]
