@@ -29,6 +29,13 @@ playbooks:
       - "Check disk latency and volume usage on {ROOT.component}."
       - "Check disk pressure on the node that runs {ROOT.component}."
       - "Look for noisy neighbours on the same node."
+  - id: PB-SOCK-01
+    fault_classes: [socket]
+    steps:
+      - "Compare open connections and sockets on {ROOT.component} with its limits."
+      - "Check connection pool use and waits in the callers of {ROOT}."
+      - "Look for connections that {ROOT} opens but never closes, a sign of a leak."
+      - "Consider raising the connection limits or restarting {ROOT} after review."
   - id: PB-DELAY-01
     fault_classes: [delay]
     steps:
@@ -53,6 +60,13 @@ playbooks:
       - "Inspect exception records and stack traces on {ROOT}."
       - "Map the exceptions to the code path in {ROOT}."
       - "Check the latest code deploy of {ROOT}."
+  - id: PB-AVAIL-01
+    fault_classes: [availability]
+    steps:
+      - "Check pod restarts, terminations and exit reasons of {ROOT}."
+      - "Check the readiness and liveness probes of {ROOT}."
+      - "Check scheduling and eviction events on the node that runs {ROOT.component}."
+      - "Check whether the callers of {ROOT} retried or failed over while it was down."
   - id: PB-CONFIG-01
     fault_classes: [config]
     steps:
