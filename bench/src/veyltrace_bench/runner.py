@@ -24,6 +24,7 @@ from veyltrace_bench import ALGO_VERSION
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.experiment import (
     PROTOCOL_KEYS,
+    RANKERS_KEY,
     Experiment,
     MethodSpec,
     code_state,
@@ -109,6 +110,18 @@ def method_output(
     )
 
 
+def check_rankers(exp: Experiment) -> None:
+    """Each `causatrix:<ranker>` method names a configured ranker (07 §4), so a typo such as
+    causatrix:baro_rz fails before the first case instead of mislabelling a result (04 §3)."""
+    asked = sorted({m.ranker for m in exp.methods if m.ranker is not None})
+    if not asked:
+        return
+    base = resolve_config({}, dataset=exp.dataset.parts[0], ai_mode="off").engine("causatrix")
+    configured = set(cast("list[str]", base["rankers"]["enabled"]))
+    if unknown := [r for r in asked if r not in configured]:
+        raise ConfigError(f"methods name unknown rankers {unknown}: {RANKERS_KEY} is {sorted(configured)}")
+
+
 def _read[M: (Verdict, Slate, CaseManifest)](name: str, run_dir: Path, model: type[M]) -> M | None:
     """A JSON output of the run, or None when the run did not write a valid one."""
     try:
@@ -123,7 +136,7 @@ def _run_one(
     cfg: ResolvedConfig,
     key: AnswerKeyRow,
     runs_root: Path,
-    timed: dict[str, tuple[float, str]],
+    timed: dict[str, tuple[float, frozenset[str]]],
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Diagnose one case with one method and score it: (per_case row, score, manifest run entry).
     n_i (its `services`) and the input hashes come from the run's case_manifest (Infralume, step 0):
@@ -131,14 +144,15 @@ def _run_one(
     start = time.perf_counter()
     summary = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root)
     wall_ms = (time.perf_counter() - start) * MS_PER_S
+    kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
     if summary.cached:  # bench emptied its runs dir, so another method of this experiment ran it
         earlier = timed.get(summary.run_id)
-        if earlier is None or earlier[1] == method.kind:  # unknown time, or a duplicated method
+        if earlier is None or method.kind in earlier[1]:  # unknown time, or a duplicated method
             raise ConfigError(
                 f"method {method.id} reuses run {summary.run_id}: same config as another method"
             )
-        wall_ms = earlier[0]  # e.g. causatrix:rrf and veyltrace:off: one run, scored two ways
-    timed.setdefault(summary.run_id, (wall_ms, method.kind))
+        wall_ms, kinds = earlier  # e.g. causatrix:rrf and veyltrace:off: one run, scored two ways
+    timed[summary.run_id] = (wall_ms, kinds | {method.kind})
     outcome = run_outcome(summary.outcome, wall_ms, exp.resources.timeout_s)
     slate_scored = method.kind == "causatrix"
     verdict = _read("verdict", summary.run_dir, Verdict) if outcome == "ok" and not slate_scored else None
@@ -210,6 +224,7 @@ def run_experiment(
             raise ContractValidationError("answer_key", f"{d}: no row with a system for {missing}")
         for c in cases:
             Truth.from_answer_key(keys[d][c])  # refuse a fault row without a root before any run
+    check_rankers(exp)
     bench_runs = (runs_root or default_runs_root()) / BENCH_RUNS / exp.experiment_id
     if bench_runs.exists():  # bench's own directory: stale runs would be reused untimed
         shutil.rmtree(bench_runs)
@@ -217,7 +232,7 @@ def run_experiment(
     runs: list[dict[str, object]] = []
     configs: list[dict[str, object]] = []
     groups: dict[tuple[str, str, str], list[CaseScore]] = {}
-    timed: dict[str, tuple[float, str]] = {}  # run_id -> (wall_ms, method kind) of runs made here
+    timed: dict[str, tuple[float, frozenset[str]]] = {}  # run_id -> (wall_ms, kinds that scored it)
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
             cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
