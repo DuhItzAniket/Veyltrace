@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+import math
+import statistics
+from typing import Any, cast
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from veyltrace_contracts import models
+from veyltrace_core.errors import ConfigError
 from veyltrace_faultloom.change import change_atoms, log_atoms, median, peer_atoms
 
 PEER_ANOM = '{"source":"anomalies","window":"incident"}'
 PEER_CHG = '{"source":"changes","window":"onset"}'
+FINITE = st.floats(-1e6, 1e6, allow_nan=False)
 
 
 def _by(atoms: list[dict[str, Any]]) -> dict[tuple[str, str], dict[str, Any]]:
@@ -22,6 +28,14 @@ def test_median_takes_the_mean_of_the_middle_pair_for_even_counts() -> None:
     assert median([3.0, 1.0, 2.0]) == 2.0
     assert median([4.0, 1.0, 3.0, 2.0]) == 2.5
     assert median([7.0]) == 7.0
+    with pytest.raises(ValueError, match="no values"):
+        median([])  # never a made-up 0.0 baseline
+
+
+@given(xs=st.lists(FINITE, min_size=1, max_size=9), data=st.data())
+def test_median_is_order_free_and_matches_statistics(xs: list[float], data: st.DataObject) -> None:
+    assert median(data.draw(st.permutations(xs))) == median(xs) == statistics.median(xs)
+    assert min(xs) <= median(xs) <= max(xs)
 
 
 # --- change_proximity and peer_contrast{changes} ----------------------------------------------
@@ -91,6 +105,25 @@ def test_peer_gap_needs_min_components_and_breaks_ties_a_to_z(hm: Any) -> None:
     (atom,) = peer_atoms(hm.view(anomalies=rows), 2)
     assert (atom["candidate"], atom["value"], atom["component"]) == ("a", 0.0, "a-1")
     assert peer_atoms(hm.view(anomalies=rows), 3) == []
+    with pytest.raises(ConfigError, match="min_components"):
+        peer_atoms(hm.view(anomalies=rows), 1)  # a service would be its own peer
+
+
+_COMPS = st.dictionaries(
+    st.sampled_from(["a-1", "a-2", "a-3", "a-4"]), st.lists(FINITE, min_size=1, max_size=3), min_size=2
+)
+
+
+@given(comps=_COMPS, data=st.data())
+def test_peer_gap_is_top_minus_the_median_of_the_others_in_any_row_order(
+    hm: Any, comps: dict[str, list[float]], data: st.DataObject
+) -> None:
+    rows = [_z(hm, f"a|{k}|m{j}|metrics", z) for k, zs in comps.items() for j, z in enumerate(zs)]
+    best = {k: max(zs) for k, zs in comps.items()}
+    lead = min(k for k, v in best.items() if v == max(best.values()))
+    want = best[lead] - statistics.median(v for k, v in best.items() if k != lead)
+    (atom,) = peer_atoms(hm.view(anomalies=tuple(data.draw(st.permutations(rows)))), 2)
+    assert (atom["value"], atom["component"]) == (want, lead) and cast(float, atom["value"]) >= 0
 
 
 # --- log atoms ----------------------------------------------------------------------------------
@@ -125,3 +158,20 @@ def test_no_log_atoms_without_logs_or_with_an_empty_window(hm: Any) -> None:
     assert log_atoms(_logs(hm, sources=no_logs), 3) == []
     empty = dataclasses.replace(_logs(hm), w_base=(0, 0))
     assert [a["kind"] for a in log_atoms(empty, 3)] == ["log_new_template", "log_new_template"]
+
+
+_TEMPLATES = st.lists(st.tuples(st.integers(0, 10**6), st.integers(0, 10**6), st.booleans()), max_size=6)
+
+
+@given(spec=_TEMPLATES, data=st.data())
+def test_error_rate_is_the_exact_rate_difference_in_any_row_order(
+    hm: Any, spec: list[tuple[int, int, bool]], data: st.DataObject
+) -> None:
+    rows = [hm.template("a", f"T{i:08d}", b, n, error=e) for i, (b, n, e) in enumerate(spec)]
+    atoms = log_atoms(hm.view(templates=tuple(data.draw(st.permutations(rows)))), 3)
+    assert atoms == log_atoms(hm.view(templates=tuple(rows)), 3)
+    rates = [a for a in atoms if a["kind"] == "log_error_rate"]
+    err = [t for t in rows if t.error_level]
+    want = math.fsum(t.count_incident for t in err) / 600 - math.fsum(t.count_baseline for t in err) / 600
+    assert [a["value"] for a in rates] == ([want] if rows else [])  # both windows are 600 s
+    assert all(math.isfinite(cast(float, a["value"])) for a in atoms)

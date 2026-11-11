@@ -1,6 +1,6 @@
 # 03 · Data contracts
 
-> **Status:** v0.1-draft (frozen as v1.0 at milestone M1) · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-06 (R-01: clarifications and additive fields agreed for contracts v0.1)
+> **Status:** v0.1-draft (frozen as v1.0 at milestone M1) · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-08 (R-04: bench_result `ranks` and `summary.json` CI notes)
 > Master spec: [02-architecture](02-architecture.md). This doc is the field-level truth for every artifact that crosses a package boundary. If a field is not here, no engine may rely on it.
 
 ## 1. How contracts work
@@ -555,8 +555,8 @@ Normal windows (e.g. RCAEval pre-injection segments, [04 §5](04-evaluation-prot
 
 ### 13.2 `bench_result`
 
-`bench/results/<experiment_id>/per_case.csv` — UTF-8 CSV (committed to git, diffable; released with the paper), sorted by key `case_id, method, seed, variant` (unique). Columns: `case_id`, `dataset`, `system`, `method`, `ai_mode`, `seed` (empty = a deterministic method), `variant` (bench variant of the case, e.g. `shift-510` for an RCAEval normal window, `perm-3` for a proposal permutation; empty = the unperturbed run), `fold`, `protocol`, `run_outcome` (`ok | failed | timeout | no_alert | rejected`), `pool_hit` (truth in decision pool), `shift_s`, `sources_dropped` (`;`-joined), `status`, `ranks` (`;`-joined), `hit_at_1`, `hit_at_3`, `hit_at_5`, `retrieval_hit` (truth in slate), `fault_class_hit`, `in_set`, `set_size`, `onset_error_ms`, `decoy_present`, `decoy_ranked_first`, `wall_ms`, `peak_rss_mb`, `tokens_in`, `tokens_out`, `verdict_hash`. Booleans are `0/1`; missing values are empty. `run_outcome` comes from the run's outcome (`ok`, `failed`, `no_alert`, `rejected`; `rejected` covers cases that were not run, invalid cases and unsupported formats), except `timeout`, which bench sets itself.
-`bench/results/<experiment_id>/summary.json` — metrics per (dataset, system, method) with bootstrap CIs; `manifest.json` — experiment config hash, code commit, dataset hashes, `seeds`.
+`bench/results/<experiment_id>/per_case.csv` — UTF-8 CSV (committed to git, diffable; released with the paper), sorted by key `case_id, method, seed, variant` (unique). Columns: `case_id`, `dataset`, `system`, `method`, `ai_mode`, `seed` (empty = a deterministic method), `variant` (bench variant of the case, e.g. `shift-510` for an RCAEval normal window, `perm-3` for a proposal permutation; empty = the unperturbed run), `fold`, `protocol`, `run_outcome` (`ok | failed | timeout | no_alert | rejected`), `pool_hit` (truth in decision pool), `shift_s`, `sources_dropped` (`;`-joined), `status`, `ranks` (`;`-joined; empty for an unranked or non-`ok` run, [04 §7](04-evaluation-protocol.md)), `hit_at_1`, `hit_at_3`, `hit_at_5`, `retrieval_hit` (truth in slate), `fault_class_hit`, `in_set`, `set_size`, `onset_error_ms`, `decoy_present`, `decoy_ranked_first`, `wall_ms`, `peak_rss_mb`, `tokens_in`, `tokens_out`, `verdict_hash`. Booleans are `0/1`; missing values are empty. `run_outcome` comes from the run's outcome (`ok`, `failed`, `no_alert`, `rejected`; `rejected` covers cases that were not run, invalid cases and unsupported formats), except `timeout`, and `failed` for an `ok` run that wrote no verdict or slate, which bench sets itself ([04 §7](04-evaluation-protocol.md)).
+`bench/results/<experiment_id>/summary.json` — metrics per (dataset, system, method) with bootstrap CIs (from `bench/stats`, O-14; until then "not run", [04 §9](04-evaluation-protocol.md)); `manifest.json` — the experiment and its hash, the code state, input and config hashes, and the run ids ([04 §9](04-evaluation-protocol.md) lists every field).
 
 ---
 

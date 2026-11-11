@@ -9,7 +9,14 @@ description = "Veyltrace engine 3 (Anomara): anomalies and incident onsets."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+dependencies = [
+    "veyltrace-core",
+    "veyltrace-contracts",
+    # 03-anomara §2: the shared entry rule veyltrace_causalith.entry (intra-lane, pure function).
+    "veyltrace-causalith",
+    "numpy>=2.0",
+    "pyarrow>=17",
+]
 
 # Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
 [project.entry-points."veyltrace.engines"]
@@ -18,6 +25,7 @@ anomara = "veyltrace_anomara.api:run"
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
+veyltrace-causalith = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/veyltrace_anomara"]
@@ -25,4 +33,5 @@ packages = ["src/veyltrace_anomara"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-allow = []
+# 03-anomara §5 allowed imports; veyltrace_causalith only through its pure `entry` module.
+allow = ["numpy", "pyarrow", "veyltrace_causalith.entry"]

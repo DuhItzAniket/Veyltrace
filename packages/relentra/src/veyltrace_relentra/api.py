@@ -1,18 +1,14 @@
 """Engine entry point of Relentra (registered as `veyltrace.engines:relentra`).
 
-R-02 bootstrap stub: the pipeline, the e2e test and the determinism gate need every engine
-to resolve before the real one exists (M0 lead decision 2026-11-06, bootstrap).
-The Explain lane replaces this module in X-00; the signature
-`run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
+X-00 stub: reads `case_manifest` and `slate` and writes `proposals.json` with `status = skipped` and an
+empty `agent_trace.jsonl`, because no model is called yet (`veyltrace_relentra.stub`). X-07 replaces
+the stub with brief mode; the signature `run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
 """
 
 from veyltrace_core.context import EngineResult, RunContext
-from veyltrace_core.stubs import run_stub
+from veyltrace_relentra.stub import run_stub
 
 
 def run(ctx: RunContext) -> EngineResult:
-    """Stub (R-02 bootstrap): writes schema-valid placeholder outputs.
-
-    The owning lane (Explain) replaces it in X-00.
-    """
-    return run_stub(ctx, "relentra")
+    """Pipeline step 7 (X-00 stub): proposals skipped, no model call (see `stub`)."""
+    return run_stub(ctx)
