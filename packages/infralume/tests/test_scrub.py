@@ -1,9 +1,11 @@
 """The scrub test (01 §3.6): planted leaks never survive the rcaeval adapter.
 
-A Zenodo-layout case carries its folder tokens in a log body, an operation name, a metric name and
-an attribute value; deny-listed attribute keys; and rows of a fault-tool service. Every output is
-then read back: (a) no folder token anywhere, (b) no deny-listed key in attrs_json, (c) no row of a
-dropped service, (d) the `scrub` counts equal the planted counts, (e) scrubbing again changes nothing.
+A Zenodo-layout case carries its folder tokens in a log body, an operation name, a metric name, an
+attribute value and an attribute key; deny-listed attribute keys; and rows of a fault-tool service.
+A token in a service name rejects the case instead (`invalid_name`): no valid name can hold
+`<case>`. Every output is then read back: (a) no folder token anywhere, (b) no deny-listed key in
+attrs_json, (c) no row of a dropped service, (d) the `scrub` counts equal the planted counts,
+(e) scrubbing again changes nothing.
 """
 
 from __future__ import annotations
@@ -13,8 +15,10 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import pyarrow as pa
+import pytest
 
 from veyltrace_core.config import EngineConfig, data_root
+from veyltrace_core.errors import CaseRejected
 from veyltrace_infralume.adapters.rcaeval import RcaevalAdapter
 from veyltrace_infralume.casekey import parse_case_dir
 from veyltrace_infralume.index import write_index
@@ -27,7 +31,7 @@ PLANTED_ATTRIBUTES = 3  # fault_type, chaos.experiment and feature_flag.cart on 
 PLANTED_ROWS = 4  # flagd: one metric point, one log line, one span; chaos-daemon: one log line
 
 
-def _case() -> Path:
+def _case(*, log_service: str = "frontend", span_service: str = "frontend") -> Path:
     case = data_root().joinpath(*REL.split("/"))
     case.mkdir(parents=True)
     (case / "simple_metrics.csv").write_bytes(
@@ -35,15 +39,15 @@ def _case() -> Path:
     )
     us = T0 * 1_000_000
     (case / "logs.csv").write_bytes(
-        "timestamp,container_name,message,fault_type,chaos.experiment,feature_flag.cart,note\n"
-        f"{T0},cartservice,open {REL}/cfg: refused,cpu,x,on,see {KEY.upper()}\n"
-        f"{T0},flagd,flag cartFailure on,,,,\n"
-        f"{T0},chaos-daemon,inject stress,,,,\n"
-        f"{T0},frontend,fault tolerance ok,,,,\n".encode()  # "fault" in a body stays: evidence
+        f"timestamp,container_name,message,fault_type,chaos.experiment,feature_flag.cart,note,src_{KEY}\n"
+        f"{T0},cartservice,open {REL}/cfg: refused,cpu,x,on,see {KEY.upper()},y\n"
+        f"{T0},flagd,flag cartFailure on,,,,,\n"
+        f"{T0},chaos-daemon,inject stress,,,,,\n"
+        f"{T0},{log_service},fault tolerance ok,,,,,\n".encode()  # "fault" in a body stays: evidence
     )
     (case / "traces.csv").write_bytes(
         "traceID,spanID,parentSpanID,serviceName,methodName,operationName,startTime,duration,statusCode\n"
-        f"a1,b1,,frontend,,GET /{KEY}/x,{us},10,200\n"
+        f"a1,b1,,{span_service},,GET /{KEY}/x,{us},10,200\n"
         f"a1,b2,b1,flagd,,resolve,{us + 1},2,200\n".encode()
     )
     (case / "inject_time.txt").write_bytes(f"{T0}".encode())
@@ -79,7 +83,7 @@ def test_planted_leaks_are_scrubbed(infralume_cfg: EngineConfig) -> None:
     assert "fault tolerance ok" in texts  # bodies are otherwise verbatim
     # (b) no deny-listed key in any attrs_json
     attrs = [json.loads(v) for v in out.tables.logs.column("attrs_json").to_pylist() if v is not None]
-    assert attrs == [{"note": "see <case>"}]
+    assert attrs == [{"note": "see <case>", "src_<case>": "y"}]  # keys are scrubbed too
     assert not [k for a in attrs for k in _keys(a) if rules.denied(k)]
     # (c) no row of a fault-tool service
     for _, table in out.tables.items():
@@ -98,3 +102,13 @@ def test_planted_leaks_are_scrubbed(infralume_cfg: EngineConfig) -> None:
     stored = [v for v in out.tables.logs.column("attrs_json").to_pylist() if v is not None]
     assert [again.attrs_json(v) for v in stored] == stored
     assert again.counts == ("scrub-1", 0, 0)
+
+
+@pytest.mark.parametrize("where", ["log_service", "span_service"])
+def test_a_folder_token_in_a_service_name_rejects_the_case(infralume_cfg: EngineConfig, where: str) -> None:
+    _case(**{where: f"svc_{KEY}"})
+    adapter = RcaevalAdapter()
+    with pytest.raises(CaseRejected) as caught:
+        adapter.convert(adapter.resolve("re2-ob", KEY, data_root()), infralume_cfg)
+    assert caught.value.reason == "invalid_name"
+    assert not [t for t in folder_tokens(KEY, REL) if t in str(caught.value).lower()]  # nor in the error
