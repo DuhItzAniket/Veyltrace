@@ -19,7 +19,9 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
-__all__ = ["Forest", "TraceRules", "bucket_quantiles", "build_forest", "trace_series"]
+from veyltrace_core.errors import ContractValidationError
+
+__all__ = ["Forest", "TraceRules", "bucket_quantiles", "build_forest", "trace_series", "tree_roots"]
 
 _pc: Any = pc  # pyarrow-stubs type compute kernels with Unknown parts (as core's io.py)
 type Vec = np.ndarray[Any, Any]
@@ -105,12 +107,15 @@ def _keep(spans: pa.Table, case_id: str, fraction: float) -> pa.Table:
 
 def _containment(start: Vec, end: Vec, service: Vec) -> Vec:
     """Parents of one trace rebuilt by time containment: the shortest span of another service
-    that contains the span (rcaeval_facts §Traces: a design rule)."""
+    that contains the span (rcaeval_facts §Traces: a design rule). A span with the same interval
+    contains `b` only if it comes first in key order, so identical intervals never form a cycle."""
     n = start.size
     parent = np.full(n, -1, dtype=np.int64)
     dur = end - start
+    pos = np.arange(n)
     for b in range(n):
-        inside = (service != service[b]) & (start <= start[b]) & (end >= end[b])
+        same = (start == start[b]) & (end == end[b])
+        inside = (service != service[b]) & (start <= start[b]) & (end >= end[b]) & (~same | (pos < b))
         if inside.any():
             idx = np.nonzero(inside)[0]
             parent[b] = int(idx[np.argmin(dur[idx])])  # ties: the first in key order
@@ -147,6 +152,25 @@ def _covered(parent: Vec, start: Vec, end: Vec) -> Vec:
     return out
 
 
+def tree_roots(parent: Vec, trace: Vec, trace_ids: list[str]) -> Vec:
+    """Per span, the root of its tree (`parent` is -1 at roots and orphans). Fails on a parent
+    cycle (a span that is its own ancestor), on which the forest walks would never stop. Pointer
+    doubling reaches every root within log2(n) + 1 rounds; a top that still has a parent is on,
+    or below, a cycle."""
+    n = parent.size
+    top = np.where(parent >= 0, parent, np.arange(n))
+    for _ in range(n.bit_length() + 1):
+        nxt = top[top]
+        if np.array_equal(nxt, top):
+            break
+        top = nxt
+    bad = np.flatnonzero(parent[top] >= 0)
+    if bad.size:
+        detail = f"parent_span_id forms a cycle in trace {trace_ids[int(trace[bad[0]])]!r}"
+        raise ContractValidationError("telemetry.spans", detail)
+    return top
+
+
 def build_forest(spans: pa.Table, rules: TraceRules, case_id: str) -> Forest:
     """The forest of `spans` (columns SPAN_COLUMNS) after the deterministic sampling hook."""
     spans = _keep(spans, case_id, rules.keep_fraction)
@@ -171,19 +195,21 @@ def build_forest(spans: pa.Table, rules: TraceRules, case_id: str) -> Forest:
             if b - a > 1 and not has_id[a:b].any():
                 local = _containment(start[a:b], end[a:b], service[a:b])
                 parent[a:b] = np.where(local >= 0, local + a, -1)
+    trace_ids = cast("list[str]", trace_codes.dictionary.to_pylist())
+    tree_roots(parent, trace, trace_ids)
     kind = np.asarray(s.column("kind").to_numpy(zero_copy_only=False), dtype=object)
     children = np.bincount(parent[parent >= 0], minlength=n)
     only_child = np.full(n, -1, dtype=np.int64)
     only_child[parent[parent >= 0]] = np.nonzero(parent >= 0)[0]
     tol = rules.skew_tolerance_ns
     c = np.where(children == 1, only_child, 0)
+    p = np.where(parent >= 0, parent, 0)
+    foreign = (parent < 0) | (service[p] != service)
     inferred = (
-        (kind == "unspecified") & (children == 1) & (service[c] != service)
+        (kind == "unspecified") & ~foreign & (children == 1) & (service[c] != service)
         & (start[c] >= start - tol) & (end[c] <= end + tol)
     )  # fmt: skip
     client = (kind == "client") | (inferred if rules.infer_client_spans else False)
-    p = np.where(parent >= 0, parent, 0)
-    foreign = (parent < 0) | (service[p] != service)
     entry = foreign & ~client
     self_ns = np.where(client, 0, (end - start) - _covered(parent, start, end))
     up = np.where(entry, np.arange(n), np.where(~foreign, parent, -1))
@@ -196,7 +222,7 @@ def build_forest(spans: pa.Table, rules: TraceRules, case_id: str) -> Forest:
         up = nxt
     visit = np.where((up >= 0) & entry[np.maximum(up, 0)], up, -1)
     return Forest(
-        trace=trace, trace_ids=cast("list[str]", trace_codes.dictionary.to_pylist()),
+        trace=trace, trace_ids=trace_ids,
         span_ids=np.asarray(s.column("span_id").to_pylist(), dtype=object),
         operation=np.asarray(s.column("operation").to_pylist(), dtype=object), service=service,
         services=cast("list[str]", svc_codes.dictionary.to_pylist()), start=start, end=end,
@@ -224,14 +250,14 @@ def bucket_quantiles(groups: Vec, values: Vec, min_n: int) -> dict[int, tuple[fl
 def trace_series(f: Forest, rules: TraceRules, data_start: int, data_end: int) -> dict[str, list[Any]]:
     """Per-service trace series on the epoch-aligned bucket grid (02 §3.3 table): entry-span
     latency p50/p99, error rate and request rate, visit self-time p50/p99. `rps` is zero-filled
-    from `data_start` to `data_end` for every service with an entry span; quantiles are written
+    from `data_start` to `data_end` for every service with a span row (02 §3.1); quantiles are written
     only for buckets with `min_spans_per_quantile` values; `error_rate` only where requests exist."""
     cols: dict[str, list[Any]] = {
         k: [] for k in ("service", "signal", "family", "klass", "unit", "t_ns", "value")
     }
     b = rules.bucket_ns
     e = np.nonzero(f.entry)[0]
-    if e.size == 0:
+    if f.size == 0:
         return cols
     bucket = (f.start[e] // b) * b
     n_buckets = int((data_end // b) - (data_start // b)) + 1
@@ -253,7 +279,7 @@ def trace_series(f: Forest, rules: TraceRules, data_start: int, data_end: int) -
         ):
             cols[name].append(item)
 
-    present = cast("set[int]", set(f.service[e].tolist()))
+    present = cast("set[int]", set(f.service.tolist()))
     for svc in sorted(present, key=lambda i: f.services[i]):
         for k in range(svc * n_buckets, (svc + 1) * n_buckets):
             emit(svc, "rps", "traffic", "context", "1/s", k, counts[k] / (b / NS))

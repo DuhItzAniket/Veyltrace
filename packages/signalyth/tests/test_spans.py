@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 import pyarrow as pa
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from veyltrace_core.config import resolve_config
+from veyltrace_core.errors import ContractValidationError
 from veyltrace_signalyth.spans import Forest, TraceRules, build_forest, trace_series
 
 RULES = TraceRules.from_config(resolve_config({}, ai_mode="off").engine("signalyth"))
@@ -128,3 +130,56 @@ def test_self_time_is_bounded(children: list[tuple[int, int, int]]) -> None:
     rows += [span("t", f"k{i}", "r", f"s{svc}", lo, lo + w) for i, (lo, w, svc) in enumerate(children)]
     f = forest(rows)
     assert (f.self_ns >= 0).all() and (f.self_ns <= f.end - f.start).all()
+
+
+def test_kindless_server_span_with_one_call_stays_an_entry() -> None:
+    """RCAEval shape (every kind unspecified): co is called by fe and makes one call to cur. Its
+    parent is in another service, so it is co's server span, not a client of fe (review of #192)."""
+    rows = [
+        span("t", "fe", None, "fe", 0, 100, kind="unspecified"),
+        span("t", "x", "fe", "x", 1, 5, kind="unspecified"),
+        span("t", "co", "fe", "co", 10, 90, kind="unspecified"),
+        span("t", "cur", "co", "cur", 20, 22, kind="unspecified"),
+    ]
+    f = forest(rows)
+    assert by_id(f, "client") == {"fe": False, "x": False, "co": False, "cur": False}
+    assert by_id(f, "entry") == {"fe": True, "x": True, "co": True, "cur": True}
+    assert by_id(f, "self_ns")["co"] == 78 * MS
+    assert "co" in trace_series(f, RULES, T0, T0)["service"]
+
+
+def test_identical_intervals_of_two_services_do_not_form_a_cycle() -> None:
+    rows = [
+        span("t", "fe", None, "fe", 0, 100),
+        span("t", "a", None, "a", 10, 60),
+        span("t", "b", None, "b", 10, 60),
+    ]
+    f = forest(rows)
+    assert {k: (str(f.span_ids[p]) if p >= 0 else None) for k, p in by_id(f, "parent").items()} == {
+        "fe": None,
+        "a": "fe",
+        "b": "a",
+    }
+    assert by_id(f, "self_ns")["fe"] == 50 * MS
+
+
+@pytest.mark.parametrize(
+    "links",
+    [
+        {"x": "x"},  # a span that is its own parent
+        {"x": "y", "y": "x"},
+        {"x": "z", "y": "x", "z": "y"},  # odd length: pointer doubling never settles on it
+    ],
+)
+def test_parent_cycles_fail_instead_of_hanging(links: dict[str, str]) -> None:
+    rows = [span("t", "r", None, "a", 0, 100)]
+    rows += [span("t", sid, parent, "a", 10 + i, 50 - i) for i, (sid, parent) in enumerate(links.items())]
+    with pytest.raises(ContractValidationError, match="cycle in trace 't'"):
+        forest(rows)
+
+
+def test_rps_is_zero_filled_for_a_service_without_entry_spans() -> None:
+    rows = [span("t", "r", None, "a", 0, 100), span("t", "k", "r", "q", 10, 20, kind="client")]
+    out = trace_series(forest(rows), RULES, T0, T0 + 10_000 * MS)
+    q = [(sig, v) for s, sig, v in zip(out["service"], out["signal"], out["value"], strict=True) if s == "q"]
+    assert q == [("rps", 0.0), ("rps", 0.0)]
