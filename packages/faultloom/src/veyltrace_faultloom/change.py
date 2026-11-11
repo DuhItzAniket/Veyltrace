@@ -17,7 +17,7 @@ from veyltrace_core.errors import ConfigError
 from veyltrace_faultloom.atoms import Atom, engine_atom
 from veyltrace_faultloom.inputs import AnomalyRow, ChangeRow, EvidenceInputs, TemplateRow
 
-__all__ = ["change_atoms", "log_atoms", "median", "peer_atoms"]
+__all__ = ["change_atoms", "log_atoms", "median", "owners", "peer_atoms"]
 
 _NS_PER_S: Final = 1_000_000_000
 #: Scope of a change that maps to no single service (06 §2.1, §11 Q6).
@@ -33,7 +33,7 @@ def median(values: Iterable[float]) -> float:
     return xs[mid] if len(xs) % 2 else math.fsum(xs[mid - 1 : mid + 1]) / 2
 
 
-def _owners(change: ChangeRow, components: Mapping[str, frozenset[str]]) -> list[str]:
+def owners(change: ChangeRow, components: Mapping[str, frozenset[str]]) -> list[str]:
     """Services a change maps to: entity == s, or entity is a component of s (06 §2.1)."""
     if change.scope == _CLUSTER:
         return []
@@ -49,7 +49,7 @@ def change_atoms(view: EvidenceInputs) -> list[Atom]:
     components = {s: view.components.get(s, frozenset()) for s in view.universe}
     by_service: dict[str, list[ChangeRow]] = {}
     for change in view.changes:
-        for s in _owners(change, components):
+        for s in owners(change, components):
             if s in members:
                 by_service.setdefault(s, []).append(change)
     atoms: list[Atom] = []
