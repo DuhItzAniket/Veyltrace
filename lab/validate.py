@@ -32,6 +32,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     kept = 0
     for capture_id in ids:
         key = json.loads((keys_dir / f"{capture_id}.json").read_text(encoding="utf-8"))
+        if not (args.captures / capture_id / "otlp").is_dir():  # e.g. keys merged from another laptop
+            print(f"{capture_id}  skipped: no raw capture here")
+            continue
         result = validate_capture(args.captures / capture_id, key)
         key = {c: key.get(c) for c in answer_key.COLUMNS}  # older keys may lack columns
         key["validated"], key["sli_impact_json"] = result.validated, result.sli_impact_json

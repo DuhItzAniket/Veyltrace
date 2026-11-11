@@ -59,7 +59,7 @@ CATALOG: Mapping[str, Fault] = {
               {"L1": {"workers": 1, "size_mb": 256}, "L2": {"workers": 1, "size_mb": 512}}),
         Fault("F04", "delay", "latency", "network", "chaos-mesh/NetworkChaos",
               {"L1": {"latency_ms": 200, "jitter_pct": 10}, "L2": {"latency_ms": 1000, "jitter_pct": 10}}),
-        Fault("F05", "loss", "error", "network", "chaos-mesh/NetworkChaos",
+        Fault("F05", "loss", "latency", "network", "chaos-mesh/NetworkChaos",  # 04 §7: loss -> latency
               {"L1": {"loss_pct": 10}, "L2": {"loss_pct": 50}}),
         Fault("F06", "availability", "error", None, "chaos-mesh/PodChaos",
               {"L1": {"action": "pod-kill", "repeat_s": 0},

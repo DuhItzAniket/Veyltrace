@@ -137,9 +137,12 @@ def _phases(
                     if fault.tool.startswith("kubectl/")
                     else str(pins["chaos_mesh"]["version"])
                 )
+                # 05 §6: every value used, so the level's parameters plus what was applied (#225).
+                applied = {"manifests": [{"kind": m["kind"], "spec": m["spec"]} for m in inj.manifests],
+                           "kubectl": [list(a) for a in inj.apply_args]}  # fmt: skip
                 injected = {"fault_id": fault.fault_id, "tool": fault.tool, "tool_version": tool_version,
-                            "params": dict(fault.levels[entry.severity]), "severity": entry.severity,
-                            "seed": plan.seed}  # fmt: skip
+                            "params": {**fault.levels[entry.severity], "applied": applied},
+                            "severity": entry.severity, "seed": plan.seed}  # fmt: skip
                 key = answer_key.build(
                     capture_id=capture_id, dataset=plan.dataset, root_service=entry.target,
                     root_component=CONTAINER[entry.target], fault_id=fault.fault_id,
@@ -176,10 +179,18 @@ def inject(runner: Runner, pins: Mapping[str, Any], inj: Injection) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="lab/campaign.py", description=__doc__.splitlines()[0])
-    ap.add_argument("--plan", type=Path, required=True)
+    ap.add_argument("--plan", type=Path, help="required unless --cleanup")
     ap.add_argument("--dry-run", action="store_true", help="print every command; touch nothing")
     ap.add_argument("--captures", type=Path, default=CAPTURES_DIR, help=argparse.SUPPRESS)
+    ap.add_argument("--cleanup", action="store_true", help="only remove leftover faults and restore config")
     args = ap.parse_args(argv)
+    if args.cleanup:
+        runner, pins = Runner(dry_run=args.dry_run), load_pins()
+        _sweep(runner, pins, {})
+        _restore_overlay(runner, pins)
+        return 0
+    if args.plan is None:
+        ap.error("--plan is required unless --cleanup is given")
     try:
         plan = load(args.plan)
     except (OSError, ValueError) as exc:
@@ -187,6 +198,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     runner = Runner(dry_run=args.dry_run)
     pins = load_pins()
+    _sweep(runner, pins, {})  # leftovers of an earlier, killed campaign (#225 item 10)
+    _restore_overlay(runner, pins)
     try:
         outcomes = [run_case(runner, pins, plan, entry, args.captures) for entry in plan.entries]
     finally:  # leave the cluster clean even if a case left a config change behind (F11)
