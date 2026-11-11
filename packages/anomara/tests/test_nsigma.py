@@ -39,6 +39,19 @@ def test_zero_scale_convention_and_floored_norm() -> None:
     assert score.score_norm == math.log1p(3.0 / 0.5)  # floored scale max(0, eps 0.5, 2% of 5)
 
 
+def test_a_non_dyadic_constant_baseline_has_unit_scale() -> None:
+    # 600 one-second rows of 0.3 (the RCAEval shape): std_B is float noise, not 0, and must not be a scale.
+    t = np.asarray([T0 + k * NS for k in range(1200)], dtype=np.int64)
+    x = np.full(1200, 0.3)
+    assert float(np.std(x[:600])) > 0.0  # the case under test: rounding noise in the std
+    same = nsigma(t, x, BASE, INC, G, 1.0, CFG.robust_z, CFG.nsigma)
+    x[600:] = 0.3000001
+    tiny = nsigma(t, x, BASE, INC, G, 1.0, CFG.robust_z, CFG.nsigma)
+    assert same.score < 1e-12 and not same.above_threshold
+    assert tiny.score == pytest.approx(1e-7, rel=1e-6)
+    assert (tiny.above_threshold, tiny.onset_ns) == (False, None)
+
+
 def test_raw_max_without_persistence() -> None:
     score = _nsigma(MICRO, [100.0, 400.0, 100.0])
     assert score.score == pytest.approx(300.0 / float(np.std(MICRO)))
