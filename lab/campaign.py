@@ -123,10 +123,7 @@ def _phases(
         elif t_inject_ns is not None:
             versions = capture.versions(runner, pins)
             if fault is None:
-                key = answer_key.build_no_fault(
-                    capture_id=capture_id, dataset=plan.dataset, t_ref_ns=t_inject_ns, t_end_ns=t_end_ns,
-                    injection={"fault_id": NO_FAULT, "seed": plan.seed},
-                )  # fmt: skip
+                key = answer_key.build_no_fault(capture_id=capture_id, dataset=plan.dataset)
             else:
                 tool_version = (
                     capture.kubectl_client_version(versions)

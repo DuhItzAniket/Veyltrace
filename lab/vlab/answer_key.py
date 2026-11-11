@@ -60,7 +60,7 @@ def build(
         "t_end_ns": t_end_ns,
         "injection_json": canonical_json(injection),
         "extra_roots_json": None,
-        "decoy_changes_json": canonical_json([]),
+        "decoy_changes_json": None,  # 03 §13.1: null when the case has no planted changes
         "validated": None,
         "sli_impact_json": None,
     }
@@ -68,11 +68,10 @@ def build(
     return key
 
 
-def build_no_fault(
-    *, capture_id: str, dataset: str, t_ref_ns: int, t_end_ns: int, injection: dict[str, Any]
-) -> dict[str, Any]:
-    """A no-fault control (F14). ``t_inject_ns`` holds the reference time where a fault would have
-    started: the oracle hint and the 05 §8.2 rule both need one; the root columns stay null."""
+def build_no_fault(*, capture_id: str, dataset: str) -> dict[str, Any]:
+    """A no-fault control (F14), as the 03 §13.1 schema and the synth-05 key define it: null
+    injection times and null ``injection_json`` (nothing was injected). The reference time that the
+    05 §8.2 rule and the oracle hint need lives in the capture's orchestrator.json."""
     key: dict[str, Any] = dict.fromkeys(COLUMNS)
     key |= {
         "case_id": case_id(capture_id),
@@ -80,10 +79,6 @@ def build_no_fault(
         "system": "ob",
         "is_no_fault": True,
         "fault_label": "F14",
-        "t_inject_ns": t_ref_ns,
-        "t_end_ns": t_end_ns,
-        "injection_json": canonical_json(injection),
-        "decoy_changes_json": canonical_json([]),
     }
     return key
 

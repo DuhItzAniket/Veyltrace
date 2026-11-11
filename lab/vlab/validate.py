@@ -37,8 +37,8 @@ MIN_BASELINE_BUCKETS = 6
 class Bucket:
     index: int  # bucket number relative to t_inject (0 = the first bucket after injection)
     n: int
-    p95_ms: float
-    error_rate: float
+    p95_ms: float | None  # None when the bucket has no server span (the entry service was silent)
+    error_rate: float | None
 
 
 def _resource_service(rs: Mapping[str, Any]) -> str | None:
@@ -74,36 +74,51 @@ def p95(values: Sequence[float]) -> float:
 
 
 def buckets(
-    spans: Iterable[tuple[int, float, bool]], t_inject_ns: int, bucket_s: int = BUCKET_S
+    spans: Iterable[tuple[int, float, bool]],
+    t_inject_ns: int,
+    *,
+    first_index: int | None = None,
+    bucket_s: int = BUCKET_S,
 ) -> list[Bucket]:
-    """Spans grouped into buckets aligned to ``t_inject_ns``; buckets without spans are absent."""
+    """Every bucket from ``first_index`` (default: the earliest span's) through the rule window,
+    aligned to ``t_inject_ns``. A bucket without spans is kept with ``n = 0``: a silent entry
+    service is an outage, not a missing data point (05 §8.2)."""
     width = bucket_s * 1_000_000_000
     groups: dict[int, list[tuple[float, bool]]] = {}
     for start, duration_ms, error in spans:
         groups.setdefault((start - t_inject_ns) // width, []).append((duration_ms, error))
-    return [
-        Bucket(i, len(g), p95([d for d, _ in g]), sum(e for _, e in g) / len(g))
-        for i, g in sorted(groups.items())
-    ]
+    lo = first_index if first_index is not None else min(groups, default=0)
+    hi = max(WINDOW_S // bucket_s, max(groups, default=-1) + 1)
+    out = []
+    for i in range(lo, hi):
+        g = groups.get(i, [])
+        out.append(
+            Bucket(i, len(g), p95([d for d, _ in g]), sum(e for _, e in g) / len(g))
+            if g
+            else Bucket(i, 0, None, None)
+        )
+    return out
 
 
-def _sli(
-    name: str, baseline: Sequence[float], after: Sequence[tuple[int, float]], k: float
-) -> dict[str, Any]:
+def _sli(name: str, baseline: Sequence[float], after: Sequence[Bucket], k: float) -> dict[str, Any]:
+    """Threshold and first breach of one SLI. ``after`` holds every bucket of the window in index
+    order, so a run is adjacent by construction; a silent bucket breaches."""
     median = statistics.median(baseline)
     mad = statistics.median(abs(v - median) for v in baseline)
     floored = max(mad, MAD_FLOOR_FRAC * median, ABS_FLOOR[name])
     threshold = median + k * floored
     run, first = 0, None
-    for index, value in after:
-        run = run + 1 if value > threshold else 0
+    for b in after:
+        value = getattr(b, name)
+        run = run + 1 if value is None or value > threshold else 0
         if run >= CONSECUTIVE and first is None:
-            first = (index - CONSECUTIVE + 1) * BUCKET_S
+            first = (b.index - CONSECUTIVE + 1) * BUCKET_S
+    seen = [getattr(b, name) for b in after if getattr(b, name) is not None]
     return {
         "median": round(median, 4),
         "mad": round(mad, 4),
         "threshold": round(threshold, 4),
-        "max_after": round(max((v for _, v in after), default=0.0), 4),
+        "max_after": round(max(seen, default=0.0), 4),
         "first_breach_s": first,
     }
 
@@ -120,10 +135,16 @@ class Validation:
         return canonical_json(self.impact)
 
 
+def _done(validated: bool, breach: bool, reason: str, impact: dict[str, Any]) -> Validation:
+    return Validation(validated, breach, reason, {**impact, "reason": reason})
+
+
 def evaluate(series: Sequence[Bucket], *, is_no_fault: bool, k: float = K) -> Validation:
-    """Apply rules 2-4 to buckets from :func:`buckets`."""
-    base = [b for b in series if b.index < 0]
-    after = [b for b in series if 0 <= b.index < WINDOW_S // BUCKET_S]
+    """Apply rules 2-4 to buckets from :func:`buckets`; a window bucket missing from ``series``
+    counts as silent."""
+    by_index = {b.index: b for b in series}
+    after = [by_index.get(i, Bucket(i, 0, None, None)) for i in range(WINDOW_S // BUCKET_S)]
+    base = [b for b in series if b.index < 0 and b.n > 0]  # silent baseline buckets carry no SLI
     impact: dict[str, Any] = {
         "rule": "05-8.2",
         "entry_service": ENTRY_SERVICE,
@@ -131,21 +152,40 @@ def evaluate(series: Sequence[Bucket], *, is_no_fault: bool, k: float = K) -> Va
         "k": k,
         "window_s": WINDOW_S,
         "baseline_buckets": len(base),
-        "after_buckets": len(after),
+        "silent_after_buckets": sum(b.n == 0 for b in after),
     }
     if len(base) < MIN_BASELINE_BUCKETS:
-        return Validation(False, False, "insufficient_baseline", impact)
+        return _done(False, False, "insufficient_baseline", impact)
     for name in ("p95_ms", "error_rate"):
-        impact[name] = _sli(
-            name, [getattr(b, name) for b in base], [(b.index, getattr(b, name)) for b in after], k
-        )
+        impact[name] = _sli(name, [getattr(b, name) for b in base], after, k)
     breach = any(impact[n]["first_breach_s"] is not None for n in ("p95_ms", "error_rate"))
     if is_no_fault:
-        return Validation(not breach, breach, "control_breached" if breach else "clean_control", impact)
-    return Validation(breach, breach, "impact" if breach else "no_impact", impact)
+        return _done(not breach, breach, "control_breached" if breach else "clean_control", impact)
+    return _done(breach, breach, "impact" if breach else "no_impact", impact)
+
+
+def reference_time_ns(capture_dir: Path, key: Mapping[str, Any]) -> int | None:
+    """``t_inject_ns`` of a fault key; for a no-fault control (null in the key, 03 §13.1) the
+    reference time the campaign recorded in orchestrator.json."""
+    if key.get("t_inject_ns") is not None:
+        return int(key["t_inject_ns"])
+    orch = capture_dir / "orchestrator.json"
+    if orch.is_file():
+        t = json.loads(orch.read_text(encoding="utf-8")).get("t_inject_ns")
+        return None if t is None else int(t)
+    return None
 
 
 def validate_capture(capture_dir: Path, key: Mapping[str, Any]) -> Validation:
     """The rule over one raw capture and its answer key."""
+    t_ref = reference_time_ns(capture_dir, key)
+    if t_ref is None:
+        return _done(False, False, "no_reference_time", {"rule": "05-8.2"})
+    first_index = None
+    orch = capture_dir / "orchestrator.json"
+    if orch.is_file():
+        t_start = json.loads(orch.read_text(encoding="utf-8")).get("t_capture_start_ns")
+        if t_start is not None:
+            first_index = (int(t_start) - t_ref) // (BUCKET_S * 1_000_000_000)
     spans = entry_spans(capture_dir / "otlp")
-    return evaluate(buckets(spans, int(key["t_inject_ns"])), is_no_fault=bool(key["is_no_fault"]))
+    return evaluate(buckets(spans, t_ref, first_index=first_index), is_no_fault=bool(key["is_no_fault"]))
