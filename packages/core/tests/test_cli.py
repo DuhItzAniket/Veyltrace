@@ -60,8 +60,21 @@ def test_diagnose_rejected_case_exits_3(tmp_path: Path) -> None:
     assert summary["outcome"] == "rejected" and summary["exit_code"] == DiagnoseExit.REJECTED
 
 
-def test_diagnose_config_error_exits_4_and_still_writes_summary(tmp_path: Path) -> None:
-    # No alert detector is registered before O-04, so the detected protocol is a config error.
+def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep testing the missing-detector path once Anomara registers veyltrace.alert_detectors (O-04)."""
+    real = plugins.discover
+
+    def discover(group: str) -> tuple[plugins.Plugin, ...]:
+        return () if group == plugins.ALERT_DETECTORS else real(group)
+
+    monkeypatch.setattr(plugins, "discover", discover)
+
+
+def test_diagnose_config_error_exits_4_and_still_writes_summary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Without an alert detector the detected protocol is a config error.
+    _hide_alert_detectors(monkeypatch)
     summary_path = tmp_path / "summary.json"
     code = cli.main(_diagnose(tmp_path, "--protocol", "detected", "--summary-json", str(summary_path)))
     assert code == DiagnoseExit.CONFIG
@@ -158,9 +171,21 @@ def _fake_command(monkeypatch: pytest.MonkeyPatch, name: str, code: int) -> list
     return calls
 
 
-def test_replay_without_causivra_is_a_clear_error(capsys: pytest.CaptureFixture[str]) -> None:
-    if cli.REPLAY_COMMAND in plugins.names(cli.COMMANDS_GROUP):
-        pytest.skip("a replay command is installed")
+def _without_command(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    """Hide an installed `veyltrace.commands:<name>`, so the not-installed error stays tested."""
+    real_names = plugins.names
+
+    def names(group: str) -> tuple[str, ...]:
+        found = real_names(group)
+        return tuple(n for n in found if n != name) if group == cli.COMMANDS_GROUP else found
+
+    monkeypatch.setattr(plugins, "names", names)
+
+
+def test_replay_without_causivra_is_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _without_command(monkeypatch, cli.REPLAY_COMMAND)
     assert cli.main(["replay", "receipt.json"]) == ReplayExit.ERROR
     assert "veyltrace.commands:replay" in capsys.readouterr().err
 
@@ -183,9 +208,10 @@ def test_bench_run_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == [["run", "bench/experiments/x.yaml", "--workers", "2"]]
 
 
-def test_bench_run_without_bench_is_a_clear_error(capsys: pytest.CaptureFixture[str]) -> None:
-    if cli.BENCH_COMMAND in plugins.names(cli.COMMANDS_GROUP):
-        pytest.skip("a bench command is installed")
+def test_bench_run_without_bench_is_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _without_command(monkeypatch, cli.BENCH_COMMAND)  # bench registers it: hide, do not skip
     assert cli.main(["bench", "run", "x.yaml"]) == DiagnoseExit.ERROR
     assert "veyltrace.commands:bench" in capsys.readouterr().err
 
@@ -290,5 +316,7 @@ def test_diagnose_warns_about_stub_outputs(tmp_path: Path, capsys: pytest.Captur
 
 def test_stub_infralume_refuses_real_datasets_without_an_adapter(tmp_path: Path) -> None:
     runs = (tmp_path / "runs").as_posix()
-    argv = ["diagnose", "--dataset", "re2-ob", "--case", "abcdefabcdef", "--set", f"core.paths.runs={runs}"]
-    assert cli.main(argv) == DiagnoseExit.CONFIG  # no adapter: exit 4, not "ok" on fake data
+    # A dataset no adapter claims (re2-ob gets one in O-01): exit 4, not "ok" on placeholder data.
+    argv = ["diagnose", "--dataset", "no-adapter-ob", "--case", "abcdefabcdef"]
+    argv += ["--set", f"core.paths.runs={runs}"]
+    assert cli.main(argv) == DiagnoseExit.CONFIG
