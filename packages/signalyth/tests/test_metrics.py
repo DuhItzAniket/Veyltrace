@@ -64,7 +64,11 @@ def test_latency_to_ms_and_memory_bytes() -> None:
         ("latency_p90", "ms", 0, 250.0),
         ("latency_p90", "ms", NS, 500.0),
     ]
-    assert _series(_rows("mem", [7.0], None))[0][:2] == ("mem", "bytes")
+    assert _series(_rows("container_memory_usage", [512.0], "MB"))[0][1::2] == ("bytes", 512e6)
+    assert _series(_rows("mem", [3.0], "KiB"))[0][1::2] == ("bytes", 3072.0)
+    # a utilisation or an unknown unit is not relabelled as bytes (review of #191)
+    assert _series(_rows("memory_utilization", [37.5], "%"))[0][1::2] == ("%", 37.5)
+    assert _series(_rows("mem", [7.0], None))[0][1::2] == (None, 7.0)
 
 
 def test_collisions_rename_every_member() -> None:
@@ -90,6 +94,28 @@ def test_shape_counter_and_excluded_families() -> None:
     assert len(_series(_rows("mem", climbing))) == 20  # memory leaks stay gauges
     flat = [1.0, 1.0, 2.0, 1.0] * 5
     assert len(_series(_rows("socket", flat))) == 20  # not monotone: gauge
+
+
+def _climb(increases: int, dips: int, reset: bool = False) -> list[float]:
+    """`increases` steps of +10 from 1000, then `dips` dips of -1, then an optional reset to 1."""
+    values = [1000.0 + 10 * i for i in range(increases + 1)]
+    values += [values[-1] - 1 - i for i in range(dips)]
+    return values + ([1.0] if reset else [])
+
+
+def test_shape_test_share_rule_and_reset_exclusion() -> None:
+    """The 99 % share decides here: every series has at least min_increases increases."""
+    assert len(_series(_rows("socket", _climb(15, 5)))) == 21  # 75 % increases: a gauge
+    assert len(_series(_rows("socket", _climb(99, 1)))) == 100  # 99 %: a counter
+    assert len(_series(_rows("socket", _climb(98, 2)))) == 101  # 98 %: a gauge
+    assert len(_series(_rows("socket", _climb(99, 1, reset=True)))) == 101  # a reset is no decrease
+
+
+def test_a_small_dip_is_not_a_reset() -> None:
+    """02 §3.2 step 3: in a shape counter only a drop below reset_ratio counts from zero (review
+    of #191); named counters keep any-decrease resets (test_named_counter_rate_with_reset)."""
+    rates = [v for *_, v in _series(_rows("socket", _climb(99, 1, reset=True)))]
+    assert rates[:99] == [10.0] * 99 and rates[99] == -1.0 and rates[100] == 1.0
 
 
 @given(st.lists(st.floats(0, 1e6, allow_nan=False), min_size=2, max_size=40))
