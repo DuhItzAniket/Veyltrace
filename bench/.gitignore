@@ -1,0 +1,2 @@
+# Synth smoke results are never reported (04 §3); the runner also refuses synth unless --out is outside the repo.
+results/synth-*/
