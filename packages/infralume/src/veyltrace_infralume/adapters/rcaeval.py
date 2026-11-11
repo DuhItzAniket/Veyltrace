@@ -108,7 +108,21 @@ class _Case:
                     path, convert_options=_csv.ConvertOptions(column_types=types, strings_can_be_null=True)
                 ),
             )
+            table = table.rename_columns(_unique(table.column_names))
         return table, (path if table.num_rows else None)
+
+
+def _unique(names: list[str]) -> list[str]:
+    """Repeated CSV headers renamed `name.1`, `name.2`, … as pandas spells them: pyarrow keeps
+    the duplicates, and 50 RE1-OB `data.csv` files repeat `time` (rcaeval_facts, data quirks).
+    The tables drop such columns (01 §3.3)."""
+    seen: dict[str, int] = {}
+    out: list[str] = []
+    for name in names:
+        count = seen.get(name, 0)
+        seen[name] = count + 1
+        out.append(f"{name}.{count}" if count else name)
+    return out
 
 
 def _layout(location: Path, cfg: Mapping[str, Any]) -> Layout:

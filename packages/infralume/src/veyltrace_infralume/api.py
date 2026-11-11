@@ -46,7 +46,9 @@ def _dropped(ctx: RunContext) -> frozenset[str]:
     return drop
 
 
-def _materialise(ctx: RunContext, case: CanonicalCase) -> list[tuple[str, str]]:
+def _materialise(ctx: RunContext, case: CanonicalCase) -> tuple[list[tuple[str, str]], dict[str, int]]:
+    """Write the manifest and the tables (dropped sources as zero rows); returns the outputs and
+    the row count of each table as written, so a dropped source reports 0 rows."""
     drop = _dropped(ctx)
     tables = {s: t if SOURCE_OF[s] not in drop else t.slice(0, 0) for s, t in case.tables.items()}
     present = {s: bool(case.sources_present[s]) and s not in drop for s in SOURCE_NAMES}
@@ -82,7 +84,7 @@ def _materialise(ctx: RunContext, case: CanonicalCase) -> list[tuple[str, str]]:
     for source, table in tables.items():
         contract = TELEMETRY_CONTRACTS[source]
         out.append((contract, ctx.write(contract, full_table(contract, table))))
-    return out
+    return out, {f"rows_{source}": table.num_rows for source, table in tables.items()}
 
 
 def run(ctx: RunContext) -> EngineResult:
@@ -99,6 +101,5 @@ def run(ctx: RunContext) -> EngineResult:
         if adapter.cacheable
         else adapter.convert(ref, ctx.config)
     )
-    outputs = _materialise(ctx, case)
-    rows = {f"rows_{source}": table.num_rows for source, table in case.tables.items()}
+    outputs, rows = _materialise(ctx, case)
     return EngineResult(engine="infralume", status="ok", outputs=tuple(sorted(outputs)), metrics=rows)
