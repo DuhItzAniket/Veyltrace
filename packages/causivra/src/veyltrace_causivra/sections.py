@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
-from veyltrace_causivra.assemble import CardSettings, args_of
+from veyltrace_causivra.assemble import CardSettings, args_of, first_failed, why_not_runners
 from veyltrace_causivra.placeholders import FillContext, fill
 from veyltrace_contracts import models
 
@@ -105,12 +105,15 @@ def path(verdict: models.Verdict, paths: Sequence[Mapping[str, Any]]) -> list[st
 
 # --- step 6: why-not -----------------------------------------------------------------------------
 def why_not(verdict: models.Verdict, ctx: FillContext, settings: CardSettings) -> list[dict[str, Any]]:
-    """Runner-ups ranked[1 … why_not.max]; empty for NO_FAULT (no root to compare against)."""
-    if verdict.status == "NO_FAULT":
-        return []
+    """Runner-ups ranked[1 … why_not.max]; empty for NO_FAULT (no root to compare against).
+
+    The text comes from the first failing trial (WHY_NOT_FAILED), else WHY_NOT_PASSED when every
+    mandatory trial passed, else WHY_NOT_UNTESTED. Cites are that trial's atoms, which the evidence
+    table holds (decision D2), else the runner-up's first table atom.
+    """
     out: list[dict[str, Any]] = []
-    for runner in verdict.ranked[1 : 1 + settings.why_not_max]:
-        failed = next((t for t in runner.trials if t.result == "fail"), None)
+    for runner in why_not_runners(verdict, settings):
+        failed = first_failed(runner)
         mandatory = set(settings.mandatory)
         if runner.origin == "proposal":
             mandatory.add(PROPOSAL_MANDATORY)

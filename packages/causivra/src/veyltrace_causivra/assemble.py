@@ -24,9 +24,11 @@ __all__ = [
     "args_of",
     "evidence_table",
     "fill_context",
+    "first_failed",
     "settings_from",
     "table_atoms",
     "title",
+    "why_not_runners",
 ]
 
 DOT: Final = "·"  # the title separator of 10 §3.1 step 1
@@ -129,11 +131,23 @@ def _leaders(verdict: models.Verdict) -> list[models.VerdictRanked]:
     return verdict.ranked[:1] if verdict.root is not None else verdict.ranked[:NO_ROOT_LEADERS]
 
 
+def why_not_runners(verdict: models.Verdict, settings: CardSettings) -> list[models.VerdictRanked]:
+    """The runner-ups that get a why-not line: ranked[1 … why_not.max], none for NO_FAULT (step 6)."""
+    return [] if verdict.status == "NO_FAULT" else verdict.ranked[1 : 1 + settings.why_not_max]
+
+
+def first_failed(candidate: models.VerdictRanked) -> models.VerdictRankedTrials | None:
+    """The candidate's first failing trial in trial-ID order (T1 < T2 < … < T10), or None."""
+    failed = [t for t in candidate.trials if t.result == "fail"]
+    return min(failed, key=lambda t: int(t.id[1:])) if failed else None
+
+
 def evidence_table(
     verdict: models.Verdict, rows: Sequence[Mapping[str, Any]], settings: CardSettings
 ) -> list[dict[str, Any]]:
-    """Atoms of the leaders' trials, then their holding claim checks, capped at `evidence_max`
-    (trial atoms kept first), sorted by (candidate, kind, atom_id)."""
+    """10 §3.1 step 3: the leaders' trial atoms, then their holding claim checks, then each why-not
+    runner-up's first-failing-trial atoms (so the why-not line can cite them under C3, decision D2
+    of #227); capped at `evidence_max` in that order, then sorted by (candidate, kind, atom_id)."""
     by_id = {str(r["atom_id"]): r for r in rows}
     chosen: list[str] = []
     for leader in _leaders(verdict):
@@ -146,6 +160,9 @@ def evidence_table(
             if r["kind"] == "claim_check" and r["candidate"] == leader.service and r["holds"] is True
         )
         chosen.extend(a for a in holding if a not in chosen)
+    for runner in why_not_runners(verdict, settings):
+        failed = first_failed(runner)
+        chosen.extend(a for a in (failed.atoms if failed else []) if a not in chosen)
     missing = [a for a in chosen if a not in by_id]
     if missing:
         raise ContractValidationError("verdict", f"trials cite atoms missing from evidence: {missing[:3]}")

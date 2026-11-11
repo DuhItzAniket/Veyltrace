@@ -37,11 +37,12 @@ def _table(
     return assemble.evidence_table(verdict, scenario.evidence, settings)
 
 
-def test_table_takes_trial_atoms_then_holding_claims(
+def test_table_takes_trial_atoms_then_holding_claims_then_why_not_atoms(
     make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
 ) -> None:
     table = _table(make_verdict(), scenario, card_settings)
     assert [r["atom_id"] for r in table] == [
+        scenario.a_cart,  # runner-up cart's failing T2 atom, cited by its why-not line (D2)
         scenario.a_claim,
         scenario.a_int,
         scenario.a_onset,
@@ -61,6 +62,27 @@ def test_table_without_root_uses_three_leaders_and_the_cap(
     assert scenario.a_cart in [r["atom_id"] for r in table]  # cart is ranked[1], inside ranked[0…2]
     capped = _table(make_verdict(), scenario, replace(card_settings, evidence_max=1))
     assert [r["atom_id"] for r in capped] == [scenario.a_int]  # the first trial atom survives the cap
+
+
+def test_why_not_atoms_come_after_the_leaders_under_the_cap(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    capped = _table(make_verdict(), scenario, replace(card_settings, evidence_max=3))
+    assert scenario.a_cart not in [r["atom_id"] for r in capped]  # leader and claim atoms fill the cap first
+    assert assemble.why_not_runners(make_verdict("NO_FAULT"), card_settings) == []  # no why-not lines
+    assert [r.service for r in assemble.why_not_runners(make_verdict(), card_settings)] == [
+        "cart",
+        "checkout",
+        "frontend",
+    ]
+
+
+def test_first_failed_uses_trial_id_order(make_verdict: MakeVerdict) -> None:
+    cart = make_verdict().ranked[1]
+    t2 = next(t for t in cart.trials if t.id == "T2")
+    t10 = t2.model_copy(update={"id": "T10", "atoms": []})
+    assert assemble.first_failed(cart.model_copy(update={"trials": [t10, *cart.trials]})) == t2
+    assert assemble.first_failed(make_verdict().ranked[3]) is None  # frontend failed nothing
 
 
 def test_table_refuses_a_verdict_citing_unknown_atoms(

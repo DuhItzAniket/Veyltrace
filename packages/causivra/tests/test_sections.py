@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -149,7 +150,8 @@ def test_why_not(
             "frontend passed the mandatory trials but its verified score did not exceed the leader's.",
         ),
     ]
-    assert rows[0]["cites"] == []  # cart's T2 atom is not in a root card's table, and cart has no table atom
+    assert rows[0]["cites"] == [scenario.a_cart]  # cart's failing T2 atom is in the table (D2)
+    assert rows[1]["cites"] == rows[2]["cites"] == []  # no failed trial and no table atom of their own
 
 
 def test_why_not_respects_max_and_no_fault(
@@ -170,6 +172,12 @@ def test_why_not_cites_the_failing_trial_when_its_atom_is_in_the_table(
     verdict = make_verdict("INCONCLUSIVE", with_root=False)  # three leaders: cart's T2 atom is in the table
     rows = sections.why_not(verdict, _ctx(verdict, scenario, card_settings, onsets), card_settings)
     assert rows[0]["cites"] == [scenario.a_cart]
+
+
+def test_spec_lists_every_why_not_template() -> None:
+    spec = (Path(__file__).parents[3] / "docs/engines/10-causivra.md").read_text(encoding="utf-8")
+    templates = [*sections.WHY_NOT_FAILED.values(), sections.WHY_NOT_PASSED, sections.WHY_NOT_UNTESTED]
+    assert [t for t in templates if f"| {t} |" not in spec] == []  # 10 §3.1 step 6 table
 
 
 def test_asks(make_verdict: MakeVerdict, card_settings: CardSettings) -> None:
