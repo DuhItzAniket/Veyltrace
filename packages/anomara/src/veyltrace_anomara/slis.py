@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Final, cast
 
 import numpy as np
@@ -23,6 +24,7 @@ __all__ = [
     "LATENCY",
     "TO_MS",
     "Sli",
+    "client_like",
     "metric_slis",
     "quantile_of",
     "span_call_pairs",
@@ -68,6 +70,39 @@ def span_parents(spans: pa.Table) -> list[str | None]:
     ]
 
 
+def client_like(spans: pa.Table, slo: SloConfig) -> list[bool]:
+    """Whether each span is client-like (02-signalyth §3.3 item 2): kind `client`, or, with
+    `slo.infer_client_spans` and kind `unspecified`, exactly one child, in another service, lying
+    inside the span within `slo.skew_tolerance_ns`. RCAEval spans have no kind, so the inferred
+    form is the one that matters there."""
+    traces, ids, services, kinds = (
+        _strings(spans, "trace_id"),
+        _strings(spans, "span_id"),
+        _strings(spans, "service"),
+        _strings(spans, "kind"),
+    )
+    start = cast("list[int]", spans.column("start_ns").to_pylist())
+    end = cast("list[int]", spans.column("end_ns").to_pylist())
+    children: dict[tuple[str | None, str], list[int]] = {}
+    for j, (tr, parent) in enumerate(zip(traces, _strings(spans, "parent_span_id"), strict=True)):
+        if parent is not None:
+            children.setdefault((tr, parent), []).append(j)
+    tol = slo.skew_tolerance_ns
+    flags: list[bool] = []
+    for i, (tr, sp, kind) in enumerate(zip(traces, ids, kinds, strict=True)):
+        kids = children.get((tr, str(sp)), []) if sp is not None else []
+        inferred = (
+            slo.infer_client_spans
+            and kind == "unspecified"
+            and len(kids) == 1
+            and services[kids[0]] != services[i]
+            and start[kids[0]] >= start[i] - tol
+            and end[kids[0]] <= end[i] + tol
+        )
+        flags.append(kind == "client" or inferred)
+    return flags
+
+
 def span_call_pairs(spans: pa.Table) -> list[tuple[str, str]]:
     """Sorted unique (parent service, child service) pairs of spans in different services (§3.8 step 1)."""
     services = _strings(spans, "service")
@@ -77,23 +112,21 @@ def span_call_pairs(spans: pa.Table) -> list[tuple[str, str]]:
     return sorted(pairs)
 
 
-def trace_slis(spans: pa.Table, parents: list[str | None], service: str, slo: SloConfig) -> list[Sli]:
+def trace_slis(
+    spans: pa.Table, parents: list[str | None], client: list[bool], service: str, slo: SloConfig
+) -> list[Sli]:
     """`latency_p99` and `error_rate` of the service's entry spans per bucket (§3.8 step 2).
 
-    Entry span: parent null, missing, or in another service, and not client-like (kind `client`;
-    02-signalyth §3.3). Buckets with fewer than `slo.min_spans` entry spans are skipped. `parents`
-    is `span_parents(spans)`, computed once per case.
+    Entry span: parent null, missing, or in another service, and not client-like (02-signalyth
+    §3.3). Buckets with fewer than `slo.min_spans` entry spans are skipped. `parents` is
+    `span_parents(spans)` and `client` is `client_like(spans, slo)`, both computed once per case.
     """
     services = _strings(spans, "service")
-    kinds = _strings(spans, "kind")
     status = _strings(spans, "status")
     start = np.asarray(spans.column("start_ns").to_numpy(), dtype=np.int64)
     end = np.asarray(spans.column("end_ns").to_numpy(), dtype=np.int64)
     entry = np.asarray(
-        [
-            s == service and k != "client" and p != service
-            for s, k, p in zip(services, kinds, parents, strict=True)
-        ],
+        [s == service and not c and p != service for s, c, p in zip(services, client, parents, strict=True)],
         dtype=np.bool_,
     )
     errors = np.asarray([st == "error" for st in status], dtype=np.bool_)[entry]
