@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Any, Final, cast
 
 import numpy as np
@@ -23,6 +24,7 @@ __all__ = [
     "LATENCY",
     "TO_MS",
     "Sli",
+    "client_like",
     "metric_slis",
     "quantile_of",
     "span_call_pairs",
@@ -68,6 +70,39 @@ def span_parents(spans: pa.Table) -> list[str | None]:
     ]
 
 
+def client_like(spans: pa.Table, slo: SloConfig) -> list[bool]:
+    """Whether each span is client-like (02-signalyth §3.3 item 2): kind `client`, or, with
+    `slo.infer_client_spans` and kind `unspecified`, exactly one child, in another service, lying
+    inside the span within `slo.skew_tolerance_ns`. RCAEval spans have no kind, so the inferred
+    form is the one that matters there."""
+    traces, ids, services, kinds = (
+        _strings(spans, "trace_id"),
+        _strings(spans, "span_id"),
+        _strings(spans, "service"),
+        _strings(spans, "kind"),
+    )
+    start = cast("list[int]", spans.column("start_ns").to_pylist())
+    end = cast("list[int]", spans.column("end_ns").to_pylist())
+    children: dict[tuple[str | None, str], list[int]] = {}
+    for j, (tr, parent) in enumerate(zip(traces, _strings(spans, "parent_span_id"), strict=True)):
+        if parent is not None:
+            children.setdefault((tr, parent), []).append(j)
+    tol = slo.skew_tolerance_ns
+    flags: list[bool] = []
+    for i, (tr, sp, kind) in enumerate(zip(traces, ids, kinds, strict=True)):
+        kids = children.get((tr, str(sp)), []) if sp is not None else []
+        inferred = (
+            slo.infer_client_spans
+            and kind == "unspecified"
+            and len(kids) == 1
+            and services[kids[0]] != services[i]
+            and start[kids[0]] >= start[i] - tol
+            and end[kids[0]] <= end[i] + tol
+        )
+        flags.append(kind == "client" or inferred)
+    return flags
+
+
 def span_call_pairs(spans: pa.Table) -> list[tuple[str, str]]:
     """Sorted unique (parent service, child service) pairs of spans in different services (§3.8 step 1)."""
     services = _strings(spans, "service")
@@ -77,23 +112,21 @@ def span_call_pairs(spans: pa.Table) -> list[tuple[str, str]]:
     return sorted(pairs)
 
 
-def trace_slis(spans: pa.Table, parents: list[str | None], service: str, slo: SloConfig) -> list[Sli]:
+def trace_slis(
+    spans: pa.Table, parents: list[str | None], client: list[bool], service: str, slo: SloConfig
+) -> list[Sli]:
     """`latency_p99` and `error_rate` of the service's entry spans per bucket (§3.8 step 2).
 
-    Entry span: parent null, missing, or in another service, and not client-like (kind `client`;
-    02-signalyth §3.3). Buckets with fewer than `slo.min_spans` entry spans are skipped. `parents`
-    is `span_parents(spans)`, computed once per case.
+    Entry span: parent null, missing, or in another service, and not client-like (02-signalyth
+    §3.3). Buckets with fewer than `slo.min_spans` entry spans are skipped. `parents` is
+    `span_parents(spans)` and `client` is `client_like(spans, slo)`, both computed once per case.
     """
     services = _strings(spans, "service")
-    kinds = _strings(spans, "kind")
     status = _strings(spans, "status")
     start = np.asarray(spans.column("start_ns").to_numpy(), dtype=np.int64)
     end = np.asarray(spans.column("end_ns").to_numpy(), dtype=np.int64)
     entry = np.asarray(
-        [
-            s == service and k != "client" and p != service
-            for s, k, p in zip(services, kinds, parents, strict=True)
-        ],
+        [s == service and not c and p != service for s, c, p in zip(services, client, parents, strict=True)],
         dtype=np.bool_,
     )
     errors = np.asarray([st == "error" for st in status], dtype=np.bool_)[entry]
@@ -130,16 +163,20 @@ TO_MS: Final[Mapping[str, float]] = {
     "ns": 1e-6,
     "nanoseconds": 1e-6,
 }
-_QUANTILE = re.compile(r"(?:-|p|quantile=)(0?\.\d+|\d+)", re.IGNORECASE)
+#: The three quantile forms of 02-signalyth rule 5, each read strictly: `quantile=` gives the
+#: quantile itself (`quantile=1` is 1.0), `p99`/`p99.9` give percent after a non-alphanumeric
+#: (so `http2` is not one), and `-90` gives percent only at the end of the name (so `frontend-2_x`
+#: is not one).
+_QUANTILE_EQ = re.compile(r"quantile=\"?(\d*\.?\d+)", re.IGNORECASE)
+_PERCENT = re.compile(r"(?:(?<![a-z0-9])p(\d+(?:\.\d+)?)(?![\d.])|-(\d+(?:\.\d+)?)$)", re.IGNORECASE)
 
 
 def quantile_of(name: str) -> float:
     """The quantile a metric name encodes (`-90`, `p99`, `quantile=0.99`; 02-signalyth rule 5), or -1."""
-    found = [m.group(1) for m in _QUANTILE.finditer(name)]
-    if not found:
-        return -1.0
-    raw = found[-1]
-    return float(raw) if "." in raw else float(f"0.{raw}")
+    found = [float(m.group(1)) for m in _QUANTILE_EQ.finditer(name)]
+    # Percent in Decimal, so p99.9 is exactly 0.999 rather than 99.9 / 100 = 0.9990000000000001.
+    found += [float(Decimal(m.group(1) or m.group(2)) / 100) for m in _PERCENT.finditer(name)]
+    return max(found, default=-1.0)
 
 
 def _rate(t: IntArray, v: FloatArray) -> tuple[IntArray, FloatArray]:
@@ -155,7 +192,9 @@ def metric_slis(metrics: pa.Table, service: str, slo: SloConfig) -> list[Sli]:
 
     Per component: the latency metric with the highest quantile in its name (A→Z on ties), in ms,
     and the first error metric A→Z; counters (Signalyth's name patterns) become per-second rates.
-    The last value per `slo.bucket_s` bucket is the SLI value.
+    A counter is never the latency SLI: a histogram's `_count` is a request rate and its `_sum`
+    cumulative time (Infralume keeps only those two, 01-infralume §3.9). The last value per
+    `slo.bucket_s` bucket is the SLI value.
     """
     rows = metrics.filter(_pc.equal(metrics.column("service"), service))
     names = cast("list[str]", rows.column("name").to_pylist())
@@ -167,7 +206,12 @@ def metric_slis(metrics: pa.Table, service: str, slo: SloConfig) -> list[Sli]:
     for component in sorted(set(components)):
         own = sorted({n for c, n in zip(components, names, strict=True) if c == component})
         latency = sorted(
-            (n for n in own if slo.latency_pattern.search(n)), key=lambda n: (-quantile_of(n), n)
+            (
+                n
+                for n in own
+                if slo.latency_pattern.search(n) and not any(p.search(n) for p in slo.counter_patterns)
+            ),
+            key=lambda n: (-quantile_of(n), n),
         )
         errors = [n for n in own if slo.error_pattern.search(n) and n not in latency[:1]]
         for name, kind in [*((n, LATENCY) for n in latency[:1]), *((n, ERRORS) for n in errors[:1])]:
