@@ -79,8 +79,8 @@ If two raw names map to the same `signal` for one (`service`, `component`), all 
 
 Per trace, in a single pass over spans sorted by (`trace_id`, `start_ns`, `span_id`):
 
-1. **Parents.** Use `parent_span_id`. If every non-first span of a trace lacks a parent and `traces.reconstruct_parents = if_missing`, rebuild parents by time containment: `parent(b) = argmin_{a: svc(a) ≠ svc(b), start_a ≤ start_b, end_b ≤ end_a} duration(a)` ([rcaeval_facts §Traces][rf-traces]). Spans whose parent is not in the trace are **orphans** and start their own subtree.
-2. **Client spans.** A span is client-like if `kind = client`, or (when `kind = unspecified` and `traces.infer_client_spans`) it has exactly one child, that child is in another service, and the child lies inside it within `traces.skew_tolerance_ms`.
+1. **Parents.** Use `parent_span_id`. If every non-first span of a trace lacks a parent and `traces.reconstruct_parents = if_missing`, rebuild parents by time containment: `parent(b) = argmin_{a: svc(a) ≠ svc(b), start_a ≤ start_b, end_b ≤ end_a} duration(a)` ([rcaeval_facts §Traces][rf-traces]); a span with the same interval as `b` qualifies only if it comes before `b` in (`start_ns`, `span_id`) order, so identical intervals never parent each other. Spans whose parent is not in the trace are **orphans** and start their own subtree. A parent cycle (a span that is its own ancestor) fails the step with a contract error naming the trace.
+2. **Client spans.** A span is client-like if `kind = client`, or (when `kind = unspecified` and `traces.infer_client_spans`) its parent is in the same service, it has exactly one child, that child is in another service, and the child lies inside it within `traces.skew_tolerance_ms`. The same-service parent is what a real client span has; without it, a kind-less server span that makes one downstream call (every RCAEval span is kind-less) would lose its service's entry span, incoming edge and critical-path share (lead decision, review of #192).
 3. **Entry span of a service** = a span whose parent is null, an orphan, or in another service, and which is not client-like. Each entry span starts a **visit**: the entry span plus its same-service descendants, stopping at children in other services.
 4. **Self-time.** For a non-client span: `self = duration − |∪ children intervals clipped to the span|`. For a client-like span: `self = 0`; its uncovered time is **gap** (network plus client overhead) and is reported on edges, not charged to any service. Visit self-time = Σ self over the visit's spans.
 5. **Window of a span or visit** = the window containing its `start_ns`; traces for the critical path are assigned by their root's `start_ns`.
@@ -121,6 +121,8 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 - **Clock skew.** Children are clipped to the parent's interval; a child ending more than `tol = traces.skew_tolerance_ms` after the current point is treated as overlapping and skipped. Skew is not corrected here (Causync estimates it later).
 - **Invariant.** For each trace, Σ self over services + gap = root duration. Property-tested.
 - **Cap.** At most `cp.max_traces_per_window` eligible traces per window, chosen by ascending `sha256(case_id ‖ trace_id)` (deterministic, no RNG).
+
+**Built (O-02).** Edges and visits take the window of the child's (entry span's) `start_ns`. `cp_self_ms_p50/p99` use every trace on which the service is on the path (no `min_spans_per_quantile`), and the slow-trace p95 is taken over the baseline window's eligible traces after the cap. On RCAEval, where every span is kind-less, only a span whose parent is in its own service can be inferred client-like (§3.3 step 2), so a server span that makes one downstream call keeps its entry span, incoming edge, trace series and critical-path share; the `traces.infer_client_spans` arm (§9) measures what inference adds.
 
 **Table** per (window, service): `traces` = eligible traces where the service's CP self-time > 0; `cp_self_ms_p50/p99` over those traces; `cp_share_mean` = Σ over all eligible traces in the window of (service CP self / root duration) ÷ number of eligible traces (absent traces count as 0). Hence Σ over services of `cp_share_mean` ≤ 1; the remainder is gap.
 
@@ -220,6 +222,7 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 | `sources.logs = false` | no log series; `templates` has zero rows |
 | `sources.metrics = false` | no metric series |
 | Spans without any parent IDs | containment reconstruction (§3.3) |
+| Parent cycle in a trace | the step fails with a `telemetry.spans` contract error naming the trace |
 | Only orphan-heavy traces | excluded from the critical path; series and edges still computed |
 | Child outside parent (skew) | clipped (§3.4) |
 | Span `kind` missing | treated as `unspecified`; client inference applies |
