@@ -1,0 +1,11 @@
+# Chaos Mesh 2.8.7 Helm values for kind (05 §3.4): the chart defaults to the Docker runtime, kind
+# runs containerd. The dashboard is off to save memory (05 §3.4 "checked at X-02").
+chaosDaemon:
+  runtime: containerd
+  socketPath: /run/containerd/containerd.sock
+dashboard:
+  create: false
+# One controller instead of the chart's three: leader election makes the others idle standbys,
+# and the laptop budget (05 §5) has no room for them.
+controllerManager:
+  replicaCount: 1

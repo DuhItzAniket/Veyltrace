@@ -90,7 +90,7 @@ packages/<name>/
   - Any tool: `git fetch origin && git worktree add ../vt-<issue> -b <lane>/<issue>-<slug> origin/main`
   - Claude Code: `claude --worktree <issue>-<slug>` (creates branch `worktree-<issue>-<slug>`; rename it with `git branch -m <lane>/<issue>-<slug>` before the first push)
   - Remove when merged: `git worktree remove ../vt-<issue>`
-- **Rebase, don't merge:** `git fetch origin && git rebase origin/main` before starting each session and before opening the PR.
+- **Rebase, don't merge:** `git fetch origin && git rebase origin/main` before starting each session and before opening the PR. Exception: a branch others build on (a PR in a stack, or a branch a second agent has pulled) takes `origin/main` with `git merge`, never a rebase, so the branches on top of it stay valid (D7 in #227).
 - **Conventional Commits**, scope = package or area: `feat(causatrix): add gated RRF (#31)`, `fix(infralume): …`, `docs(adr): …`, `exp(bench): …`, `chore(deps): …`.
 - **PR rules:**
   1. one issue per PR; title = the main commit message
@@ -99,7 +99,7 @@ packages/<name>/
   4. a towncrier fragment
   5. the Definition of Done in the template ticked ([10-sdlc-and-quality §3](10-sdlc-and-quality.md))
   6. one approval from someone other than the author (CODEOWNERS requests the right person)
-  7. **squash merge** only; delete the branch
+  7. **squash merge** a standalone PR. Merge a PR in a stack (another open PR is based on its branch) with **Create a merge commit**: a squash rewrites the commits the PR above it carries, so that PR conflicts with `main` and needs another update and CI run. Each branch in the stack contains its parent's final tip before the stack is merged bottom first. Delete the branch after merging.
 - **Review SLA:** reviewers respond within 12 hours on weekdays. A PR waiting longer may be merged by the lead after a self-review checklist, noted in the PR.
 
 ### 4.1 GitHub settings (lead, task L-00)
@@ -109,7 +109,7 @@ The repo is public and owned by a personal account, so **merge queue is not avai
 - require a PR, 1 approval, review from Code Owners
 - required status checks: `lanes`, `agent-files`, `docs`, `lint`, `types`, `tests`, `isolation`, `determinism`, `contracts-in-sync`, `changelog`, `console` (jobs that do not apply yet are skipped by the `detect` job and count as passing; verify this once on the first PR)
 - **require branches to be up to date before merging** (the merge-queue substitute)
-- require linear history; require conversation resolution; block force pushes
+- require conversation resolution; block force pushes (linear history is not required: stacked PRs merge with merge commits, rule 7 above)
 - allow auto-merge (so an approved, up-to-date, green PR merges itself)
 
 Until both teammates' logins are in `lanes.yml`, the generated CODEOWNERS lists only the lead, who cannot approve their own PRs. So L-00 fills the logins **before** enabling "review from Code Owners"; after regeneration every path has at least two owners.

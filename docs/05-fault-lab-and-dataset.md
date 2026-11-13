@@ -65,17 +65,14 @@ apiVersion: kind.x-k8s.io/v1alpha4
 name: veyllab
 nodes:
   - role: control-plane
-    image: kindest/node:<version>@sha256:<digest>      # pinned at X-02
-    extraMounts:
-      - hostPath: <spool dir visible to Docker Desktop>  # verify path form at X-02
-        containerPath: /veyllab/spool
+    image: kindest/node:<version>@sha256:<digest>      # pinned after the first live run
     extraPortMappings:
       - containerPort: 30080          # frontend NodePort
         hostPort: 8080
         listenAddress: "127.0.0.1"    # local only
 ```
 
-One node keeps memory down; k3d is an equivalent fallback if kind misbehaves ([bt §Q3][bt-q3]).
+One node keeps memory down; k3d is an equivalent fallback if kind misbehaves ([bt §Q3][bt-q3]). The Collector spool (`/veyllab/spool`) stays inside the node container and is copied out with `docker cp` at export, so no `extraMounts` host path is needed; image digests are recorded in every capture's `orchestrator.json` and copied into `lab/ob/pins.yaml` after the first live run ([ADR 20261109-cl-lab-ob-profile](adr/20261109-cl-lab-ob-profile.md)).
 
 ### 3.2 Application
 
@@ -171,9 +168,11 @@ Parameters are a priori defaults with two severity levels; every value used is w
 | F11 | Config change regression | `config` / `cpu` or `errors` | `kubectl set resources` (CPU limit cut) or Service `targetPort` misconfiguration (AIOpsLab) / `docker update` limits | limit ÷ 4 / ÷ 10; wrong port | rollout event, then throttling and latency, or connection errors | — |
 | F12 | Bad deploy (image change) | `error` or `delay` (by patch) / `errors` or `latency` | `kubectl set image` to a locally built OB variant (`kind load docker-image`) / Compose image swap | one-line patch adding errors / delay | deploy event, onset after rollout | stretch: image build effort |
 | F13 | Dependency (DB/cache) slowdown | `dependency` / `latency` | NetworkChaos delay or StressChaos on `redis-cart` / flags `productCatalogLockContention`, `kafkaQueueProblems` | as F04 / F01 | callers of the datastore slow; datastore signals | — |
-| F14 | No fault | — (`is_no_fault = true`) | none | — | none (control) | — |
+| F14 | No fault | — (`is_no_fault = true`) | none | — | none (control) | implemented (X-11): no target, same phases; key with null times and `injection_json` (03 §13.1, as synth-05), reference time in `orchestrator.json` |
 | F15 | Multi-fault | per root | two of F01, F04, F05 on two different services, overlapping | L1 each | both patterns | — |
 | F16 | Benign noise | — (added to another case) | 2-minute load spike (30 users) on the load generator | — | transient traffic change, no SLI breach expected | — |
+
+**Implemented** (X-06, `lab/vlab/faults.py`; [ADR 20261109-cl-lab-catalog-packager](adr/20261109-cl-lab-catalog-packager.md)): F01, F02, F04–F08, F11, F13. The indicator column above uses `family` names; answer keys use the 03 §1 `indicator` vocabulary (`errors` → `error`, F05's `net` → `error`). F09 is deferred: HTTPChaos has no request percentage, so 10% / 50% abort cannot be expressed.
 
 **Targets.** OB: the 10 application services plus `redis-cart` (F03, F13); `loadgenerator` is never a target. Default grid (a priori, following the notes): 5 target services × 9 fault types (F01, F02, F04–F09, F11) × 3 repetitions per severity schedule, plus ≈ 10% no-fault cases, ≈ 10% noisy cases and up to 20 multi-fault cases ([bt §Q5][bt-q5]). The plan file fixes the order from a recorded seed.
 
@@ -197,7 +196,7 @@ The orchestrator `lab/campaign.py` executes a plan file `lab/plans/<plan>.yaml` 
 |---|---|---|
 | Reset | ≤ 5 min | delete leftover chaos CRDs; restore config, flags and images; `kubectl rollout restart` every app Deployment (every 10th case: delete and recreate the namespace); wait until all are ready, else mark `reset_failed` and skip |
 | Warm-up | 3 min | traffic on; not part of the capture's baseline |
-| Baseline check | ≈ 0.5 min | entry-service p95 latency ≤ 1.5 × the reference p95 measured at setup, and error rate ≤ 1% (a priori); on failure wait 2 min and retry once, else `baseline_unrecovered` |
+| Baseline check | ≈ 0.5 min | entry-service p95 latency ≤ 1.5 × the reference p95 measured at setup, and error rate ≤ 1% (a priori; *not built yet*: the campaign checks only that the entry service answers HTTP 200); on failure wait 2 min and retry once, else `baseline_unrecovered` |
 | Baseline | 10 min | capture on; decoy change if scheduled |
 | Fault | 10 min | inject at `t_inject`; record host clock ns and kind node clock ns (`docker exec veyllab-control-plane date +%s%N`) for skew |
 | Recovery | 2 min | remove the fault; keep capturing |
@@ -210,8 +209,8 @@ Total ≈ 25–30 min per case, matching the ≈ 25 min the notes assume ([bt §
 Keep a fault case only if user-facing impact is measurable, as the FSE'26 benchmark did (1,430 of 9,152 injections kept) ([bt §Q5][bt-q5]):
 
 1. SLI series: entry-service (`frontend`) server-span p95 latency and error rate in 30 s buckets, computed by lab code from the capture's spans.
-2. Baseline: median and MAD of each SLI over the baseline buckets, MAD floored at 1% of the median (a priori).
-3. Keep if, within 5 minutes after `t_inject`, at least 2 consecutive buckets exceed `median + 5 × MAD` for either SLI (k = 5, N = 5 min: a priori).
+2. Baseline: median and MAD of each SLI over the baseline buckets, MAD floored at 1% of the median and at an absolute 1 ms (p95) or 0.5 percentage points (error rate), because an error-free baseline has median and MAD 0; at least 6 baseline buckets (3 min), else the case is not validated (`insufficient_baseline`) (all a priori; [ADR 20261110-cl-lab-validation](adr/20261110-cl-lab-validation.md)).
+3. Buckets are aligned to `t_inject` (for an F14 control: the reference time where a fault would start, recorded in the capture's `orchestrator.json`). Every bucket of the window is kept; a bucket with no entry-service span is an outage and breaches both SLIs, and a run needs adjacent buckets. Keep if, within 5 minutes after `t_inject`, at least 2 consecutive buckets exceed `median + 5 × MAD` for either SLI (k = 5, N = 5 min: a priori).
 4. No-fault cases are kept only if **no** such breach occurs (a clean control).
 5. Every attempt, kept or not, is logged with its reason; acceptance rate is reported per fault type and system.
 
@@ -247,7 +246,7 @@ This is the layout [engines/01 §`veyllab`](engines/01-infralume.md) expects, to
 2. Move `k8sobjects` records and orchestrator change records from the logs into `events.jsonl` (§7); hash flag keys.
 3. Write the scrubbed OTLP files, `oracle_alert.json` (from the orchestrator's `t_inject`) and `capture.json`.
 4. Post-scan every packaged file for deny-listed tokens; any hit fails the run.
-5. Append the answer key to `lab/captures/answer_keys/<dataset>.parquet` ([03 §13.1](03-contracts.md#131-answer_key--key-case_id)), keyed by `case_id`; bench loads it from there.
+5. Merge the answer key into `${VEYLTRACE_DATA}/answer_keys/<dataset>.parquet`, the registry path of [03 §13.1](03-contracts.md#131-answer_key--key-case_id), keyed by `case_id`, through bench's `write_answer_keys` (core io: schema, unique `case_id`, refuses a git work tree); bench loads it from there. Every key carries all 03 §13.1 columns, null where unknown.
 
 **Release build** (`lab/release.py`, X-14): for each validated case, convert the packaged capture to canonical `telemetry.{metrics,logs,spans,events}` Parquet with Infralume's converter library `veyltrace_infralume.otlp` (Observe lane, O-07; the lab does not parse OTLP itself); assemble `cases/<case_id>/telemetry/*.parquet`, `answer_keys/answer_key.parquet` (including `validated` and `sli_impact_json`), `metadata/lab_metadata.parquet` (host spec, versions, skew) and `MANIFEST.json` (every file with SHA-256) in a staging folder under `lab/captures/release/`.
 

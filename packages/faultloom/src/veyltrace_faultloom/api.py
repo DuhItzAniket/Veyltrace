@@ -3,7 +3,7 @@
 FaultLoom runs twice (02 §4): the engine pass at step 5 (`ctx.phase == "main"`) and the claim
 pass at step 8 (`ctx.phase == "claim_pass"`); one `run(ctx) -> EngineResult` branches on the
 phase (M0 lead decision 2026-11-06, D-5). Until R-08 both phases live in `veyltrace_faultloom.stub`:
-the engine pass writes R-06's anomaly atoms, the claim pass is R-00's stub (R-08/R-12 replace it).
+the engine pass writes the atom kinds built so far, the claim pass is R-00's stub (R-08/R-12 replace it).
 The signature is fixed (AGENTS §5).
 """
 
