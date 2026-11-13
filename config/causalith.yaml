@@ -1,7 +1,7 @@
 # config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
-# Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with O-04b, edges.* with O-05a);
-# the rest come with O-05. Overrides must name keys present here (packages/core/README.md:
-# unknown keys are an error).
+# Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with
+# O-04b, edges.* with O-05a, node_kinds.* and graph.* with O-05b; logs, topology, paths and ci
+# follow). Overrides must name keys present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
@@ -20,6 +20,16 @@ entry:
     otel: [frontend-proxy]
   # Traffic sources are not entries (05 §4): their calls do not make a service a callee.
   exclude: [load-generator, loadgenerator, locust]
+
+node_kinds:
+  # 05-causalith §3.2: name patterns (regex search) when spans carry no db.* / messaging.* attribute.
+  db_patterns: ["-db$", "mongo", "mysql", "postgres", "mariadb"]   # a priori
+  cache_patterns: ["redis", "memcached", "valkey"]                 # a priori
+  queue_patterns: ["kafka", "rabbitmq", "nats"]                    # a priori
+
+graph:
+  include_external: true    # 05 §3.1: hosts of client spans that are no known service (a priori)
+  external_min_calls: 10    # spans an external host needs to become a node (a priori)
 
 edges:
   # 05 §3.4: an edge is anomalous in the incident window if any rule holds (all a priori).

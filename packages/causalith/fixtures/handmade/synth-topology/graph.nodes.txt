@@ -1,0 +1,12 @@
+field node: string not null
+field kind: string not null
+field is_entry: bool not null
+field provenance: list<string not null> not null
+metadata veyltrace.schema: graph.nodes/0.1.0
+row {"is_entry":false,"kind":"external","node":"card-gateway.example","provenance":["traces"]}
+row {"is_entry":false,"kind":"service","node":"cart","provenance":["traces"]}
+row {"is_entry":false,"kind":"service","node":"catalog","provenance":["traces"]}
+row {"is_entry":false,"kind":"service","node":"checkout","provenance":["metrics","traces"]}
+row {"is_entry":true,"kind":"entry","node":"frontend","provenance":["traces"]}
+row {"is_entry":false,"kind":"service","node":"payment","provenance":["traces"]}
+row {"is_entry":false,"kind":"service","node":"recommend","provenance":["traces"]}

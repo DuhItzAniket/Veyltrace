@@ -1,0 +1,13 @@
+field src: string not null
+field dst: string not null
+field provenance: list<string not null> not null
+field calls_incident: int64 null
+field weight: double not null
+field anomalous: bool null
+metadata veyltrace.schema: graph.edges/0.1.0
+row {"anomalous":false,"calls_incident":600,"dst":"cart","provenance":["traces"],"src":"checkout","weight":0.75}
+row {"anomalous":true,"calls_incident":200,"dst":"payment","provenance":["traces"],"src":"checkout","weight":0.25}
+row {"anomalous":false,"calls_incident":600,"dst":"catalog","provenance":["traces"],"src":"frontend","weight":0.333333333}
+row {"anomalous":false,"calls_incident":600,"dst":"checkout","provenance":["traces"],"src":"frontend","weight":0.333333333}
+row {"anomalous":false,"calls_incident":600,"dst":"recommend","provenance":["traces"],"src":"frontend","weight":0.333333333}
+row {"anomalous":false,"calls_incident":600,"dst":"catalog","provenance":["traces"],"src":"recommend","weight":1.0}
