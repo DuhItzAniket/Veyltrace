@@ -10,6 +10,7 @@ detect_alert: slo).
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
@@ -146,6 +147,9 @@ class SloConfig:
     k: float
     persist_steps: int
     min_baseline_points: int
+    latency_pattern: re.Pattern[str]
+    error_pattern: re.Pattern[str]
+    counter_patterns: tuple[re.Pattern[str], ...]
 
 
 @dataclass(frozen=True)
@@ -263,6 +267,25 @@ def _onset(section: Mapping[str, Any]) -> OnsetConfig:
     return OnsetConfig(bocpd_max_lead_ns=lead * NS_PER_S, clamp_ns=(low * NS_PER_S, high * NS_PER_S))
 
 
+def _names(value: object, where: str) -> list[object]:
+    if isinstance(value, str) or not isinstance(value, list | tuple):
+        msg = f"{where}.counter_name_patterns must be a list of regular expressions, got {value!r}"
+        raise ConfigError(msg)
+    return list(cast("list[object]", value))
+
+
+def _regex(value: object, where: str) -> re.Pattern[str]:
+    """A case-insensitive pattern, as Signalyth's metric-name rules (02-signalyth §3.2)."""
+    if not isinstance(value, str) or not value:
+        msg = f"{where} must be a non-empty regular expression, got {value!r}"
+        raise ConfigError(msg)
+    try:
+        return re.compile(value, re.IGNORECASE)
+    except re.error as exc:
+        msg = f"{where}: invalid regular expression {value!r}: {exc}"
+        raise ConfigError(msg) from exc
+
+
 def _slo(section: Mapping[str, Any]) -> SloConfig:
     sc = _mapping(section, "slo", "anomara")
     where = "anomara.slo"
@@ -281,6 +304,12 @@ def _slo(section: Mapping[str, Any]) -> SloConfig:
         k=_number(sc, "k", where, positive=True),
         persist_steps=_count(sc, "persist_steps", where),
         min_baseline_points=_count(sc, "min_baseline_points", where),
+        latency_pattern=_regex(sc.get("latency_metric_pattern"), f"{where}.latency_metric_pattern"),
+        error_pattern=_regex(sc.get("error_metric_pattern"), f"{where}.error_metric_pattern"),
+        counter_patterns=tuple(
+            _regex(p, f"{where}.counter_name_patterns")
+            for p in _names(sc.get("counter_name_patterns"), where)
+        ),
     )
 
 

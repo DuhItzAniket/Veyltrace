@@ -22,6 +22,10 @@ dependencies = [
 [project.entry-points."veyltrace.engines"]
 anomara = "veyltrace_anomara.api:run"
 
+# Core's alert step calls this under the detected-alert protocol (D-2; 03-anomara §3.8).
+[project.entry-points."veyltrace.alert_detectors"]
+default = "veyltrace_anomara.alert:detect_alert"
+
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }

@@ -81,3 +81,8 @@ slo:
   k: 3.0                    # one-sided z threshold, a priori
   persist_steps: 3          # consecutive buckets that confirm a breach, a priori
   min_baseline_points: 10   # baseline buckets needed to judge a bucket, a priori
+  # Metrics fallback without traces: the same case-insensitive name rules as Signalyth
+  # (02-signalyth §3.2 rules 5 and 6, metrics.counter_name_patterns).
+  latency_metric_pattern: "latency|duration|response_time"
+  error_metric_pattern: "^error$|error|fail|5xx"
+  counter_name_patterns: ["_total$", "_count$", "_sum$", "_bucket$"]
