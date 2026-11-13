@@ -3,12 +3,14 @@
 A group is one (dataset, system, method); its rows are `metrics.CaseScore`s. Rates are over the
 group's fault cases F, so failed and unranked runs stay in every denominator (04 §7 "Failed runs";
 "Unranked runs", added by #14) and no-fault rows stay out of all of them (and of n_unranked). Means
-use math.fsum, so a summary never depends on row order.
+use math.fsum, so a summary never depends on row order. Onset error is not a rate: its median and
+max are over the rows that have one (detected-protocol ``ok`` runs of injected cases, #215).
 """
 
 from __future__ import annotations
 
 import math
+import statistics
 from collections import Counter
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from types import MappingProxyType
@@ -31,6 +33,7 @@ METRIC_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "rerank_at_1": ("rerank_at_1",),
         "chance": _at_ks("chance"),
         "lift": _at_ks("lift", "chance_diff"),  # Lift@k = AC@k / Chance@k, also AC@k − Chance@k
+        "onset_error": ("onset_error_median_ms", "onset_error_max_ms", "n_onset"),  # 04 §7, #215
     }
 )
 ALL_METRICS = tuple(METRIC_KEYS)
@@ -87,5 +90,9 @@ def summarize(scores: Iterable[CaseScore], metrics: Collection[str] = ALL_METRIC
     values["retrieval_k"] = sorted({s.slate_k for s in fault if s.slate_k is not None}) or None
     values["pool_retrieval"] = _rate([s.pool_hit for s in fault], channel=True)
     values["rerank_at_1"] = ac[1] / retrieval if ac[1] is not None and retrieval else None
+    onset = [s.onset_error_ms for s in rows if s.onset_error_ms is not None]
+    values["onset_error_median_ms"] = statistics.median(onset) if onset else None  # sorts: order-free
+    values["onset_error_max_ms"] = max(onset) if onset else None
+    values["n_onset"] = len(onset)
     keep = {key for name in metrics for key in METRIC_KEYS[name]}
     return counts | {key: value for key, value in values.items() if key in keep}
