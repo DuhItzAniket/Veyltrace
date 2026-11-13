@@ -60,6 +60,12 @@ def test_the_graph_equals_the_synth_topology_exactly(tmp_path: Path) -> None:
         "kind"
     ] == "entry"
     assert nodes[EXTERNAL_HOST]["kind"] == "external" and nodes[EXTERNAL_HOST]["provenance"] == ["traces"]
-    assert nodes["checkout"]["provenance"] == ["metrics", "traces"]
+    assert nodes["checkout"]["provenance"] == ["logs", "metrics", "traces"]
     assert [k for k, r in edges.items() if r["anomalous"]] == [("checkout", "payment")]
     assert edges["checkout", "cart"]["weight"] == 0.75 and edges["checkout", "payment"]["weight"] == 0.25
+    # Logs and the config event add provenance to edges traces already found (05 §3.4 merge).
+    assert edges["frontend", "checkout"]["provenance"] == ["logs", "traces"]
+    assert edges["recommend", "catalog"]["provenance"] == ["topology", "traces"]
+    # A node's provenance includes the source and target of a counted mention or hint (05 §3.1).
+    assert nodes["frontend"]["provenance"] == ["logs", "traces"]
+    assert nodes["recommend"]["provenance"] == nodes["catalog"]["provenance"] == ["topology", "traces"]

@@ -117,3 +117,12 @@ def test_malformed_edge_keys_are_config_errors(key: str, value: object) -> None:
     section["edges"][key] = value
     with pytest.raises(ConfigError):
         causalith_config(section)
+
+
+def test_static_topology_is_off_and_rejected_until_supported() -> None:
+    """05 §4: `topology.static_path` defaults to null; a set path fails loudly instead of being ignored."""
+    section = copy.deepcopy(_thaw(load_section_file("causalith")))
+    assert section["topology"]["static_path"] is None
+    section["topology"]["static_path"] = "topology/static.yaml"
+    with pytest.raises(ConfigError, match="static_path"):
+        causalith_config(section)

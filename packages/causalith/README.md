@@ -18,7 +18,19 @@ Spec: [docs/engines/05-causalith.md](../../docs/engines/05-causalith.md). Rules 
 | Writes | `graph/{nodes,edges,paths}.parquet` |
 | Config | `config/causalith.yaml` |
 
-Once implemented (O-05):
+## Modules
+
+| Module | What | Spec |
+|---|---|---|
+| `entry` | the shared entry-service rule (also used by Anomara and core's alert step) | 05-causalith §3.3 |
+| `graph` | trace edges (call shares, anomaly rules), external hosts, node kinds | §3.1, §3.2, §3.4 |
+| `mentions` | mention matcher with the ambiguity rule; log-mention and topology-hint edges | §3.4, §3.5 |
+| `settings` | typed, validated view of `config/causalith.yaml` | §4 |
+| `api` | `run(ctx)`: `graph.nodes` and `graph.edges` with trace, log and topology provenance (paths arrive with O-05d) | §2 |
+
+On synth, `signal_cube.edges` stays empty until Signalyth (O-02) lands, so the synth graph has its nodes (six services and the external card gateway) and only its log and topology edges (recommend → catalog, frontend → checkout) until then. The hand-made golden case `fixtures/handmade/synth-topology/` is the synth topology written as Signalyth will, and pins the graph exactly; refresh it after review with `VEYLTRACE_UPDATE_HANDMADE=1 uv run pytest packages/causalith/tests/test_handmade.py`.
+
+Commands:
 
 ```bash
 uv run python scripts/check.py --package causalith

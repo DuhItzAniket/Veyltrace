@@ -1,7 +1,8 @@
 # config/causalith.yaml: section "causalith" (file stem). Owner: Observe lane.
 # Spec: docs/engines/05-causalith.md §4. Keys arrive with the code that reads them (entry.* with
-# O-04b, edges.* with O-05a, node_kinds.* and graph.* with O-05b; logs, topology, paths and ci
-# follow). Overrides must name keys present here (packages/core/README.md: unknown keys are an error).
+# O-04b, edges.* with O-05a, node_kinds.* and graph.* with O-05b, logs.* and topology.* with
+# O-05c; paths and ci follow). Overrides must name keys present here (packages/core/README.md:
+# unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
@@ -37,3 +38,10 @@ edges:
   anom_latency_min_ms: 5.0          # ... and at least 5 ms higher
   anom_error_delta: 0.05            # error rate up by at least 5 points
   silence_min_baseline_calls: 10    # an edge with this many baseline calls that went silent
+
+logs:
+  min_mentions: 3           # 05 §3.4: lines of A mentioning B needed for the edge A -> B (a priori)
+
+topology:
+  # 05 §3.4: a YAML adjacency list per system; off by default (bench reports it as its own arm).
+  static_path: null
