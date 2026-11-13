@@ -50,7 +50,7 @@ def transition_rows(ev: EvidenceView, graph: GraphView, cfg: CausatrixConfig) ->
         edges = graph.callees(u)
         total = math.fsum(e.weight for e in edges)
         moves = tuple((e.dst, e.weight / total * big_a[e.dst] / top) for e in edges if total > 0)
-        free = 1.0 - math.fsum(f for _, f in moves)
+        free = max(0.0, 1.0 - math.fsum(f for _, f in moves))  # ≥ 0 in exact arithmetic; float guard
         a_internal = ev.of(u).internal / top if cfg.self_loop else 0.0
         rows[u] = Row(moves, free * a_internal, free * (1.0 - a_internal))
     return rows
