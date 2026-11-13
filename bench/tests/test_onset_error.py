@@ -116,7 +116,8 @@ def test_detected_runs_fill_onset_error(tmp_path: Path, monkeypatch: pytest.Monk
     injected, normal = rows[case_id("synth-01")], rows[case_id("synth-05")]
     assert injected["protocol"] == "detected" and injected["run_outcome"] == "ok"
     onsets = io.read_model("onsets", run_dirs[case_id("synth-01")], Onsets)
-    assert onsets.t_onset_ns != lay.T_INJECT_NS  # the detector fired late, so the error is not 0
+    # bench copies Anomara's onset; whether it is exact is O-04's business, and the gap
+    # arithmetic (non-zero, either sign) is pinned by the unit tests above
     assert injected["onset_error_ms"] == abs(onsets.t_onset_ns - lay.T_INJECT_NS) / 1e6
     assert normal["run_outcome"] == "ok" and normal["onset_error_ms"] is None  # no injection time
     groups = summary["groups"]
