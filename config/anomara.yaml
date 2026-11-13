@@ -58,3 +58,11 @@ bocpd:
   r_max: 200                # run-length truncation, a priori (covers the longest case grid)
   short_run: 2              # m in cp_t = P(r_t <= m), a priori
   threshold: 0.5            # probability, a priori
+
+onset:
+  # 03-anomara §3.6: a BOCPD onset at most this far before the robust_z onset replaces it (a ramp's start).
+  bocpd_max_lead_s: 120     # a priori
+
+t_onset:
+  # 03-anomara §3.7: t_onset is clamped to [t_alert + low, t_alert + high] (02 §6.3).
+  clamp_s: [-60, 300]
