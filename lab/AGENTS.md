@@ -25,6 +25,9 @@ Adds to the root [AGENTS.md](../AGENTS.md) and never overrides it.
 | Start a profile | `uv run python lab/up.py --profile ob` |
 | Dry-run a campaign | `uv run python lab/campaign.py --plan lab/plans/<plan>.yaml --dry-run` |
 | Package captures | `uv run python lab/package.py --dataset veyllab-ob --captures lab/captures/<id>` |
+| Plan one laptop's night | `uv run python lab/make_plan.py --seed <s> --laptops 3 --laptop <n> --night <k> --out lab/captures/night-<k>.yaml` |
+| Validate captures | `uv run python lab/validate.py` (campaigns validate at export) |
+| Standup count | `uv run python lab/report.py` (today) or `--all` |
 
 ## Never
 
