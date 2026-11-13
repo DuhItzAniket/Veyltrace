@@ -17,6 +17,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from veyltrace_core.errors import CaseRejected
 from veyltrace_core.io import arrow_schema, empty_table
 from veyltrace_core.log import get_logger
 from veyltrace_infralume.names import NameRules
@@ -114,20 +115,22 @@ def _table(columns: Mapping[str, Any], contract: str | None = None) -> pa.Table:
     return pa.Table.from_arrays(arrays, schema=pa.schema(fields))
 
 
-def _names(col: Any, rules: NameRules, *, pod: bool = False) -> tuple[Vec, Vec, Vec, Vec]:
+def _names(col: Any, rules: NameRules, scrub: Scrubber, *, pod: bool = False) -> tuple[Vec, Vec, Vec, Vec]:
     """Per row (service, component, kept, named) for a raw name column; each distinct value normalised
     once. `named` is false for a null or empty name: such a row is a data-quality drop, while a named
-    row that is not kept is a dropped container (a scrub drop, 03 §2.1)."""
+    row that is not kept is a dropped container (a scrub drop, 03 §2.1). A name with a folder token
+    rejects the case: scrubbed, it would read `…<case>…`, which is no valid name (01 §3.6), and
+    unscrubbed it would leak the case's identity."""
     encoded = _pc.dictionary_encode(col.combine_chunks() if isinstance(col, pa.ChunkedArray) else col)
-    named = [
-        rules.normalise(v, pod=pod) if v else None
-        for v in cast("list[str | None]", encoded.dictionary.to_pylist())
-    ]
+    raw_names = cast("list[str | None]", encoded.dictionary.to_pylist())
+    if any(v and scrub.text(v) != v for v in raw_names):
+        raise CaseRejected("invalid_name", "a service or pod name contains a folder token (01 §3.6)")
+    named = [rules.normalise(v, pod=pod) if v else None for v in raw_names]
     codes = _np(encoded.indices.fill_null(-1), np.int64)  # -1 picks the trailing "missing" entry
     service = np.array([n.service if n else None for n in named] + [None], dtype=object)[codes]
     component = np.array([n.component if n else None for n in named] + [None], dtype=object)[codes]
     kept = np.array([n is not None for n in named] + [False], dtype=bool)[codes]
-    present = np.array([bool(v) for v in encoded.dictionary.to_pylist()] + [False], dtype=bool)[codes]
+    present = np.array([bool(v) for v in raw_names] + [False], dtype=bool)[codes]
     return service, component, kept, present
 
 
@@ -187,9 +190,9 @@ def logs_table(raw: pa.Table, rules: NameRules, scrub: Scrubber) -> pa.Table:
     tokens (01 §3.3); a null message is an empty body (the line still counts)."""
     if "timestamp" not in raw.column_names or "container_name" not in raw.column_names:
         return empty_table("telemetry.logs")
-    service, component, keep, present = _names(raw.column("container_name"), rules)
+    service, component, keep, present = _names(raw.column("container_name"), rules, scrub)
     if "pod_name" in raw.column_names:
-        _, pod_component, pod_ok, _ = _names(raw.column("pod_name"), rules, pod=True)
+        _, pod_component, pod_ok, _ = _names(raw.column("pod_name"), rules, scrub, pod=True)
         component = np.where(pod_ok, pod_component, component)
     timed = _np(raw.column("timestamp").is_valid(), bool)
     scrub.dropped_rows += int((present & ~keep).sum())
@@ -220,7 +223,7 @@ def spans_table(raw: pa.Table, rules: NameRules, status: StatusRules, scrub: Scr
     (first in key order kept) are dropped and logged (01 §6)."""
     if "traceID" not in raw.column_names or raw.num_rows == 0:
         return empty_table("telemetry.spans")
-    service, component, keep, present = _names(raw.column("serviceName"), rules)
+    service, component, keep, present = _names(raw.column("serviceName"), rules, scrub)
     scrub.dropped_rows += int((present & ~keep).sum())
     _quality_drop("spans", int((~present).sum()))
     raw, service, component = raw.filter(pa.array(keep)), service[keep], component[keep]
