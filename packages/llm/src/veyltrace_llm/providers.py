@@ -12,6 +12,7 @@ from typing import Protocol
 from veyltrace_core.errors import ConfigError
 from veyltrace_llm.fake import FakeProvider
 from veyltrace_llm.ollama import OllamaProvider
+from veyltrace_llm.openai_chat import LlamaCppProvider, OpenAICompatProvider
 from veyltrace_llm.request import Completion, LLMRequest
 from veyltrace_llm.settings import LLMSettings
 
@@ -32,6 +33,8 @@ def provider_for(settings: LLMSettings) -> Provider:
         return FakeProvider()
     if settings.provider == "ollama":
         return OllamaProvider(settings)
-    raise ConfigError(
-        f"llm.provider {settings.provider!r} is not available yet (llama.cpp and OpenAI-compatible: #18)"
-    )
+    if settings.provider == "llamacpp":
+        return LlamaCppProvider(settings)
+    if settings.provider == "openai_compat":
+        return OpenAICompatProvider(settings)
+    raise ConfigError(f"llm.provider {settings.provider!r} has no provider")

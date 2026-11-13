@@ -1,9 +1,45 @@
 # config/signalyth.yaml: section "signalyth" (file stem). Owner: Observe lane.
-# Spec: docs/engines/02-signalyth.md §4. R-02 bootstrap: only the keys core needs now; the Observe
-# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
-# unknown keys are an error).
+# Spec: docs/engines/02-signalyth.md §4. Log keys (Drain3, masks, lexicon) arrive with O-03.
+# Overrides must name keys present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
   threads: 1             # determinism (02-signalyth §4; rcaeval_facts §Engineering)
   memory_limit: "1.5GB"  # 02-signalyth §4, §8 memory budget
+
+buckets:
+  traces_s: 10           # a priori; the log grid of 02 §6.2 (02-signalyth §3.1)
+
+metrics:
+  # First matching rule wins: a case-insensitive regex on the raw name (02-signalyth §3.2 table;
+  # PRISM's internal/external split, rcaeval_facts §Anomaly scoring methods). `signal` is a fixed
+  # name or "{name}" (the sanitised raw name); `exact` is the raw name that keeps itself as signal;
+  # `quantile` appends _p{q} when the name carries a quantile.
+  family_rules:
+    - {pattern: "spec|quota|limit|request_bytes|requests_bytes", signal: "{name}", family: other, klass: context}
+    - {pattern: "^cpu$|cpu_usage|cpu_seconds|^container[_.-]cpu|process[_.]cpu", signal: cpu, family: cpu, klass: internal}
+    - {pattern: "^mem$|memory|working_set|rss|heap", signal: mem, family: mem, klass: internal}
+    - {pattern: "^diskio$|disk|^container[_.-]fs|blkio", signal: disk, exact: diskio, family: disk, klass: internal}
+    - {pattern: "^socket$|socket|network|tcp|_rx|_tx|receive|transmit", signal: net, exact: socket, family: net, klass: internal}
+    - {pattern: "latency|duration|response_time", signal: latency, quantile: true, family: latency, klass: external}
+    - {pattern: "^error$|error|fail|5xx", signal: error, family: errors, klass: external}
+    - {pattern: "^workload$|request|rps|qps|throughput", signal: rps, exact: workload, family: traffic, klass: context}
+    - {pattern: ".*", signal: "{name}", family: other, klass: context}
+  counter_name_patterns: ["_total$", "_count$", "_sum$", "_bucket$"]  # Prometheus naming
+  counter_shape_test: true  # a priori
+  counter_shape:
+    min_increases: 10       # a priori
+    min_increase_share: 0.99  # a priori
+    reset_ratio: 0.1        # a drop below 10 % of the previous value is a reset (a priori)
+    exclude_families: [mem, latency, disk]  # protects monotone leak gauges
+
+traces:
+  reconstruct_parents: if_missing  # if_missing | never (rcaeval_facts §Traces)
+  infer_client_spans: true  # RCAEval spans have no kind
+  skew_tolerance_ms: 1.0    # a priori
+  min_spans_per_quantile: 5 # a priori
+  keep_fraction: 1.0        # sampling robustness arm (novel_building_blocks §Q6)
+
+cp:
+  min_tree_fraction: 0.8      # a priori
+  max_traces_per_window: 20000  # performance cap (estimate-based, 02-signalyth §8)
