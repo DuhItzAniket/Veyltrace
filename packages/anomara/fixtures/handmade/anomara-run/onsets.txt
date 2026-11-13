@@ -1,0 +1,43 @@
+{
+ "entry_services": [
+  "frontend"
+ ],
+ "method": "second_external",
+ "per_service": [
+  {
+   "external_onset_ns": 1767226980000000000,
+   "external_onset_source": "traces",
+   "internal_onset_ns": null,
+   "internal_onset_source": null,
+   "service": "cart",
+   "silent": true
+  },
+  {
+   "external_onset_ns": 1767226930000000000,
+   "external_onset_source": "traces",
+   "internal_onset_ns": 1767226920000000000,
+   "internal_onset_source": "metrics",
+   "service": "checkout",
+   "silent": true
+  },
+  {
+   "external_onset_ns": 1767226950000000000,
+   "external_onset_source": "traces",
+   "internal_onset_ns": null,
+   "internal_onset_source": null,
+   "service": "frontend",
+   "silent": false
+  },
+  {
+   "external_onset_ns": null,
+   "external_onset_source": null,
+   "internal_onset_ns": null,
+   "internal_onset_source": null,
+   "service": "payment",
+   "silent": false
+  }
+ ],
+ "schema_version": "0.1.0",
+ "slo_breach_ns": null,
+ "t_onset_ns": 1767226950000000000
+}
