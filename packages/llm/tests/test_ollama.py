@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.client
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -51,6 +52,8 @@ class FakeTransport:
     def __init__(self, *answers: HttpResponse | TransportError) -> None:
         self.answers = list(answers)
         self.sent: list[tuple[str, str, Any, Mapping[str, str]]] = []
+        self.timeouts: list[tuple[float, float]] = []
+        self.version_answers: list[HttpResponse | TransportError] = []
 
     def request(
         self,
@@ -63,7 +66,13 @@ class FakeTransport:
         timeout_s: float,
     ) -> HttpResponse:
         self.sent.append((method, route, None if body is None else json.loads(body), dict(headers)))
+        self.timeouts.append((connect_timeout_s, timeout_s))
         if route == "/api/version":
+            if self.version_answers:
+                version = self.version_answers.pop(0)
+                if isinstance(version, TransportError):
+                    raise version
+                return version
             return HttpResponse(200, b'{"version": "0.12.3"}')
         answer = self.answers.pop(0)
         if isinstance(answer, TransportError):
@@ -153,6 +162,22 @@ def test_failures_are_outcomes_not_exceptions(answer: HttpResponse | TransportEr
     completion = OllamaProvider(_settings(), FakeTransport(answer)).complete(_request())
     assert completion.error is not None and completion.error.kind == kind
     assert completion.content is None and completion.usage == Usage(0, 0)
+
+
+def test_configured_timeouts_reach_the_transport() -> None:
+    transport = FakeTransport(_ok())
+    settings = replace(_settings(), connect_timeout_s=3.0, timeout_s=77.0)
+    OllamaProvider(settings, transport).complete(_request())
+    assert transport.timeouts and set(transport.timeouts) == {(3.0, 77.0)}  # chat and version GET
+
+
+def test_version_is_latched_only_after_a_2xx() -> None:
+    transport = FakeTransport(_ok(), _ok(), _ok())
+    transport.version_answers = [TransportError("connection", "starting"), HttpResponse(503, b"")]
+    provider = OllamaProvider(_settings(), transport)
+    versions = [provider.complete(_request()).runtime.version for _ in range(3)]
+    assert versions == [None, None, "0.12.3"]  # a failed or non-2xx probe is asked again
+    assert [s[1] for s in transport.sent].count("/api/version") == 3
 
 
 def test_no_retry_after_a_failure() -> None:

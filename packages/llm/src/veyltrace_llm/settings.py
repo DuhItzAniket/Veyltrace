@@ -24,7 +24,12 @@ SECTION: Final = "llm"
 
 @dataclass(frozen=True)
 class LLMSettings:
-    """The llm section. Only `model` enters the cassette key; the rest is runtime audit (08 §5.2)."""
+    """The llm section. Only `model` enters the cassette key; the rest is runtime audit (08 §5.2).
+
+    Transports connect only through `endpoint` (scheme, host, port, path as the localhost guard
+    checked them), never through the raw `base_url`; `Endpoint.url()` is for audit records and
+    error messages only (R4 on #227).
+    """
 
     provider: str
     base_url: str
@@ -86,6 +91,11 @@ def _str(section: Mapping[str, Any], dotted: str, *, nullable: bool = False) -> 
     return value
 
 
+#: Providers whose chat route already starts with /v1 (08 §3.8), so base_url must not end in it.
+_CHAT_COMPLETIONS: Final = frozenset({"llamacpp", "openai_compat"})
+_V1: Final = "/v1"
+
+
 def settings_from(section: Mapping[str, Any], env: Mapping[str, str] | None = None) -> LLMSettings:
     """Validate the llm section (`ctx.config.section("llm")` or a loaded file)."""
     provider = _str(section, "provider")
@@ -104,10 +114,17 @@ def settings_from(section: Mapping[str, Any], env: Mapping[str, str] | None = No
         raise ConfigError(
             f"llm.cassette.strict must be true (strict replay is unconditional), got {strict!r}"
         )
+    endpoint = check_base_url(base_url, env)
+    if provider in _CHAT_COMPLETIONS and endpoint.path.endswith(_V1):
+        msg = (
+            f"llm.base_url {base_url!r} ends in {_V1}: give the server root, the {provider} route "
+            f"adds {_V1} itself (else every call goes to {_V1}{_V1}/...)"
+        )
+        raise ConfigError(msg)
     return LLMSettings(
         provider=provider,
         base_url=base_url,
-        endpoint=check_base_url(base_url, env),
+        endpoint=endpoint,
         model=model,
         fallback_name=_str(section, "model.fallback_name", nullable=True),
         num_ctx=cast(int, _int(section, "runtime.num_ctx", minimum=1)),

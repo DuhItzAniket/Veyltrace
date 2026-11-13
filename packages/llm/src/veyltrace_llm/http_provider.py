@@ -4,7 +4,7 @@ A subclass says how a canonical request becomes a JSON payload and how a respons
 content and usage. This base sends it once, measures latency with the monotonic clock (the only
 clock read in the pipeline, package rule 7), and turns every failure into an error outcome:
 `connection`, `timeout`, `http` (non-2xx) or `bad_response` (unreadable body). It never retries.
-The runtime version is asked once per provider, for the audit field `runtime.version`.
+The runtime version is asked until one probe succeeds, for the audit field `runtime.version`.
 """
 
 from __future__ import annotations
@@ -61,15 +61,24 @@ class HttpProvider:
         )
 
     def version(self) -> str | None:
-        """The runtime's version string, asked once; None when the runtime does not say."""
-        if not self._version_asked and self.version_route is not None:
-            self._version_asked = True
-            try:
-                response = self._send("GET", self.version_route, None)
-                if 200 <= response.status < 300:
-                    self._version = self.parse_version(json.loads(response.body))
-            except (TransportError, ValueError, KeyError, TypeError, AttributeError):
-                self._version = None
+        """The runtime's version string; None when the runtime does not say.
+
+        Asked until one probe gets a 2xx, then latched: a single failed probe (server still
+        starting) must not leave `runtime.version` null for the rest of the run (#149).
+        """
+        if self._version_asked or self.version_route is None:
+            return self._version
+        try:
+            response = self._send("GET", self.version_route, None)
+        except TransportError:
+            return None
+        if not 200 <= response.status < 300:
+            return None
+        self._version_asked = True
+        try:
+            self._version = self.parse_version(json.loads(response.body))
+        except (ValueError, KeyError, TypeError, AttributeError):
+            self._version = None
         return self._version
 
     def _failure(self, kind: ErrorKind, message: str, latency_ms: float) -> Completion:

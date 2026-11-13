@@ -141,14 +141,24 @@ def test_crlf_prompt_replays_an_lf_recording(tmp_path: Path) -> None:
 
 def test_off_refuses_every_call(tmp_path: Path) -> None:
     with pytest.raises(AIDisabled):
-        LLMClient(_settings(), "off").call_json("relentra.brief", [Message("user", "x")], SCHEMA, PARAMS)
-    assert not any(tmp_path.iterdir())
+        LLMClient(_settings(), "off", tmp_path).call_json(
+            "relentra.brief", [Message("user", "x")], SCHEMA, PARAMS
+        )
+    assert not any(tmp_path.iterdir())  # off writes nothing, even with a cassette directory
 
 
 def test_invalid_json_is_returned_not_raised(tmp_path: Path) -> None:
     client = LLMClient(_settings(), "record", tmp_path, provider=FakeProvider(default=FakeReply("{oops")))
     reply = client.call_json("relentra.brief", [Message("user", "x")], SCHEMA, PARAMS)
     assert reply.value is None and reply.parse_error is not None
+
+
+@pytest.mark.parametrize("content", ['{"x": NaN}', '{"x": Infinity}', "-Infinity"])
+def test_non_finite_json_is_a_parse_error(tmp_path: Path, content: str) -> None:
+    # json.loads accepts NaN/Infinity, which no JSON schema or contract allows (#148).
+    client = LLMClient(_settings(), "record", tmp_path, provider=FakeProvider(default=FakeReply(content)))
+    reply = client.call_json("relentra.brief", [Message("user", "x")], SCHEMA, PARAMS)
+    assert reply.value is None and reply.parse_error is not None and "not JSON" in reply.parse_error
 
 
 def test_unscripted_fake_from_config_is_a_recorded_error(tmp_path: Path) -> None:
