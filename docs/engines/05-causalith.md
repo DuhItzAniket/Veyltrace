@@ -105,7 +105,7 @@ For a known service name `n` (already normalised, regex-escaped):
 | Form | Pattern (sketch) | Example |
 |---|---|---|
 | host:port | `(?<![\w.-])n(\.[a-z0-9-]+)*:\d{2,5}\b` (optional cluster DNS suffix) | `ts-order-service:12031`, `cartservice.default.svc.cluster.local:7070` |
-| URL | `[a-z][a-z0-9+.-]*://n(\.[a-z0-9-]+)*(:\d+)?(/\|\b)` | `http://carts:80/carts/1` |
+| URL | `[a-z][a-z0-9+.-]*://n(\.[a-z0-9-]+)*(:\d+)?(?![\w-])` (the host ends at a non-name character, so `mongodb://carts-db:27017` is not `carts`) | `http://carts:80/carts/1` |
 | gRPC package | `\b[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*\.([A-Z]\w*)\b` where lowercase of the last part equals `n`, or equals `n` after removing a trailing `service` | `hipstershop.CartService` → `cartservice`; `oteldemo.CartService` → `cart` |
 | plain word | `(?<![\w.-])n(?![\w-])` | `ts-order-service` |
 

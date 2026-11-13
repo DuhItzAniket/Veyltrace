@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 import os
 from pathlib import Path
@@ -11,7 +12,8 @@ import pyarrow as pa
 import pytest
 
 from veyltrace_anomara.alert import detect_alert
-from veyltrace_anomara.slis import span_call_pairs
+from veyltrace_anomara.settings import anomara_config
+from veyltrace_anomara.slis import client_like, span_call_pairs, span_parents, trace_slis
 from veyltrace_contracts.models import CaseManifest
 from veyltrace_core import io, textio
 from veyltrace_core.adapters import TelemetryTables
@@ -50,12 +52,43 @@ def _manifest(services: list[str], system: str = "other") -> CaseManifest:
     )
 
 
+def _row(trace: str, span: str, parent: str | None, service: str, kind: str, start: int, ms: float) -> Any:
+    return {
+        "trace_id": trace,
+        "span_id": span,
+        "parent_span_id": parent,
+        "service": service,
+        "component": None,
+        "operation": "op",
+        "kind": kind,
+        "start_ns": start,
+        "end_ns": start + int(ms * 1e6),
+        "status": "ok",
+        "status_code": None,
+        "attrs_json": None,
+    }
+
+
+def _table(rows: list[dict[str, Any]]) -> pa.Table:
+    return io.conform_table(
+        "telemetry.spans", pa.Table.from_pylist(rows, schema=io.arrow_schema("telemetry.spans"))
+    )
+
+
 def _spans(
-    latency_ms: dict[int, float] | None = None, errors: dict[int, int] | None = None
+    latency_ms: dict[int, float] | None = None,
+    errors: dict[int, int] | None = None,
+    *,
+    back_calls: bool = False,
 ) -> TelemetryTables:
-    """Six frontend entry requests per bucket, each calling checkout; overrides per bucket index."""
+    """Six frontend entry requests per bucket, each calling checkout; overrides per bucket index.
+    `back_calls` adds one checkout request per bucket that calls frontend, so both are callees."""
     rows: list[dict[str, Any]] = []
     for b in range(N_BUCKETS):
+        if back_calls:
+            start = T0 + b * BUCKET + 7 * NS
+            rows.append(_row(f"r{b:04d}", "x", None, "checkout", "server", start, 30.0))
+            rows.append(_row(f"r{b:04d}", "y", "x", "frontend", "server", start + NS // 100, 20.0))
         for i in range(6):
             start = T0 + b * BUCKET + i * NS
             ms = (latency_ms or {}).get(b, 20.0 + (i % 3))
@@ -123,11 +156,39 @@ def test_flat_telemetry_or_no_entry_returns_none() -> None:
 
 
 def test_the_system_hint_names_the_entry_without_traces_of_its_own() -> None:
-    # ob's hint is frontend: with the hint, a breach on frontend is found even if checkout called it.
-    found = detect_alert(
-        _spans({b: 80.0 for b in range(70, N_BUCKETS)}), _manifest(["checkout", "frontend"], "ob"), _config()
-    )
+    # checkout also calls frontend, so the call-pair rule finds no uncalled caller; only ob's hint
+    # (frontend) names the entry.
+    spans = _spans({b: 80.0 for b in range(70, N_BUCKETS)}, back_calls=True)
+    assert detect_alert(spans, _manifest(["checkout", "frontend"], "other"), _config()) is None
+    found = detect_alert(spans, _manifest(["checkout", "frontend"], "ob"), _config())
     assert found is not None and found.entry_services == ("frontend",)
+
+
+SLO = anomara_config(_config()).slo
+
+
+def _rcaeval_like(kids: int) -> pa.Table:
+    """RCAEval-shaped spans (kind unspecified): a 20 ms frontend root per second with `kids`
+    children in checkout, inside it."""
+    rows: list[dict[str, Any]] = []
+    for k in range(60):
+        start = T0 + k * NS
+        rows.append(_row(f"q{k:03d}", "a", None, "frontend", "unspecified", start, 20.0))
+        for c in range(kids):
+            rows.append(_row(f"q{k:03d}", f"c{c}", "a", "checkout", "unspecified", start + NS // 1000, 5.0))
+    return _table(rows)
+
+
+@pytest.mark.parametrize(("kids", "infer", "client"), [(1, True, True), (1, False, False), (2, True, False)])
+def test_an_unspecified_span_with_one_child_elsewhere_is_client_like(
+    kids: int, infer: bool, client: bool
+) -> None:
+    # 02-signalyth §3.3 item 2: client-like spans are not entry spans (03-anomara §3.8 step 2).
+    spans, slo = _rcaeval_like(kids), dataclasses.replace(SLO, infer_client_spans=infer)
+    flags = client_like(spans, slo)
+    assert flags[0] is client and not any(flags[1 : 1 + kids])
+    latency = trace_slis(spans, span_parents(spans), flags, "frontend", slo)[0]
+    assert (latency.t.size == 0) is client
 
 
 def _synth(case: str) -> dict[str, Any]:
