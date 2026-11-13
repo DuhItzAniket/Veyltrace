@@ -8,7 +8,7 @@ Engine 5 of Veyltrace v2 (Observe lane). Causalith builds the service dependency
   - `entry_config(section)` parses `causalith.entry` from the causalith config section. Anomara reads it as `ctx.config.section("causalith")`.
   - `entry_services(call_pairs, services, system, cfg)` applies the rule: the system hint ∩ services, else callers that no non-excluded service calls, else `[]`. The result is sorted.
   - `run_entry_services(alert, edges, services, system, cfg)` is the run-level form. It copies `alert.detector.entry_services` when the detected protocol set it, else applies the rule to `signal_cube.edges`.
-- **`ci.intervention_test()`**: IDI-style residual test (fit on baseline, judge the incident) on at most 5 candidate neighbourhoods, called by FaultLoom's claim pass (`intervention` atoms) for trial T8.
+- **`ci.intervention_test()`**: IDI-style residual test (fit on baseline, judge the incident) on at most 5 candidate neighbourhoods, called by FaultLoom's claim pass (`intervention` atoms) for trial T8. `CIResult.independent_of_parents` is `True` (not explained by its parents), `False` (explained), or `None` when the test cannot run, with `reason` one of `no_target`, `no_parents`, `short_baseline`, `no_incident` (no incident bucket to judge, e.g. a crashed candidate) or `singular`. Consumers must treat every untestable reason alike, as holds = null (T8 untestable), never as a `False` verdict; `CIResult` is a package type pinned by tests, not a contract, so new reasons can appear.
 
 Spec: [docs/engines/05-causalith.md](../../docs/engines/05-causalith.md). Rules for agents: [AGENTS.md](AGENTS.md).
 
@@ -25,8 +25,10 @@ Spec: [docs/engines/05-causalith.md](../../docs/engines/05-causalith.md). Rules 
 | `entry` | the shared entry-service rule (also used by Anomara and core's alert step) | 05-causalith §3.3 |
 | `graph` | trace edges (call shares, anomaly rules), external hosts, node kinds | §3.1, §3.2, §3.4 |
 | `mentions` | mention matcher with the ambiguity rule; log-mention and topology-hint edges | §3.4, §3.5 |
+| `paths` | Yen's k-shortest propagation paths to the entries, ranked by anomaly | §3.6 |
+| `ci` | the restricted CI test for T8: `intervention_test()` (`CI_API_VERSION = "1"`) and `partial_corr_test()` | §3.7 |
 | `settings` | typed, validated view of `config/causalith.yaml` | §4 |
-| `api` | `run(ctx)`: `graph.nodes` and `graph.edges` with trace, log and topology provenance (paths arrive with O-05d) | §2 |
+| `api` | `run(ctx)`: `graph.nodes` and `graph.edges` with trace, log and topology provenance and `graph.paths` | §2 |
 
 On synth, `signal_cube.edges` stays empty until Signalyth (O-02) lands, so the synth graph has its nodes (six services and the external card gateway) and only its log and topology edges (recommend → catalog, frontend → checkout) until then. The hand-made golden case `fixtures/handmade/synth-topology/` is the synth topology written as Signalyth will, and pins the graph exactly; refresh it after review with `VEYLTRACE_UPDATE_HANDMADE=1 uv run pytest packages/causalith/tests/test_handmade.py`.
 

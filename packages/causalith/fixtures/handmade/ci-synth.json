@@ -1,0 +1,282 @@
+{
+ "synth-01": {
+  "cart": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart-0|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "cart|cart|latency_p99|traces"
+  },
+  "catalog": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "catalog|catalog|latency_p99|traces"
+  },
+  "checkout": {
+   "independent_of_parents": true,
+   "parents": [
+    "cart|cart|latency_p99|traces",
+    "payment|payment|latency_p99|traces",
+    "checkout|checkout|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "checkout|checkout|latency_p99|traces"
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|latency_p99|traces",
+    "checkout|checkout|latency_p99|traces",
+    "frontend|frontend|rps|metrics"
+   ],
+   "reason": "short_baseline",
+   "target_series_id": "frontend|frontend|latency_p99|traces"
+  },
+  "payment": {
+   "independent_of_parents": false,
+   "parents": [
+    "payment|payment|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "payment|payment|latency_p99|traces"
+  },
+  "recommend": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "recommend|recommend|latency_p99|traces"
+  }
+ },
+ "synth-02": {
+  "cart": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart-0|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "cart|cart|latency_p99|traces"
+  },
+  "catalog": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "catalog|catalog|latency_p99|traces"
+  },
+  "checkout": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart|latency_p99|traces",
+    "payment|payment|latency_p99|traces",
+    "checkout|checkout|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "checkout|checkout|latency_p99|traces"
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [
+    "recommend|recommend|latency_p99|traces",
+    "catalog|catalog|latency_p99|traces",
+    "checkout|checkout|latency_p99|traces",
+    "frontend|frontend|rps|metrics"
+   ],
+   "reason": "short_baseline",
+   "target_series_id": "frontend|frontend|latency_p99|traces"
+  },
+  "payment": {
+   "independent_of_parents": false,
+   "parents": [
+    "payment|payment|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "payment|payment|latency_p99|traces"
+  },
+  "recommend": {
+   "independent_of_parents": true,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "recommend|recommend|latency_p99|traces"
+  }
+ },
+ "synth-03": {
+  "cart": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart-0|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "cart|cart|latency_p99|traces"
+  },
+  "catalog": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "catalog|catalog|latency_p99|traces"
+  },
+  "checkout": {
+   "independent_of_parents": true,
+   "parents": [
+    "payment|payment|latency_p99|traces",
+    "cart|cart|latency_p99|traces",
+    "checkout|checkout|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "checkout|checkout|latency_p99|traces"
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [
+    "checkout|checkout|latency_p99|traces",
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|latency_p99|traces",
+    "frontend|frontend|rps|metrics"
+   ],
+   "reason": "short_baseline",
+   "target_series_id": "frontend|frontend|latency_p99|traces"
+  },
+  "payment": {
+   "independent_of_parents": false,
+   "parents": [
+    "payment|payment|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "payment|payment|latency_p99|traces"
+  },
+  "recommend": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "recommend|recommend|latency_p99|traces"
+  }
+ },
+ "synth-04": {
+  "cart": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart-0|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "cart|cart|latency_p99|traces"
+  },
+  "catalog": {
+   "independent_of_parents": true,
+   "parents": [
+    "catalog|catalog|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "catalog|catalog|latency_p99|traces"
+  },
+  "checkout": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart|latency_p99|traces",
+    "payment|payment|latency_p99|traces",
+    "checkout|checkout|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "checkout|checkout|latency_p99|traces"
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|latency_p99|traces",
+    "checkout|checkout|latency_p99|traces",
+    "frontend|frontend|rps|metrics"
+   ],
+   "reason": "short_baseline",
+   "target_series_id": "frontend|frontend|latency_p99|traces"
+  },
+  "payment": {
+   "independent_of_parents": false,
+   "parents": [
+    "payment|payment|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "payment|payment|latency_p99|traces"
+  },
+  "recommend": {
+   "independent_of_parents": true,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "recommend|recommend|latency_p99|traces"
+  }
+ },
+ "synth-05": {
+  "cart": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart-0|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "cart|cart|latency_p99|traces"
+  },
+  "catalog": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "catalog|catalog|latency_p99|traces"
+  },
+  "checkout": {
+   "independent_of_parents": false,
+   "parents": [
+    "cart|cart|latency_p99|traces",
+    "payment|payment|latency_p99|traces",
+    "checkout|checkout|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "checkout|checkout|latency_p99|traces"
+  },
+  "frontend": {
+   "independent_of_parents": null,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|latency_p99|traces",
+    "checkout|checkout|latency_p99|traces",
+    "frontend|frontend|rps|metrics"
+   ],
+   "reason": "short_baseline",
+   "target_series_id": "frontend|frontend|latency_p99|traces"
+  },
+  "payment": {
+   "independent_of_parents": false,
+   "parents": [
+    "payment|payment|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "payment|payment|latency_p99|traces"
+  },
+  "recommend": {
+   "independent_of_parents": false,
+   "parents": [
+    "catalog|catalog|latency_p99|traces",
+    "recommend|recommend|rps|metrics"
+   ],
+   "reason": null,
+   "target_series_id": "recommend|recommend|latency_p99|traces"
+  }
+ }
+}
