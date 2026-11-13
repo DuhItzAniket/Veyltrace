@@ -57,11 +57,21 @@ def test_target_priority() -> None:
 def test_grid_keeps_buckets_where_every_column_is_observed() -> None:
     a = _s("a|a|latency_p99|traces", [k * 10 * NS for k in range(5)], [1.0, 2.0, 3.0, 4.0, 5.0])
     b = _s("b|b|latency_p99|traces", [0, 10 * NS, 20 * NS, 40 * NS], [6.0, 7.0, 8.0, 9.0])
-    starts, matrix = ci.grid_matrix([a, b], (0, 50 * NS))
+    starts, matrix, step = ci.grid_matrix([a, b], (0, 50 * NS), CFG.bucket_ns)
     assert starts.tolist() == [0, 10 * NS, 20 * NS, 40 * NS]  # b has no point at 30 s
-    assert matrix.tolist() == [[1.0, 6.0], [2.0, 7.0], [3.0, 8.0], [5.0, 9.0]]
+    assert matrix.tolist() == [[1.0, 6.0], [2.0, 7.0], [3.0, 8.0], [5.0, 9.0]] and step == 10 * NS
     slow = _s("c|c|latency|metrics", [k * 15 * NS for k in range(4)], [1.0, 2.0, 3.0, 4.0])
-    assert ci.effective_step(slow) == 15 * NS  # the grid takes the largest effective step
+    assert ci.effective_step(slow, CFG.bucket_ns) == 15 * NS  # the grid takes the largest effective step
+
+
+def test_traces_and_logs_series_step_is_the_bucket_even_with_repeated_values() -> None:
+    # 03-anomara §3.1: the run-of-equal-values rule is for metrics only.
+    values = [0.0] * 4 + [1.0] * 4 + [0.0] * 4
+    t = [k * 10 * NS for k in range(12)]
+    assert ci.effective_step(_s("a|a|error_rate|traces", t, values), CFG.bucket_ns) == 10 * NS
+    assert ci.effective_step(_s("a|a|error|logs", t, values), CFG.bucket_ns) == 10 * NS
+    assert ci.effective_step(_s("a|a|error|metrics", t, values), CFG.bucket_ns) == 40 * NS
+    assert ci.effective_step(_s("a|a|error|metrics", [0], [1.0]), CFG.bucket_ns) == CFG.bucket_ns
 
 
 @pytest.mark.parametrize(
@@ -75,7 +85,17 @@ def test_grid_keeps_buckets_where_every_column_is_observed() -> None:
     ids=["run", "sign-flips", "spike", "down"],
 )
 def test_persistent_max(z: list[float], expected: float) -> None:
-    assert ci.persistent_max(np.asarray(z), 3) == expected
+    starts = np.arange(len(z), dtype=np.int64) * 10 * NS
+    assert ci.persistent_max(np.asarray(z), starts, 10 * NS, 3) == expected
+
+
+def test_persistent_max_needs_contiguous_buckets() -> None:
+    # Three kept rows 10 buckets apart are three isolated spikes, not a run (03-anomara §3.2 step 4).
+    z = np.asarray([9.0, 9.0, 9.0])
+    apart = np.asarray([100, 110, 120], dtype=np.int64) * 10 * NS
+    together = np.asarray([100, 101, 102], dtype=np.int64) * 10 * NS
+    assert ci.persistent_max(z, apart, 10 * NS, 3) == 0.0
+    assert ci.persistent_max(z, together, 10 * NS, 3) == 9.0
 
 
 def test_ridge_recovers_a_linear_fit_and_reports_singular_systems() -> None:

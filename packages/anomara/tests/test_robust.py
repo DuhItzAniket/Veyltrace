@@ -83,6 +83,19 @@ def test_down_direction_and_earliest_argmax() -> None:
     assert (score.direction, score.onset_ns) == ("down", INC[0])
 
 
+@pytest.mark.parametrize(
+    ("incident", "expected"),
+    [([90.0] * 3 + [110.0] * 3, "down"), ([110.0] * 3 + [90.0] * 3, "up")],
+)
+def test_an_up_down_tie_at_equal_persistent_z_takes_the_earliest(
+    incident: list[float], expected: str
+) -> None:
+    # 03-anomara §3.2 step 6: |z| = 10/2.2239 for both runs, so only the earliest-argmax rule decides.
+    score = robust_z(*_points(MICRO, incident), BASE, INC, G, 1.0, RZ)
+    assert score.score == pytest.approx(10.0 / (1.4826 * 1.5))
+    assert (score.direction, score.onset_ns) == (expected, INC[0])
+
+
 def test_short_baseline_or_no_incident_is_flat() -> None:
     # 03-anomara §3.2 step 8: fewer than min_baseline_steps (5) baseline buckets -> score 0.
     for t, x in (_points(MICRO[:4], [130.0] * 4), _points(MICRO, [])):

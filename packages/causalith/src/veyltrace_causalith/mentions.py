@@ -39,7 +39,8 @@ class Matcher:
             e = re.escape(n)
             forms = [
                 rf"(?<![\w.-]){e}(?:\.[a-z0-9-]+)*:\d{{2,5}}\b",  # host:port, optional DNS suffix
-                rf"[a-z][a-z0-9+.-]*://{e}(?:\.[a-z0-9-]+)*(?::\d+)?(?:/|\b)",  # URL
+                # URL; the host ends at a non-name character, so carts-db is not carts
+                rf"[a-z][a-z0-9+.-]*://{e}(?:\.[a-z0-9-]+)*(?::\d+)?(?![\w-])",
             ]
             if not _PLAIN_AMBIGUOUS.match(n):
                 forms.append(rf"(?<![\w.-]){e}(?![\w-])")  # plain word, unambiguous names only

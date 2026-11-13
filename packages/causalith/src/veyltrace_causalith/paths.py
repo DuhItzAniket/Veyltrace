@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import heapq
 import itertools
+import math
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 
 __all__ = ["SINK", "Adjacency", "ranked_paths", "reversed_graph", "yen"]
@@ -49,8 +50,11 @@ def _dijkstra(
 
 
 def _arc_cost(adj: Adjacency, path: Sequence[str]) -> float:
+    """A path's cost as the correctly rounded sum of its arcs (`math.fsum`), so two paths with the
+    same arcs in another order cost exactly the same: a running sum gives 1.0 + 1.3 + 1.3 =
+    3.5999999999999996 but 1.3 + 1.3 + 1.0 = 3.6, and the tie would then rank by rounding noise."""
     weights = {(a, b): w for a in path for b, w in adj.get(a, ())}
-    return sum(weights[a, b] for a, b in itertools.pairwise(path))
+    return math.fsum(weights[a, b] for a, b in itertools.pairwise(path))
 
 
 def yen(adj: Adjacency, source: str, target: str) -> Iterator[tuple[float, tuple[str, ...]]]:
@@ -59,9 +63,10 @@ def yen(adj: Adjacency, source: str, target: str) -> Iterator[tuple[float, tuple
     Standard Yen: each accepted path spawns spur candidates that avoid its root's nodes and the arcs
     leaving the shared root in already accepted paths.
     """
-    first = _dijkstra(adj, source, target, frozenset(), frozenset())
-    if first is None:
+    found = _dijkstra(adj, source, target, frozenset(), frozenset())
+    if found is None:
         return
+    first = (_arc_cost(adj, found[1]), found[1])  # every yielded cost comes from _arc_cost
     accepted: list[tuple[str, ...]] = []
     candidates: list[tuple[float, tuple[str, ...]]] = [first]
     seen: set[tuple[str, ...]] = {first[1]}
