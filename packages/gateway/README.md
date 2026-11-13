@@ -13,3 +13,5 @@ uv run python -m veyltrace_gateway              # API on http://127.0.0.1:8000
 uv run python -m veyltrace_gateway.mcp          # MCP over stdio
 uv run python scripts/check.py --package gateway
 ```
+
+**Status (X-00).** An empty app: `GET /api/v1/health` returns the `health` envelope (06 §3.2) built once at start-up from `config/gateway.yaml`, `config/llm.yaml` and the code commit; `ai.reachable` stays `null` until the provider probe lands (X-04), and `live.receiving` is `false` until the OTLP receiver exists (X-10). `python -m veyltrace_gateway` binds `api.host:api.port` (127.0.0.1:8000) and refuses a non-loopback host unless `--allow-lan` is given. `openapi.json` and the generated TypeScript types arrive with the first real routes in X-04.
