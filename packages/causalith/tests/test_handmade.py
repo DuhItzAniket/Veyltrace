@@ -22,7 +22,11 @@ from veyltrace_core.testing import content_lines, make_context
 
 HANDMADE = Path(__file__).resolve().parents[1] / "fixtures" / "handmade"
 CASES = tuple(sorted(p.name for p in HANDMADE.iterdir() if p.is_dir()))
-GOLDEN = {"graph.nodes": "graph.nodes.txt", "graph.edges": "graph.edges.txt"}
+GOLDEN = {
+    "graph.nodes": "graph.nodes.txt",
+    "graph.edges": "graph.edges.txt",
+    "graph.paths": "graph.paths.txt",
+}
 UPDATE_ENV = "VEYLTRACE_UPDATE_HANDMADE"
 
 
@@ -69,3 +73,19 @@ def test_the_graph_equals_the_synth_topology_exactly(tmp_path: Path) -> None:
     # A node's provenance includes the source and target of a counted mention or hint (05 §3.1).
     assert nodes["frontend"]["provenance"] == ["logs", "traces"]
     assert nodes["recommend"]["provenance"] == nodes["catalog"]["provenance"] == ["topology", "traces"]
+
+
+def test_paths_run_from_every_node_to_the_entry(tmp_path: Path) -> None:
+    # 05 §3.6: payment's best path climbs the anomalous checkout -> payment edge to the entry;
+    # catalog has two routes; an entry is its own path; the external host reaches no entry.
+    run_dir = _run_dir("synth-topology", tmp_path)
+    run(make_context("causalith", run_dir, dataset="handmade"))
+    rows = io.read_table("graph.paths", run_dir, validate=True).to_pylist()
+    paths = {(r["candidate"], r["path_rank"]): (r["nodes"], r["anomalous_fraction"]) for r in rows}
+    assert paths["payment", 1] == (["payment", "checkout", "frontend"], 2 / 3)
+    assert [paths["catalog", k][0] for k in (1, 2)] == [
+        ["catalog", "frontend"],
+        ["catalog", "recommend", "frontend"],
+    ]
+    assert paths["frontend", 1] == (["frontend"], 0.0)
+    assert EXTERNAL_HOST not in {c for c, _ in paths}
