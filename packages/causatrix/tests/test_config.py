@@ -107,6 +107,27 @@ def test_bad_values_name_their_key(dotted: str, value: object, match: str) -> No
         config_from(cfg, core)
 
 
+def test_every_rrf_weight_is_validated_even_for_a_ranker_left_out() -> None:
+    # 07 §9 leave-one-ranker-out: the dropped ranker's weight is still checked (#109 review).
+    for bad in (-1, "abc", None):
+        cfg, core = _sections()
+        cfg["rankers"]["enabled"] = [r for r in RANKERS if r != "nsigma"]
+        cfg["rrf"]["weights"]["nsigma"] = bad
+        with pytest.raises(ConfigError, match=r"causatrix\.rrf\.weights\.nsigma"):
+            config_from(cfg, core)
+    cfg, core = _sections()
+    cfg["rrf"]["weights"]["Bad-Name"] = 1.0
+    with pytest.raises(ConfigError, match="snake-case"):
+        config_from(cfg, core)
+
+
+def test_rrf_weights_must_be_a_mapping_even_with_no_ranker_enabled() -> None:
+    cfg, core = _sections()
+    cfg["rankers"]["enabled"], cfg["rrf"]["weights"] = [], 5
+    with pytest.raises(ConfigError, match=r"causatrix\.rrf\.weights must be a mapping"):
+        config_from(cfg, core)
+
+
 def test_indicator_map_must_cover_every_family() -> None:
     cfg, core = _sections()
     del cfg["indicator_map"]["traffic"]
