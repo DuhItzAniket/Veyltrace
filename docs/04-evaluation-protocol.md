@@ -154,7 +154,7 @@ Notation: *F* = fault cases of the evaluated split, *N* = normal windows; for ca
 | Rerank@1 | AC@1 / Retrieval@K | AC@1 = Retrieval@K × Rerank@1 (DecompRCA; RCAEval `--report-decomposition`) [sota_methods §Q1][sm] |
 | Chance@k, Lift@k | Chance@k = mean_i min(k, n_i)/n_i, where a case whose root is not among its n_i services contributes 0, and Chance@k is null unless every fault case has n_i (RCAEval `Evaluator.chance_accuracy`, [evaluation.py](https://github.com/phamquiluan/RCAEval/blob/main/RCAEval/benchmark/evaluation.py), main; recheck at the commit pinned in §4), so Chance, Lift and AC share one denominator; Lift@k = AC@k / Chance@k; also AC@k − Chance@k | RCAEval's `--report-chance` output stored alongside (§13 Q4) |
 | Prior-only floor | AC@k of `prior-only` | |
-| Onset error | \|`onsets.t_onset_ns` − `answer_key.t_inject_ns`\| / 1e6 | `onset_error_ms`; detected protocol |
+| Onset error | \|`onsets.t_onset_ns` − `answer_key.t_inject_ns`\| / 1e6 | `onset_error_ms`; detected protocol, `ok` runs of cases with an injection time; summary: median, max and count over those rows (`onset_error`) |
 | Coverage | (1/\|F\|) Σ 1[r_i ∈ C_i] on held-out folds; gap = coverage − (1 − α); coverage given decision-pool retrieval | `in_set`; per system, per fold, pooled over folds |
 | Set size | mean and median \|C_i\|; share of singleton sets | `set_size` |
 | Risk–coverage, AURC | order cases by (status CONFIRMED > LIKELY > INCONCLUSIVE, then margin desc); for each prefix: answered fraction vs error (1 − AC@1) among answered; AURC = area under that curve; computed for V (verdict) and for F (fused score) | H3c [verified_agents §Q6][va] |
@@ -228,7 +228,7 @@ methods:
   - {id: "simplerca", kind: internal_baseline}
   - {id: "chance", kind: internal_baseline}
 calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}   # writes config/calibration/<family>.fold*.json
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, coverage, set_size, risk_coverage, no_fault_rates, cost]
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, onset_error, coverage, set_size, risk_coverage, no_fault_rates, cost]
 statistics:
   primary_metric: ac_at_1
   per: system
