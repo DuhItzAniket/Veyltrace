@@ -1,9 +1,9 @@
-"""`robust_z`: how far the incident deviates from the baseline, robustly (03-anomara §3.2).
+"""`robust_z` and `nsigma`: how far the incident deviates from the baseline (03-anomara §3.2–3.3).
 
 Why a multi-part scale floor: dividing by a near-zero MAD made BARO rank a wrong metric at
 4.6 × 10¹⁴ (rcaeval_facts §Anomaly scoring methods), so the scale is never below the IQR term, a
-per-family ε or 2% of |median|. Why persistence: one-sample spikes must not set the robust score
-(`nsigma` keeps the raw max for parity with RCAEval's N-Sigma baseline).
+per-family ε or 2% of |median|. Why persistence: one-sample spikes must not set the robust score;
+`nsigma` keeps the raw max for parity with RCAEval's N-Sigma baseline.
 
 Pure functions over one series' arrays: exact medians and linear quantiles, ties to the earliest
 time, no RNG (03-anomara §5).
@@ -19,9 +19,9 @@ import numpy as np
 import numpy.typing as npt
 
 from veyltrace_anomara.series import FloatArray, IntArray, Window, bucket_ids, covered_buckets, in_window
-from veyltrace_anomara.settings import RobustZConfig
+from veyltrace_anomara.settings import NSigmaConfig, RobustZConfig
 
-__all__ = ["Direction", "Score", "persistent_z", "robust_scale", "robust_z"]
+__all__ = ["Direction", "Score", "nsigma", "persistent_z", "robust_scale", "robust_z"]
 
 Direction = Literal["up", "down", "flat"]
 
@@ -124,3 +124,44 @@ def robust_z(
     direction: Direction = "up" if z[k] > 0 else "down"
     onset = _first(zt >= cfg.threshold, ti)
     return Score(score, math.log1p(score), direction, onset, cfg.threshold)
+
+
+def _is_constant(x: FloatArray, mean: float, std: float) -> bool:
+    """scikit-learn's near-constant test (`_is_constant_feature`, which `StandardScaler` uses to give
+    a feature unit scale): the variance is within float rounding of zero. A constant baseline whose
+    mean is not exact in binary (0.3 repeated) has a std of a few ULPs, which is not a real scale."""
+    eps = float(np.finfo(np.float64).eps)
+    n = x.size
+    var = std * std
+    return var <= n * eps * var + (n * mean * eps) ** 2
+
+
+def nsigma(
+    t: IntArray,
+    x: FloatArray,
+    baseline: Window,
+    incident: Window,
+    step: int,
+    epsilon: float,
+    rz: RobustZConfig,
+    cfg: NSigmaConfig,
+) -> Score:
+    """Raw-max N-Sigma (03-anomara §3.3): RCAEval's zero-scale convention (unit scale when the
+    baseline is constant, up to float rounding), and a `score_norm` over the floored scale
+    `max(std_B, ε, η·|mean_B|)` so it compares across series."""
+    b = in_window(t, baseline)
+    i = in_window(t, incident)
+    if covered_buckets(t[b], step) < rz.min_baseline_steps or not i.any():
+        return Score.flat(cfg.threshold)
+    mu = float(np.mean(x[b]))
+    sigma = float(np.std(x[b]))
+    dev = np.abs(x[i] - mu)
+    ratio = dev / (1.0 if _is_constant(x[b], mu, sigma) else sigma)
+    k = int(np.argmax(ratio))
+    score = float(ratio[k])
+    if score == 0.0:
+        return Score.flat(cfg.threshold)
+    floor = max(sigma, epsilon, rz.eta * abs(mu))
+    norm = math.log1p(float(dev[k]) / floor) if floor > 0.0 else math.log1p(score)
+    direction: Direction = "up" if x[i][k] > mu else "down"
+    return Score(score, norm, direction, _first(ratio >= cfg.threshold, t[i]), cfg.threshold)
