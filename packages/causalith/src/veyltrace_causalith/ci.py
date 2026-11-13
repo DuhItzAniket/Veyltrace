@@ -261,9 +261,13 @@ def _standardise(column: Floats, base: npt.NDArray[np.bool_], s: CISeries, cfg: 
     return (column - med) / scale
 
 
-def _z_against_baseline(values: Floats, base: npt.NDArray[np.bool_], cfg: CIConfig, eps: float) -> Floats:
-    med, scale = robust_scale(values[base], eps, cfg)
-    return (values - med) / scale
+def _centred(values: Floats, base: npt.NDArray[np.bool_]) -> Floats:
+    """Values minus their baseline median, still in the target's floored scale (05 §3.7 step 5).
+
+    No second standardisation: dividing x or the residual by its own baseline spread would undo
+    step 4's scale floor (a +1 ms shift on a floored 2 ms scale would score z = 91, not 0.5), and a
+    residual that is a scaled copy of its parent would score like the parent."""
+    return values - float(np.median(values[base]))
 
 
 def _block_p_value(z_base: Floats, z_inc: Floats) -> float:
@@ -308,12 +312,14 @@ def intervention_test(
     if not parents:
         return _untestable(candidate, target.series_id, (), "no_parents")
     baseline, incident = alert.windows.baseline, alert.windows.incident
-    starts, matrix = grid_matrix([target, *parents], (baseline[0], incident[1]))
+    starts, matrix, step = grid_matrix([target, *parents], (baseline[0], incident[1]), config.bucket_ns)
     base = (starts >= baseline[0]) & (starts < baseline[1])
     inc = (starts >= incident[0]) & (starts < incident[1])
     n_b, n_i = int(base.sum()), int(inc.sum())
     if n_b < config.min_baseline_points or n_b <= 2 * (len(parents) + 1):
         return _untestable(candidate, target.series_id, names, "short_baseline", n_b, n_i)
+    if n_i == 0:  # nothing to judge, e.g. a crashed candidate whose series stops at the incident
+        return _untestable(candidate, target.series_id, names, "no_incident", n_b, n_i)
     cols = [_standardise(matrix[:, j], base, s, config) for j, s in enumerate([target, *parents])]
     x, z = cols[0], np.column_stack(cols[1:])
     fit = ridge_fit(z[base], x[base], config.ridge)
@@ -322,11 +328,11 @@ def intervention_test(
     b, z_offset, x_mean = fit
     resid = x - (x_mean + z @ b - z_offset)
     p = config.persist_steps
-    zx = _z_against_baseline(x, base, config, config.epsilon_for("other", None))
-    zr = _z_against_baseline(resid, base, config, config.epsilon_for("other", None))
-    stat_raw, stat_resid = persistent_max(zx[inc], p), persistent_max(zr[inc], p)
+    zx, zr = _centred(x, base), _centred(resid, base)
+    stat_raw = persistent_max(zx[inc], starts[inc], step, p)
+    stat_resid = persistent_max(zr[inc], starts[inc], step, p)
     explained = 0.0 if stat_raw == 0.0 else min(max(1.0 - stat_resid / stat_raw, 0.0), 1.0)
-    p_value = _block_p_value(zr[base], zr[inc]) if n_i else 1.0
+    p_value = _block_p_value(zr[base], zr[inc])
     return CIResult(
         candidate,
         target.series_id,

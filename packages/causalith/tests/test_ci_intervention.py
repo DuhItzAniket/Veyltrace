@@ -139,6 +139,48 @@ def test_a_short_baseline_is_untestable() -> None:
     assert result.reason == "short_baseline" and result.independent_of_parents is None
 
 
+def test_no_incident_bucket_is_untestable_not_explained() -> None:
+    # A crashed candidate: its latency stops at the incident start, so no bucket can be judged.
+    result = intervention_test(
+        _series({CHECKOUT: (20.0 + NOISE)[:N_BASE], PAYMENT: 50.0 + 3.0 * NOISE}),
+        _edges([("checkout", "payment", True, 1.0)]),
+        ALERT,
+        "checkout",
+        CFG,
+    )
+    assert (result.reason, result.independent_of_parents, result.n_incident) == ("no_incident", None, 0)
+
+
+def test_a_tiny_shift_on_a_floored_scale_is_not_an_anomaly() -> None:
+    # MAD ~ 0.01 ms, so the 03-anomara floor (max(eps 1 ms, 2% of 100 ms) = 2 ms) sets the scale:
+    # +1 ms is z = 0.5, not the z ~ 90 that a second standardisation without the floor gives.
+    checkout = 100.0 + 0.01 * OWN + np.where(np.arange(N_BASE + N_INC) >= N_BASE, 1.0, 0.0)
+    result = intervention_test(
+        _series({CHECKOUT: checkout, PAYMENT: 50.0 + 3.0 * NOISE}),
+        _edges([("checkout", "payment", True, 1.0)]),
+        ALERT,
+        "checkout",
+        CFG,
+    )
+    assert result.stat_raw == pytest.approx(0.5, abs=0.05)
+    assert result.independent_of_parents is False
+
+
+@settings(max_examples=25, deadline=None)
+@given(st.floats(0.5, 2.0), st.floats(0.0, 0.3))
+def test_an_inherited_anomaly_is_explained_even_without_own_noise(gain: float, own: float) -> None:
+    # 05 §7 property: x = a·z + noise with a shift in z during the incident -> not independent.
+    payment = 50.0 + 3.0 * NOISE + SHIFT
+    result = intervention_test(
+        _series({CHECKOUT: 20.0 + gain * payment + own * OWN, PAYMENT: payment}),
+        _edges([("checkout", "payment", True, 1.0)]),
+        ALERT,
+        "checkout",
+        CFG,
+    )
+    assert result.reason is None and result.independent_of_parents is False
+
+
 @settings(max_examples=25, deadline=None)
 @given(st.permutations(range(N_BASE + N_INC)))
 def test_row_order_does_not_change_the_result(order: list[int]) -> None:
