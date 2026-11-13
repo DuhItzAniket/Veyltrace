@@ -3,7 +3,8 @@
 Why typed: every detector threshold is a named config key (AGENTS §5), and a malformed value
 should fail as a ConfigError before any series is scored, not as a TypeError deep in numpy.
 Sections arrive with the code that reads them (O-04c: grid; O-04d: robust_z; O-04e: nsigma,
-silence; O-04f: bocpd; O-04g: onset, t_onset).
+silence; O-04f: bocpd; O-04g: onset, t_onset;
+detect_alert: slo).
 """
 
 from __future__ import annotations
@@ -25,10 +26,12 @@ __all__ = [
     "OnsetConfig",
     "RobustZConfig",
     "SilenceConfig",
+    "SloConfig",
     "anomara_config",
 ]
 
 NS_PER_S = 1_000_000_000
+NS_PER_MS = 1_000_000
 #: `robust_z.epsilon.<family>` key matching any unit not listed for that family (03-anomara §3.2).
 ANY_UNIT = "*"
 #: Family whose ε applies to (family, unit) pairs the table does not list (03-anomara §3.2).
@@ -131,6 +134,21 @@ class OnsetConfig:
 
 
 @dataclass(frozen=True)
+class SloConfig:
+    """`slo.*` (03-anomara §3.8), times in ns."""
+
+    bucket_ns: int
+    min_spans: int
+    infer_client_spans: bool
+    skew_tolerance_ns: int
+    window_ns: int
+    gap_ns: int
+    k: float
+    persist_steps: int
+    min_baseline_points: int
+
+
+@dataclass(frozen=True)
 class AnomaraConfig:
     """The validated Anomara section."""
 
@@ -140,6 +158,7 @@ class AnomaraConfig:
     silence: SilenceConfig
     bocpd: BocpdConfig
     onset: OnsetConfig
+    slo: SloConfig
 
 
 def _epsilon(section: Mapping[str, Any]) -> Mapping[str, Mapping[str, float]]:
@@ -244,6 +263,27 @@ def _onset(section: Mapping[str, Any]) -> OnsetConfig:
     return OnsetConfig(bocpd_max_lead_ns=lead * NS_PER_S, clamp_ns=(low * NS_PER_S, high * NS_PER_S))
 
 
+def _slo(section: Mapping[str, Any]) -> SloConfig:
+    sc = _mapping(section, "slo", "anomara")
+    where = "anomara.slo"
+    infer: object = sc.get("infer_client_spans")
+    if not isinstance(infer, bool):
+        msg = f"{where}.infer_client_spans must be true or false, got {infer!r}"
+        raise ConfigError(msg)
+    skew_ms = _number(sc, "skew_tolerance_ms", where, positive=False)
+    return SloConfig(
+        bucket_ns=_count(sc, "bucket_s", where) * NS_PER_S,
+        min_spans=_count(sc, "min_spans", where),
+        infer_client_spans=infer,
+        skew_tolerance_ns=round(skew_ms * NS_PER_MS),
+        window_ns=_count(sc, "window_s", where) * NS_PER_S,
+        gap_ns=_count(sc, "gap_s", where) * NS_PER_S,
+        k=_number(sc, "k", where, positive=True),
+        persist_steps=_count(sc, "persist_steps", where),
+        min_baseline_points=_count(sc, "min_baseline_points", where),
+    )
+
+
 def anomara_config(section: Mapping[str, Any]) -> AnomaraConfig:
     """Validate the Anomara config section (`ctx.config`, or the EngineConfig core passes)."""
     grid = _mapping(section, "grid", "anomara")
@@ -255,4 +295,5 @@ def anomara_config(section: Mapping[str, Any]) -> AnomaraConfig:
         silence=_silence(section),
         bocpd=_bocpd(section),
         onset=_onset(section),
+        slo=_slo(section),
     )

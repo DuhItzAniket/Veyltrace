@@ -66,3 +66,18 @@ onset:
 t_onset:
   # 03-anomara §3.7: t_onset is clamped to [t_alert + low, t_alert + high] (02 §6.3).
   clamp_s: [-60, 300]
+
+slo:
+  # detect_alert (03-anomara §3.8): the first sustained entry-service SLO breach (detected protocol).
+  bucket_s: 10              # a priori, the same grid as Signalyth's traces
+  min_spans: 5              # a priori, as signalyth traces.min_spans_per_quantile
+  # Client-like spans are not entry spans (02-signalyth §3.3 item 2). An engine reads only its own
+  # section, so these mirror Signalyth's keys (02-signalyth §4 defaults); once O-02's keys are on
+  # main, the lead moves each pair into config/core.yaml as a shared value.
+  infer_client_spans: true  # mirrors signalyth traces.infer_client_spans; RCAEval spans have no kind
+  skew_tolerance_ms: 1.0    # mirrors signalyth traces.skew_tolerance_ms; a priori
+  window_s: 300             # trailing baseline, a priori
+  gap_s: 30                 # gap between the baseline and the judged bucket, a priori
+  k: 3.0                    # one-sided z threshold, a priori
+  persist_steps: 3          # consecutive buckets that confirm a breach, a priori
+  min_baseline_points: 10   # baseline buckets needed to judge a bucket, a priori
