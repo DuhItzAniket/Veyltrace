@@ -60,7 +60,10 @@ def test_grid_bucket_matches_signalyth_when_it_declares_one() -> None:
     if buckets is None:
         pytest.skip("config/signalyth.yaml has no buckets.* keys yet (O-02)")
     expected = anomara_config(SECTION).grid.bucket_ns
-    assert expected == buckets["traces_s"] * NS_PER_S == buckets["logs_s"] * NS_PER_S
+    assert expected == buckets["traces_s"] * NS_PER_S
+    # `buckets.logs_s` (02-signalyth §4) arrives with the log series (O-03); check it once declared
+    if "logs_s" in buckets:
+        assert expected == buckets["logs_s"] * NS_PER_S
 
 
 @pytest.mark.parametrize(
