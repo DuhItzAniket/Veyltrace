@@ -9,13 +9,27 @@ CAPTURE_ID = "0123456789abcdef0123456789abcdef"
 
 
 def _key() -> dict[str, object]:
-    injection = {"fault_id": "F01", "tool": "chaos-mesh/StressChaos", "tool_version": "2.8.7",
-                 "params": {"workers": 2, "load": 80}, "severity": "L1", "seed": 7}  # fmt: skip
+    injection = {
+        "fault_id": "F01",
+        "tool": "chaos-mesh/StressChaos",
+        "tool_version": "2.8.7",
+        "params": {"workers": 2, "load": 80},
+        "severity": "L1",
+        "seed": 7,
+    }
     return answer_key.build(
-        capture_id=CAPTURE_ID, dataset="veyllab-ob", root_service="productcatalogservice",
-        root_component="server", fault_id="F01", fault_class="cpu", indicator="cpu", mode="resource",
-        t_inject_ns=2_000, t_end_ns=3_000, injection=injection,
-    )  # fmt: skip
+        capture_id=CAPTURE_ID,
+        dataset="veyllab-ob",
+        root_service="productcatalogservice",
+        root_component="server",
+        fault_id="F01",
+        fault_class="cpu",
+        indicator="cpu",
+        mode="resource",
+        t_inject_ns=2_000,
+        t_end_ns=3_000,
+        injection=injection,
+    )
 
 
 def test_case_id_is_sha256_prefix_of_capture_id() -> None:
@@ -49,3 +63,31 @@ def test_key_validates_against_the_contract_model() -> None:
     from veyltrace_contracts.models import AnswerKeyRow
 
     assert AnswerKeyRow.model_validate(_key()).mode == "resource"
+
+
+def _content_schema(column: str) -> dict[str, object]:
+    """The JSON Schema of a JSON-string column (AnswerKeyRow types these as plain strings)."""
+    from veyltrace_contracts.registry import schema_json
+
+    schema: dict[str, object] = schema_json("answer_key")["properties"][column]["contentSchema"]
+    return schema
+
+
+def test_fault_key_json_columns_match_their_content_schemas() -> None:
+    import jsonschema
+
+    key = _key()
+    jsonschema.validate(json.loads(str(key["injection_json"])), _content_schema("injection_json"))
+    assert key["decoy_changes_json"] is None  # 03 §13.1: null when nothing was planted
+
+
+def test_no_fault_key_follows_the_contract() -> None:
+    # Regression (#222 review): F14 keys carried real times and a partial injection object.
+    from veyltrace_contracts.models import AnswerKeyRow
+
+    key = answer_key.build_no_fault(capture_id=CAPTURE_ID, dataset="veyllab-ob")
+    assert set(key) == answer_key.COLUMNS
+    assert key["is_no_fault"] is True and key["root_service"] is None and key["fault_class"] is None
+    assert (key["t_inject_ns"], key["t_end_ns"], key["injection_json"]) == (None, None, None)
+    assert key["decoy_changes_json"] is None
+    assert AnswerKeyRow.model_validate(key).fault_label == "F14"
