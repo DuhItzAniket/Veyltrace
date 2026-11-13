@@ -50,3 +50,11 @@ silence:
   max_baseline_zero_share: 0.2   # zero-silence needs a baseline at most 20% zero (a priori)
   min_baseline_coverage: 0.8     # absence-silence needs 80% of baseline buckets observed (a priori)
   service_metric_share: 0.5      # per_service.silent when half its metric series are silent (a priori)
+
+bocpd:
+  # 03-anomara §3.4: Adams & MacKay on the standardised grid series y = (x - median_B) / s_B.
+  lambda: 100               # grid steps; hazard 1/lambda, a priori (one fault per case, ~96-150 steps)
+  prior: {mu0: 0.0, kappa0: 1.0, alpha0: 1.0, beta0: 1.0}   # Normal-Gamma, a priori (unit-free data)
+  r_max: 200                # run-length truncation, a priori (covers the longest case grid)
+  short_run: 2              # m in cp_t = P(r_t <= m), a priori
+  threshold: 0.5            # probability, a priori
