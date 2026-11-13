@@ -42,7 +42,7 @@ class OllamaProvider(HttpProvider):
             "options": options,
         }
         if request.schema is not None:
-            body["format"] = dict(request.schema)
+            body["format"] = request.schema_json()
         if params["thinking"] is not None:
             body["think"] = params["thinking"]
         return body

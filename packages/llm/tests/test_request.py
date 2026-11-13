@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any, cast, get_args
 
 import pytest
@@ -66,6 +67,15 @@ def test_crlf_is_normalised_before_hashing() -> None:
     assert _request("a\r\nb").messages[1].content == "a\nb"
 
 
+@pytest.mark.parametrize("text", ["a\r\r\nb", "a\r\r\r\nb\r\n", "lone\rcr", "\r\n\r\n"])
+def test_line_endings_normalise_idempotently(text: str) -> None:
+    # D1 (a) on #227: a message rebuilt from its stored content keeps the same content and key.
+    once = Message("user", text)
+    assert Message("user", once.content) == once
+    assert _request(once.content).key == _request(text).key
+    assert "\r\n" not in once.content
+
+
 def test_key_depends_on_what_the_model_sees() -> None:
     base = _request().key
     assert _request("other").key != base
@@ -76,11 +86,25 @@ def test_key_depends_on_what_the_model_sees() -> None:
 
 
 def test_schema_and_params_are_private_copies() -> None:
-    schema = {"type": "object"}
-    req = _request(schema=schema)
+    schema: dict[str, Any] = {"type": "object", "properties": {"x": {"type": "number"}}}
+    params = dict(PARAMS)
+    req = _request(schema=schema, params=params)
     before = req.key
-    schema["type"] = "array"
+    schema["properties"]["x"]["type"] = "string"
+    params["seed"] = 999
     assert req.key == before
+
+
+def test_nested_schema_cannot_move_the_key() -> None:
+    req = _request()
+    before = req.key
+    with pytest.raises(TypeError):
+        cast(Any, req.schema)["properties"]["x"]["type"] = "string"  # read-only at every depth
+    cast(Any, req.canonical())["schema"]["properties"]["y"] = {"type": "string"}  # a fresh copy
+    copy = req.schema_json()
+    assert copy is not None
+    copy["required"].append("z")
+    assert req.key == before and req.schema_json() == SCHEMA
 
 
 @pytest.mark.parametrize(
@@ -127,7 +151,8 @@ def test_model_and_message_validation() -> None:
 
 @given(st.text(), st.text())
 def test_key_is_a_pure_function_of_content(a: str, b: str) -> None:
-    assert (_request(a).key == _request(b).key) == (a.replace("\r\n", "\n") == b.replace("\r\n", "\n"))
+    lf = re.compile(r"\r+\n")
+    assert (_request(a).key == _request(b).key) == (lf.sub("\n", a) == lf.sub("\n", b))
 
 
 def test_completion_shapes() -> None:

@@ -106,9 +106,12 @@ class Cassette:
         if existing and not force:
             msg = f"{self.directory} is not empty; pass --force-record to overwrite the recording"
             raise CassetteNotEmpty(msg)
+        # Check every entry before deleting any, so a refused --force-record leaves the old
+        # recording intact (#224).
+        foreign = [p.name for p in existing if not p.is_file()]
+        if foreign:
+            raise CassetteNotEmpty(f"{self.directory} holds {foreign}, which are not cassette files")
         for path in existing:
-            if not path.is_file():
-                raise CassetteNotEmpty(f"{self.directory} holds {path.name}, which is not a cassette file")
             path.unlink()
         self.directory.mkdir(parents=True, exist_ok=True)
 
