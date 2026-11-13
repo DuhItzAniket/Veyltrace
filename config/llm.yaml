@@ -1,7 +1,8 @@
 # config/llm.yaml: section "llm" (file stem). Owner: Explain lane. Used by Relentra, Causivra and
 # the gateway. Spec: docs/engines/08-relentra.md §4. The section enters config.lock.json, base_url
 # included, because replay exit 4 needs it (03 §12.2; M0 lead decision 2026-11-06).
-# R-02 bootstrap: only the identity keys; the Explain lane adds runtime and sampler keys in X-00.
+# Runtime and request keys are not part of the cassette key (08 §5.2): they are recorded in each
+# cassette entry for audit only, so a call recorded on one runtime replays anywhere.
 
 # ollama | llamacpp | openai_compat | fake (08-relentra §4).
 provider: ollama
@@ -11,3 +12,24 @@ model:
   name: "qwen3.5:9b"            # 02 §12; exact tag pinned at M0 (08-relentra §4)
   gguf_sha256: null             # null until pinned after llama-bench (08-relentra §4)
   fallback_name: "qwen3.5:4b"   # 02 §6.8
+
+runtime:
+  # Context window in tokens: the 02 §6.8 budget (16,384).
+  num_ctx: 16384
+  # null = the runtime's default (physical cores); recorded in the cassette entry (08 §4).
+  num_thread: null
+  # One generation slot: llama.cpp -np 1; for Ollama a check that the server runs with
+  # OLLAMA_NUM_PARALLEL=1 (verified_agents §Q3; 08 §3.8).
+  parallel: 1
+  # llama.cpp prompt cache off: its README warns it can make results nondeterministic (08 §4).
+  cache_prompt: false
+
+request:
+  # Seconds; a priori (08 §4). A connect failure or a timeout is a recorded outcome, not a retry.
+  connect_timeout_s: 5
+  timeout_s: 240
+
+cassette:
+  # Replay fails on any unrecorded call (02 §5.2). Only true is accepted: AGENTS rule 4 of
+  # packages/llm makes strict replay unconditional (no socket is ever opened in replay).
+  strict: true
