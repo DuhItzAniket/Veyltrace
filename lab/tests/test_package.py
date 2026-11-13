@@ -133,7 +133,7 @@ def _write_capture(tmp: Path, extra_span_attrs: dict[str, str] | None = None) ->
 def test_scrubs_moves_change_records_and_writes_the_layout(tmp_path: Path) -> None:
     cap = _write_capture(tmp_path)
     out = tmp_path / "pkg" / cap.name
-    report = package_capture(cap, {"t_inject_ns": T0 + 5}, out, CTX)
+    report = package_capture(cap, T0 + 5, out, CTX)
     assert report.deny_hits == []
     assert sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()) == [
         "capture.json",
@@ -171,7 +171,7 @@ def test_a_planted_leak_fails_packaging_and_removes_the_package(tmp_path: Path) 
     }
     cap = _write_capture(tmp_path, planted)
     out = tmp_path / "pkg" / cap.name
-    report = package_capture(cap, {"t_inject_ns": T0 + 5}, out, CTX)
+    report = package_capture(cap, T0 + 5, out, CTX)
     found = {hit.split(": ")[-1] for hit in report.deny_hits}
     assert found >= {"paymentFailure", "stress-ng", "google-containers/pause"}
     assert not out.exists()

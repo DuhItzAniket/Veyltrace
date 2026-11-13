@@ -32,6 +32,9 @@ CONTAINER = {**{s: "server" for s in OB_SERVICES}, "redis-cart": "redis"}
 CHAOS_API = "chaos-mesh.org/v1alpha1"
 #: Chaos Mesh kinds the campaign may leave behind; reset deletes them all (05 §8.1).
 CHAOS_KINDS = "stresschaos,networkchaos,podchaos,schedules.chaos-mesh.org"
+#: F14 (05 §6): a no-fault control. It has no target and injects nothing; the case records the same
+#: phases so the 05 §8.2 rule can confirm that nothing moved.
+NO_FAULT = "F14"
 #: Repeat period of the L2 kill faults (05 §6 F06/F07: "every 120 s").
 REPEAT_S = 120
 
