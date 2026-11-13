@@ -25,7 +25,7 @@ In: experiment YAMLs, run directories (`verdict`, `slate`, `proposals`, `run_man
 |---|---|
 | Check | `uv run python scripts/check.py --package bench` |
 | Run an experiment | `uv run veyltrace bench run bench/experiments/<name>.yaml` |
-| Smoke | `uv run veyltrace bench run bench/experiments/synth-smoke.yaml` |
+| Smoke | `uv run veyltrace data fetch synth && uv run veyltrace bench run bench/experiments/synth-smoke.yaml --out <scratch dir>` (synth is never written to `bench/results`) |
 
 ## Never (this package)
 1. Never tune or select a parameter on RE2, RE3, Nezha, FSE'26 or VeylLab test folds.
