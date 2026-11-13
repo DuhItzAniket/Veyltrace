@@ -20,6 +20,7 @@ causatrix = "veyltrace_causatrix.api:run"
 baro_rs = "veyltrace_causatrix.rankers.baro_rs:RANKER"
 change_prox = "veyltrace_causatrix.rankers.change_prox:RANKER"
 cp_sbfl = "veyltrace_causatrix.rankers.cp_sbfl:RANKER"
+graph_walk = "veyltrace_causatrix.rankers.graph_walk:RANKER"
 nsigma = "veyltrace_causatrix.rankers.nsigma:RANKER"
 prism_m = "veyltrace_causatrix.rankers.prism_m:RANKER"
 
