@@ -132,7 +132,7 @@ Rules version `scrub.rules_version` (default `scrub-1`); counts go to `case_mani
 | Deny-listed attribute keys: key starts with `feature_flag.`, or any dot-separated key segment matches `chaos*`, `fault*`, `inject*` (case-insensitive) | `attrs_json`, `detail_json`, OTLP resource and span attributes | drop the attribute; count `dropped_attributes` |
 | Fault-tool services: `flagd`, `flagd-ui`, Chaos Mesh components (`scrub.drop_services`) | all telemetry rows | drop rows; count `dropped_rows` |
 | Chaos objects in events (any detail key or value containing `chaos`, case-insensitive) | events | drop row |
-| Folder tokens: canonical case key, original relative path, original directory names, capture id | every string column and JSON value | replace by `<case>` |
+| Folder tokens: canonical case key, original relative path, original directory names, capture id | every string column and JSON value, attribute keys included | replace by `<case>`; a service or pod name that holds one rejects the case (`invalid_name`), since `<case>` makes no valid name |
 | Flag-change events (`kind = flag`) | events | keep; any flag key in `detail_json` that is not already an 8-hex digest is replaced by the first 8 hex of its SHA-256, the same rule the lab packager applies ([05 §7](../05-fault-lab-and-dataset.md)); kept as decided in [02 §6.1](../02-architecture.md) |
 
 Log bodies are not rewritten except for folder tokens: rewriting words like "fault" would destroy legitimate evidence.
