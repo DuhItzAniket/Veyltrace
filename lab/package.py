@@ -19,6 +19,7 @@ from vlab.answer_key import ANSWER_KEYS, COLUMNS
 from vlab.cluster import load_pins
 from vlab.faults import CONTAINER
 from vlab.package import Context, host_replacements, package_capture
+from vlab.validate import reference_time_ns
 
 from veyltrace_bench.answer_keys import load_answer_keys, write_answer_keys
 from veyltrace_contracts.models import AnswerKeyRow
@@ -49,7 +50,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             str(pins["app_namespace"]), int(orch["t_capture_start_ns"]), tuple(CONTAINER), replacements
         )
         out_dir = root / "veyllab" / args.dataset / capture_id
-        report = package_capture(capture_dir, key, out_dir, ctx)
+        t_alert = reference_time_ns(capture_dir, key)
+        if t_alert is None:
+            print(f"package: {capture_id} has no injection or reference time", file=sys.stderr)
+            return 2
+        report = package_capture(capture_dir, t_alert, out_dir, ctx)
         if report.deny_hits:
             failed += 1
             print(f"package: {capture_id} FAILED the deny-list scan:", file=sys.stderr)
