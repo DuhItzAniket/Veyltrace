@@ -30,13 +30,32 @@ def test_entries_get_themselves_and_unreachable_nodes_nothing() -> None:
 
 
 def test_ties_at_the_kth_cost_are_all_seen_then_sorted() -> None:
-    # Diamond: c reaches the entry e through a or b at equal cost; b's path is more anomalous.
-    edges = [("e", "a", False), ("e", "b", False), ("a", "c", False), ("b", "c", False)]
+    # Diamond: c reaches the entry e through a (anomalous edge a -> c) or b (anomalous caller) at
+    # the same cost 3. Dijkstra finds (c, a, e) first; only seeing the tie ranks b's path, which
+    # has the larger anomalous fraction (05 §3.6 step 4), first with k = 1.
+    edges = [("e", "a", False), ("e", "b", False), ("a", "c", True), ("b", "c", False)]
     adj = reversed_graph(edges, frozenset({"b"}), ["e"], 1.0)
+    assert [c for c, _ in yen(adj, "c", SINK)] == [3.0, 3.0]
     paths = ranked_paths(adj, "c", frozenset({"e"}), frozenset({"b"}), 1, 10)
-    assert paths == [(("c", "b", "e"), 1 / 3)]  # cheaper via b (b is the anomalous caller)
+    assert paths == [(("c", "b", "e"), 1 / 3)]
     flat = reversed_graph(edges, frozenset(), ["e"], 1.0)
     assert [p for p, _ in ranked_paths(flat, "c", frozenset({"e"}), frozenset(), 1, 10)] == [("c", "a", "e")]
+
+
+def test_equal_cost_paths_tie_exactly_whatever_the_arc_order() -> None:
+    # Arcs 1.0, 1.3, 1.3 vs 1.3, 1.3, 1.0: a running sum makes the first 3.5999999999999996.
+    adj = {
+        "c": [("u", 1.3), ("x", 1.0)],
+        "x": [("y", 1.3)],
+        "y": [("e1", 1.3)],
+        "u": [("v", 1.3)],
+        "v": [("e2", 1.0)],
+        "e1": [(SINK, 0.0)],
+        "e2": [(SINK, 0.0)],
+    }
+    assert [c for c, _ in yen(adj, "c", SINK)] == [3.6, 3.6]
+    paths = ranked_paths(adj, "c", frozenset({"e1", "e2"}), frozenset({"u"}), 1, 10)
+    assert paths == [(("c", "u", "v", "e2"), 1 / 4)]
 
 
 def test_max_len_drops_long_paths() -> None:

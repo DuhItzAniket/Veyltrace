@@ -78,11 +78,29 @@ def _wiggle(base: float, after: float | None = None, at: int = N) -> list[float]
         ("front-end_latency-50", 0.5),
         ("latency_p99", 0.99),
         ("duration{quantile=0.999}", 0.999),
+        ('latency{quantile="0.99"}', 0.99),
+        ("latency{quantile=1}", 1.0),
+        ("latency_p99.9", 0.999),
+        ("frontend-2_latency", -1.0),  # a hyphen-digit inside the name is not a quantile
+        ("http2_latency", -1.0),
         ("latency", -1.0),
     ],
 )
 def test_quantile_in_the_name(name: str, q: float) -> None:
     assert quantile_of(name) == q
+
+
+def test_a_histograms_count_and_sum_are_not_the_latency_sli() -> None:
+    # Infralume keeps a histogram as <name>_count and <name>_sum counters (01-infralume §3.9).
+    tables = _metrics(
+        {
+            ("front-end_http_server_duration_count", None): [float(5 * k) for k in range(N)],
+            ("front-end_http_server_duration_sum", "s"): [float(k) for k in range(N)],
+            ("front-end_latency_p90", "s"): _wiggle(0.02),
+        }
+    )
+    slis = metric_slis(tables.metrics, "front-end", anomara_config(_config()).slo)
+    assert [s.signal for s in slis if s.family == "latency"] == ["front-end_latency_p90"]
 
 
 def test_highest_quantile_latency_in_ms_and_counter_rates() -> None:

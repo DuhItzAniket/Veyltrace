@@ -75,3 +75,17 @@ def test_a_service_calling_a_database_is_not_a_database() -> None:
     )
     attrs = span_attrs(spans, {})
     assert node_kinds(["cart"], frozenset(), frozenset(), attrs, CFG.kinds) == {"cart": "service"}
+
+
+def test_a_service_that_publishes_or_consumes_messages_is_not_a_queue() -> None:
+    # OTel demo: checkout produces to Kafka, accounting consumes from it (messaging.system on both).
+    spans = _spans(
+        [
+            ("checkout", "producer", {"messaging.system": "kafka"}),
+            ("checkout", "server", None),
+            ("accounting", "consumer", {"messaging.system": "kafka"}),
+        ]
+    )
+    attrs = span_attrs(spans, {})
+    kinds = node_kinds(["accounting", "checkout"], frozenset(), frozenset(), attrs, CFG.kinds)
+    assert kinds == {"accounting": "service", "checkout": "service"}

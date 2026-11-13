@@ -15,6 +15,8 @@ M = Matcher.build(["carts", "cartservice", "catalog", "checkout", "frontend", "t
         ("failed to get cart from cartservice:7070", "frontend", {"cartservice"}),  # host:port
         ("dial cartservice.default.svc.cluster.local:7070", "frontend", {"cartservice"}),  # DNS suffix
         ("GET http://carts:80/carts/1", "frontend", {"carts"}),  # URL
+        ("dial mongodb://carts-db:27017/data", "frontend", set()),  # a hyphenated host is another name
+        ("GET http://carts.default.svc:80/x", "frontend", {"carts"}),  # URL with a DNS suffix
         ("added item to carts", "frontend", set()),  # ambiguous ^[a-z]+$ name as a plain word
         ("rpc error hipstershop.CartService/GetCart", "frontend", {"cartservice"}),  # gRPC package
         ("calling ts-order-service for order 12", "frontend", {"ts-order-service"}),  # plain word
