@@ -1,6 +1,6 @@
 # 04 · Evaluation protocol (pre-registered)
 
-> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-08
+> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-11
 > Master spec: [02-architecture](02-architecture.md) (wins on architecture; this file wins on protocol details, as [11](11-research-paper-plan.md) states). Targets: [01 §9](01-vision-and-requirements.md). Engine specs: [06 FaultLoom](engines/06-faultloom.md), [07 Causatrix](engines/07-causatrix.md), [09 Causentra](engines/09-causentra.md). Tasks: [07-roadmap](07-roadmap.md). Every reported number must come from the procedure below or be listed as a deviation (§12).
 
 ## 1. Scope and pre-registration
@@ -154,7 +154,7 @@ Notation: *F* = fault cases of the evaluated split, *N* = normal windows; for ca
 | Rerank@1 | AC@1 / Retrieval@K | AC@1 = Retrieval@K × Rerank@1 (DecompRCA; RCAEval `--report-decomposition`) [sota_methods §Q1][sm] |
 | Chance@k, Lift@k | Chance@k = mean_i min(k, n_i)/n_i, where a case whose root is not among its n_i services contributes 0, and Chance@k is null unless every fault case has n_i (RCAEval `Evaluator.chance_accuracy`, [evaluation.py](https://github.com/phamquiluan/RCAEval/blob/main/RCAEval/benchmark/evaluation.py), main; recheck at the commit pinned in §4), so Chance, Lift and AC share one denominator; Lift@k = AC@k / Chance@k; also AC@k − Chance@k | RCAEval's `--report-chance` output stored alongside (§13 Q4) |
 | Prior-only floor | AC@k of `prior-only` | |
-| Onset error | \|`onsets.t_onset_ns` − `answer_key.t_inject_ns`\| / 1e6 | `onset_error_ms`; detected protocol |
+| Onset error | \|`onsets.t_onset_ns` − `answer_key.t_inject_ns`\| / 1e6 | `onset_error_ms`; detected protocol, `ok` runs of cases with an injection time; summary: median, max and count over those rows (`onset_error`) |
 | Coverage | (1/\|F\|) Σ 1[r_i ∈ C_i] on held-out folds; gap = coverage − (1 − α); coverage given decision-pool retrieval | `in_set`; per system, per fold, pooled over folds |
 | Set size | mean and median \|C_i\|; share of singleton sets | `set_size` |
 | Risk–coverage, AURC | order cases by (status CONFIRMED > LIKELY > INCONCLUSIVE, then margin desc); for each prefix: answered fraction vs error (1 − AC@1) among answered; AURC = area under that curve; computed for V (verdict) and for F (fused score) | H3c [verified_agents §Q6][va] |
@@ -228,7 +228,7 @@ methods:
   - {id: "simplerca", kind: internal_baseline}
   - {id: "chance", kind: internal_baseline}
 calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}   # writes config/calibration/<family>.fold*.json
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, coverage, set_size, risk_coverage, no_fault_rates, cost]
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, onset_error, coverage, set_size, risk_coverage, no_fault_rates, cost]
 statistics:
   primary_metric: ac_at_1
   per: system
@@ -246,7 +246,7 @@ resources: {workers: 2, timeout_s: 600, max_rss_mb: 3072}
 | `dataset.*` | case selection: `cases` is `all` or a path (from the repo root) to a YAML list of 12-hex case ids, `exclude` a path to such a list; case ids are unique across datasets, so one list serves every part; exclusions listed in the summary; `normal_windows` adds the §5.4 normal windows |
 | `split.*` | §5.4; `crossfit2` runs both folds and reports test predictions only |
 | `protocol.*` | §5.1–§5.2; each value maps to a pipeline hook and is recorded in every `run_manifest` (through the config hash) |
-| `methods[]` | `kind` ∈ {veyltrace, rcaeval, internal_baseline, agent_only}; `overrides` are dotted config keys; `seeds` multiply runs |
+| `methods[]` | `kind` ∈ {veyltrace, causatrix, rcaeval, internal_baseline, agent_only}; `overrides` are dotted config keys; `seeds` multiply runs. `causatrix` methods (§3 `causatrix:<ranker>` with `overrides: {causatrix.rankers.enabled: [<ranker>]}`, and `causatrix:rrf`) are scored on the slate, not the verdict. The id must name what runs: `causatrix:rrf` has no `causatrix.rankers.enabled` override, and `causatrix:<r>` sets it to `[<r>]` with `<r>` in `rankers.enabled` of `config/causatrix.yaml`; anything else is a ConfigError before the first case. Ranks = the top-K candidates as `{service}_{indicator}`, then the rest of U in `all_scores` order; the pool, set and fault-type columns stay empty. A `causatrix` method whose config equals a `veyltrace` method's shares that run and its `wall_ms` |
 | `calibration.*` | fit on the calibration fold and write `config/calibration/` before testing |
 | `metrics`, `statistics`, `resources` | §7, §8; `metrics` is required and `summary.json` holds only the listed metrics plus counts; `statistics` is recorded as not run until `bench/stats` (O-14) exists; `timeout_s` per case per method; a timeout is a miss |
 

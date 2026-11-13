@@ -75,7 +75,7 @@ Persistence is a deliberate difference from BARO's raw max: it stops one-sample 
 
 ### 3.3 `nsigma`
 
-`μ_B`, `σ_B` (population std, ddof = 0). `σ' = σ_B` if `σ_B > 0` else 1 (scikit-learn's zero-scale convention, which RCAEval's N-Sigma inherits through `StandardScaler`, [rcaeval_facts §Ground truth and scoring][rf-scoring]). `score = max_{t ∈ I} |x_t − μ_B| / σ'` (raw, no persistence). `score_norm = log1p(max_{t ∈ I} |x_t − μ_B| / max(σ_B, ε, η·|μ_B|))`. `threshold = 3.0`. `onset_ns` = first `t ∈ I` with `|x_t − μ_B|/σ' ≥ 3`. Direction as in §3.2.
+`μ_B`, `σ_B` (population std, ddof = 0). `σ' = 1` if the baseline is constant up to float rounding (`σ_B² ≤ n·eps·σ_B² + (n·μ_B·eps)²`, scikit-learn's `_is_constant_feature`), else `σ' = σ_B` (scikit-learn's zero-scale convention, which RCAEval's N-Sigma inherits through `StandardScaler`, [rcaeval_facts §Ground truth and scoring][rf-scoring]). A constant 0.3 baseline has a std of a few ULPs, which is not a scale. `score = max_{t ∈ I} |x_t − μ_B| / σ'` (raw, no persistence). `score_norm = log1p(max_{t ∈ I} |x_t − μ_B| / max(σ_B, ε, η·|μ_B|))`. `threshold = 3.0`. `onset_ns` = first `t ∈ I` with `|x_t − μ_B|/σ' ≥ 3`. Direction as in §3.2.
 
 ### 3.4 `bocpd` — Bayesian online change-point onset
 
