@@ -8,7 +8,7 @@ Engine 5 of Veyltrace v2 (Observe lane). Causalith builds the service dependency
   - `entry_config(section)` parses `causalith.entry` from the causalith config section. Anomara reads it as `ctx.config.section("causalith")`.
   - `entry_services(call_pairs, services, system, cfg)` applies the rule: the system hint ∩ services, else callers that no non-excluded service calls, else `[]`. The result is sorted.
   - `run_entry_services(alert, edges, services, system, cfg)` is the run-level form. It copies `alert.detector.entry_services` when the detected protocol set it, else applies the rule to `signal_cube.edges`.
-- **`ci.intervention_test()`**: IDI-style residual test (fit on baseline, judge the incident) on at most 5 candidate neighbourhoods, called by FaultLoom's claim pass (`intervention` atoms) for trial T8.
+- **`ci.intervention_test()`**: IDI-style residual test (fit on baseline, judge the incident) on at most 5 candidate neighbourhoods, called by FaultLoom's claim pass (`intervention` atoms) for trial T8. `CIResult.independent_of_parents` is `True` (not explained by its parents), `False` (explained), or `None` when the test cannot run, with `reason` one of `no_target`, `no_parents`, `short_baseline`, `no_incident` (no incident bucket to judge, e.g. a crashed candidate) or `singular`. Consumers must treat every untestable reason alike, as holds = null (T8 untestable), never as a `False` verdict; `CIResult` is a package type pinned by tests, not a contract, so new reasons can appear.
 
 Spec: [docs/engines/05-causalith.md](../../docs/engines/05-causalith.md). Rules for agents: [AGENTS.md](AGENTS.md).
 
