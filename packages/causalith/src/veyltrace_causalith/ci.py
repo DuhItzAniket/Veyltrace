@@ -44,7 +44,8 @@ Floats = npt.NDArray[np.float64]
 
 @dataclass(frozen=True)
 class CIConfig:
-    """`causalith.ci.*` plus Anomara's robust_z floor terms (03-anomara §3.2), so the scale matches."""
+    """`causalith.ci.*` plus Anomara's robust_z floor terms (03-anomara §3.2), so the scale matches,
+    and its grid bucket (03-anomara §3.1), the step of traces and logs series."""
 
     max_parents: int
     ridge: float
@@ -55,6 +56,7 @@ class CIConfig:
     iqr_divisor: float
     eta: float
     epsilon: Mapping[str, Mapping[str, float]]
+    bucket_ns: int
 
     def epsilon_for(self, family: str, unit: str | None) -> float:
         """ε(family, unit) with Anomara's fallbacks: the unit, the family's `*`, then `other.*`."""
@@ -69,6 +71,7 @@ class CIConfig:
         try:
             ci = cast("Mapping[str, Any]", causalith["ci"])
             rz = cast("Mapping[str, Any]", anomara["robust_z"])
+            grid = cast("Mapping[str, Any]", anomara["grid"])
             return cls(
                 max_parents=int(ci["max_parents"]),
                 ridge=float(ci["ridge"]),
@@ -81,6 +84,7 @@ class CIConfig:
                 epsilon={
                     str(f): {str(u): float(e) for u, e in units.items()} for f, units in rz["epsilon"].items()
                 },
+                bucket_ns=int(grid["bucket_s"]) * 1_000_000_000,
             )
         except (KeyError, TypeError, ValueError) as exc:
             msg = f"causalith.ci / anomara.robust_z keys missing or malformed: {exc}"
@@ -181,20 +185,25 @@ def target_of(service: str, series: Mapping[str, CISeries]) -> CISeries | None:
     return None
 
 
-def effective_step(s: CISeries) -> int:
-    """Effective step (03-anomara §3.1 rule, for every source): median run of equal values, at
-    least the median spacing (on bucketed series this is the bucket)."""
-    if s.t.size < 2:
-        return 1
+def effective_step(s: CISeries, bucket_ns: int) -> int:
+    """Effective step `g` (03-anomara §3.1, as `veyltrace_anomara.series.effective_step`): for
+    metrics, the median run of equal values, at least the median spacing; for traces and logs, and
+    a metric with fewer than two points, the Signalyth bucket. The run rule on a bucketed series
+    would coarsen the grid whenever buckets repeat a value (an error_rate of 0)."""
+    if s.source != "metrics" or s.t.size < 2:
+        return bucket_ns
     spacing = float(np.median(np.diff(s.t)))
     starts = np.concatenate(([0], np.flatnonzero(s.x[1:] != s.x[:-1]) + 1))
     runs = np.diff(s.t[starts])
     return max(int(np.rint(max(float(np.median(runs)), spacing) if runs.size else spacing)), 1)
 
 
-def grid_matrix(columns: Sequence[CISeries], span: tuple[int, int]) -> tuple[npt.NDArray[np.int64], Floats]:
-    """Bucket starts and a (buckets × columns) matrix: last value per bucket, rows all observed."""
-    step = max(effective_step(s) for s in columns)
+def grid_matrix(
+    columns: Sequence[CISeries], span: tuple[int, int], bucket_ns: int
+) -> tuple[npt.NDArray[np.int64], Floats, int]:
+    """Bucket starts, a (buckets × columns) matrix (last value per bucket, rows all observed) and
+    the grid step, the largest effective step of the columns."""
+    step = max(effective_step(s, bucket_ns) for s in columns)
     first = -(-span[0] // step)
     count = max(-(-span[1] // step) - first, 0)
     matrix = np.full((count, len(columns)), np.nan)
@@ -207,15 +216,18 @@ def grid_matrix(columns: Sequence[CISeries], span: tuple[int, int]) -> tuple[npt
             last = np.flatnonzero(np.concatenate((index[1:] != index[:-1], [True])))
             matrix[index[last], j] = values[last]
     rows = ~np.isnan(matrix).any(axis=1)
-    return ((first + np.arange(count, dtype=np.int64)) * step)[rows], matrix[rows]
+    return ((first + np.arange(count, dtype=np.int64)) * step)[rows], matrix[rows], step
 
 
-def persistent_max(z: Floats, p: int) -> float:
-    """Max over t of min |z| on [t, t + p) consecutive kept buckets of one sign (03-anomara §3.2)."""
+def persistent_max(z: Floats, starts: npt.NDArray[np.int64], step: int, p: int) -> float:
+    """Max over t of min |z| on [t, t + p·g) when those p grid buckets are all kept and share one
+    sign (03-anomara §3.2 step 4). Kept rows far apart in time (the joint grid drops buckets where a
+    column is missing) never form a run, so isolated spikes are not persistent."""
     best = 0.0
     for i in range(z.size - p + 1):
         window = z[i : i + p]
-        if bool((window > 0).all()) or bool((window < 0).all()):
+        contiguous = int(starts[i + p - 1] - starts[i]) == (p - 1) * step
+        if contiguous and (bool((window > 0).all()) or bool((window < 0).all())):
             best = max(best, float(np.min(np.abs(window))))
     return best
 
