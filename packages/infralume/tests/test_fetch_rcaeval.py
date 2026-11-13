@@ -25,6 +25,7 @@ FILES: dict[str, bytes] = {
     "re2ob_cartservice_cpu_1/notes.png": b"never fetched",
     "re2ob_emailservice_mem_2/inject_time.txt": b"1705354999",
     "re2ob_emailservice_mem_2/logs.parquet": b"l" * 50,
+    "re2ob_emailservice_mem_2/root_cause.txt": b"emailservice",  # a label file in the fetched suite
     "re2ss_carts_cpu_1/metrics.parquet": b"s" * 10,
     "re3ss_carts_f1_1/root_cause.txt": b"carts",
 }
