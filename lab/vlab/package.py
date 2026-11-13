@@ -246,9 +246,10 @@ def deny_scan(folder: Path) -> list[str]:
 
 
 def package_capture(
-    capture_dir: Path, key: Mapping[str, Any], out_dir: Path, ctx: Context, system: str = "ob"
+    capture_dir: Path, t_alert_ns: int, out_dir: Path, ctx: Context, system: str = "ob"
 ) -> Report:
-    """Write the packaged capture to ``out_dir``; remove it again and report hits if the scan fails."""
+    """Write the packaged capture to ``out_dir``; remove it again and report hits if the scan fails.
+    ``t_alert_ns`` is the oracle hint: the injection time, or a no-fault control's reference time."""
     report = Report()
     if out_dir.exists():
         shutil.rmtree(out_dir)
@@ -266,7 +267,7 @@ def package_capture(
         for row in events:
             out.write(_replace(canonical_json(row), ctx) + "\n")
     (out_dir / "oracle_alert.json").write_text(
-        canonical_json({"t_alert_ns": int(key["t_inject_ns"])}) + "\n", encoding="utf-8", newline="\n"
+        canonical_json({"t_alert_ns": t_alert_ns}) + "\n", encoding="utf-8", newline="\n"
     )
     (out_dir / "capture.json").write_text(
         canonical_json({"capture_id": out_dir.name, "system": system}) + "\n", encoding="utf-8", newline="\n"
