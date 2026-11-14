@@ -53,9 +53,12 @@ def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
         assert row["verdict_hash"] and row["status"]
         assert [row[c] for c in HITS] == ([None] * 6 if row["case_id"] == NORMAL_WINDOW else [False] * 6)
     summary, manifest = (textio.read_text(out / name) for name in ("summary.json", "manifest.json"))
+    for name in ("summary", "manifest"):  # both are contracts now (03 §13.3, §13.4), not free JSON
+        io.read_path(f"bench_{name}", out / f"{name}.json", validate=True)
+    assert '"outcomes":{"failed":0,"no_alert":0,"ok":5,"rejected":0,"timeout":0}' in summary
     for part in ('"n_unranked":4', '"n_fault":4', '"n_chance":4', '"ac_at_1":0.0', '"chance_at_1":0.16666'):
         assert part in summary
-    assert '"mrr"' in summary and '"rerank_at_1"' not in summary  # only the YAML's metrics
+    assert '"mrr":{"mrr":0.0}' in summary and '"rerank_at_1":null' in summary  # only the YAML's metrics
     assert f'"experiment_sha256":"{sha256_text_lf(SMOKE)}"' in manifest and manifest.count('"run_id"') == 5
     assert manifest.count('"inputs_sha256":"') == 6 and '"cases_without_inputs":[]' in manifest
     assert run() == out  # again on the same runs root: bench empties its dir, all re-run
@@ -89,7 +92,8 @@ def test_run_outcomes_are_learned_and_scored_as_misses(
     assert all(r["status"] is None and r["ranks"] == [] and r["set_size"] is None for r in rows.values())
     groups = summary["groups"]
     assert isinstance(groups, list) and len(groups) == 1  # summary values are JSON, typed as object
-    assert (groups[0]["n_fault"], groups[0]["n_chance"], groups[0]["chance_at_1"]) == (4, 0, None)  # no n_i
+    chance = groups[0]["metrics"]["chance"]
+    assert (groups[0]["n_fault"], groups[0]["n_chance"], chance["chance_at_1"]) == (4, 0, None)  # no n_i
     cached = True  # a reused run has no wall time: it could hide a timeout (04 §9), so it is refused
     with pytest.raises(ConfigError, match="reuses run"):
         run()

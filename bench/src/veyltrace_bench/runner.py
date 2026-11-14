@@ -10,9 +10,10 @@ a run another method of this experiment made with the same config and a differen
 child process (`veyltrace_bench.child`, #68): bench kills it at `resources.timeout_s` and records
 its peak RSS. Results, in
 `<results root>/<experiment_id>/`: per_case.csv (bench_result, 03 §13.2, through core io),
-summary.json (the requested metrics per (dataset, system, method)) and manifest.json (experiment,
-code, uv.lock, answer-key, telemetry-input and config hashes, run ids; 04 §9, §10.2), both canonical
-JSON and byte-identical across invocations; only per_case.csv's wall_ms and peak_rss_mb differ.
+summary.json (bench_summary, 03 §13.3: the requested metrics per (dataset, system, method)) and
+manifest.json (bench_manifest, 03 §13.4: experiment, code, uv.lock, answer-key, telemetry-input and
+config hashes, run ids; 04 §9, §10.2), both written through core io (validated canonical JSON) and
+byte-identical across invocations; only per_case.csv's wall_ms and peak_rss_mb differ.
 """
 
 from __future__ import annotations
@@ -40,11 +41,10 @@ from veyltrace_bench.experiment import (
     select_cases,
     unsupported,
 )
-from veyltrace_bench.metrics import CaseScore, MethodOutput, Truth, score_case
-from veyltrace_bench.summary import summarize
+from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
+from veyltrace_bench.summary import METRIC_KEYS, summarize
 from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
 from veyltrace_core import io, textio
-from veyltrace_core.canonical import JSONLike, canonical_json
 from veyltrace_core.cli import THREAD_ENV
 from veyltrace_core.config import ResolvedConfig, config_sha256, find_config_dir, resolve_config
 from veyltrace_core.errors import (
@@ -60,8 +60,6 @@ from veyltrace_core.pipeline import run_case, uv_lock_sha256
 from veyltrace_core.pipeline import runs_root as default_runs_root
 
 PRODUCER = f"bench@{ALGO_VERSION}"
-SUMMARY_SCHEMA = "veyltrace.bench_summary/0"
-MANIFEST_SCHEMA = "veyltrace.bench_manifest/0"
 RESULTS_DIR = ("bench", "results")  # default results root below the repo (04 §9)
 BENCH_RUNS = "bench"  # bench's own subdirectory of the runs root, one directory per experiment
 SYNTH = "synth"  # smoke cases, never reported (04 §3)
@@ -285,9 +283,25 @@ def _run_one(
     return row, score, run | {"run_id": done.run_id, "inputs_sha256": inputs}  # run_id None: killed
 
 
-def _write_json(path: Path, obj: dict[str, object]) -> None:
-    """Canonical JSON plus LF (03 §1); summary and manifest hold only JSON values."""
-    textio.write_bytes(path, canonical_json(cast("JSONLike", obj)) + b"\n")
+def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...]) -> dict[str, object]:
+    """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
+    one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9)."""
+    flat = summarize(scores, metrics)
+    counted = cast("dict[str, int]", flat.pop("outcomes"))
+    entries = {
+        name: {k: flat.pop(k) for k in keys} if name in metrics else None
+        for name, keys in METRIC_KEYS.items()
+    }
+    dataset, system, method = key
+    outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
+    return {
+        "dataset": dataset,
+        "system": system,
+        "method": method,
+        **flat,
+        "outcomes": outcomes,
+        "metrics": entries,
+    }
 
 
 def run_experiment(
@@ -339,19 +353,17 @@ def run_experiment(
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
     summary: dict[str, object] = {
-        "schema": SUMMARY_SCHEMA,
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            {"dataset": d, "system": s, "method": m, **summarize(scores, exp.metrics)}
-            for (d, s, m), scores in sorted(groups.items(), key=lambda item: item[0])
+            _group(k, scores, exp.metrics) for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
-        "statistics": STATISTICS_NOT_RUN,  # 03 §13.2 wants bootstrap CIs here once bench/stats exists
+        "statistics": STATISTICS_NOT_RUN,  # bootstrap CIs and tests once bench/stats exists (O-14)
     }
     out_dir = (out_root if out_root is not None else repo.joinpath(*RESULTS_DIR)) / exp.experiment_id
     io.write_path("bench_result", rows, out_dir / "per_case.csv")
-    _write_json(out_dir / "summary.json", summary)
+    io.write_path("bench_summary", summary, out_dir / "summary.json")  # validated (03 §13.3)
     datasets: list[dict[str, object]] = []
     for d, (cases, excluded) in selected.items():
         mine = [r for r in runs if r["dataset"] == d and r["inputs_sha256"] is not None]
@@ -367,7 +379,6 @@ def run_experiment(
             }
         )
     manifest: dict[str, object] = {
-        "schema": MANIFEST_SCHEMA,
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "experiment_sha256": sha256_text_lf(Path(path)),
@@ -379,5 +390,5 @@ def run_experiment(
         "seeds": sorted({seed for m in exp.methods for seed in m.ai.seeds}),
         "runs": runs,
     }
-    _write_json(out_dir / "manifest.json", manifest)  # written last: its presence marks a whole result
+    io.write_path("bench_manifest", manifest, out_dir / "manifest.json")  # last: marks a whole result
     return out_dir, summary
