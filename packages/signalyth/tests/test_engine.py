@@ -84,6 +84,10 @@ def test_synth_behaviour_without_answer_keys() -> None:
     assert slower, "synth-02: no edge got slower"
     assert _rise("synth-02", "cpu", "metrics", 1.5) == []  # a network fault moves no CPU
     assert _rise("synth-03", "error_rate", "traces", 2.0)
+    templates = golden("signal_cube.templates", "synth-03")
+    assert isinstance(templates, pa.Table)
+    assert any(r["error_level"] and r["count_incident"] > r["count_baseline"] for r in templates.to_pylist())
+    assert len(_rise("synth-03", "log_error_rate", "logs", 2.0)) == 1  # only the throwing service
     assert _rise("synth-04", "latency_p99", "traces", 1.5) or _rise(
         "synth-04", "self_time_p99", "traces", 1.5
     )
@@ -106,3 +110,9 @@ def test_series_do_not_depend_on_the_windows(tmp_path: Path) -> None:
         io.path_of("signal_cube.edges", moved).read_bytes()
         != io.path_of("signal_cube.edges", first).read_bytes()
     )
+    before, after = (io.read("signal_cube.templates", d) for d in (first, moved))
+    assert isinstance(before, pa.Table)
+    assert isinstance(after, pa.Table)
+    for column in ("service", "template_id", "template", "error_level", "first_seen_ns"):
+        assert after.column(column).to_pylist() == before.column(column).to_pylist()
+    assert after.column("count_incident").to_pylist() != before.column("count_incident").to_pylist()
