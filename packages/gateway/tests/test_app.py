@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from veyltrace_core.config import load_section_file
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.testing import repo_root
 from veyltrace_gateway import __main__ as cli
@@ -64,10 +65,11 @@ def test_health_envelope() -> None:
     health = json.loads(body)
     assert set(health) == {"status", "version", "code_commit", "ai", "live"}
     assert health["status"] == "ok" and health["version"] == "0.1.0"
+    llm = load_section_file("llm", config_dir=CONFIG)  # so a model change in config needs no test edit
     assert health["ai"] == {
         "default_mode": "off",
-        "provider": "ollama",
-        "model": "qwen3.5:9b",
+        "provider": llm["provider"],
+        "model": llm["model"]["name"],
         "reachable": None,
     }
     assert health["live"] == {"enabled": False, "receiving": False}

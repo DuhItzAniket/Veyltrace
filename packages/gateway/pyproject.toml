@@ -29,5 +29,7 @@ packages = ["src/veyltrace_gateway"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
+# fastapi: the HTTP API routes in app.py (02 §8 API row; 06 §2).
+# uvicorn: the ASGI server that __main__.py binds to loopback (06 §2).
 # pydantic: the gateway-only envelopes in api_models.py (06 §3.1).
 allow = ["fastapi", "pydantic", "uvicorn"]

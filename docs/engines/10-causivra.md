@@ -199,7 +199,7 @@ Rendered from `card.json` only: title; status banner with `confidence.level`, se
 
 ### 3.8 Receipt assembly
 
-1. Read `run_manifest.json` (written by core after 10a) and check it lists `verdict.json`, `card.json`, `card.md` in `outputs`.
+1. Read `run_manifest.json` (written by core after 10a) and check it lists `verdict.json`, `card.json`, `card.md`, and `agent_trace.jsonl` when the run has one, in `outputs`, with the hashes those files have now.
 2. `subject[0]` = `{name: "verdict.json", digest: {sha256: SHA-256(file bytes of verdict.json)}}`. Note this differs from `verdict_hash` (canonical JSON without the hash field); both are checked on replay.
 3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when there is no trace (`ai off`, or `status = skipped`).
 4. `predicate` = `{run_manifest, verdict_hash, card_hash, agent_trace_head}`; Statement `_type` and `predicateType` exactly as 03 §11.2.
