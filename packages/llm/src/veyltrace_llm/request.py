@@ -23,6 +23,7 @@ from veyltrace_core.hashing import is_sha256, sha256_bytes
 
 __all__ = [
     "ERROR_KINDS",
+    "NULLABLE_PARAMS",
     "PARAM_NAMES",
     "PROVIDERS",
     "REQUEST_VERSION",
@@ -43,12 +44,14 @@ REQUEST_VERSION: Final = 1
 PROVIDERS: Final = ("ollama", "llamacpp", "openai_compat", "fake")
 Role = Literal["system", "user", "assistant"]
 ROLES: Final[tuple[str, ...]] = get_args(Role)
-#: Sampler parameters a request may carry (08 §5.2 canonical request; 03 §9.1 model.params).
+#: Sampler parameters of every request (08 §5.2 canonical request; 03 §9.1 model.params). In 03,
+#: `?` means required and nullable: all seven keys are always present, and the key covers all seven.
 PARAM_NAMES: Final = frozenset(
     {"temperature", "top_p", "top_k", "presence_penalty", "seed", "max_tokens", "thinking"}
 )
-#: The ones 03 §9.1 requires in proposals.model.params, so every request carries them.
-REQUIRED_PARAMS: Final = frozenset({"temperature", "seed", "max_tokens"})
+REQUIRED_PARAMS: Final = PARAM_NAMES
+#: The `?` params of 03 §9.1 SamplerParams: null means "not sent", so the runtime's default applies.
+NULLABLE_PARAMS: Final = frozenset({"top_p", "top_k", "presence_penalty", "thinking"})
 _INT_PARAMS: Final = frozenset({"top_k", "seed", "max_tokens"})
 #: 03 §9.1: seed is an integer in [0, 2^31 - 1).
 SEED_LIMIT: Final = 2**31 - 1
@@ -113,12 +116,14 @@ def _check_params(params: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError(msg)
     missing = sorted(REQUIRED_PARAMS - set(params))
     if missing:
-        msg = f"sampler params {missing} are required (03 §9.1 model.params)"
+        msg = f"sampler params {missing} are required, null where 03 §9.1 allows it (model.params)"
         raise ValueError(msg)
     out: dict[str, Any] = {}
     for name in sorted(params):
         value: object = params[name]
-        if name == "thinking":
+        if value is None:
+            ok = name in NULLABLE_PARAMS
+        elif name == "thinking":
             ok = isinstance(value, bool)
         elif name in _INT_PARAMS:
             ok = isinstance(value, int) and not isinstance(value, bool) and value >= 0
@@ -232,7 +237,9 @@ class Completion:
     """One provider outcome: exactly one of `content` and `error` is set.
 
     `latency_ms` is measured by the provider (FakeProvider reports a fixed value) and stored in the
-    cassette before the completion is returned, so budgets replay exactly (08 §5.1 rule 1).
+    cassette before the completion is returned, so budgets replay exactly (08 §5.1 rule 1). It is
+    rounded here with canonical JSON's float rule (9 decimals), so the completion record mode
+    returns equals the one replay reads back from the cassette.
     """
 
     content: str | None
@@ -252,7 +259,7 @@ class Completion:
         if not math.isfinite(latency) or latency < 0:
             msg = f"latency_ms must be finite and >= 0, got {latency!r}"
             raise ValueError(msg)
-        object.__setattr__(self, "latency_ms", float(latency))
+        object.__setattr__(self, "latency_ms", cast(float, normalize(float(latency))))
 
     @property
     def ok(self) -> bool:

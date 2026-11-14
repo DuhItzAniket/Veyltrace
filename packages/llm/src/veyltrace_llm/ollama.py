@@ -1,11 +1,12 @@
 """Ollama provider: `POST /api/chat`, non-streaming, with the JSON schema as `format` (08 §3.8).
 
 Mapping (canonical request → Ollama): messages as given; `format` = the schema (Ollama's structured
-output); `think` = `thinking` when the request sets it (Ollama's "disable thinking" flag); options
-`temperature`, `top_p`, `top_k`, `presence_penalty`, `seed`, `num_predict` = `max_tokens`, plus the
-runtime keys `num_ctx` and `num_thread` (when set). Usage = `prompt_eval_count`, `eval_count`.
-`OLLAMA_NUM_PARALLEL=1` is a server setting this package cannot set (08 §3.8, L-01 guide); the
-runtime version comes from `GET /api/version`.
+output); `think` = `thinking` (Ollama's "disable thinking" flag); options `temperature`, `top_p`,
+`top_k`, `presence_penalty`, `seed`, `num_predict` = `max_tokens`, plus the runtime keys `num_ctx`
+and `num_thread` (when set). A null param is not sent, so Ollama's default applies (03 §9.1
+nullable params). Usage = `prompt_eval_count`, `eval_count`. `OLLAMA_NUM_PARALLEL=1` is a server
+setting this package cannot set (08 §3.8, L-01 guide); the runtime version comes from
+`GET /api/version`.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ class OllamaProvider(HttpProvider):
 
     def payload(self, request: LLMRequest) -> dict[str, Any]:
         params = request.params
-        options: dict[str, Any] = {name: params[name] for name in _SAME_NAME if name in params}
+        options: dict[str, Any] = {name: params[name] for name in _SAME_NAME if params[name] is not None}
         options["num_predict"] = params["max_tokens"]
         options["num_ctx"] = self.settings.num_ctx
         if self.settings.num_thread is not None:
@@ -42,7 +43,7 @@ class OllamaProvider(HttpProvider):
         }
         if request.schema is not None:
             body["format"] = dict(request.schema)
-        if "thinking" in params:
+        if params["thinking"] is not None:
             body["think"] = params["thinking"]
         return body
 
