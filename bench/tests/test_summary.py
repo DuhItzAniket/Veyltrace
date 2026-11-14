@@ -58,7 +58,7 @@ def test_summary_hand_computed() -> None:
     ]
     summary = summarize(scores)
     assert summary["outcomes"] == {"failed": 1, "ok": 5}
-    counts = ("n_rows", "n_fault", "n_no_truth", "n_chance", "n_outside_universe")
+    counts = ("n_rows", "n_fault", "n_no_truth", "n_chance", "n_outside_services")
     assert tuple(summary[c] for c in counts) == (6, 5, 1, 5, 1)
     assert [summary[f"ac_at_{k}"] for k in AC_KS] == [0.2, 0.4, 0.4, 0.6, 0.6]
     expected = {"avg_at_5": 11 / 25, "mrr": 1.75 / 5, "chance_at_1": 0.75 / 5, "chance_at_5": 3.5 / 5}

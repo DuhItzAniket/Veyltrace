@@ -20,7 +20,9 @@ __all__ = [
     "AskKind",
     "AtomId",
     "AtomKind",
+    "BenchManifest",
     "BenchResultRow",
+    "BenchSummary",
     "BudgetUsed",
     "Calibration",
     "CalibrationNoFault",
@@ -61,6 +63,10 @@ __all__ = [
     "Hypothesis",
     "Indicator",
     "Klass",
+    "ManifestCode",
+    "ManifestConfig",
+    "ManifestDataset",
+    "ManifestRun",
     "Mode",
     "Onsets",
     "OnsetsPerService",
@@ -108,6 +114,18 @@ __all__ = [
     "SpanKind",
     "SpanStatus",
     "Status",
+    "SummaryGroup",
+    "SummaryGroupMetrics",
+    "SummaryMetricAcAtK",
+    "SummaryMetricAvgAt5",
+    "SummaryMetricChance",
+    "SummaryMetricFineAcAtK",
+    "SummaryMetricLift",
+    "SummaryMetricMrr",
+    "SummaryMetricOnsetError",
+    "SummaryMetricRerankAt1",
+    "SummaryMetricRetrievalAtK",
+    "SummaryOutcomes",
     "System",
     "TelemetryEventsRow",
     "TelemetryLogsRow",
@@ -909,6 +927,76 @@ class Hypothesis(BaseModel):
     indicator: Indicator | None
 
 
+class ManifestCode(BaseModel):
+    """Code state the results came from (04 §10.2)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    commit: Annotated[str, StringConstraints(min_length=1)]
+    dirty: bool
+    bench_dirty: bool
+
+
+class ManifestConfig(BaseModel):
+    """The config hash one (dataset, method) ran with."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset: Dataset
+    method: Annotated[str, StringConstraints(min_length=1)]
+    config_sha256: Sha256
+
+
+class ManifestDataset(BaseModel):
+    """One dataset part of the experiment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset: Dataset
+    answer_key_sha256: Sha256
+    inputs_sha256: Sha256
+    cases: list[CaseId]
+    cases_without_inputs: list[CaseId]
+    excluded: list[CaseId]
+
+
+class ManifestRun(BaseModel):
+    """One executed (case, method) run."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    case_id: CaseId
+    dataset: Dataset
+    method: Annotated[str, StringConstraints(min_length=1)]
+    run_id: RunId | None
+    inputs_sha256: Sha256 | None
+
+
+class BenchManifest(BaseModel):
+    """bench/results/<experiment_id>/manifest.json: what one experiment ran: the
+    validated experiment and its hash, the code state, the uv.lock, answer-key, input
+    and config hashes, and the run ids (04 §9, §10.2). Written last by bench, so its
+    presence marks a whole result. Evaluation-only.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    producer: Annotated[str, StringConstraints(min_length=1)]
+    experiment_id: Annotated[
+        str,
+        StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$"),
+    ]
+    experiment_sha256: Sha256
+    experiment: dict[str, JsonValue]
+    code: ManifestCode
+    uv_lock_sha256: Sha256
+    datasets: list[ManifestDataset]
+    configs: list[ManifestConfig]
+    seeds: list[int]
+    runs: list[ManifestRun]
+
+
 class OnsetsPerService(BaseModel):
     """Onsets of one service; *_source and its onset are null together (enforced by the
     allOf below).
@@ -1415,6 +1503,179 @@ class CaseManifest(BaseModel):
     inputs: list[CaseManifestInput]
     adapter: CaseManifestAdapter
     scrub: CaseManifestScrub
+
+
+class SummaryMetricAcAtK(BaseModel):
+    """AC@1..5 over the fault cases F (04 §7); null with no fault case."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ac_at_1: float | None
+    ac_at_2: float | None
+    ac_at_3: float | None
+    ac_at_4: float | None
+    ac_at_5: float | None
+
+
+class SummaryMetricAvgAt5(BaseModel):
+    """Avg@5, the mean of AC@1..5 (04 §7)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    avg_at_5: float | None
+
+
+class SummaryMetricChance(BaseModel):
+    """Chance@1..5, the mean over F of min(k, n_i)/n_i, 0 for a root outside the case's
+    services; null unless every fault case has n_i (04 §7).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    chance_at_1: float | None
+    chance_at_2: float | None
+    chance_at_3: float | None
+    chance_at_4: float | None
+    chance_at_5: float | None
+
+
+class SummaryMetricFineAcAtK(BaseModel):
+    """Indicator-level AC@1..5 over the fault cases with an indicator (04 §7)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    fine_ac_at_1: float | None
+    fine_ac_at_2: float | None
+    fine_ac_at_3: float | None
+    fine_ac_at_4: float | None
+    fine_ac_at_5: float | None
+
+
+class SummaryMetricLift(BaseModel):
+    """Lift@k = AC@k / Chance@k and AC@k - Chance@k, k = 1..5 (04 §7)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    lift_at_1: float | None
+    lift_at_2: float | None
+    lift_at_3: float | None
+    lift_at_4: float | None
+    lift_at_5: float | None
+    chance_diff_at_1: float | None
+    chance_diff_at_2: float | None
+    chance_diff_at_3: float | None
+    chance_diff_at_4: float | None
+    chance_diff_at_5: float | None
+
+
+class SummaryMetricMrr(BaseModel):
+    """Mean reciprocal rank over F, a miss counting 0 (04 §7)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    mrr: float | None
+
+
+class SummaryMetricOnsetError(BaseModel):
+    """Median and max onset error in ms over the rows that have one (detected protocol;
+    04 §7, #215), and how many rows had one.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    onset_error_median_ms: Annotated[float, Field(ge=0)] | None
+    onset_error_max_ms: Annotated[float, Field(ge=0)] | None
+    n_onset: Annotated[int, Field(ge=0)]
+
+
+class SummaryMetricRerankAt1(BaseModel):
+    """Rerank@1 = AC@1 / Retrieval@K; null when Retrieval@K is 0 or null (04 §7)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    rerank_at_1: float | None
+
+
+class SummaryMetricRetrievalAtK(BaseModel):
+    """Truth in the slate (retrieval_at_k) and in the decision pool (pool_retrieval)
+    over F, and the slate sizes K seen; a channel no row has is null (04 §7).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    retrieval_at_k: float | None
+    retrieval_k: list[Annotated[int, Field(ge=1)]] | None
+    pool_retrieval: float | None
+
+
+class SummaryGroupMetrics(BaseModel):
+    """One entry per 04 §9 metric name that bench computes; an entry the experiment did
+    not list is null, so a null inside an entry always means undefined, never not
+    requested.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ac_at_k: SummaryMetricAcAtK | None
+    avg_at_5: SummaryMetricAvgAt5 | None
+    mrr: SummaryMetricMrr | None
+    fine_ac_at_k: SummaryMetricFineAcAtK | None
+    retrieval_at_k: SummaryMetricRetrievalAtK | None
+    rerank_at_1: SummaryMetricRerankAt1 | None
+    chance: SummaryMetricChance | None
+    lift: SummaryMetricLift | None
+    onset_error: SummaryMetricOnsetError | None
+
+
+class SummaryOutcomes(BaseModel):
+    """Rows per bench_result.run_outcome; every outcome is present, 0 when none."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ok: Annotated[int, Field(ge=0)]
+    failed: Annotated[int, Field(ge=0)]
+    timeout: Annotated[int, Field(ge=0)]
+    no_alert: Annotated[int, Field(ge=0)]
+    rejected: Annotated[int, Field(ge=0)]
+
+
+class SummaryGroup(BaseModel):
+    """The scores of one (dataset, system, method)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset: Dataset
+    system: System
+    method: Annotated[str, StringConstraints(min_length=1)]
+    n_rows: Annotated[int, Field(ge=0)]
+    n_fault: Annotated[int, Field(ge=0)]
+    n_no_truth: Annotated[int, Field(ge=0)]
+    n_unranked: Annotated[int, Field(ge=0)]
+    n_fine: Annotated[int, Field(ge=0)]
+    n_chance: Annotated[int, Field(ge=0)]
+    n_outside_services: Annotated[int, Field(ge=0)]
+    outcomes: SummaryOutcomes
+    metrics: SummaryGroupMetrics
+
+
+class BenchSummary(BaseModel):
+    """bench/results/<experiment_id>/summary.json: the requested metrics and their
+    denominators per (dataset, system, method) of one experiment (04 §7, §9). Written
+    by bench, committed with the results; tables are generated from it only (R-17).
+    Evaluation-only.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    producer: Annotated[str, StringConstraints(min_length=1)]
+    experiment_id: Annotated[
+        str,
+        StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$"),
+    ]
+    groups: list[SummaryGroup]
+    excluded: dict[str, list[CaseId]]
+    statistics: str
 
 
 class TelemetryEventsRow(BaseModel):

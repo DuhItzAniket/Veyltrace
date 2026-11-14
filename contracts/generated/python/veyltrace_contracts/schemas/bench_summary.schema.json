@@ -1,0 +1,637 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/bench_summary.schema.json",
+  "title": "BenchSummary",
+  "description": "bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only.",
+  "x-veyltrace": {
+    "name": "bench_summary",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "bench",
+    "path": "bench/results/<experiment_id>/summary.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "excluded",
+    "experiment_id",
+    "groups",
+    "producer",
+    "schema_version",
+    "statistics"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "producer": {
+      "description": "bench@<ALGO_VERSION>: the bench code that scored the runs.",
+      "type": "string",
+      "minLength": 1
+    },
+    "experiment_id": {
+      "description": "The experiment's id, naming the results directory.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/summary_group"
+      },
+      "x-sort": [
+        {
+          "pointer": "dataset",
+          "order": "asc"
+        },
+        {
+          "pointer": "system",
+          "order": "asc"
+        },
+        {
+          "pointer": "method",
+          "order": "asc"
+        }
+      ]
+    },
+    "excluded": {
+      "description": "Excluded case ids per dataset part (the experiment's exclude list).",
+      "type": "object",
+      "additionalProperties": {
+        "description": "Excluded case ids of one dataset part, sorted.",
+        "type": "array",
+        "items": {
+          "$ref": "common.schema.json#/$defs/case_id"
+        },
+        "x-sort": [
+          {
+            "pointer": ".",
+            "order": "asc"
+          }
+        ]
+      }
+    },
+    "statistics": {
+      "description": "Bootstrap CIs and tests: 'not run: ...' until bench/stats (O-14) exists, which makes it an object (a minor bump).",
+      "type": "string"
+    }
+  },
+  "$defs": {
+    "summary_group": {
+      "description": "The scores of one (dataset, system, method).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset",
+        "method",
+        "metrics",
+        "n_chance",
+        "n_fault",
+        "n_fine",
+        "n_no_truth",
+        "n_outside_services",
+        "n_rows",
+        "n_unranked",
+        "outcomes",
+        "system"
+      ],
+      "properties": {
+        "dataset": {
+          "$ref": "common.schema.json#/$defs/dataset"
+        },
+        "system": {
+          "$ref": "common.schema.json#/$defs/system"
+        },
+        "method": {
+          "description": "Method id from the experiment YAML (04 §4), as bench_result.method.",
+          "type": "string",
+          "minLength": 1
+        },
+        "n_rows": {
+          "description": "Rows of the group.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_fault": {
+          "description": "Fault cases F (rows with a truth): the denominator of every rate.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_no_truth": {
+          "description": "No-fault rows (normal windows), outside every denominator.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_unranked": {
+          "description": "Unranked fault-case runs (04 §7 'Unranked runs').",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_fine": {
+          "description": "Fault cases scored at indicator level (the fine_ac_at_k denominator).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_chance": {
+          "description": "Fault cases whose n_i (the number of case_manifest.services) is known.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_outside_services": {
+          "description": "Fault cases whose root is not among the case's case_manifest.services (n_i, 04 §7; not the universe U of 06 §2.1); each contributes 0 to Chance@k.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "outcomes": {
+          "$ref": "#/$defs/summary_outcomes"
+        },
+        "metrics": {
+          "description": "One entry per 04 §9 metric name that bench computes; an entry the experiment did not list is null, so a null inside an entry always means undefined, never not requested.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ac_at_k",
+            "avg_at_5",
+            "chance",
+            "fine_ac_at_k",
+            "lift",
+            "mrr",
+            "onset_error",
+            "rerank_at_1",
+            "retrieval_at_k"
+          ],
+          "properties": {
+            "ac_at_k": {
+              "description": "The 04 §9 metric `ac_at_k`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_ac_at_k"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "avg_at_5": {
+              "description": "The 04 §9 metric `avg_at_5`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_avg_at_5"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "mrr": {
+              "description": "The 04 §9 metric `mrr`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_mrr"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "fine_ac_at_k": {
+              "description": "The 04 §9 metric `fine_ac_at_k`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_fine_ac_at_k"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "retrieval_at_k": {
+              "description": "The 04 §9 metric `retrieval_at_k`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_retrieval_at_k"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "rerank_at_1": {
+              "description": "The 04 §9 metric `rerank_at_1`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_rerank_at_1"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "chance": {
+              "description": "The 04 §9 metric `chance`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_chance"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "lift": {
+              "description": "The 04 §9 metric `lift`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_lift"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "onset_error": {
+              "description": "The 04 §9 metric `onset_error`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_onset_error"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "summary_outcomes": {
+      "description": "Rows per bench_result.run_outcome; every outcome is present, 0 when none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "failed",
+        "no_alert",
+        "ok",
+        "rejected",
+        "timeout"
+      ],
+      "properties": {
+        "ok": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_alert": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_ac_at_k": {
+      "description": "AC@1..5 over the fault cases F (04 §7); null with no fault case.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ac_at_1",
+        "ac_at_2",
+        "ac_at_3",
+        "ac_at_4",
+        "ac_at_5"
+      ],
+      "properties": {
+        "ac_at_1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ac_at_2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ac_at_3": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ac_at_4": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ac_at_5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_avg_at_5": {
+      "description": "Avg@5, the mean of AC@1..5 (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "avg_at_5"
+      ],
+      "properties": {
+        "avg_at_5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_mrr": {
+      "description": "Mean reciprocal rank over F, a miss counting 0 (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mrr"
+      ],
+      "properties": {
+        "mrr": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_fine_ac_at_k": {
+      "description": "Indicator-level AC@1..5 over the fault cases with an indicator (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fine_ac_at_1",
+        "fine_ac_at_2",
+        "fine_ac_at_3",
+        "fine_ac_at_4",
+        "fine_ac_at_5"
+      ],
+      "properties": {
+        "fine_ac_at_1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fine_ac_at_2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fine_ac_at_3": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fine_ac_at_4": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "fine_ac_at_5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_retrieval_at_k": {
+      "description": "Truth in the slate (retrieval_at_k) and in the decision pool (pool_retrieval) over F, and the slate sizes K seen; a channel no row has is null (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pool_retrieval",
+        "retrieval_at_k",
+        "retrieval_k"
+      ],
+      "properties": {
+        "retrieval_at_k": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "retrieval_k": {
+          "description": "Sorted distinct slate sizes K of the fault-case rows; null when none has a slate.",
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "x-sort": [
+                {
+                  "pointer": ".",
+                  "order": "asc"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pool_retrieval": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_rerank_at_1": {
+      "description": "Rerank@1 = AC@1 / Retrieval@K; null when Retrieval@K is 0 or null (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rerank_at_1"
+      ],
+      "properties": {
+        "rerank_at_1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_chance": {
+      "description": "Chance@1..5, the mean over F of min(k, n_i)/n_i, 0 for a root outside the case's services; null unless every fault case has n_i (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chance_at_1",
+        "chance_at_2",
+        "chance_at_3",
+        "chance_at_4",
+        "chance_at_5"
+      ],
+      "properties": {
+        "chance_at_1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_at_2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_at_3": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_at_4": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_at_5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_lift": {
+      "description": "Lift@k = AC@k / Chance@k and AC@k - Chance@k, k = 1..5 (04 §7).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "chance_diff_at_1",
+        "chance_diff_at_2",
+        "chance_diff_at_3",
+        "chance_diff_at_4",
+        "chance_diff_at_5",
+        "lift_at_1",
+        "lift_at_2",
+        "lift_at_3",
+        "lift_at_4",
+        "lift_at_5"
+      ],
+      "properties": {
+        "lift_at_1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "lift_at_2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "lift_at_3": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "lift_at_4": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "lift_at_5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_diff_at_1": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_diff_at_2": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_diff_at_3": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_diff_at_4": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "chance_diff_at_5": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "summary_metric_onset_error": {
+      "description": "Median and max onset error in ms over the rows that have one (detected protocol; 04 §7, #215), and how many rows had one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_onset",
+        "onset_error_max_ms",
+        "onset_error_median_ms"
+      ],
+      "properties": {
+        "onset_error_median_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "onset_error_max_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "n_onset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  }
+}

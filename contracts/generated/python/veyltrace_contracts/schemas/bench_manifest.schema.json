@@ -1,0 +1,260 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/0.1/bench_manifest.schema.json",
+  "title": "BenchManifest",
+  "description": "bench/results/<experiment_id>/manifest.json: what one experiment ran: the validated experiment and its hash, the code state, the uv.lock, answer-key, input and config hashes, and the run ids (04 §9, §10.2). Written last by bench, so its presence marks a whole result. Evaluation-only.",
+  "x-veyltrace": {
+    "name": "bench_manifest",
+    "version": "0.1.0",
+    "kind": "json",
+    "producer": "bench",
+    "path": "bench/results/<experiment_id>/manifest.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "configs",
+    "datasets",
+    "experiment",
+    "experiment_id",
+    "experiment_sha256",
+    "producer",
+    "runs",
+    "schema_version",
+    "seeds",
+    "uv_lock_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.1\\.[0-9]+$"
+    },
+    "producer": {
+      "description": "bench@<ALGO_VERSION>: the bench code that ran the experiment.",
+      "type": "string",
+      "minLength": 1
+    },
+    "experiment_id": {
+      "description": "The experiment's id, naming the results directory.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+    },
+    "experiment_sha256": {
+      "description": "sha256_text_lf of the experiment YAML.",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "experiment": {
+      "description": "The validated experiment with defaults filled (04 §9); bench's strict experiment model defines its shape, not this contract.",
+      "type": "object",
+      "additionalProperties": {}
+    },
+    "code": {
+      "$ref": "#/$defs/manifest_code"
+    },
+    "uv_lock_sha256": {
+      "description": "sha256_text_lf of uv.lock (pipeline.uv_lock_sha256).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "datasets": {
+      "description": "Dataset parts in the experiment's order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/manifest_dataset"
+      },
+      "x-order": "semantic"
+    },
+    "configs": {
+      "description": "One per (dataset, method), in run order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/manifest_config"
+      },
+      "x-order": "semantic"
+    },
+    "seeds": {
+      "description": "Distinct AI seeds of the methods, sorted.",
+      "type": "array",
+      "items": {
+        "type": "integer"
+      },
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ]
+    },
+    "runs": {
+      "description": "Every executed run, in run order.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/manifest_run"
+      },
+      "x-order": "semantic"
+    }
+  },
+  "$defs": {
+    "manifest_code": {
+      "description": "Code state the results came from (04 §10.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bench_dirty",
+        "commit",
+        "dirty"
+      ],
+      "properties": {
+        "commit": {
+          "description": "core's code commit, as run_manifest.code.commit.",
+          "type": "string",
+          "minLength": 1
+        },
+        "dirty": {
+          "description": "core's dirtiness, as run_manifest.code.dirty; bench/ is outside it.",
+          "type": "boolean"
+        },
+        "bench_dirty": {
+          "description": "Uncommitted files under bench/ (bench/results excluded); --table refuses true.",
+          "type": "boolean"
+        }
+      }
+    },
+    "manifest_config": {
+      "description": "The config hash one (dataset, method) ran with.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "config_sha256",
+        "dataset",
+        "method"
+      ],
+      "properties": {
+        "dataset": {
+          "$ref": "common.schema.json#/$defs/dataset"
+        },
+        "method": {
+          "description": "Method id from the experiment YAML.",
+          "type": "string",
+          "minLength": 1
+        },
+        "config_sha256": {
+          "description": "config_sha256 of the run config of this (dataset, method).",
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "manifest_dataset": {
+      "description": "One dataset part of the experiment.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "answer_key_sha256",
+        "cases",
+        "cases_without_inputs",
+        "dataset",
+        "excluded",
+        "inputs_sha256"
+      ],
+      "properties": {
+        "dataset": {
+          "$ref": "common.schema.json#/$defs/dataset"
+        },
+        "answer_key_sha256": {
+          "description": "SHA-256 of the dataset's answer-key file.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "inputs_sha256": {
+          "description": "manifest_hash over (case_id, inputs hash) of the runs that wrote a case_manifest.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        "cases": {
+          "description": "Case ids run, sorted.",
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/case_id"
+          },
+          "x-sort": [
+            {
+              "pointer": ".",
+              "order": "asc"
+            }
+          ]
+        },
+        "cases_without_inputs": {
+          "description": "Run case ids without a case_manifest inputs hash, sorted.",
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/case_id"
+          },
+          "x-sort": [
+            {
+              "pointer": ".",
+              "order": "asc"
+            }
+          ]
+        },
+        "excluded": {
+          "description": "Excluded case ids of this part, sorted.",
+          "type": "array",
+          "items": {
+            "$ref": "common.schema.json#/$defs/case_id"
+          },
+          "x-sort": [
+            {
+              "pointer": ".",
+              "order": "asc"
+            }
+          ]
+        }
+      }
+    },
+    "manifest_run": {
+      "description": "One executed (case, method) run.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "case_id",
+        "dataset",
+        "inputs_sha256",
+        "method",
+        "run_id"
+      ],
+      "properties": {
+        "case_id": {
+          "$ref": "common.schema.json#/$defs/case_id"
+        },
+        "dataset": {
+          "$ref": "common.schema.json#/$defs/dataset"
+        },
+        "method": {
+          "description": "Method id from the experiment YAML.",
+          "type": "string",
+          "minLength": 1
+        },
+        "run_id": {
+          "description": "The run's id; null for a run killed at resources.timeout_s (#68).",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/run_id"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputs_sha256": {
+          "description": "manifest_hash of the run's case_manifest.inputs; null when the run wrote no case_manifest.",
+          "anyOf": [
+            {
+              "$ref": "common.schema.json#/$defs/sha256"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
