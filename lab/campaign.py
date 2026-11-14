@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 from vlab import CAPTURES_DIR, answer_key, capture, validate
-from vlab.cluster import OB_DIR, cpu_limits, kubectl, load_pins
+from vlab.cluster import OB_DIR, cpu_limits, deployments, kubectl, load_pins
 from vlab.faults import CHAOS_KINDS, CONTAINER, NO_FAULT, Injection, get_fault, injection
 from vlab.plan import Entry, Plan, load
 from vlab.shell import CommandError, HostSuspended, Runner
@@ -40,9 +40,11 @@ def reset(runner: Runner, pins: Mapping[str, Any], users: int = DEFAULT_USERS) -
     if users != DEFAULT_USERS:
         runner.run(kubectl(pins, "-n", app, "set", "env", "deploy/loadgenerator", f"USERS={users}"))
     runner.run(kubectl(pins, "-n", app, "rollout", "restart", "deploy"))
-    runner.run(
-        kubectl(pins, "-n", app, "wait", "--for=condition=available", "deploy", "--all", RESET_TIMEOUT)
-    )
+    # `wait --for=condition=available` returns at once: with 1 replica and maxUnavailable 0 the old
+    # pod stays Available for the whole rollout (#225). Wait for each rollout to finish instead; a
+    # CommandError here means the case is reset_failed (05 §8.1).
+    for name in deployments(pins):
+        runner.run(kubectl(pins, "-n", app, "rollout", "status", f"deploy/{name}", RESET_TIMEOUT))
 
 
 def baseline_ok(runner: Runner) -> bool:
@@ -64,10 +66,11 @@ def run_case(runner: Runner, pins: Mapping[str, Any], plan: Plan, entry: Entry, 
     try:
         outcome = _phases(runner, pins, plan, entry, capture_id, captures_dir, attempt)
     except HostSuspended as exc:  # timings and telemetry have holes: no answer key, no capture
-        attempt["error"] = str(exc)
-        outcome = "host_suspended"
-        app = str(pins["app_namespace"])
-        runner.run(kubectl(pins, "-n", app, "delete", CHAOS_KINDS, "--all", "--ignore-not-found"))
+        attempt["error"], outcome = str(exc), "host_suspended"
+    except Exception as exc:  # any other failure ends this case, not the night (#225; 05 §8.2 rule 5)
+        attempt["error"], outcome = f"{type(exc).__name__}: {exc}", "case_failed"
+    finally:  # whatever happened, no chaos object outlives the case
+        _sweep(runner, pins, attempt)
     attempt["outcome"] = outcome
     if not runner.dry_run:
         capture.log_attempt(captures_dir, attempt)
@@ -95,7 +98,11 @@ def _phases(
         duration_s=d["fault"], cpu_limit=cpu_limits(pins).get(entry.target),
         cpu_request=cpu_limits(pins, "requests").get(entry.target),
     )  # fmt: skip
-    reset(runner, pins, entry.users)
+    try:
+        reset(runner, pins, entry.users)
+    except CommandError as exc:
+        attempt["error"] = str(exc)
+        return "reset_failed"
     runner.sleep(d["warmup"], "warm-up")
     if not baseline_ok(runner):
         outcome = "baseline_unrecovered"
@@ -130,9 +137,12 @@ def _phases(
                     if fault.tool.startswith("kubectl/")
                     else str(pins["chaos_mesh"]["version"])
                 )
+                # 05 §6: every value used, so the level's parameters plus what was applied (#225).
+                applied = {"manifests": [{"kind": m["kind"], "spec": m["spec"]} for m in inj.manifests],
+                           "kubectl": [list(a) for a in inj.apply_args]}  # fmt: skip
                 injected = {"fault_id": fault.fault_id, "tool": fault.tool, "tool_version": tool_version,
-                            "params": dict(fault.levels[entry.severity]), "severity": entry.severity,
-                            "seed": plan.seed}  # fmt: skip
+                            "params": {**fault.levels[entry.severity], "applied": applied},
+                            "severity": entry.severity, "seed": plan.seed}  # fmt: skip
                 key = answer_key.build(
                     capture_id=capture_id, dataset=plan.dataset, root_service=entry.target,
                     root_component=CONTAINER[entry.target], fault_id=fault.fault_id,
@@ -145,11 +155,17 @@ def _phases(
                 "clock": clock, "versions": versions, "host": capture.host_spec(),
                 "injection": {"manifests": inj.manifests, "apply": inj.apply_args, "revert": inj.revert_args},
             }, files)  # fmt: skip
-            # 05 §8.1 Export: run validation; the result goes into the key and the attempt log.
-            result = validate.validate_capture(capture_dir, key)
-            key["validated"], key["sli_impact_json"] = result.validated, result.sli_impact_json
+            # The key goes to disk first, so a capture that cannot be validated is still on record.
             answer_key.write(key, capture_id=capture_id, captures_dir=captures_dir)
-            attempt["validated"], attempt["reason"] = result.validated, result.reason
+            # 05 §8.1 Export: run validation; the result goes into the key and the attempt log.
+            try:
+                result = validate.validate_capture(capture_dir, key)
+            except (ValueError, OSError) as exc:  # e.g. a truncated spool line
+                attempt["reason"] = f"validation_error: {type(exc).__name__}: {exc}"
+            else:
+                key["validated"], key["sli_impact_json"] = result.validated, result.sli_impact_json
+                answer_key.write(key, capture_id=capture_id, captures_dir=captures_dir)
+                attempt["validated"], attempt["reason"] = result.validated, result.reason
     return outcome
 
 
@@ -163,10 +179,18 @@ def inject(runner: Runner, pins: Mapping[str, Any], inj: Injection) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="lab/campaign.py", description=__doc__.splitlines()[0])
-    ap.add_argument("--plan", type=Path, required=True)
+    ap.add_argument("--plan", type=Path, help="required unless --cleanup")
     ap.add_argument("--dry-run", action="store_true", help="print every command; touch nothing")
     ap.add_argument("--captures", type=Path, default=CAPTURES_DIR, help=argparse.SUPPRESS)
+    ap.add_argument("--cleanup", action="store_true", help="only remove leftover faults and restore config")
     args = ap.parse_args(argv)
+    if args.cleanup:
+        runner, pins = Runner(dry_run=args.dry_run), load_pins()
+        _sweep(runner, pins, {})
+        _restore_overlay(runner, pins)
+        return 0
+    if args.plan is None:
+        ap.error("--plan is required unless --cleanup is given")
     try:
         plan = load(args.plan)
     except (OSError, ValueError) as exc:
@@ -174,8 +198,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     runner = Runner(dry_run=args.dry_run)
     pins = load_pins()
-    outcomes = [run_case(runner, pins, plan, entry, args.captures) for entry in plan.entries]
+    _sweep(runner, pins, {})  # leftovers of an earlier, killed campaign (#225 item 10)
+    _restore_overlay(runner, pins)
+    try:
+        outcomes = [run_case(runner, pins, plan, entry, args.captures) for entry in plan.entries]
+    finally:  # leave the cluster clean even if a case left a config change behind (F11)
+        _sweep(runner, pins, {})
+        _restore_overlay(runner, pins)
     return 0 if all(o in {"captured", "dry_run"} for o in outcomes) else 1
+
+
+def _sweep(runner: Runner, pins: Mapping[str, Any], attempt: dict[str, Any]) -> None:
+    """Delete every chaos object in the app namespace; a failure is recorded, not raised."""
+    app = str(pins["app_namespace"])
+    try:
+        runner.run(kubectl(pins, "-n", app, "delete", CHAOS_KINDS, "--all", "--ignore-not-found"))
+    except CommandError as exc:
+        attempt["sweep_error"] = str(exc)
+
+
+def _restore_overlay(runner: Runner, pins: Mapping[str, Any]) -> None:
+    """Re-apply the overlay, which undoes any resource cut (F11) a failed revert left behind."""
+    try:
+        runner.run(kubectl(pins, "apply", "-k", str(OB_DIR / "overlay")))
+    except CommandError as exc:
+        print(f"campaign: final overlay restore failed: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

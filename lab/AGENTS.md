@@ -10,7 +10,7 @@ Adds to the root [AGENTS.md](../AGENTS.md) and never overrides it.
 ## Package rules
 
 1. `lab/` is not a uv workspace member. Scripts drive `kind`, `kubectl`, `helm` and `docker` as subprocesses; the packager runs from the repo root with `uv run python lab/package.py` after `uv sync --all-packages`.
-2. Answer keys are written only to `lab/captures/answer_keys/`, never into a capture or packaged folder. Only lab and bench code read them; engines never read `lab/`.
+2. Raw answer keys are written only to `lab/captures/answer_keys/`; the packager merges them into `${VEYLTRACE_DATA}/answer_keys/<dataset>.parquet` (05 §10). Never into a capture or packaged folder. Only lab and bench code read them; engines never read `lab/`.
 3. Scrub before anything leaves `lab/captures/`: drop `feature_flag.*`, flagd and chaos-mesh telemetry and `chaos-mesh.org/*` labels; hash flag keys; use neutral image tags and env names. The deny-list post-scan must pass.
 4. Every injected parameter, tool version and seed goes into `injection_json`; pin every image by digest.
 5. Never run the `ob` and `otel` profiles at the same time (`lab/up.py` refuses).

@@ -172,7 +172,7 @@ Parameters are a priori defaults with two severity levels; every value used is w
 | F15 | Multi-fault | per root | two of F01, F04, F05 on two different services, overlapping | L1 each | both patterns | — |
 | F16 | Benign noise | — (added to another case) | 2-minute load spike (30 users) on the load generator | — | transient traffic change, no SLI breach expected | — |
 
-**Implemented** (X-06, `lab/vlab/faults.py`; [ADR 20261109-cl-lab-catalog-packager](adr/20261109-cl-lab-catalog-packager.md)): F01, F02, F04–F08, F11, F13. The indicator column above uses `family` names; answer keys use the 03 §1 `indicator` vocabulary (`errors` → `error`, F05's `net` → `error`). F09 is deferred: HTTPChaos has no request percentage, so 10% / 50% abort cannot be expressed.
+**Implemented** (X-06, `lab/vlab/faults.py`; [ADR 20261109-cl-lab-catalog-packager](adr/20261109-cl-lab-catalog-packager.md)): F01, F02, F04–F08, F11, F13. The indicator column above uses `family` names; answer keys use the 03 §1 `indicator` vocabulary (`errors` → `error`; F05's `net` → `latency`, the pre-registered mapping of 04 §7). F09 is deferred: HTTPChaos has no request percentage, so 10% / 50% abort cannot be expressed.
 
 **Targets.** OB: the 10 application services plus `redis-cart` (F03, F13); `loadgenerator` is never a target. Default grid (a priori, following the notes): 5 target services × 9 fault types (F01, F02, F04–F09, F11) × 3 repetitions per severity schedule, plus ≈ 10% no-fault cases, ≈ 10% noisy cases and up to 20 multi-fault cases ([bt §Q5][bt-q5]). The plan file fixes the order from a recorded seed.
 
