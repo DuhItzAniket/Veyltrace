@@ -159,6 +159,8 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 
 `tmpl:` series are written only for templates with total count ≥ `logs.min_template_count` (3, a priori), at most `logs.max_template_series_per_service` (200) per service by (total count desc, `template_id` asc). The `templates` table lists every template.
 
+**Built (O-03).** Masks and the lexicon are RE2 patterns in `config/signalyth.yaml`, applied in DuckDB (`regexp_replace`, `regexp_matches`), so they behave the same on every machine. The line text starts at the first non-whitespace character of the body and loses trailing whitespace; truncation comes before masking. The hex mask is word-bounded and also takes a run of 8 or more decimal digits. `log_rate`, `log_error_rate` and `tmpl:*` are all zero-filled on the grid from `data_start_ns` to `data_end_ns` for every service with a log row, and a line outside that range is counted in `templates` but in no series. Window counts are half-open, as for edges. The miner is built from an explicit config, so a `drain3.ini` in the working directory is never read; a Drain3 failure is logged and returned in the step's notes.
+
 ### 3.6 Summary klass table
 
 | `signal` | Source | `family` | `klass` |

@@ -15,7 +15,7 @@ Spec: [docs/engines/02-signalyth.md](../../docs/engines/02-signalyth.md). Rules 
 | Writes | `signal_cube/{series,edges,templates,critical_path}.parquet` |
 | Config | `config/signalyth.yaml` |
 
-Built so far (O-02): metric series (`metrics.py`), the span forest and trace series (`spans.py`), edges and the critical path (`paths.py`); log series and Drain3 templates are O-03, so `templates` has zero rows until then.
+Built (O-02, O-03): metric series (`metrics.py`), the span forest and trace series (`spans.py`), edges and the critical path (`paths.py`), log lines with masking and the error lexicon (`loglines.py`), Drain3 templates (`templates.py`), template counts and log series (`logseries.py`).
 
 ```bash
 uv run python scripts/check.py --package signalyth
