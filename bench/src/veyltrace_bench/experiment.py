@@ -41,7 +41,7 @@ METRIC_TASKS = {
     "set_size": "R-12 conformal sets",
     "risk_coverage": "R-12 statuses",
     "no_fault_rates": "R-13 normal windows",
-    "cost": "per-stage wall time and peak RSS need a subprocess runner",
+    "cost": "p50/p95 of wall time and peak RSS in summary.json, per stage (not built yet)",
 }
 
 
@@ -144,7 +144,7 @@ class StatisticsSpec(_Strict):
 class ResourcesSpec(_Strict):
     workers: int = Field(default=1, ge=1)  # a priori: cases run one after another, in sorted order
     timeout_s: int = Field(default=600, ge=1)  # 04 §9; per case per method, a timeout is a miss
-    max_rss_mb: int | None = None  # None: not enforced (04 §9's 3072 needs a subprocess runner)
+    max_rss_mb: int | None = None  # None: not enforced; peak_rss_mb is recorded either way (#68)
 
 
 class Experiment(_Strict):
@@ -200,7 +200,7 @@ def unsupported(exp: Experiment) -> list[str]:
         (p.decoys is not None, "protocol.decoys (O-13)"),
         (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
-        (r.max_rss_mb is not None, "resources.max_rss_mb (needs a subprocess runner)"),
+        (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
     )
     todo = [what for bad, what in checks if bad]
     todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]

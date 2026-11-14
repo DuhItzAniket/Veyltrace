@@ -109,6 +109,7 @@ def test_detected_runs_fill_onset_error(tmp_path: Path, monkeypatch: pytest.Monk
         run_dirs[cid] = summary.run_dir
         return summary
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the spy and the detector live in this process
     monkeypatch.setattr(runner, "run_case", spy)
     exp = _experiment(tmp_path, "detected", ["synth-01", "synth-05"])
     out, summary = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")

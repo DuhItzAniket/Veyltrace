@@ -33,7 +33,8 @@ def _rows(out: Path, *, unmeasured: bool = False) -> dict[str, dict[str, object]
     table = io.read_path("bench_result", out / "per_case.csv", validate=True)
     assert isinstance(table, pa.Table)
     rows: list[dict[str, object]] = table.to_pylist()
-    return {str(r["case_id"]): r | ({"wall_ms": None} if unmeasured else {}) for r in rows}
+    blank = {"wall_ms": None, "peak_rss_mb": None} if unmeasured else {}
+    return {str(r["case_id"]): r | blank for r in rows}
 
 
 def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
@@ -48,6 +49,7 @@ def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
     assert sorted(rows) == sorted(case_id(f"synth-0{i}") for i in range(1, 6))
     for row in rows.values():
         assert {c: row[c] for c in STUB} == STUB and isinstance(row["wall_ms"], float)
+        assert isinstance(row["peak_rss_mb"], float) and row["peak_rss_mb"] > 0  # measured by the child
         assert row["verdict_hash"] and row["status"]
         assert [row[c] for c in HITS] == ([None] * 6 if row["case_id"] == NORMAL_WINDOW else [False] * 6)
     summary, manifest = (textio.read_text(out / name) for name in ("summary.json", "manifest.json"))
@@ -59,7 +61,8 @@ def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
     assert run() == out  # again on the same runs root: bench empties its dir, all re-run
     assert [textio.read_text(out / n) for n in ("summary.json", "manifest.json")] == [summary, manifest]
     assert all(isinstance(r["wall_ms"], float) for r in _rows(out).values())  # measured, never reused
-    assert _rows(out, unmeasured=True) == {c: r | {"wall_ms": None} for c, r in rows.items()}
+    blank = {"wall_ms": None, "peak_rss_mb": None}
+    assert _rows(out, unmeasured=True) == {c: r | blank for c, r in rows.items()}
 
 
 def test_run_outcomes_are_learned_and_scored_as_misses(
@@ -77,6 +80,7 @@ def test_run_outcomes_are_learned_and_scored_as_misses(
     def run() -> tuple[Path, dict[str, object]]:
         return runner.run_experiment(SMOKE, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the fake run_case lives in this process
     monkeypatch.setattr(runner, "run_case", fake_run_case)
     out, summary = run()
     rows = _rows(out)
@@ -105,6 +109,7 @@ def test_case_and_exclude_lists_pick_the_runs_and_are_recorded(
     def fake_run_case(dataset: str, case: str, ai_mode: str, **_: object) -> RunSummary:
         return RunSummary(dataset, case, "0" * 16, tmp_path, "failed", "x", None, (), (), {})
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the fake run_case lives in this process
     monkeypatch.setattr(runner, "run_case", fake_run_case)  # absolute lists: repo / path == path
     out, summary = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
     assert sorted(_rows(out)) == [ids[0], ids[2]] and summary["excluded"] == {"synth": [ids[1]]}
@@ -121,6 +126,7 @@ def test_unsupported_experiments_are_refused_before_the_first_case(
     def no_run(*_: object, **__: object) -> RunSummary:
         raise AssertionError("an unsupported experiment must not run a case")
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the fake run_case lives in this process
     monkeypatch.setattr(runner, "run_case", no_run)
     with pytest.raises(ConfigError, match=r"baselines, R-05"):
         runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
