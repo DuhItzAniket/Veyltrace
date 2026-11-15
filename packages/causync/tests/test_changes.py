@@ -118,7 +118,11 @@ def test_incident_onset_moves_with_the_source_it_came_from() -> None:
 
     assert moved(100) == 130  # a comes first A→Z: the metrics clock, source-level offset
     assert moved(140) == 140  # logs have no offset row
-    assert moved(120) == 120  # a t_alert fallback matches no external onset
+    assert moved(120) == 120  # a t_alert fallback or a clamped onset matches no external onset
+    # b's onset alone: its own trace offset applies, exactly as for O(b) (#271 item 11)
+    only_b = _onsets([("b", 100, "traces", None, None)]).model_copy(update={"t_onset_ns": 100})
+    assert aligned_t_onset(only_b, offsets) == 105 == aligned_onsets(only_b, offsets)["b"]
+    assert aligned_t_onset(only_b, [Offset("traces", None, 9, "reference", 1.0)]) == 109  # else source-level
 
 
 def change(t: int, entity: str = "catalog", service: str | None = "catalog", cid: str = "") -> Change:
