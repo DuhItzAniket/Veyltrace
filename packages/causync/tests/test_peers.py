@@ -89,6 +89,16 @@ def test_component_scope_compares_one_replica_with_the_rest() -> None:
     assert peer_contrast(change(150, "cart-1"), ONSET, PODS, {}, 2) == 0.0  # no anomaly rows: scores 0
 
 
+def test_replica_sightings_move_to_the_reference_clock() -> None:
+    # the metrics clock runs 30 s behind: cart-2, first seen at 100 s, really appeared at 130 s
+    assert peer_contrast(change(120), ONSET, PODS, SCORES, 2) == 5.0 - 3.0  # raw: cart-2 is a peer
+    assert peer_contrast(change(120), ONSET, PODS, SCORES, 2, 30 * S) == (9.0 + 5.0) / 2 - (1.0 + 3.0) / 2
+    late = Replicas({"cart": {"cart-0": (0, 190 * S), "cart-2": (100 * S, 400 * S)}})
+    assert peer_contrast(change(100), ONSET, late, SCORES, 2) is None  # the peer ended before the onset
+    # 15 s later on the reference clock the peer outlives the onset (205 s): there is a cohort
+    assert peer_contrast(change(100), ONSET, late, SCORES, 2, 15 * S) == 9.0 - 1.0
+
+
 def test_no_cohort_gives_null() -> None:
     assert peer_contrast(change(100, "mesh", service=None), ONSET, PODS, SCORES, 2) is None  # cluster scope
     assert (

@@ -13,7 +13,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_causync.changes import Change, aligned_onsets, evidence, timeline
+from veyltrace_causync.changes import Change, aligned_onsets, aligned_t_onset, evidence, timeline
 from veyltrace_causync.settings import causync_config
 from veyltrace_causync.tracepairs import Offset
 from veyltrace_contracts import models
@@ -107,6 +107,20 @@ def test_onsets_move_to_the_reference_clock() -> None:
     assert aligned_onsets(onsets, []) == {"a": 90, "b": 80}
 
 
+def test_incident_onset_moves_with_the_source_it_came_from() -> None:
+    onsets = _onsets(
+        [("a", 100, "metrics", None, None), ("b", 100, "traces", None, None), ("c", 140, "logs", None, None)]
+    )
+    offsets = [Offset("metrics", None, 30, "comovement", 1.0), Offset("traces", "b", 5, "trace_pairs", 1.0)]
+
+    def moved(t_onset: int) -> int:
+        return aligned_t_onset(onsets.model_copy(update={"t_onset_ns": t_onset}), offsets)
+
+    assert moved(100) == 130  # a comes first A→Z: the metrics clock, source-level offset
+    assert moved(140) == 140  # logs have no offset row
+    assert moved(120) == 120  # a t_alert fallback matches no external onset
+
+
 def change(t: int, entity: str = "catalog", service: str | None = "catalog", cid: str = "") -> Change:
     scope = "cluster" if service is None else "service" if entity == service else "component"
     return Change(cid or f"C{t:010d}", t * S, entity, "deploy", scope, "{}", service)
@@ -147,6 +161,14 @@ def test_ties_at_the_latest_time_are_all_flagged(con: duckdb.DuckDBPyConnection)
     ]  # cart's is after its onset
 
 
+def test_latest_is_per_entity(con: duckdb.DuckDBPyConnection) -> None:
+    # same onset, different change times: without the entity match in the ASOF join only the
+    # later change overall would be flagged
+    changes = [change(700, "cart", "cart"), change(900), change(600, "cart", "cart", cid="Cx")]
+    found = rows(evidence(con, changes, {"catalog": 1000 * S, "cart": 1000 * S}, 0, TOL, CFG))
+    assert [r["latest_before_onset"] for r in found] == [True, True, False]
+
+
 def test_target_onset_by_scope(con: duckdb.DuckDBPyConnection) -> None:
     changes = [change(90, "cart-1", "cart"), change(90, "mesh", None), change(90, "catalog", "catalog")]
     found = rows(evidence(con, changes, {"cart": 100 * S}, 400 * S, TOL, CFG))
@@ -173,3 +195,23 @@ def test_proximity_is_bounded_and_falls_with_distance(times: list[int]) -> None:
         alone = rows(evidence(con, [change(sorted(times)[0])], {"catalog": 2000 * S}, 0, TOL, CFG))
         keep = ("delta_to_onset_ms", "proximity")
         assert {k: alone[0][k] for k in keep} == {k: found[0][k] for k in keep}
+
+
+_TIMES = st.lists(st.integers(min_value=0, max_value=4000), min_size=1, max_size=6, unique=True)
+
+
+@given(_TIMES, _TIMES, st.randoms())
+def test_other_entities_and_row_order_change_nothing(mine: list[int], others: list[int], rnd: Any) -> None:
+    """04 §7: a change on another entity leaves existing rows unchanged; shuffled inputs give
+    identical outputs."""
+    onsets = {"catalog": 2000 * S, "cart": 1500 * S}
+    own = [change(t) for t in mine]
+    added = own + [change(t, "cart", "cart", cid=f"Cc{t}") for t in others]
+    shuffled = list(added)
+    rnd.shuffle(shuffled)
+    with duck.connect(CONFIG, Path(".")) as con:
+        alone = {r["change_id"]: r for r in rows(evidence(con, own, onsets, 0, TOL, CFG))}
+        together = {r["change_id"]: r for r in rows(evidence(con, added, onsets, 0, TOL, CFG))}
+        again = {r["change_id"]: r for r in rows(evidence(con, shuffled, onsets, 0, TOL, CFG))}
+    assert {k: together[k] for k in alone} == alone
+    assert again == together

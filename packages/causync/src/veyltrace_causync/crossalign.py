@@ -10,6 +10,7 @@ are inside `tolerance_ns` by construction.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Final
 
 import numpy as np
@@ -29,11 +30,15 @@ JOIN_LOG_COLUMNS: Final = ("t_ns", "service", "trace_id", "span_id")
 TRAFFIC_SIGNALS: Final = {"logs": ("log_rate",), "traces": ("rps",), "metrics": ("workload", "rps")}
 
 
-def log_span_offset(logs: pa.Table, spans: pa.Table, cfg: AlignConfig) -> Offset | None:
+def log_span_offset(
+    logs: pa.Table, spans: pa.Table, cfg: AlignConfig, trace_offsets: Mapping[str, int] | None = None
+) -> Offset | None:
     """The `logs` offset from lines joined to their span on (trace_id, span_id), or None when no
-    line joins. Offset 0 if at least `log_inside_share` of the lines already lie inside their
-    span; else the median shift that would put each line inside. `confidence` is the share of
-    lines inside their span after the shift."""
+    line joins. Spans are first moved to the reference clock by their service's `trace_offsets`
+    (spans then need a `service` column), so a skewed service's logs are corrected with its
+    traces. Offset 0 if at least `log_inside_share` of the lines already lie inside their span;
+    else the median shift that would put each line inside. `confidence` is the share of lines
+    inside their span after the shift."""
     named = logs.filter(_pc.and_(_pc.is_valid(logs.column("trace_id")), _pc.is_valid(logs.column("span_id"))))
     if named.num_rows == 0 or spans.num_rows == 0:
         return None
@@ -45,8 +50,13 @@ def log_span_offset(logs: pa.Table, spans: pa.Table, cfg: AlignConfig) -> Offset
     if not joined.any():
         return None
     t = np.asarray(named.column("t_ns").to_numpy(), dtype=np.int64)[joined]
-    lo = np.asarray(spans.column("start_ns").to_numpy(), dtype=np.int64)[index[joined]] - t
-    hi = np.asarray(spans.column("end_ns").to_numpy(), dtype=np.int64)[index[joined]] - t
+    moved = np.zeros(spans.num_rows, dtype=np.int64)
+    if trace_offsets:
+        moved = np.asarray(
+            [trace_offsets.get(str(s), 0) for s in spans.column("service").to_pylist()], dtype=np.int64
+        )
+    lo = (np.asarray(spans.column("start_ns").to_numpy(), dtype=np.int64) + moved)[index[joined]] - t
+    hi = (np.asarray(spans.column("end_ns").to_numpy(), dtype=np.int64) + moved)[index[joined]] - t
     inside = float(np.mean((lo <= 0) & (hi >= 0)))
     if inside >= cfg.log_inside_share:
         return Offset("logs", None, 0, "log_span_join", inside)
@@ -74,27 +84,36 @@ def _traffic(series: pa.Table, source: str, step: int) -> dict[str, dict[int, fl
 
 
 def _best_lag(
-    src: dict[int, float], ref: dict[int, float], max_steps: int, cfg: AlignConfig
+    src: dict[int, float], ref: dict[int, float], max_steps: int, step: int, cfg: AlignConfig
 ) -> tuple[int, float] | None:
-    """(lag in steps, correlation) of the best accepted lag: the source shows the reference's
-    changes `lag` steps later. Ties go to the smaller |lag|, then to the negative one."""
+    """(lag in steps, correlation) of the best lag if it is acceptable: the source shows the
+    reference's changes `lag` steps later. Every lag up to `max_lag` competes (ties go to the
+    smaller |lag|, then to the negative one) and the winner is judged afterwards, so a service
+    whose best lag is weak, thin or at the edge of the search is rejected, not given its
+    next-best lag."""
     first, last = min(*src, *ref), max(*src, *ref)
     grid = range(first, last + 1)
     ds = np.diff(np.asarray([src.get(b, np.nan) for b in grid], dtype=np.float64))
     dr = np.diff(np.asarray([ref.get(b, np.nan) for b in grid], dtype=np.float64))
-    best: tuple[int, float] | None = None
+    best: tuple[int, float, int] | None = None
     for lag in sorted(range(-max_steps, max_steps + 1), key=lambda k: (abs(k), k)):
         a = ds[max(lag, 0) : ds.size + min(lag, 0)]
         b = dr[max(-lag, 0) : dr.size + min(-lag, 0)]
         ok = np.isfinite(a) & np.isfinite(b)
-        if int(ok.sum()) < cfg.min_points or float(np.std(a[ok])) == 0.0 or float(np.std(b[ok])) == 0.0:
-            continue
+        points = int(ok.sum())
+        if points < 2 or float(np.std(a[ok])) == 0.0 or float(np.std(b[ok])) == 0.0:
+            continue  # no correlation is defined here
         r = float(np.corrcoef(a[ok], b[ok])[0, 1])
         if best is None or r > best[1]:
-            best = (lag, r)
-    if best is None or best[1] < cfg.min_corr:
+            best = (lag, r, points)
+    if (
+        best is None
+        or best[1] < cfg.min_corr
+        or best[2] < cfg.min_points
+        or abs(best[0]) * step >= cfg.max_lag_ns
+    ):
         return None
-    return best
+    return best[0], best[1]
 
 
 def comovement_offset(
@@ -107,11 +126,11 @@ def comovement_offset(
     if source not in steps or reference not in steps:
         return none
     step = max(steps[source], steps[reference])
-    max_steps = (cfg.max_lag_ns - 1) // step  # |lag| strictly below max_lag
+    max_steps = cfg.max_lag_ns // step  # a best lag at max_lag itself is rejected, not skipped
     mine, theirs = _traffic(series, source, step), _traffic(series, reference, step)
     accepted: list[tuple[int, float]] = []
     for service in sorted(set(mine) & set(theirs)):
-        found = _best_lag(mine[service], theirs[service], max_steps, cfg)
+        found = _best_lag(mine[service], theirs[service], max_steps, step, cfg)
         if found is not None:
             accepted.append((-found[0] * step, found[1]))  # shown later → shift earlier
     if not accepted:

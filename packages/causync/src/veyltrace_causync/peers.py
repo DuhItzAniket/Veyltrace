@@ -67,14 +67,23 @@ def replica_scores(anomalies: pa.Table) -> dict[str, float]:
 
 
 def peer_contrast(
-    change: Change, onset_ns: int | None, pods: Replicas, scores: Mapping[str, float], min_replicas: int
+    change: Change,
+    onset_ns: int | None,
+    pods: Replicas,
+    scores: Mapping[str, float],
+    min_replicas: int,
+    offset_ns: int = 0,
 ) -> float | None:
     """`mean a(changed) − median a(peers)`, or None without a cohort. Peers are replicas seen
     before the change and after the onset that are not in the changed set; a replica without an
-    anomaly row scores 0 (04 §6)."""
+    anomaly row scores 0 (04 §6). Replica sightings are in source time: `offset_ns` (the metrics
+    offset) moves them to the reference clock of the change and the onset."""
     if change.service is None or onset_ns is None:
         return None
-    seen = pods.seen.get(change.service, {})
+    seen = {
+        k: (first + offset_ns, last + offset_ns)
+        for k, (first, last) in pods.seen.get(change.service, {}).items()
+    }
     if len(seen) < min_replicas:
         return None
     if change.scope == "component":
