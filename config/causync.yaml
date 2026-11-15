@@ -15,6 +15,9 @@ align:
   max_lag_s: 120           # co-movement search range (a priori)
   min_corr: 0.5            # Pearson r of first differences (a priori)
   min_points: 20           # overlapping points per lag (a priori)
+  # For tolerance_ns only: the quantile of the effective steps over metric series. The upper
+  # quartile reaches the scrape interval when many series change every second (a priori; #271).
+  tolerance_step_quantile: 0.75
 
 changes:
   # 02 §6.4; k8s_event and other are symptoms, not changes (04-causync §3.5).
