@@ -477,6 +477,54 @@ export interface Hypothesis {
   indicator: Indicator | null;
 }
 
+/** Code state the results came from (04 §10.2). */
+export interface ManifestCode {
+  commit: string;
+  dirty: boolean;
+  bench_dirty: boolean;
+}
+
+/** The config hash one (dataset, method) ran with. */
+export interface ManifestConfig {
+  dataset: Dataset;
+  method: string;
+  config_sha256: Sha256;
+}
+
+/** One dataset part of the experiment. */
+export interface ManifestDataset {
+  dataset: Dataset;
+  answer_key_sha256: Sha256;
+  inputs_sha256: Sha256;
+  cases: CaseId[];
+  cases_without_inputs: CaseId[];
+  excluded: CaseId[];
+}
+
+/** One executed (case, method) run. */
+export interface ManifestRun {
+  case_id: CaseId;
+  dataset: Dataset;
+  method: string;
+  run_id: RunId | null;
+  inputs_sha256: Sha256 | null;
+}
+
+/** bench/results/<experiment_id>/manifest.json: what one experiment ran: the validated experiment and its hash, the code state, the uv.lock, answer-key, input and config hashes, and the run ids (04 §9, §10.2). Written last by bench, so its presence marks a whole result. Evaluation-only. */
+export interface BenchManifest {
+  schema_version: string;
+  producer: string;
+  experiment_id: string;
+  experiment_sha256: Sha256;
+  experiment: Record<string, JsonValue>;
+  code: ManifestCode;
+  uv_lock_sha256: Sha256;
+  datasets: ManifestDataset[];
+  configs: ManifestConfig[];
+  seeds: number[];
+  runs: ManifestRun[];
+}
+
 /** Onsets of one service; *_source and its onset are null together (enforced by the allOf below). */
 export interface OnsetsPerService {
   service: ServiceName;
@@ -796,6 +844,124 @@ export interface CaseManifest {
   scrub: CaseManifestScrub;
 }
 
+/** AC@1..5 over the fault cases F (04 §7); null with no fault case. */
+export interface SummaryMetricAcAtK {
+  ac_at_1: number | null;
+  ac_at_2: number | null;
+  ac_at_3: number | null;
+  ac_at_4: number | null;
+  ac_at_5: number | null;
+}
+
+/** Avg@5, the mean of AC@1..5 (04 §7). */
+export interface SummaryMetricAvgAt5 {
+  avg_at_5: number | null;
+}
+
+/** Chance@1..5, the mean over F of min(k, n_i)/n_i, 0 for a root outside the case's services; null unless every fault case has n_i (04 §7). */
+export interface SummaryMetricChance {
+  chance_at_1: number | null;
+  chance_at_2: number | null;
+  chance_at_3: number | null;
+  chance_at_4: number | null;
+  chance_at_5: number | null;
+}
+
+/** Indicator-level AC@1..5 over the fault cases with an indicator (04 §7). */
+export interface SummaryMetricFineAcAtK {
+  fine_ac_at_1: number | null;
+  fine_ac_at_2: number | null;
+  fine_ac_at_3: number | null;
+  fine_ac_at_4: number | null;
+  fine_ac_at_5: number | null;
+}
+
+/** Lift@k = AC@k / Chance@k and AC@k - Chance@k, k = 1..5 (04 §7). */
+export interface SummaryMetricLift {
+  lift_at_1: number | null;
+  lift_at_2: number | null;
+  lift_at_3: number | null;
+  lift_at_4: number | null;
+  lift_at_5: number | null;
+  chance_diff_at_1: number | null;
+  chance_diff_at_2: number | null;
+  chance_diff_at_3: number | null;
+  chance_diff_at_4: number | null;
+  chance_diff_at_5: number | null;
+}
+
+/** Mean reciprocal rank over F, a miss counting 0 (04 §7). */
+export interface SummaryMetricMrr {
+  mrr: number | null;
+}
+
+/** Median and max onset error in ms over the rows that have one (detected protocol; 04 §7, #215), and how many rows had one. */
+export interface SummaryMetricOnsetError {
+  onset_error_median_ms: number | null;
+  onset_error_max_ms: number | null;
+  n_onset: number;
+}
+
+/** Rerank@1 = AC@1 / Retrieval@K; null when Retrieval@K is 0 or null (04 §7). */
+export interface SummaryMetricRerankAt1 {
+  rerank_at_1: number | null;
+}
+
+/** Truth in the slate (retrieval_at_k) and in the decision pool (pool_retrieval) over F, and the slate sizes K seen; a channel no row has is null (04 §7). */
+export interface SummaryMetricRetrievalAtK {
+  retrieval_at_k: number | null;
+  retrieval_k: number[] | null;
+  pool_retrieval: number | null;
+}
+
+/** One entry per 04 §9 metric name that bench computes; an entry the experiment did not list is null, so a null inside an entry always means undefined, never not requested. */
+export interface SummaryGroupMetrics {
+  ac_at_k: SummaryMetricAcAtK | null;
+  avg_at_5: SummaryMetricAvgAt5 | null;
+  mrr: SummaryMetricMrr | null;
+  fine_ac_at_k: SummaryMetricFineAcAtK | null;
+  retrieval_at_k: SummaryMetricRetrievalAtK | null;
+  rerank_at_1: SummaryMetricRerankAt1 | null;
+  chance: SummaryMetricChance | null;
+  lift: SummaryMetricLift | null;
+  onset_error: SummaryMetricOnsetError | null;
+}
+
+/** Rows per bench_result.run_outcome; every outcome is present, 0 when none. */
+export interface SummaryOutcomes {
+  ok: number;
+  failed: number;
+  timeout: number;
+  no_alert: number;
+  rejected: number;
+}
+
+/** The scores of one (dataset, system, method). */
+export interface SummaryGroup {
+  dataset: Dataset;
+  system: System;
+  method: string;
+  n_rows: number;
+  n_fault: number;
+  n_no_truth: number;
+  n_unranked: number;
+  n_fine: number;
+  n_chance: number;
+  n_outside_services: number;
+  outcomes: SummaryOutcomes;
+  metrics: SummaryGroupMetrics;
+}
+
+/** bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only. */
+export interface BenchSummary {
+  schema_version: string;
+  producer: string;
+  experiment_id: string;
+  groups: SummaryGroup[];
+  excluded: Record<string, CaseId[]>;
+  statistics: string;
+}
+
 /** One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, overlay events included (03 §2.5). Written by Infralume; the key is not unique. */
 export interface TelemetryEventsRow {
   t_ns: number;
@@ -916,4 +1082,4 @@ export interface Verdict {
 }
 
 /** Names of all contracts (x-veyltrace.name). */
-export type ContractName = "agent_trace" | "alert" | "alignment" | "anomalies" | "answer_key" | "bench_result" | "calibration" | "card" | "case_manifest" | "changes" | "config_lock" | "evidence" | "graph.edges" | "graph.nodes" | "graph.paths" | "onsets" | "predicates" | "proposals" | "receipt" | "run_manifest" | "signal_cube.critical_path" | "signal_cube.edges" | "signal_cube.series" | "signal_cube.templates" | "slate" | "telemetry.events" | "telemetry.logs" | "telemetry.metrics" | "telemetry.spans" | "verdict";
+export type ContractName = "agent_trace" | "alert" | "alignment" | "anomalies" | "answer_key" | "bench_manifest" | "bench_result" | "bench_summary" | "calibration" | "card" | "case_manifest" | "changes" | "config_lock" | "evidence" | "graph.edges" | "graph.nodes" | "graph.paths" | "onsets" | "predicates" | "proposals" | "receipt" | "run_manifest" | "signal_cube.critical_path" | "signal_cube.edges" | "signal_cube.series" | "signal_cube.templates" | "slate" | "telemetry.events" | "telemetry.logs" | "telemetry.metrics" | "telemetry.spans" | "verdict";
