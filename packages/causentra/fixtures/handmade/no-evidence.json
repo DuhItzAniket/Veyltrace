@@ -1,0 +1,7 @@
+{
+ "_": [
+  "synth-01 with no evidence atom at all: every trial lacks atoms (T1-T4 untestable, 0.85 each).",
+  "tests/conftest.py writes these over synth-01's fixture run dir, then re-runs Causatrix."
+ ],
+ "evidence": []
+}
