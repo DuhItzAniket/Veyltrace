@@ -17,7 +17,7 @@
 
 ## Timeline
 
-- 00:18:00 UTC — cart-1 deploy change
+- 00:18:00 UTC — cart-1 deploy change (cites: Ea59a066a7a)
 - 00:22:00 UTC — alert (oracle)
 - 00:22:00 UTC — incident onset
 
@@ -46,5 +46,5 @@ prose: template
 ---
 
 verdict_hash: `143d796dd4867c1e2b3a517050504d0a999f6ad84963bf70da308dd48c1be5d1`  
-card_hash: `7181b643f09055f351c55bc743b7403c39acb9164815dab93d6a1501ada3e158`  
+card_hash: `5be01c459bc77dd293136eb36b1b5b1da06be0b132a48014c3eaa00f0f7e9384`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

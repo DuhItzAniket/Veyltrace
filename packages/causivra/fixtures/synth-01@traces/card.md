@@ -44,6 +44,6 @@ prose: template
 
 ---
 
-verdict_hash: `715a0e32da8d0e8e3e872200f6fb69535c53b7ff6054f9715d9f52d4b21bf4f7`  
-card_hash: `321a3d644c51263b86a0f446b8989f9b5647d1ef1b1c3f3f4b2b10360312369a`  
+verdict_hash: `4570a47f9ca5fbc5af978d943178be535dabbe620d67ebbc569f7bd3fc33e8d8`  
+card_hash: `257b38c8603367a6dbdd72f3e5a62a6a6ba3eeae065155087ee88bf113fc7a3b`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

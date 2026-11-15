@@ -17,7 +17,7 @@
 
 ## Timeline
 
-- 00:21:00 UTC — catalog deploy change
+- 00:21:00 UTC — catalog deploy change (cites: E1a3227d1c7)
 - 00:22:00 UTC — alert (oracle)
 - 00:22:00 UTC — incident onset
 
@@ -45,6 +45,6 @@ prose: template
 
 ---
 
-verdict_hash: `cd4a30f9c451d252784718b1d5317cc0fcbb7f4c331797e9df191a1d35fdfe85`  
-card_hash: `b9c2353bb8d3e1a80b0bee104c7af29f34c8158dea7d5c08260c8eb264b7040a`  
+verdict_hash: `b582789000a621243b256edc1f14d27e9d5a9326136c295c1cde82657ba5ad42`  
+card_hash: `2ed97627108049b890b3f82f96407d17927eee188fa918302fed22721363871c`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
