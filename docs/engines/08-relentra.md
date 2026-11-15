@@ -337,7 +337,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 
 | Key | Default | Rationale |
 |---|---|---|
-| `provider` | `ollama` | one of `ollama`, `llamacpp`, `openai_compat`, `fake` |
+| `provider` | `ollama` | one of `ollama`, `llamacpp`, `openai_compat`, `fake`; an `openai_compat` bearer key comes only from the environment variable `VEYLTRACE_LLM_API_KEY` and is never recorded |
 | `base_url` | `http://127.0.0.1:11434` | localhost only (§5.4) |
 | `model.name` | `qwen3.5:9b` (exact tag pinned at M0) | 02 §12 |
 | `model.gguf_sha256` | `null` until M0 | pinned after `llama-bench` |
@@ -347,7 +347,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 | `runtime.parallel` | 1 | single slot ([verified_agents §Q3][va-q3]); llama.cpp `-np 1`; for Ollama this is a check that the server runs with `OLLAMA_NUM_PARALLEL=1` |
 | `runtime.cache_prompt` | `false` | llama.cpp README warns it can make results nondeterministic |
 | `request.connect_timeout_s` / `request.timeout_s` | 5 / 240 | a priori |
-| `cassette.strict` | `true` | 02 §5.2: replay fails on any unrecorded call; not configurable to `false` in CI |
+| `cassette.strict` | `true` | 02 §5.2: replay fails on any unrecorded call; only `true` is accepted (`veyltrace_llm` rule 4 makes strict replay unconditional, X-01) |
 
 ## 5. Determinism, recording and isolation
 
@@ -373,7 +373,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 
 Excluded from the key (recorded in the entry for audit): provider kind, `base_url`, timeouts, thread count, `num_ctx`, keep-alive, streaming flags. Replay never contacts a provider, so the key must not depend on which runtime recorded it.
 
-**Layout:** `cassette/<key>.json` = `{key, request, responses: [ {content, error?, usage: {tokens_in, tokens_out}, latency_ms, runtime: {provider, version?}} … ]}`, plus `cassette/index.json` = sorted `[{key, purpose, n}]`. `responses` are in occurrence order: the n-th identical request in a run gets the n-th response. Files are written atomically (temp file + rename) and contain no timestamps (P3).
+**Layout:** `cassette/<key>.json` = `{key, request, recorded_with, responses: [ {content, error, usage: {tokens_in, tokens_out}, latency_ms, runtime: {provider, version}} … ]}` (`recorded_with` = the runtime settings excluded from the key; `content` or `error` is null, never absent), plus `cassette/index.json` = sorted `[{key, purpose, n}]`. `responses` are in occurrence order: the n-th identical request in a run gets the n-th response. Files are written atomically (temp file + rename) and contain no timestamps (P3).
 
 **Directory hash:** `cassette_sha256` = SHA-256(canonical_json(sorted `[{name: relative path, sha256}]`)) over all cassette files. Core must compute it the same way (OQ-4).
 

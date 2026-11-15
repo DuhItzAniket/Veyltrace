@@ -33,7 +33,8 @@ def _rows(out: Path, *, unmeasured: bool = False) -> dict[str, dict[str, object]
     table = io.read_path("bench_result", out / "per_case.csv", validate=True)
     assert isinstance(table, pa.Table)
     rows: list[dict[str, object]] = table.to_pylist()
-    return {str(r["case_id"]): r | ({"wall_ms": None} if unmeasured else {}) for r in rows}
+    blank = {"wall_ms": None, "peak_rss_mb": None} if unmeasured else {}
+    return {str(r["case_id"]): r | blank for r in rows}
 
 
 def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
@@ -48,18 +49,23 @@ def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
     assert sorted(rows) == sorted(case_id(f"synth-0{i}") for i in range(1, 6))
     for row in rows.values():
         assert {c: row[c] for c in STUB} == STUB and isinstance(row["wall_ms"], float)
+        assert isinstance(row["peak_rss_mb"], float) and row["peak_rss_mb"] > 0  # measured by the child
         assert row["verdict_hash"] and row["status"]
         assert [row[c] for c in HITS] == ([None] * 6 if row["case_id"] == NORMAL_WINDOW else [False] * 6)
     summary, manifest = (textio.read_text(out / name) for name in ("summary.json", "manifest.json"))
+    for name in ("summary", "manifest"):  # both are contracts now (03 §13.3, §13.4), not free JSON
+        io.read_path(f"bench_{name}", out / f"{name}.json", validate=True)
+    assert '"outcomes":{"failed":0,"no_alert":0,"ok":5,"rejected":0,"timeout":0}' in summary
     for part in ('"n_unranked":4', '"n_fault":4', '"n_chance":4', '"ac_at_1":0.0', '"chance_at_1":0.16666'):
         assert part in summary
-    assert '"mrr"' in summary and '"rerank_at_1"' not in summary  # only the YAML's metrics
+    assert '"mrr":{"mrr":0.0}' in summary and '"rerank_at_1":null' in summary  # only the YAML's metrics
     assert f'"experiment_sha256":"{sha256_text_lf(SMOKE)}"' in manifest and manifest.count('"run_id"') == 5
     assert manifest.count('"inputs_sha256":"') == 6 and '"cases_without_inputs":[]' in manifest
     assert run() == out  # again on the same runs root: bench empties its dir, all re-run
     assert [textio.read_text(out / n) for n in ("summary.json", "manifest.json")] == [summary, manifest]
     assert all(isinstance(r["wall_ms"], float) for r in _rows(out).values())  # measured, never reused
-    assert _rows(out, unmeasured=True) == {c: r | {"wall_ms": None} for c, r in rows.items()}
+    blank = {"wall_ms": None, "peak_rss_mb": None}
+    assert _rows(out, unmeasured=True) == {c: r | blank for c, r in rows.items()}
 
 
 def test_run_outcomes_are_learned_and_scored_as_misses(
@@ -77,6 +83,7 @@ def test_run_outcomes_are_learned_and_scored_as_misses(
     def run() -> tuple[Path, dict[str, object]]:
         return runner.run_experiment(SMOKE, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the fake run_case lives in this process
     monkeypatch.setattr(runner, "run_case", fake_run_case)
     out, summary = run()
     rows = _rows(out)
@@ -85,7 +92,8 @@ def test_run_outcomes_are_learned_and_scored_as_misses(
     assert all(r["status"] is None and r["ranks"] == [] and r["set_size"] is None for r in rows.values())
     groups = summary["groups"]
     assert isinstance(groups, list) and len(groups) == 1  # summary values are JSON, typed as object
-    assert (groups[0]["n_fault"], groups[0]["n_chance"], groups[0]["chance_at_1"]) == (4, 0, None)  # no n_i
+    chance = groups[0]["metrics"]["chance"]
+    assert (groups[0]["n_fault"], groups[0]["n_chance"], chance["chance_at_1"]) == (4, 0, None)  # no n_i
     cached = True  # a reused run has no wall time: it could hide a timeout (04 §9), so it is refused
     with pytest.raises(ConfigError, match="reuses run"):
         run()
@@ -105,6 +113,7 @@ def test_case_and_exclude_lists_pick_the_runs_and_are_recorded(
     def fake_run_case(dataset: str, case: str, ai_mode: str, **_: object) -> RunSummary:
         return RunSummary(dataset, case, "0" * 16, tmp_path, "failed", "x", None, (), (), {})
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the fake run_case lives in this process
     monkeypatch.setattr(runner, "run_case", fake_run_case)  # absolute lists: repo / path == path
     out, summary = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
     assert sorted(_rows(out)) == [ids[0], ids[2]] and summary["excluded"] == {"synth": [ids[1]]}
@@ -121,6 +130,7 @@ def test_unsupported_experiments_are_refused_before_the_first_case(
     def no_run(*_: object, **__: object) -> RunSummary:
         raise AssertionError("an unsupported experiment must not run a case")
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the fake run_case lives in this process
     monkeypatch.setattr(runner, "run_case", no_run)
     with pytest.raises(ConfigError, match=r"baselines, R-05"):
         runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")

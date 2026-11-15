@@ -1,9 +1,25 @@
 # config/causync.yaml: section "causync" (file stem). Owner: Observe lane.
-# Spec: docs/engines/04-causync.md §4. R-02 bootstrap: only the keys core needs now; the Observe
-# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
-# unknown keys are an error).
+# Spec: docs/engines/04-causync.md §4. Overrides must name keys present here
+# (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
   threads: 1             # determinism (04-causync §4)
   memory_limit: "2GB"    # 04-causync states no value: lead default (a priori)
+
+align:
+  min_pairs: 30            # client/server span pairs per service pair (a priori)
+  trace_min_offset_ms: 5   # below this, client overhead dominates (a priori)
+  min_violation_share: 0.05  # share of pairs whose child sticks out of its parent (a priori)
+  log_inside_share: 0.95   # joined log lines inside their span: no log offset (a priori)
+  max_lag_s: 120           # co-movement search range (a priori)
+  min_corr: 0.5            # Pearson r of first differences (a priori)
+  min_points: 20           # overlapping points per lag (a priori)
+
+changes:
+  # 02 §6.4; k8s_event and other are symptoms, not changes (04-causync §3.5).
+  kinds: [deploy, config, flag, scale, restart, commit]
+  tau_s: 300               # a priori (04-causync §3.6); reported at 60/300/900 s, never tuned
+
+peer:
+  min_replicas: 2          # a priori

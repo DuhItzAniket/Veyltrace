@@ -120,12 +120,12 @@ def _choice(value: object, key: str, allowed: Sequence[str]) -> str:
     return str(value)
 
 
-def _mapping(value: object) -> Mapping[str, object]:
-    """`value` as a string-keyed mapping, or an empty one when it is not a mapping."""
-    if isinstance(value, Mapping):
-        return cast(Mapping[str, object], value)
-    empty: dict[str, object] = {}
-    return empty
+def _mapping(value: object, key: str) -> Mapping[str, object]:
+    """`value` as a string-keyed mapping; ConfigError naming `key` when it is not one."""
+    if not isinstance(value, Mapping):
+        msg = f"{key} must be a mapping, got {value!r}"
+        raise ConfigError(msg)
+    return cast(Mapping[str, object], value)
 
 
 def _rankers(value: object) -> tuple[str, ...]:
@@ -146,13 +146,28 @@ def _rankers(value: object) -> tuple[str, ...]:
 
 def _indicator_map(value: object) -> tuple[tuple[str, str], ...]:
     key = "causatrix.indicator_map"
-    raw = _mapping(value)
+    raw = _mapping(value, key)
     if set(raw) != set(FAMILIES):
         msg = f"{key} must map exactly the families {sorted(FAMILIES)}, got {sorted(raw)!r}"
         raise ConfigError(msg)
     for family in FAMILIES:
         _choice(raw[family], f"{key}.{family}", sorted(_INDICATORS))
     return tuple((family, str(raw[family])) for family in sorted(FAMILIES))
+
+
+def _weights(value: object, rankers: tuple[str, ...]) -> tuple[tuple[str, float], ...]:
+    """Every `rrf.weights` entry is validated, also for rankers an ablation leaves out (07 §9)."""
+    key = "causatrix.rrf.weights"
+    raw = _mapping(value, key)
+    if not all(_RANKER_NAME.match(str(name)) for name in raw):
+        msg = f"{key} must be keyed by lower snake-case ranker names, got {sorted(map(str, raw))!r}"
+        raise ConfigError(msg)
+    checked = {r: _number(raw[r], f"{key}.{r}", 0.0) for r in sorted(raw)}
+    missing = [r for r in rankers if r not in checked]
+    if missing:
+        msg = f"{key} has no weight for enabled ranker(s) {missing}"
+        raise ConfigError(msg)
+    return tuple((r, checked[r]) for r in rankers)
 
 
 def config_from(cfg: Mapping[str, Any], core: Mapping[str, Any]) -> CausatrixConfig:
@@ -165,17 +180,12 @@ def config_from(cfg: Mapping[str, Any], core: Mapping[str, Any]) -> CausatrixCon
         return f"{ENGINE}.{dotted}"
 
     rankers = _rankers(get("rankers.enabled"))
-    raw_weights = _mapping(get("rrf.weights"))
-    missing = [r for r in rankers if r not in raw_weights]
-    if missing:
-        msg = f"causatrix.rrf.weights has no weight for enabled ranker(s) {missing}"
-        raise ConfigError(msg)
     return CausatrixConfig(
         k=_int(get("slate.k"), key("slate.k"), 1),
         rankers=rankers,
         method=_choice(get("fusion.method"), key("fusion.method"), FUSION_METHODS),
         rrf_k=_int(get("rrf.k"), key("rrf.k"), 1),
-        weights=tuple((r, _number(raw_weights[r], key(f"rrf.weights.{r}"), 0.0)) for r in rankers),
+        weights=_weights(get("rrf.weights"), rankers),
         gate=_bool(get("rrf.gate"), key("rrf.gate")),
         abstain_on_constant=_bool(get("abstain_on_constant"), key("abstain_on_constant")),
         prism_combine=_choice(get("prism_m.combine"), key("prism_m.combine"), PRISM_COMBINE),
