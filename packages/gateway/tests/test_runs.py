@@ -6,7 +6,9 @@ One AI-off synth-01 run is made per module with `run_case`; requests go through 
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -19,9 +21,11 @@ from veyltrace_core.pipeline import find_run, run_case
 from veyltrace_core.testing import FIXTURE_CODE_COMMIT, repo_root
 from veyltrace_gateway.app import create_app
 from veyltrace_gateway.runs import JSON_ARTIFACTS
+from veyltrace_gateway.settings import load_settings
 
 CONFIG = repo_root() / "config"
 OTHER_RUN = "0123456789abcdef"  # a well-formed run id no pipeline wrote
+_NULL_FIELDS = ("request_sha256", "response_sha256", "tool", "args", "result_sha256", "summary", "detail")
 
 
 @pytest.fixture(scope="module")
@@ -37,7 +41,7 @@ def run_id(runs: Path) -> str:
     return run_dir.name
 
 
-def _get(runs: Path, url: str) -> tuple[int, dict[bytes, bytes], bytes]:
+def _get(runs: Path, url: str, **settings: int) -> tuple[int, dict[bytes, bytes], bytes]:
     path, _, query = url.partition("?")
     scope = {
         "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": "GET",
@@ -52,7 +56,8 @@ def _get(runs: Path, url: str) -> tuple[int, dict[bytes, bytes], bytes]:
     async def send(message: dict[str, Any]) -> None:
         sent.append(message)
 
-    app: Any = create_app(config_dir=CONFIG, runs=runs)
+    resolved = dataclasses.replace(load_settings(CONFIG), **settings)
+    app: Any = create_app(resolved, config_dir=CONFIG, runs=runs)
     asyncio.run(app(scope, receive, send))
     start = next(m for m in sent if m["type"] == "http.response.start")
     return start["status"], dict(start["headers"]), b"".join(m.get("body", b"") for m in sent[1:])
@@ -122,6 +127,67 @@ def test_one_atom_by_id(runs: Path, run_id: str) -> None:
 @pytest.mark.parametrize("bad", ["0123", "0123456789ABCDEF", "..", "..%2F..%2Fsynth", OTHER_RUN])
 def test_unknown_or_malformed_run_ids_are_404(runs: Path, bad: str) -> None:
     assert _error(runs, f"/api/v1/runs/{bad}/verdict") == (404, "run_not_found")
+
+
+def test_ai_off_has_no_agent_trace(runs: Path, run_id: str) -> None:
+    assert _error(runs, f"/api/v1/runs/{run_id}/agent-trace") == (404, "artifact_missing")
+
+
+def test_agent_trace_chain_is_checked_server_side(runs: Path, run_id: str) -> None:
+    source = find_run(run_id, runs)
+    assert source is not None
+    copy = source.parent / OTHER_RUN
+    shutil.copytree(source, copy)
+    trace = copy / CONTRACTS["agent_trace"].path
+    with io.JsonlWriter("agent_trace", copy) as writer:  # fills seq and the hash chain (03 §9.2)
+        for state in ("start", "done"):
+            writer.append({"type": "state", "state": state, **dict.fromkeys(_NULL_FIELDS)})
+    try:
+        status, _, body = _get(runs, f"/api/v1/runs/{OTHER_RUN}/agent-trace")
+        data = json.loads(body)
+        assert status == 200 and data["chain_ok"] is True and data["lines"]
+        lines = trace.read_text(encoding="utf-8").splitlines()
+        edited = json.loads(lines[0]) | {"detail": "edited after the fact"}
+        trace.write_text("\n".join([json.dumps(edited), *lines[1:]]) + "\n", encoding="utf-8", newline="\n")
+        assert json.loads(_get(runs, f"/api/v1/runs/{OTHER_RUN}/agent-trace")[2])["chain_ok"] is False
+    finally:
+        shutil.rmtree(copy)
+
+
+def test_graph_is_the_three_tables(runs: Path, run_id: str) -> None:
+    run_dir = find_run(run_id, runs)
+    assert run_dir is not None
+    data = json.loads(_get(runs, f"/api/v1/runs/{run_id}/graph")[2])
+    for part in ("nodes", "edges", "paths"):
+        assert len(data[part]) == io.read_table(f"graph.{part}", run_dir).num_rows
+
+
+def test_series_filters_and_thins_per_series(runs: Path, run_id: str) -> None:
+    full = json.loads(_get(runs, f"/api/v1/runs/{run_id}/series")[2])
+    service, signal = full[0]["service"], full[0]["signal"]
+    mine = [r for r in full if (r["service"], r["signal"]) == (service, signal)]
+    assert (
+        json.loads(_get(runs, f"/api/v1/runs/{run_id}/series?service={service}&signal={signal}")[2]) == mine
+    )
+    thin = json.loads(_get(runs, f"/api/v1/runs/{run_id}/series", series_max_points=3)[2])
+    for sid in {r["series_id"] for r in full}:
+        points = [r for r in full if r["series_id"] == sid]
+        kept = [r for r in thin if r["series_id"] == sid]
+        step = -(-len(points) // 3)
+        assert kept == points[::step] and len(kept) <= 3  # every n-th point, n from the length
+
+
+def test_run_status_and_listing(runs: Path, run_id: str) -> None:
+    status = json.loads(_get(runs, f"/api/v1/runs/{run_id}")[2])
+    assert status == {
+        "run_id": run_id, "dataset": "synth", "case_id": case_id("synth-01"), "ai_mode": "off",
+        "state": "done", "step": 13, "step_name": "causivra.receipt", "error": None,
+    }  # fmt: skip
+    assert json.loads(_get(runs, "/api/v1/runs")[2]) == [status]
+    assert json.loads(_get(runs, f"/api/v1/runs?dataset=synth&case_id={case_id('synth-01')}")[2]) == [status]
+    assert json.loads(_get(runs, f"/api/v1/runs?case_id={case_id('synth-02')}")[2]) == []
+    assert _error(runs, "/api/v1/runs?dataset=..") == (404, "dataset_not_found")
+    assert _error(runs, "/api/v1/runs?case_id=*") == (404, "case_not_found")
 
 
 def test_errors_use_the_envelope_for_unknown_routes(runs: Path) -> None:

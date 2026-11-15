@@ -10,10 +10,26 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from veyltrace_contracts.models import EvidenceRow
+from veyltrace_contracts.models import (
+    AgentTraceLine,
+    EvidenceRow,
+    GraphEdgesRow,
+    GraphNodesRow,
+    GraphPathsRow,
+)
 from veyltrace_core.ids import AIMode
 
-__all__ = ["ErrorBody", "ErrorDetail", "EvidencePage", "Health", "HealthAI", "HealthLive"]
+__all__ = [
+    "AgentTrace",
+    "ErrorBody",
+    "ErrorDetail",
+    "EvidencePage",
+    "GraphView",
+    "Health",
+    "HealthAI",
+    "HealthLive",
+    "RunStatus",
+]
 
 
 class _Envelope(BaseModel):
@@ -62,3 +78,31 @@ class EvidencePage(_Envelope):
     total: int
     limit: int
     offset: int
+
+
+class AgentTrace(_Envelope):
+    """`GET /runs/{run_id}/agent-trace`: the trace lines (03 §9.2) and the server-side chain check."""
+
+    lines: list[AgentTraceLine]
+    chain_ok: bool
+
+
+class GraphView(_Envelope):
+    """`GET /runs/{run_id}/graph`: the three graph tables (03 §6) as contract rows."""
+
+    nodes: list[GraphNodesRow]
+    edges: list[GraphEdgesRow]
+    paths: list[GraphPathsRow]
+
+
+class RunStatus(_Envelope):
+    """`run_status` (06 §3.2). `step` is core's step index (0-13), `step_name` its name."""
+
+    run_id: str
+    dataset: str
+    case_id: str
+    ai_mode: AIMode
+    state: Literal["queued", "running", "done", "failed"]
+    step: int
+    step_name: str
+    error: str | None
