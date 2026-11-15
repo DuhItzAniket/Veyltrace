@@ -70,6 +70,19 @@ def manifest_problem(pins: Mapping[str, Any]) -> str | None:
     return None
 
 
+def deployments(pins: Mapping[str, Any]) -> list[str]:
+    """Names of the app Deployments in the vendored OB manifest, sorted ([] if it is absent)."""
+    path = manifest_path(pins)
+    if not path.is_file():
+        return []
+    with path.open(encoding="utf-8") as fh:
+        return sorted(
+            str(doc["metadata"]["name"])
+            for doc in yaml.safe_load_all(fh)
+            if isinstance(doc, dict) and doc.get("kind") == "Deployment"
+        )
+
+
 def cpu_limits(pins: Mapping[str, Any], field: str = "limits") -> dict[str, str]:
     """CPU limit of each Deployment's first container in the vendored OB manifest ({} if absent).
 
