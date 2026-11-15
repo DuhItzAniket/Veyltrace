@@ -1,4 +1,4 @@
-"""Unit tests of the R-00 stub: both passes, required/optional inputs, claim-pass carry-forward."""
+"""Unit tests of both passes: required/optional inputs, claim-pass carry-forward and claim atoms."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from veyltrace_core.testing import content_lines, make_context
 from veyltrace_core.testing.fixtures import repo_root
 from veyltrace_faultloom.api import run
 from veyltrace_faultloom.inputs import CLAIM_REQUIRED, MAIN_REQUIRED
-from veyltrace_faultloom.stub import STUB_NOTE, claim_pool
+from veyltrace_faultloom.passes import INTERVENTION_NOTE, claim_pool
 
 
 def _example(name: str) -> Any:
@@ -34,22 +34,26 @@ def _remove(name: str, run_dir: Path) -> None:
 
 # --- engine pass ------------------------------------------------------------------------------
 def test_main_writes_schema_valid_evidence_on_stub_upstreams(main_dir: Path) -> None:
-    # synth Observe outputs are stubs: only onsets.per_service has rows, so every service gets a
-    # silence atom (06 §3.4: it appears in onsets.per_service) and nothing else.
+    # Every synth-01 service is in onsets.per_service, so each gets one silence atom (06 §3.4).
+    # Which other kinds appear depends on Anomara's and Causalith's outputs (stubs or engines), so
+    # for those only the bookkeeping is pinned: per-kind metrics match the table and add up.
     ctx = make_context("faultloom", main_dir)
     result = run(ctx)
     assert result.status == "ok"
     assert result.outputs == (("evidence", sha256_file(io.path_of("evidence", main_dir))),)
     table = io.read_table("evidence", main_dir, validate=True)
     assert table.schema.equals(io.arrow_schema("evidence"), check_metadata=False)
-    assert set(table.column("kind").to_pylist()) == {"silence"}
-    assert result.metrics["atoms"] == result.metrics["atoms.silence"] == result.metrics["universe"] == 6
-    assert result.notes == (STUB_NOTE,)
+    kinds = table.column("kind").to_pylist()
+    assert result.metrics["atoms.silence"] == kinds.count("silence") == result.metrics["universe"] == 6
+    per_kind = {k: v for k, v in result.metrics.items() if k.startswith("atoms.")}
+    assert all(per_kind[f"atoms.{kind}"] == kinds.count(kind) for kind in set(kinds))
+    assert result.metrics["atoms"] == sum(per_kind.values()) == len(kinds)
+    assert result.notes == ()  # R-08 is no stub: diagnose prints no "placeholder outputs" warning
 
 
-def test_stub_note_carries_the_cli_stub_mark() -> None:
-    # diagnose warns about "placeholder outputs" for every note starting with cli.STUB_MARK.
-    assert STUB_NOTE.startswith(STUB_MARK)
+def test_claim_pass_notes_carry_no_stub_mark(claim_dir: Path) -> None:
+    result = run(make_context("faultloom", claim_dir, phase="claim_pass"))
+    assert result.notes == (INTERVENTION_NOTE,) and not any(n.startswith(STUB_MARK) for n in result.notes)
 
 
 @pytest.mark.parametrize("name", MAIN_REQUIRED)
@@ -114,16 +118,27 @@ def _write_proposals(run_dir: Path, **changes: Any) -> models.Proposals:
     return io.read_model("proposals", run_dir, models.Proposals)
 
 
-def test_claim_pass_with_claims_is_degraded_and_adds_no_atom(claim_dir: Path) -> None:
-    proposals = _write_proposals(claim_dir)
-    claims = sum(len(p.claims) for p in proposals.proposals)
-    assert claims > 0
-    before = sha256_file(io.path_of("evidence", claim_dir))
+def test_claim_pass_appends_claim_atoms_for_the_pool(claim_dir: Path) -> None:
+    # Contract example claims on synth-01: with Observe's engines (graph nodes and series exist)
+    # all 4 are valid, and each runs for the 5 slate candidates.
+    _write_proposals(claim_dir)
+    engine = content_lines("evidence", io.path_of("evidence", claim_dir))
     result = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
-    assert result.status == "degraded"
-    assert result.metrics["claims.seen"] == claims and result.metrics["claims.evaluated"] == 0
-    assert any("R-08" in note for note in result.notes)
-    assert result.outputs == (("evidence", before),)
+    assert result.status == "ok"
+    m = result.metrics
+    assert (m["claims.seen"], m["claims.valid"], m["atoms.claim_check"], m["pool"]) == (4, 4, 20, 5)
+    assert not [k for k in m if k.startswith("claims.rejected.")]
+    rows = io.read_table("evidence", claim_dir, validate=True).to_pylist()
+    claims = [r for r in rows if r["origin"] == "claim_check"]
+    assert {(r["predicate"], r["args_json"], r["holds"]) for r in claims if r["candidate"] == "checkout"} == {
+        ("onset_before", '{"other_service":"frontend"}', False),
+        ("template_new_in_incident", '{"min_count":3}', False),
+        ("zscore_above", '{"k":3.5,"signal":"mem"}', False),
+        ("zscore_above", '{"k":4.0,"signal":"cpu"}', True),  # checkout's cpu robust_z is above 4
+    }
+    assert all(line in content_lines("evidence", io.path_of("evidence", claim_dir)) for line in engine[1:])
+    again = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
+    assert again.outputs == result.outputs  # re-running the step is idempotent
 
 
 def test_claim_pass_with_skipped_proposals_is_ok(claim_dir: Path) -> None:

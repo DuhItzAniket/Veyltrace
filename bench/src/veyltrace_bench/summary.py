@@ -57,8 +57,8 @@ def summarize(scores: Iterable[CaseScore], metrics: Collection[str] = ALL_METRIC
     its denominators and run_outcome counts, JSON-ready for summary.json; row order never matters.
 
     Rates are over the fault cases F. Chance@k = mean over F of min(k, n_i)/n_i, 0 when the root is
-    outside the case's universe, and None unless every n_i is known (RCAEval's chance_accuracy), so
-    Chance, Lift and AC share one denominator. Rerank@1 = AC@1 / Retrieval@K (04 §7).
+    outside the case's services (n_i, not U), and None unless every n_i is known (RCAEval's
+    chance_accuracy), so Chance, Lift and AC share one denominator. Rerank@1 = AC@1 / Retrieval@K (04 §7).
     """
     rows = list(scores)
     fault = [s for s in rows if s.has_truth]
@@ -71,7 +71,7 @@ def summarize(scores: Iterable[CaseScore], metrics: Collection[str] = ALL_METRIC
         "n_unranked": sum(s.unranked for s in fault),
         "n_fine": len(fine),
         "n_chance": n_chance,
-        "n_outside_universe": sum(s.in_universe is False for s in fault),
+        "n_outside_services": sum(s.in_universe is False for s in fault),  # root not among n_i (04 §7)
         "outcomes": dict(sorted(Counter(s.outcome for s in rows).items())),
     }
     ac = {k: _rate([s.hit_at(k) for s in fault]) for k in AC_KS}
