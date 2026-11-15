@@ -37,6 +37,7 @@ def test_defaults_match_the_spec_table() -> None:
     a = cfg.align
     assert (a.min_pairs, a.trace_min_offset_ns, a.min_violation_share) == (30, 5_000_000, 0.05)
     assert (a.log_inside_share, a.max_lag_ns, a.min_corr, a.min_points) == (0.95, 120 * S, 0.5, 20)
+    assert a.tolerance_step_quantile == 0.75
     assert cfg.change_kinds == {"deploy", "config", "flag", "scale", "restart", "commit"}
     assert (cfg.tau_ns, cfg.min_replicas) == (300 * S, 2)
 
@@ -46,6 +47,7 @@ def test_defaults_match_the_spec_table() -> None:
     [
         ("align", "min_pairs", 0),
         ("align", "min_corr", 1.5),
+        ("align", "tolerance_step_quantile", 1.2),
         ("align", "max_lag_s", True),
         ("changes", "tau_s", 0),
         ("changes", "kinds", "deploy"),
@@ -75,6 +77,19 @@ def test_bucketed_sources_take_the_spacing_of_their_count_series() -> None:
     steps = source_steps(series(rows))
     assert steps == {"logs": 10 * S, "traces": 20 * S}
     assert tolerance(steps) == 20 * S
+
+
+def test_tolerance_step_covers_the_coarse_metric_series() -> None:
+    # as on RE2: more than half of the series change every second, the rest show the 15 s scrape
+    rows = [("metrics", "a", "a", f"fast{k}", t, float(t + k)) for k in range(5) for t in range(60)]
+    rows += [("metrics", "a", "a", f"held{k}", t, float(t // 15 + k)) for k in range(3) for t in range(60)]
+    rows += [("logs", "a", "a", "log_rate", t, 1.0) for t in range(0, 60, 10)]
+    table = series(rows)
+    assert source_steps(table) == {"logs": 10 * S, "metrics": 1 * S}  # the median: used for resampling
+    upper = source_steps(table, 0.75)
+    assert upper == {"logs": 10 * S, "metrics": 15 * S}  # only the metrics step takes the quantile
+    assert (tolerance(source_steps(table)), tolerance(upper)) == (10 * S, 15 * S)
+    assert source_steps(table, 1.0)["metrics"] == 15 * S
 
 
 def test_no_stepped_source_gives_zero_tolerance() -> None:
