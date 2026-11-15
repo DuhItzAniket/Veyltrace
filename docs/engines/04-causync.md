@@ -75,7 +75,7 @@ Co-movement resolution is one step, so it only catches gross misalignment; finer
 
 ### 3.4 Aligned entity onsets
 
-For each service, `O(s)` = min of `per_service.external_onset_ns` and `internal_onset_ns`, each converted to the reference clock by adding the offset of the source recorded in `per_service.external_onset_source` / `internal_onset_source` ([03 §4.2](../03-contracts.md)); the per-service offset is used when one exists for that (source, service), else the source-level one, and a null source means offset 0. A service without an onset uses `t_onset_ns`.
+For each service, `O(s)` = min of `per_service.external_onset_ns` and `internal_onset_ns`, each converted to the reference clock by adding the offset of the source recorded in `per_service.external_onset_source` / `internal_onset_source` ([03 §4.2](../03-contracts.md)); the per-service offset is used when one exists for that (source, service), else the source-level one, and a null source means offset 0. A service without an onset uses `t_onset_ns`, moved to the reference clock by the source-level offset of the source it came from (03 §5.2; see the Built note).
 
 ### 3.5 Change timeline
 
@@ -111,6 +111,17 @@ For each change, target onset `O` = `O(entity)` for service scope, `O(service of
 **Decoys.** Causync scores every change by time, entity, kind and anomalies only; `source_system` and `actor` never enter any rule or score. Infralume gives every overlay row `source_system = synthetic` and `actor = null` ([01-infralume §3.10](01-infralume.md)), so true and decoy changes are indistinguishable here, as [02 §6.4](../02-architecture.md) requires. Real lab decoys (benign `kubectl set env` rollouts on non-root services, [05 §7](../05-fault-lab-and-dataset.md)) arrive as ordinary `k8s` events and are treated the same way.
 
 **No events.** RCAEval has none ([novel_building_blocks §Q5][nbb]): `changes` has zero rows, and the change channel abstains downstream.
+
+**Built (O-06).** Where the text above left a choice:
+
+- *Offsets written.* One source-level row per present source (`traces` and `metrics` as `reference` when they are the reference clock; `events` always `none`), plus one `traces` row per service with a span. The root service has offset 0 and confidence 1. Logs and metrics get source-level rows only.
+- *Client-like spans* (§3.2 step 1) are `client` spans, or `unspecified` spans whose parent is in their own service. The containment test of 02-signalyth §3.3 is left out on purpose: a skewed child lies outside its parent, and that is what is measured.
+- *Publish gate* (§3.2 step 5) is applied per edge of the breadth-first walk (lead decision, #271): along A→B, `offset(B) = offset(A) − θ_AB` when the A→B pairs pass the gate (`|θ| ≥ trace_min_offset_ms` and violation share ≥ `min_violation_share`), else `offset(B) = offset(A)`. A callee on its caller's skewed clock therefore inherits the caller's correction. `confidence` comes from the pairs of the edge that reached the service. With no client/server pair in the case, every trace offset is 0 with method `none`, the root included (§6).
+- *Logs.* `log_span_join` when any line joins a span, else `comovement`. Spans are first moved to the reference clock by their service's `trace_pairs` offset, so a skewed service's logs are corrected with its traces (#271). The projection moves a line to the nearest edge of its span, so the estimate is a lower bound on the skew.
+- *Co-movement* resamples bucketed sources by the **mean** of their rate points, not the sum: a sum alternates with the number of 10 s buckets that fall into each 15 s step and correlates with that pattern alone. A median lag of at most one step is published as 0 (method `comovement`): a rate stamped at the end of its interval lags by up to one step, and one step is inside `tolerance_ns`. `confidence` is the median correlation of the agreeing services. Every lag up to `max_lag` competes and the winner is judged afterwards: a service whose best lag has too few points, too low a correlation or sits at `max_lag` is rejected, not given its next-best lag (#271).
+- *Tolerance.* On the synth cases `tolerance_ns` is 15 s (metrics scraped every 15 s), 10 s without metrics, 0 for an events-only case.
+- *Peer contrast.* A replica's first and last observation are taken from `signal_cube.series` and moved to the reference clock by the source-level `metrics` offset (#271). A component named by two services belongs to the first A→Z.
+- *Fallback onset.* `t_onset_ns`, the target of cluster-scope changes and of services without an onset, is aligned as well (03 §5.2): it takes the source-level offset of the source of the first service A→Z whose external onset equals it; a `t_alert` fallback matches none and is not moved.
 
 ### 3.7 RCAEval-C decoy generator (O-13, `bench/decoys/`)
 

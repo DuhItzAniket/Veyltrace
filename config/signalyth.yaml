@@ -1,5 +1,5 @@
 # config/signalyth.yaml: section "signalyth" (file stem). Owner: Observe lane.
-# Spec: docs/engines/02-signalyth.md §4. Log keys (Drain3, masks, lexicon) arrive with O-03.
+# Spec: docs/engines/02-signalyth.md §4.
 # Overrides must name keys present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
@@ -8,6 +8,7 @@ duckdb:
   memory_limit: "1.5GB"  # 02-signalyth §4, §8 memory budget
 
 buckets:
+  logs_s: 10             # 02 §6.2
   traces_s: 10           # a priori; the log grid of 02 §6.2 (02-signalyth §3.1)
 
 metrics:
@@ -43,3 +44,41 @@ traces:
 cp:
   min_tree_fraction: 0.8      # a priori
   max_traces_per_window: 20000  # performance cap (estimate-based, 02-signalyth §8)
+
+logs:
+  first_line_max_chars: 512  # a priori
+  # Applied in this order by DuckDB regexp_replace, so the syntax is RE2 (02-signalyth §3.5 step 2;
+  # rcaeval_facts §Engineering). The number mask is word-bounded: names such as svc1 stay intact.
+  mask_patterns:
+    - {pattern: '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', token: "<UUID>"}
+    - {pattern: '\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b', token: "<IP>"}
+    - {pattern: '\b[0-9a-fA-F]{8,}\b', token: "<HEX>"}
+    - {pattern: '\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?', token: "<TS>"}
+    - {pattern: '\b\d+(\.\d+)?(ns|us|µs|ms|s|m|h)\b', token: "<DUR>"}
+    - {pattern: '\b\d+(\.\d+)?\b', token: "<NUM>"}
+  drain:
+    sim_th: 0.4          # fixed a priori (Drain3 default)
+    depth: 4             # fixed a priori (Drain3 default)
+    max_children: 100    # Drain3 default
+  min_template_count: 3  # a priori
+  max_template_series_per_service: 200  # a priori cost cap
+  # A line is error-level at severity ERROR/FATAL or when its full body matches one of these (RE2,
+  # case-sensitive unless marked; 02-signalyth §3.5 step 7).
+  error_lexicon:
+    # rcaeval_facts §Logs
+    - '\bERROR\b'
+    - '\bFATAL\b'
+    - 'Exception'
+    - 'Traceback \(most recent call last\)'
+    - 'panic:'
+    - 'DEADLINE_EXCEEDED'
+    - 'UNAVAILABLE'
+    # a priori
+    - '(?i)\brefused\b'
+    - '(?i)\btimed? ?out\b'
+    # a priori; a bare 5\d\d would match numbers such as "512ms"
+    - '(?i)\b(http|status|code)[ :=]+5\d\d\b'
+    # stack-trace detectors, a priori
+    - '(?m)^\s+at [\w.$]+\('
+    - 'goroutine \d+ \['
+    - 'Exception in thread'

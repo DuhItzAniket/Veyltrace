@@ -37,6 +37,8 @@ def test_metrics_unpivot_units_and_dropped_points() -> None:
     ]  # fmt: skip
     assert {r["source_system"] for r in rows} == {"prom"}
     assert s.dropped_rows == 3  # istio-init x2 (a sidecar), flagd x1 (a fault tool)
+    unprefixed = metrics_table(pa.table({"time": [T0], "cpu": [1.0], "_x": [2.0]}), OB, s)
+    assert unprefixed.num_rows == 0 and s.dropped_rows == 3  # data-quality drops are no scrub drops
 
 
 def test_logs_time_unit_severity_pod_and_attrs() -> None:
@@ -55,7 +57,10 @@ def test_logs_time_unit_severity_pod_and_attrs() -> None:
     ]  # fmt: skip
     assert [r["body"] for r in rows] == ["read /<case>/x", ""]  # tokens replaced; a null message is ""
     assert [r["attrs_json"] for r in rows] == ['{"req_path":"/cart"}', None]
-    assert (s.dropped_attributes, s.dropped_rows) == (1, 2)  # fault_type; flagd and the timeless line
+    assert (s.dropped_attributes, s.dropped_rows) == (1, 1)  # fault_type; flagd (the timeless line is
+    # a data-quality drop, logged, not a scrub drop: 03 §2.1, 01 §6)
+    nameless = pa.table({"timestamp": [T0, T0], "container_name": [None, ""], "message": ["a", "b"]})
+    assert logs_table(nameless, OB, s).num_rows == 0 and s.dropped_rows == 1
 
 
 def _spans(**columns: list[object]) -> pa.Table:
@@ -118,3 +123,24 @@ def test_tables_fit_the_contracts_and_empty_inputs() -> None:
 def test_epoch_units() -> None:
     for scale in (1, 1_000, 1_000_000, 1_000_000_000):
         assert epoch_ns(np.array([T0 * scale], dtype=np.int64)).tolist() == [T0 * NS]
+
+
+def test_spans_without_service_are_no_scrub_drops() -> None:
+    s = _scrubber()
+    rows = spans_table(_spans(serviceName=[None, "", "cartservice", "flagd", "cartservice"]), OB, STATUS, s)
+    assert rows.column("span_id").to_pylist() == ["0b"] and s.dropped_rows == 1  # flagd only
+
+
+def test_duplicate_span_kept_whatever_the_row_order() -> None:
+    """Two rows with one span id and one start: the survivor is decided by the other columns (01 §5)."""
+    us = T0 * 1_000_000
+    rows = {
+        "traceID": ["t", "t"], "spanID": ["s", "s"], "parentSpanID": [None, None],
+        "serviceName": ["cartservice", "cartservice"], "methodName": ["m2", "m1"],
+        "operationName": ["o", "o"], "startTime": [us, us], "duration": [99, 10], "statusCode": [2, 0],
+    }  # fmt: skip
+    forward = spans_table(pa.table(rows), OB, STATUS, _scrubber()).to_pylist()
+    backward = spans_table(
+        pa.table({k: v[::-1] for k, v in rows.items()}), OB, STATUS, _scrubber()
+    ).to_pylist()
+    assert forward == backward and [r["operation"] for r in forward] == ["m1"]
