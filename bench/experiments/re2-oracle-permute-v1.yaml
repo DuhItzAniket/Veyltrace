@@ -1,0 +1,23 @@
+# Pre-registered (04 §1): RE2 × proposal permutation, 04 §6 (veyltrace:brief M4). The recorded
+# proposals re-ordered with a seeded permutation and Causentra re-run from the cassette (04 §5.2);
+# RQ2 H2c: identical verdict_hash under every permutation (100%), a proportion with an exact
+# binomial CI from per_case.csv's verdict_hash. agent-only:brief has no verifier, so permuting its
+# proposals only re-orders its ranking; it is not run here.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: re2-oracle-permute-v1
+description: "RQ2 H2c: verdict invariance of veyltrace:brief under proposal permutations on RE2"
+prereg: true
+rq: [RQ2]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: {n: 5, seed: 3}}
+methods:
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: false}
+metrics: [ac_at_k]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
