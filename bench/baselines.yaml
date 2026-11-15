@@ -27,3 +27,23 @@ simplerca:
     min_count: 1        # a priori: one matching line is the smallest spike
   # Ties in alert count: service name A->Z (a priori; the paper does not state a tie-break).
   # Ranks are service names only (Fang reports service-level accuracy), so fine AC@k scores 0.
+
+rcaeval:
+  # RCAEval's own main.py in an isolated venv, as a subprocess (04 §4 "RCAEval environment";
+  # bench/AGENTS.md). Set up by scripts/rcaeval/setup.py; the venv is git-ignored (`.venv-*/`).
+  repo: https://github.com/phamquiluan/RCAEval
+  commit: 90b63a46ac1e969f1fa9015318b51e455c62f8c4  # tag 1.12.0 (2026-11-06), current at M1 (04 §4)
+  venv: bench/.venv-rcaeval                         # 04 §4, bench/AGENTS.md
+  source: bench/.venv-rcaeval/src/RCAEval           # the clone; main.py runs from here
+  # Methods that read only the metrics table the wrapper exports (main.py passes `data`, a
+  # DataFrame); the mm* methods need logts/tracets files, not exported, so they are refused.
+  methods: [baro, nsigma]
+  # Our dataset -> RCAEval's --dataset id and its DATASET_MAP directory (RCAEval
+  # benchmark/datasets.py at the pinned commit). synth borrows re2-ob's layout: for a non-None
+  # dataset id, preprocess() is the same for every id (io/time_series.py), so only the path matters.
+  datasets:
+    re2-ob: {id: re2-ob, path: data/RE2/RE2-OB}
+    re2-ss: {id: re2-ss, path: data/RE2/RE2-SS}
+    re2-tt: {id: re2-tt, path: data/RE2/RE2-TT}
+    synth: {id: re2-ob, path: data/RE2/RE2-OB}
+  report_decomposition: 5   # --report-decomposition K: Retrieval@5 and Rerank@1, as Avg@5's depth
