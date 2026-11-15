@@ -65,6 +65,12 @@ def test_validate_cli_rewrites_keys(tmp_path: Path, capsys: pytest.CaptureFixtur
         ),
         encoding="utf-8",
     )
+    # Regression (#222 follow-up 3): without the raw capture on this laptop the key is left alone.
+    before = (keys / ("a" * 32 + ".json")).read_text(encoding="utf-8")
+    assert validate_cli.main(["--captures", str(tmp_path)]) == 0
+    assert (keys / ("a" * 32 + ".json")).read_text(encoding="utf-8") == before
+    assert "skipped: no raw capture here" in capsys.readouterr().out
+    (tmp_path / ("a" * 32) / "otlp").mkdir(parents=True)  # now the capture is here (with no spans)
     assert validate_cli.main(["--captures", str(tmp_path)]) == 0
     key = json.loads((keys / ("a" * 32 + ".json")).read_text(encoding="utf-8"))
     assert key["validated"] is False and "mode" in key  # every column written back

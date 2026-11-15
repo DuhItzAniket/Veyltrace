@@ -283,7 +283,7 @@ A 3-service trace case: `frontend` (entry) → `checkoutservice` → `paymentser
 | `window.score_ms` | 300000 | ms | a priori; PRISM's early-window result (81% vs 68% Top-1 with the first 10% of post-fault data) argues for short windows [rcaeval_facts §Anomaly scoring methods][rf-methods]; ablation 60000 / 600000 |
 | `self_time.quantile` | `p50` | — | a priori (median is robust to trace sampling); ablation `p99` |
 | `self_time.min_total_increase_ms` | 5.0 | ms | a priori; below this there is no latency increase to account for |
-| `spectrum.formula` | `ochiai` | — | Ochiai outperformed other coefficients in an industrial SBFL study [rcaeval_facts §Traces][rf-traces]; ablation `dstar2` |
+| `spectrum.formula` | `ochiai` | — | Ochiai outperformed other coefficients in an industrial SBFL study [rcaeval_facts §Traces][rf-traces]; ablation `dstar2` (no formula in §3.4 yet, so it raises `ConfigError`) |
 | `spectrum.weighting` | `critical_path` | — | CP-SBFL card [novel_building_blocks §Q3][nbb]; ablation `none` |
 | `templates.min_count` | 3 | lines | a priori; filters one-off lines |
 | `peer.min_components` | 2 | components | a peer needs at least one other replica |
@@ -370,7 +370,7 @@ All arms are config overrides in an experiment YAML ([04 §9](../04-evaluation-p
 | Atom-kind drop | `atoms.disabled: [<kind>]` | which evidence channel carries accuracy |
 | Detector set | `atoms.detectors` | robust_z vs nsigma as the base scorer |
 | Score window | `window.score_ms` ∈ {60000, 300000, 600000} | early-window effect |
-| Spectrum weighting | `spectrum.weighting: none`, `formula: dstar2` | does CP weighting add to plain SBFL |
+| Spectrum weighting | `spectrum.weighting: none`, `formula: dstar2` (raises `ConfigError` until §3.4 defines it) | does CP weighting add to plain SBFL |
 | Self-time quantile | `self_time.quantile: p99` | T5 sensitivity |
 | Card size | `cards.k_default` ∈ {3, 6, 9}; `cards.max_tokens` | proposer lift vs tokens (RQ2, RQ5) |
 
@@ -401,6 +401,21 @@ FaultLoom also reports per-case counters (atoms per kind, claims evaluated, clai
 10. ~~`bad_args` has no home in the verdict.~~ *Resolved in 03 §10 (2026-10-30):* `bad_args` is a `proposals_rejected.reason`.
 11. **Score window.** *Default* 5 min; whether onset-anchored windows should also be used for Signalyth's aggregates is an Observe question (it runs before `t_onset` exists).
 12. **Anomaly direction** is not stored on atoms. *Default:* recover from `refs`; CCR only if the mode rules need it.
+13. **Which kinds use W_score?** No §3.4 formula aggregates over W_score. Anomaly atoms take Anomara's incident-window score, the trace and log tables carry Signalyth's own window labels, and the onset-window kinds use onset times and Causync's `proximity`. *Default (R-08, literal reading):* W_score is the extent the `onset` window label names. No atom value depends on it, so the `window.score_ms` ablation (§9) changes no FaultLoom output. It reaches the evidence only if Anomara scores on W_score (Q11).
+14. **Clocks in `onset_precedence{self}`.** `onset(c)` is aligned (§2.1), but `t_onset_ns` is in source time ([03 §4.2](../03-contracts.md)). *Default:* `t_onset_ns` as given. `internal_vs_external` uses the two aligned onsets.
+15. **`refs` of derived atoms** (§3.3 lists the grammar, not the rows). *Default (R-08):*
+    - `onset_precedence` cites the `onsets` entries used: *c*'s, plus D(*c*)'s for `dependents`.
+    - `propagation{entry, anomalous}` cites the `graph.edges` rows walked from *c*; `{path}` cites its `graph.paths` row.
+    - `silence` = 1.0 cites the rows that set it; `silence` = 0.0 cites every row examined.
+    - `peer_contrast` cites each component's maximising series, or the maximising changes.
+    - Log atoms cite the templates counted.
+16. **Sets in `propagation` and D(*c*).** *Default:* "anomalous services" range over U, and a silent service counts as anomalous. `atoms.disabled` drops the named kinds from the output only; other kinds and predicates still read the same inputs.
+17. **`log_error_rate` with a zero-length window** has no rate. *Default:* no atom.
+18. **Card details (§3.7).** *Default (R-08h):*
+    - `k` defaults to `cards.k_default` (not a literal 6).
+    - An atom line renders `<unit>=<value>` when the atom has a unit, as in the §3.7 example `z=9.1`.
+    - The `change` field's "ms before onset" comes from `changes.delta_to_onset_ms`, the one table read beyond §3.7's list.
+    - In against-fact (a), a candidate without an internal `robust_z` atom has internal z 0, as `I(s)` in [07 §2.1](07-causatrix.md).
 
 ## 12. References
 

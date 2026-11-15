@@ -3,14 +3,31 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from veyltrace_contracts import models
-from veyltrace_core.testing import fixture_run_dir
-from veyltrace_faultloom.inputs import AnomalyRow, CallEdge, EvidenceInputs, GraphNode, PathRow, ServiceOnset
+from veyltrace_core import io
+from veyltrace_core.context import RunContext
+from veyltrace_core.testing import fixture_run_dir, make_context
+from veyltrace_faultloom.api import run
+from veyltrace_faultloom.inputs import (
+    AnomalyRow,
+    CallEdge,
+    ChangeRow,
+    CriticalPathRow,
+    EdgeStat,
+    EvidenceInputs,
+    GraphNode,
+    PathRow,
+    ServiceOnset,
+    TemplateRow,
+    load_inputs,
+)
+from veyltrace_faultloom.predicates import ClaimView
 
 #: A t_onset and windows on a round grid (ns): baseline [0, 600 s), incident [600 s, 1200 s).
 T0 = 900 * 10**9
@@ -36,6 +53,12 @@ _BASE = EvidenceInputs(
     entry_services=(),
     edges=(),
     paths=(),
+    components={},
+    signals=frozenset(),
+    changes=(),
+    templates=(),
+    critical_path=(),
+    edge_stats=(),
 )
 
 
@@ -68,6 +91,32 @@ class HandMade:
         return PathRow(candidate, rank, fraction, f"graph.paths#{candidate}-{rank}")
 
     @staticmethod
+    def change(
+        cid: str, entity: str, scope: str = "service", proximity: float = 0.5, peer: float | None = None
+    ) -> ChangeRow:
+        return ChangeRow(cid, entity, "deploy", scope, -60_000.0, proximity, peer)
+
+    @staticmethod
+    def template(service: str, tid: str, base: int, inc: int, *, error: bool = False) -> TemplateRow:
+        return TemplateRow(service, tid, base, inc, error)
+
+    @staticmethod
+    def cp(
+        window: str, service: str, total: int, mean: float, slow: int, sum_slow: float, **kw: Any
+    ) -> CriticalPathRow:
+        """A critical_path row; kw: traces, p50, p99 (self-time ms)."""
+        p50, p99, traces = kw.get("p50", 0.0), kw.get("p99", 0.0), kw.get("traces", slow)
+        return CriticalPathRow(
+            window, service, traces, p50, p99, mean, total, slow, sum_slow, f"cp#{window}-{service}"
+        )
+
+    @staticmethod
+    def edge_stat(
+        caller: str, callee: str, window: str, calls: int, p50: float | None, p99: float | None
+    ) -> EdgeStat:
+        return EdgeStat(caller, callee, window, calls, 0.0, p50, p99, f"edges#{caller}-{callee}-{window}")
+
+    @staticmethod
     def anomaly(
         series_id: str, klass: str, detector: str = "robust_z", score: float = 0.0, **kw: bool
     ) -> AnomalyRow:
@@ -93,3 +142,16 @@ def main_dir(tmp_path: Path) -> Path:
 def claim_dir(tmp_path: Path) -> Path:
     """synth-01 run dir holding everything before the claim pass (main evidence, slate; AI off)."""
     return fixture_run_dir("synth-01", tmp_path, through="relentra")
+
+
+@pytest.fixture
+def cpu_hog(tmp_path: Path) -> tuple[RunContext, ClaimView]:
+    """The hand-made cpu-hog case after the engine pass: its context and the predicates' view."""
+    inputs = json.loads(
+        (Path(__file__).parents[1] / "fixtures/handmade/cpu-hog/inputs.json").read_text("utf-8")
+    )
+    for name in sorted(n for n in inputs if not n.startswith("_")):
+        io.write(name, inputs[name], tmp_path)
+    ctx = make_context("faultloom", tmp_path, dataset="handmade")
+    assert run(ctx).status == "ok"
+    return ctx, ClaimView(load_inputs(ctx), tuple(io.read_table("evidence", tmp_path).to_pylist()))
