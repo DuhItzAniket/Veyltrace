@@ -13,7 +13,7 @@ from typing import Any
 import pyarrow as pa
 
 from veyltrace_causync.changes import EVENT_COLUMNS, aligned_onsets, aligned_t_onset, evidence, timeline
-from veyltrace_causync.crossalign import JOIN_LOG_COLUMNS, comovement_offset, log_span_offset
+from veyltrace_causync.crossalign import JOIN_LOG_COLUMNS, comovement_offset, log_span_offsets
 from veyltrace_causync.peers import ANOMALY_COLUMNS, peer_contrast, replica_scores, replicas
 from veyltrace_causync.settings import causync_config
 from veyltrace_causync.steps import SERIES_COLUMNS, source_steps, tolerance
@@ -42,7 +42,7 @@ def run(ctx: RunContext) -> EngineResult:
     sources = manifest.sources
     series = ctx.read_table("signal_cube.series", columns=SERIES_COLUMNS)
     steps = source_steps(series)
-    tol = tolerance(steps)
+    tol = tolerance(source_steps(series, cfg.align.tolerance_step_quantile))
     reference = "traces" if sources.traces else "metrics"  # 03 §5.1, also for a logs-only case
     offsets: list[Offset] = []
     spans = ctx.read_table("telemetry.spans", columns=PAIR_COLUMNS) if sources.traces else None
@@ -55,12 +55,12 @@ def run(ctx: RunContext) -> EngineResult:
         else:
             offsets.append(comovement_offset(series, "metrics", reference, steps, cfg.align))
     if sources.logs:
-        joined = None
+        joined: list[Offset] = []
         if spans is not None:
             logs = ctx.read_table("telemetry.logs", columns=JOIN_LOG_COLUMNS)
             per_service = {o.service: o.offset_ns for o in offsets if o.source == "traces" and o.service}
-            joined = log_span_offset(logs, spans, cfg.align, per_service)
-        offsets.append(joined or comovement_offset(series, "logs", reference, steps, cfg.align))
+            joined = log_span_offsets(logs, spans, cfg.align, per_service)
+        offsets += joined or [comovement_offset(series, "logs", reference, steps, cfg.align)]
     if sources.events:
         offsets.append(Offset("events", None, 0, "none", 0.0))  # no estimator for events (04 §3.3)
     offsets.sort(key=lambda o: (o.source, o.service is not None, o.service or ""))
