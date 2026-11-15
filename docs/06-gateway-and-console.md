@@ -209,9 +209,10 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `api.cors_origins` | `[http://127.0.0.1:5173]` | — | Vite dev server |
 | `api.series_max_points` | 2,000 | points | a priori; chart size |
 | `api.page_limit_max` | 1,000 | rows | a priori |
+| `api.evidence_limit` | 200 | rows | a priori; the evidence route's default page (§3.2) |
 | `jobs.workers` | 1 | threads | RAM and single LLM slot |
 | `jobs.default_ai_mode` | `off` | enum | AI on is opt-in |
-| `runs.root` | `runs/` | path | 02 §4.1 |
+| runs root | `runs/` | path | 02 §4.1; read from `config/core.yaml` `paths.runs`, not a gateway key, so the gateway reads the root `run_case` writes (X-04) |
 | `live.enabled` | `false` | bool | only on the demo laptop |
 | `live.otlp_host` / `live.otlp_port` | `127.0.0.1` / 4319 | — | a priori; not the Collector's own 4318 |
 | `live.max_body_mb` | 16 | MB | a priori |
