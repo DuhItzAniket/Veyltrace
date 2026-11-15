@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import json
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,7 @@ from veyltrace_causentra.inputs import CausentraInputs, Claim, load_inputs
 from veyltrace_causentra.trials import TrialResult
 from veyltrace_contracts import models
 from veyltrace_core.config import load_section_file
-from veyltrace_core.testing import make_context
+from veyltrace_core.testing import make_context, repo_root
 
 CFG = config_from(load_section_file("causentra"), load_section_file("core"))
 CASE = "59e0d31bcc42"
@@ -160,6 +161,21 @@ def test_ai_off_pool_scores_order_and_set(base: CausentraInputs) -> None:
     assert [c.service for c in d.candidate_set] == ["a"]  # uncalibrated q_hat = 0
     wide = decide(_case(base, [*_i("a", 9.0), *_i("b", 4.0)], q_hat=None), CFG)
     assert [c.service for c in wide.candidate_set] == ["a", "b"]
+
+
+def test_q_hat_just_below_a_9_decimal_s_is_read_at_9_decimals(
+    base: CausentraInputs, synth01_dir: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # s(b) = 0.041666667 at 9 decimals; an unrounded q_hat of 1/24 sits just below it (09 §5).
+    atoms, raw = [*_i("a", 9.0), *_i("b", 4.0)], 1 / 24
+    assert [c.service for c in decide(_case(base, atoms, q_hat=raw), CFG).candidate_set] == ["a"]
+    example = json.loads((repo_root() / "contracts" / "examples" / "calibration.example.json").read_text())
+    unrounded = models.Calibration.model_validate(example | {"q_hat": raw})  # files hold 9 decimals
+    ctx = make_context("causentra", synth01_dir)
+    monkeypatch.setattr(type(ctx.config), "calibration", property(lambda _: unrounded))
+    read = load_inputs(ctx, config_from(ctx.config, ctx.config.core)).q_hat
+    assert read == 0.041666667
+    assert [c.service for c in decide(_case(base, atoms, q_hat=read), CFG).candidate_set] == ["a", "b"]
 
 
 def test_admission_needs_a_supporting_claim_that_holds(base: CausentraInputs) -> None:
