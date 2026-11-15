@@ -7,19 +7,20 @@ whose atom (`{E*}`) or runner-up is missing is skipped, never filled with a gues
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any, Final
 
 from veyltrace_causivra.placeholders import FillContext, fill
 from veyltrace_contracts import models
 
-__all__ = ["SENTENCES", "summary"]
+__all__ = ["SENTENCES", "strongest", "summary"]
 
 _SIGNAL: Final = "Its strongest internal signal was {E*.label} at {E*.value} {E*.unit}."
 _MARGIN: Final = (
     "Confidence is {CONF.level}; its verified score leads {RUNNER_UP} by a relative margin of {CONF.margin}."
 )
-#: Sentences per status, in order (10 §3.5). `{E*}` is the first internal_anomaly atom of the root
-#: in table order; a sentence that needs a missing atom, root or runner-up is skipped.
+#: Sentences per status, in order (10 §3.5). `{E*}` is the root's strongest internal_anomaly atom
+#: (`strongest`); a sentence that needs a missing atom, root or runner-up is skipped.
 SENTENCES: Final[dict[str, tuple[str, ...]]] = {
     "CONFIRMED": (
         "{ROOT} is the only member of the candidate set and passed every mandatory trial.",
@@ -44,6 +45,20 @@ SENTENCES: Final[dict[str, tuple[str, ...]]] = {
 INTERNAL_KIND: Final = "internal_anomaly"
 
 
+def strongest(atom_ids: Iterable[str], ctx: FillContext) -> str | None:
+    """The atom with the highest value, ties by `atom_id`: FaultLoom's best-atom rule (06 §3.7).
+
+    A root can carry several internal atoms (one per family, detector and source), so table order
+    alone could call a weaker one the strongest. An atom without a value ranks last.
+    """
+
+    def rank(atom_id: str) -> tuple[bool, float, str]:
+        value = ctx.table[atom_id].value
+        return (value is None, -value if value is not None else 0.0, atom_id)
+
+    return min(atom_ids, key=rank, default=None)
+
+
 def summary(
     verdict: models.Verdict, ctx: FillContext, evidence_kinds: dict[str, str]
 ) -> list[dict[str, Any]]:
@@ -51,11 +66,12 @@ def summary(
 
     Cites: the strongest-signal sentence cites its atom; the other sentences cite the leader's table
     atoms (the root, or ranked[0] without one), so a sentence is uncited only when no citable atom
-    exists (10 §3.5). NO_FAULT sentences name no candidate and cite nothing.
+    exists (10 §3.5). NO_FAULT sentences state no number and name no candidate, so they cite nothing
+    even when the table has atoms.
     """
     leader = ctx.root_service or (verdict.ranked[0].service if verdict.ranked else None)
     leader_atoms = [a for a, atom in ctx.table.items() if atom.candidate == leader]
-    signal = next((a for a in leader_atoms if evidence_kinds.get(a) == INTERNAL_KIND), None)
+    signal = strongest((a for a in leader_atoms if evidence_kinds.get(a) == INTERNAL_KIND), ctx)
     out: list[dict[str, Any]] = []
     for template in SENTENCES[verdict.status]:
         text, cites = template, list(leader_atoms)
