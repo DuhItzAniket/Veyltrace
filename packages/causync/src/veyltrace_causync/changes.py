@@ -66,13 +66,15 @@ def aligned_onsets(onsets: models.Onsets, offsets: list[Offset]) -> dict[str, in
 
 def aligned_t_onset(onsets: models.Onsets, offsets: list[Offset]) -> int:
     """`t_onset_ns` on the reference clock (03 §5.2: every target onset is aligned). The incident
-    onset is one of the per-service external onsets, so it is on the clock of that onset's
-    source: the first service A→Z whose external onset equals it names the source, and that
-    source's source-level offset is added. A `t_alert` fallback matches no service and stays."""
-    table = {o.source: o.offset_ns for o in offsets if o.service is None}
+    onset is one of the per-service external onsets, so it is on that onset's clock: the first
+    service A→Z whose external onset equals it names the source, and it moves exactly as that
+    service's own onset does in `aligned_onsets` (the (source, service) offset, else the
+    source-level one). A `t_alert` fallback or a clamped onset matches no service and stays."""
+    table: dict[tuple[str | None, str | None], int] = {(o.source, o.service): o.offset_ns for o in offsets}
     for p in sorted(onsets.per_service, key=lambda p: p.service):
-        if p.external_onset_ns == onsets.t_onset_ns and p.external_onset_source is not None:
-            return onsets.t_onset_ns + table.get(p.external_onset_source, 0)
+        source = p.external_onset_source
+        if p.external_onset_ns == onsets.t_onset_ns and source is not None:
+            return onsets.t_onset_ns + table.get((source, p.service), table.get((source, None), 0))
     return onsets.t_onset_ns
 
 

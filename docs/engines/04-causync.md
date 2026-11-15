@@ -43,7 +43,7 @@ Step per present source, derived from data (no other engine's config is read):
 - metrics: median over metric series of the effective step (median duration of runs of equal consecutive values, at least the observation spacing; same definition as [03-anomara §3.1](03-anomara.md));
 - logs, traces: median spacing of consecutive bucket timestamps in their count series (zero-filled, so this equals the Signalyth bucket).
 
-`tolerance_ns` = the largest step among present metric/log/trace sources ([02 §6.4](../02-architecture.md)). On RCAEval RE2 this should come out near 15 s (15 s Prometheus scrapes held on a 1 s grid, [rcaeval_facts §Metric step and windows][rf-step]); measured at O-06.
+`tolerance_ns` = the largest step among present metric/log/trace sources ([02 §6.4](../02-architecture.md)). For the tolerance only, the metrics step is the `align.tolerance_step_quantile` (0.75) quantile of the effective steps over metric series, not their median (lead decision, #271): an onset found on a coarse series cannot be placed more finely than that series' step. On RCAEval RE2 the quartiles of the effective step are about 1 s / 2–6 s / 15–17 s (one case per suite, measured at #271), so the median gives 2–6 s and the upper quartile the 15 s Prometheus scrape held on a 1 s grid ([rcaeval_facts §Metric step and windows][rf-step]). Co-movement resampling (§3.3) keeps the median.
 
 ### 3.2 Trace clock offsets per service (`trace_pairs`)
 
@@ -75,7 +75,7 @@ Co-movement resolution is one step, so it only catches gross misalignment; finer
 
 ### 3.4 Aligned entity onsets
 
-For each service, `O(s)` = min of `per_service.external_onset_ns` and `internal_onset_ns`, each converted to the reference clock by adding the offset of the source recorded in `per_service.external_onset_source` / `internal_onset_source` ([03 §4.2](../03-contracts.md)); the per-service offset is used when one exists for that (source, service), else the source-level one, and a null source means offset 0. A service without an onset uses `t_onset_ns`, moved to the reference clock by the source-level offset of the source it came from (03 §5.2; see the Built note).
+For each service, `O(s)` = min of `per_service.external_onset_ns` and `internal_onset_ns`, each converted to the reference clock by adding the offset of the source recorded in `per_service.external_onset_source` / `internal_onset_source` ([03 §4.2](../03-contracts.md)); the per-service offset is used when one exists for that (source, service), else the source-level one, and a null source means offset 0. A service without an onset uses `t_onset_ns`, moved to the reference clock like the service onset it came from (03 §5.2; see the Built note).
 
 ### 3.5 Change timeline
 
@@ -114,14 +114,14 @@ For each change, target onset `O` = `O(entity)` for service scope, `O(service of
 
 **Built (O-06).** Where the text above left a choice:
 
-- *Offsets written.* One source-level row per present source (`traces` and `metrics` as `reference` when they are the reference clock; `events` always `none`), plus one `traces` row per service with a span. The root service has offset 0 and confidence 1. Logs and metrics get source-level rows only.
+- *Offsets written.* One source-level row per present source (`traces` and `metrics` as `reference` when they are the reference clock; `events` always `none`), plus one `traces` row per service with a span and, when log lines join spans, one `logs` row per logging service with joined lines. The root service has offset 0 and confidence 1. Metrics get a source-level row only.
 - *Client-like spans* (§3.2 step 1) are `client` spans, or `unspecified` spans whose parent is in their own service. The containment test of 02-signalyth §3.3 is left out on purpose: a skewed child lies outside its parent, and that is what is measured.
 - *Publish gate* (§3.2 step 5) is applied per edge of the breadth-first walk (lead decision, #271): along A→B, `offset(B) = offset(A) − θ_AB` when the A→B pairs pass the gate (`|θ| ≥ trace_min_offset_ms` and violation share ≥ `min_violation_share`), else `offset(B) = offset(A)`. A callee on its caller's skewed clock therefore inherits the caller's correction. `confidence` comes from the pairs of the edge that reached the service. With no client/server pair in the case, every trace offset is 0 with method `none`, the root included (§6).
-- *Logs.* `log_span_join` when any line joins a span, else `comovement`. Spans are first moved to the reference clock by their service's `trace_pairs` offset, so a skewed service's logs are corrected with its traces (#271). The projection moves a line to the nearest edge of its span, so the estimate is a lower bound on the skew.
+- *Logs.* `log_span_join` when any line joins a span, else `comovement`. Spans are first moved to the reference clock by their service's `trace_pairs` offset. Each logging service with joined lines gets its own `(logs, service)` row from its lines alone, so a skewed service's logs are corrected with its traces and no other service's logs move (#271); the source-level row, over all joined lines, serves services without joined lines. The projection moves a line to the nearest edge of its span, so the estimate is a lower bound on the skew.
 - *Co-movement* resamples bucketed sources by the **mean** of their rate points, not the sum: a sum alternates with the number of 10 s buckets that fall into each 15 s step and correlates with that pattern alone. A median lag of at most one step is published as 0 (method `comovement`): a rate stamped at the end of its interval lags by up to one step, and one step is inside `tolerance_ns`. `confidence` is the median correlation of the agreeing services. Every lag up to `max_lag` competes and the winner is judged afterwards: a service whose best lag has too few points, too low a correlation or sits at `max_lag` is rejected, not given its next-best lag (#271).
-- *Tolerance.* On the synth cases `tolerance_ns` is 15 s (metrics scraped every 15 s), 10 s without metrics, 0 for an events-only case.
+- *Tolerance.* The metrics step for `tolerance_ns` is the upper quartile over metric series (§3.1). On the synth cases `tolerance_ns` is 15 s (metrics scraped every 15 s), 10 s without metrics, 0 for an events-only case.
 - *Peer contrast.* A replica's first and last observation are taken from `signal_cube.series` and moved to the reference clock by the source-level `metrics` offset (#271). A component named by two services belongs to the first A→Z.
-- *Fallback onset.* `t_onset_ns`, the target of cluster-scope changes and of services without an onset, is aligned as well (03 §5.2): it takes the source-level offset of the source of the first service A→Z whose external onset equals it; a `t_alert` fallback matches none and is not moved.
+- *Fallback onset.* `t_onset_ns`, the target of cluster-scope changes and of services without an onset, is aligned as well (03 §5.2). It is the external onset of some service (02 §6.3), so it moves exactly as that service's onset does in §3.4: the first service A→Z whose external onset equals it gives the source, and the (source, service) offset is used, else the source-level one. A `t_alert` fallback or a clamped onset matches none and is not moved.
 
 ### 3.7 RCAEval-C decoy generator (O-13, `bench/decoys/`)
 
@@ -144,6 +144,7 @@ Observe owns this bench module to balance load ([08 §2](../08-collaboration-and
 | `align.max_lag_s` | `120` | s | a priori |
 | `align.min_corr` | `0.5` | Pearson r | a priori |
 | `align.min_points` | `20` | points | a priori |
+| `align.tolerance_step_quantile` | `0.75` | quantile | a priori; the metrics step used for `tolerance_ns` (§3.1) |
 | `changes.kinds` | `[deploy, config, flag, scale, restart, commit]` | — | [02 §6.4](../02-architecture.md); `k8s_event` excluded as symptoms |
 | `changes.tau_s` | `300` | s | a priori, §3.6 |
 | `peer.min_replicas` | `2` | count | a priori |
