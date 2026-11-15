@@ -13,7 +13,7 @@ from typing import Final
 
 from veyltrace_causatrix.classify import classify
 from veyltrace_causentra.config import CausentraConfig
-from veyltrace_causentra.decision import Candidate, Decision, claim_key, eligible_proposals
+from veyltrace_causentra.decision import Candidate, Decision, claim_key, eligible_proposals, mandatory_ids
 from veyltrace_causentra.inputs import DECIMALS, CausentraInputs
 from veyltrace_causentra.trials import FAIL, PASS, UNTESTABLE
 from veyltrace_contracts.predicates import PREDICATES
@@ -58,8 +58,9 @@ def no_fault(inp: CausentraInputs) -> bool:
 
 
 def mandatory_ok(c: Candidate, cfg: CausentraConfig) -> bool:
-    """Every mandatory trial of c passed (untestable is not a pass); disabled trials do not count."""
-    return all(t.result == PASS for t in c.trials if t.id in cfg.mandatory and t.id not in cfg.disabled)
+    """Every mandatory trial of c (T10 too for proposal origin) was written and passed; untestable
+    is not a pass, and disabled trials do not count (09 §3.4, §3.9)."""
+    return mandatory_ids(c.origin, cfg) <= {t.id for t in c.trials if t.result == PASS}
 
 
 def status_of(d: Decision, nf: bool, cfg: CausentraConfig) -> tuple[str, str]:
@@ -90,8 +91,9 @@ def asks(d: Decision, status: str, inp: CausentraInputs, cfg: CausentraConfig) -
     found: set[tuple[int, str, str, str]] = set()
     top = d.leader
     if top is not None:
+        required = mandatory_ids(top.origin, cfg)
         for t in (t for t in top.trials if t.id not in cfg.disabled):
-            mandatory = t.id in cfg.mandatory
+            mandatory = t.id in required
             if t.result == FAIL and mandatory:
                 found.add((1, "trial", f"{t.id}:{top.service}", f"mandatory trial {t.id} failed: {t.reason}"))
             elif t.result == UNTESTABLE and t.reason in SOURCE_OF_REASON:
@@ -122,8 +124,11 @@ def proposal_outcomes(
     if inp.proposals is None:
         return [], []
     eligible = {p.proposal_id for p in eligible_proposals(inp.proposals, cfg)}
-    mandatory = set(cfg.mandatory) - set(cfg.disabled)
-    failed = {c.service for c in d.ranked if any(t.result == FAIL and t.id in mandatory for t in c.trials)}
+    failed = {
+        c.service
+        for c in d.ranked
+        if any(t.result == FAIL and t.id in mandatory_ids(c.origin, cfg) for t in c.trials)
+    }
     accepted: list[str] = []
     rejected: list[dict[str, str]] = []
     for p in sorted(inp.proposals.proposals, key=lambda p: p.proposal_id):

@@ -3,7 +3,8 @@
 Step 1: the decision pool is the slate plus the services of admitted proposals (a supporting claim
 that code found true for that service). Step 2: S0 = fused score / pool maximum. Step 3:
 V = S0 × Π trial factors × (1 + clip(Σ w·polarity·holds)), rounded to 9 decimals before any
-comparison. Step 6: order by (−V9, internal-first, earliest onset, name); the leader is the first
+comparison; a proposal-origin candidate also runs T10, mandatory for it alone (09 §3.4).
+Step 6: order by (−V9, internal-first, earliest onset, name); the leader is the first
 candidate if its V9 > 0. Nonconformity s = 1 − V9 / V9(leader) and the set {s ≤ q̂} follow
 (uncalibrated q̂ = 0 keeps the leader and exact ties). Everything is a function of sets, sorted
 before use, so proposal and claim order never matter (09 §5).
@@ -18,7 +19,7 @@ from typing import Final
 
 from veyltrace_causentra.config import CausentraConfig
 from veyltrace_causentra.inputs import DECIMALS, CausentraInputs, Claim
-from veyltrace_causentra.trials import FAIL, PASS, TrialResult, run_trials, trial_inputs
+from veyltrace_causentra.trials import FAIL, PASS, UNTESTABLE, TrialResult, run_trials, trial_inputs
 from veyltrace_contracts import models
 from veyltrace_contracts.predicates import PREDICATES
 from veyltrace_core.canonical import canonical_json_str
@@ -26,6 +27,8 @@ from veyltrace_faultloom.validation import CaseDomain, ValidClaim, validate
 
 SLATE: Final = "slate"
 PROPOSAL: Final = "proposal"
+#: The claim-check trial: applies to, and is mandatory for, proposal-origin candidates only (09 §3.4).
+T10: Final = "T10"
 #: proposals.status values whose proposals may enter the decision pool (09 §3.2).
 ELIGIBLE: Final = frozenset({"complete", "budget_exhausted"})
 _POLARITY: Final = {p.name: (1.0 if p.polarity == "supports" else -1.0) for p in PREDICATES}
@@ -111,13 +114,19 @@ def claim_sum(service: str, claims: Iterable[Claim], cfg: CausentraConfig) -> fl
     return min(max(math.fsum(terms), cfg.clip_low), cfg.clip_high)
 
 
-def trial_factor(trials: Iterable[TrialResult], cfg: CausentraConfig) -> float:
+def mandatory_ids(origin: str, cfg: CausentraConfig) -> frozenset[str]:
+    """`mandatory`, plus T10 for a proposal-origin candidate (09 §3.4), less `trials.disabled`."""
+    extra = {T10} if origin == PROPOSAL else set[str]()
+    return frozenset((set(cfg.mandatory) | extra) - set(cfg.disabled))
+
+
+def trial_factor(trials: Iterable[TrialResult], cfg: CausentraConfig, origin: str = SLATE) -> float:
     """Π factor over the written trials; a `trials.disabled` trial counts 1 (09 §3.5, §9)."""
-    f, product = cfg.factors, 1.0
+    f, product, required = cfg.factors, 1.0, mandatory_ids(origin, cfg)
     for t in trials:
         if t.id in cfg.disabled:
             continue
-        mandatory = t.id in cfg.mandatory
+        mandatory = t.id in required
         if t.result == PASS:
             product *= f.passed
         elif t.result == FAIL:
@@ -127,9 +136,40 @@ def trial_factor(trials: Iterable[TrialResult], cfg: CausentraConfig) -> float:
     return product
 
 
-def verified(s0: float, trials: Iterable[TrialResult], csum: float, cfg: CausentraConfig) -> float:
+def verified(
+    s0: float, trials: Iterable[TrialResult], csum: float, cfg: CausentraConfig, origin: str = SLATE
+) -> float:
     """V9 = round(S0 × Π factor × (1 + clipped claim sum), 9) (09 §3.5)."""
-    return round(s0 * trial_factor(trials, cfg) * (1.0 + csum), DECIMALS)
+    return round(s0 * trial_factor(trials, cfg, origin) * (1.0 + csum), DECIMALS)
+
+
+def claim_check(service: str, inp: CausentraInputs, cfg: CausentraConfig) -> TrialResult:
+    """T10: every claim of the eligible proposals naming `service` is valid and holds (09 §3.4).
+    The first offender in claim_id order names the failure; an invalid claim fails T10 even though
+    it did not block admission (09 §3.2)."""
+    claims = sorted(
+        (
+            c
+            for p in eligible_proposals(inp.proposals, cfg)
+            if p.hypothesis.service == service
+            for c in p.claims
+        ),
+        key=lambda c: c.claim_id,
+    )
+    atoms = tuple(sorted({c.atom_id for c in inp.claims if c.candidate == service}))
+    unevaluable = False
+    for claim in claims:
+        if claim_key(claim, inp.domain) is None:
+            return TrialResult(T10, FAIL, f"claim_invalid:{claim.claim_id}", atoms)
+        holds = claim_holds(inp.claims, service, claim, inp.domain)
+        if holds is False:
+            return TrialResult(T10, FAIL, f"claim_false:{claim.claim_id}", atoms)
+        unevaluable = unevaluable or holds is None
+    return (
+        TrialResult(T10, UNTESTABLE, "claim_unevaluable", atoms)
+        if unevaluable
+        else TrialResult(T10, PASS, None, atoms)
+    )
 
 
 def decide(inp: CausentraInputs, cfg: CausentraConfig) -> Decision:
@@ -146,7 +186,9 @@ def decide(inp: CausentraInputs, cfg: CausentraConfig) -> Decision:
     for service in sorted(origins):
         s0 = fused.get(service, 0.0) / top if top > 0 else 0.0
         trials = run_trials(service, t_in)
-        v = verified(s0, trials, claim_sum(service, inp.claims, cfg), cfg)
+        if origins[service] == PROPOSAL:
+            trials = (*trials, claim_check(service, inp, cfg))  # T10 last: trials run T1…T10
+        v = verified(s0, trials, claim_sum(service, inp.claims, cfg), cfg, origins[service])
         pool.append(Candidate(service, origins[service], fused.get(service, 0.0), s0, trials, v))
 
     def key(c: Candidate) -> tuple[float, int, float, str]:
