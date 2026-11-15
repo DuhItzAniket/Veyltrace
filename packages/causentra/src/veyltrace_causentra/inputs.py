@@ -110,7 +110,9 @@ def load_inputs(ctx: RunContext, cfg: CausentraConfig) -> CausentraInputs:
     if calibration is None:
         q_hat: float | None = cfg.uncalibrated_q_hat
     else:
-        q_hat = None if calibration.q_hat is None or math.isinf(calibration.q_hat) else calibration.q_hat
+        # Read at 9 decimals: the decision compares the 9-decimal s with it, as the JSON shows (09 §5).
+        raw = calibration.q_hat
+        q_hat = None if raw is None or math.isinf(raw) else round(raw, DECIMALS)
     calibrated_tau = calibration is not None and calibration.no_fault.calibrated
     return CausentraInputs(
         manifest=manifest,
