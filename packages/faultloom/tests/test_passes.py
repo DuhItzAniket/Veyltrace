@@ -119,19 +119,22 @@ def _write_proposals(run_dir: Path, **changes: Any) -> models.Proposals:
 
 
 def test_claim_pass_appends_claim_atoms_for_the_pool(claim_dir: Path) -> None:
-    # Contract example claims on synth-01 (stub upstreams: no graph nodes, no series): only
-    # template_new_in_incident{min_count: 3} is valid; it runs for the 5 slate candidates.
+    # Contract example claims on synth-01: with Observe's engines (graph nodes and series exist)
+    # all 4 are valid, and each runs for the 5 slate candidates.
     _write_proposals(claim_dir)
     engine = content_lines("evidence", io.path_of("evidence", claim_dir))
     result = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
     assert result.status == "ok"
     m = result.metrics
-    assert (m["claims.seen"], m["claims.valid"], m["atoms.claim_check"], m["pool"]) == (4, 1, 5, 5)
-    assert (m["claims.rejected.bad_args"], m["claims.rejected.unknown_entity"]) == (2, 1)
+    assert (m["claims.seen"], m["claims.valid"], m["atoms.claim_check"], m["pool"]) == (4, 4, 20, 5)
+    assert not [k for k in m if k.startswith("claims.rejected.")]
     rows = io.read_table("evidence", claim_dir, validate=True).to_pylist()
     claims = [r for r in rows if r["origin"] == "claim_check"]
-    assert {(r["predicate"], r["args_json"], r["holds"]) for r in claims} == {
-        ("template_new_in_incident", '{"min_count":3}', None)  # synth templates are empty
+    assert {(r["predicate"], r["args_json"], r["holds"]) for r in claims if r["candidate"] == "checkout"} == {
+        ("onset_before", '{"other_service":"frontend"}', False),
+        ("template_new_in_incident", '{"min_count":3}', False),
+        ("zscore_above", '{"k":3.5,"signal":"mem"}', False),
+        ("zscore_above", '{"k":4.0,"signal":"cpu"}', True),  # checkout's cpu robust_z is above 4
     }
     assert all(line in content_lines("evidence", io.path_of("evidence", claim_dir)) for line in engine[1:])
     again = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
