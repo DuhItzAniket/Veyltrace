@@ -1,7 +1,7 @@
 # config/infralume.yaml: section "infralume" (file stem). Owner: Observe lane.
-# Spec: docs/engines/01-infralume.md §4. R-02 bootstrap: only the keys core needs now; the Observe
-# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
-# unknown keys are an error).
+# Spec: docs/engines/01-infralume.md §4. Keys of later tasks (events overlay, otlp) arrive with
+# them (O-07, O-09). Overrides must name keys present here (packages/core/README.md: unknown keys
+# are an error).
 
 sources:
   # Telemetry ablation (FR-4): sources replaced by zero-row tables, e.g. [events] (01 §4; 04 §5.2).
@@ -12,3 +12,28 @@ duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
   threads: 1            # deterministic aggregates (01 §4; rcaeval_facts §Engineering)
   memory_limit: "1GB"   # share of the 3 GB per-case budget (01 §4, §8)
+
+rcaeval:
+  layout: auto            # auto | hf | zenodo: detected by file presence (01 §3.3)
+  metrics_table: simple   # simple_metrics / HF metrics.parquet, the table RCAEval's runner reads (01 §4)
+
+normalise:
+  # Per-system aliases, applied after lowercasing (01 §3.4 step 4): OB traces name the frontend
+  # `frontendservice`, metrics and logs `frontend` (rcaeval_facts §Dataset layout).
+  aliases:
+    ob: {frontendservice: frontend}
+  # Folded into service + component (step 5): RCAEval's scorer strips `-db` (rcaeval_facts §Ground truth).
+  component_suffixes: ["-db"]
+  # Sidecars, not services (step 3): a priori; verified on RE2 (istio-init appears in RE2-TT metrics).
+  drop_containers: [istio-proxy, istio-init, POD]
+
+scrub:
+  rules_version: scrub-1  # bump on any rule change (01 §3.6)
+  # Dotted patterns match the whole key, the others any dot-separated segment (01 §3.6; 02 §6.1).
+  deny_key_patterns: ["feature_flag.*", "chaos*", "fault*", "inject*"]
+  # Fault-tool telemetry is dropped (02 §6.1; flag-key leak risk, benchmarks_and_testbed §Q3).
+  drop_services: [flagd, flagd-ui, chaos-controller-manager, chaos-daemon, chaos-dashboard, chaos-dns-server]
+
+status:
+  otel_code_set: [0, 1, 2]  # all codes of a case in this set: OTel status reading (01 §3.5 rule 1)
+  http_error_min: 500       # HTTP codes from here are errors (01 §3.5 rule 2)

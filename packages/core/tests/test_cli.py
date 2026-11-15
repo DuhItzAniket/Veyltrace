@@ -171,9 +171,21 @@ def _fake_command(monkeypatch: pytest.MonkeyPatch, name: str, code: int) -> list
     return calls
 
 
-def test_replay_without_causivra_is_a_clear_error(capsys: pytest.CaptureFixture[str]) -> None:
-    if cli.REPLAY_COMMAND in plugins.names(cli.COMMANDS_GROUP):
-        pytest.skip("a replay command is installed")
+def _without_command(monkeypatch: pytest.MonkeyPatch, name: str) -> None:
+    """Hide an installed `veyltrace.commands:<name>`, so the not-installed error stays tested."""
+    real_names = plugins.names
+
+    def names(group: str) -> tuple[str, ...]:
+        found = real_names(group)
+        return tuple(n for n in found if n != name) if group == cli.COMMANDS_GROUP else found
+
+    monkeypatch.setattr(plugins, "names", names)
+
+
+def test_replay_without_causivra_is_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _without_command(monkeypatch, cli.REPLAY_COMMAND)
     assert cli.main(["replay", "receipt.json"]) == ReplayExit.ERROR
     assert "veyltrace.commands:replay" in capsys.readouterr().err
 
@@ -196,9 +208,10 @@ def test_bench_run_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
     assert calls == [["run", "bench/experiments/x.yaml", "--workers", "2"]]
 
 
-def test_bench_run_without_bench_is_a_clear_error(capsys: pytest.CaptureFixture[str]) -> None:
-    if cli.BENCH_COMMAND in plugins.names(cli.COMMANDS_GROUP):
-        pytest.skip("a bench command is installed")
+def test_bench_run_without_bench_is_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _without_command(monkeypatch, cli.BENCH_COMMAND)  # bench registers it: hide, do not skip
     assert cli.main(["bench", "run", "x.yaml"]) == DiagnoseExit.ERROR
     assert "veyltrace.commands:bench" in capsys.readouterr().err
 
