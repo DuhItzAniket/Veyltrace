@@ -16,11 +16,16 @@ from veyltrace_contracts.models import (
     GraphEdgesRow,
     GraphNodesRow,
     GraphPathsRow,
+    Sources,
+    System,
 )
 from veyltrace_core.ids import AIMode
 
 __all__ = [
     "AgentTrace",
+    "CasePage",
+    "CaseSummary",
+    "DatasetSummary",
     "ErrorBody",
     "ErrorDetail",
     "EvidencePage",
@@ -106,3 +111,30 @@ class RunStatus(_Envelope):
     step: int
     step_name: str
     error: str | None
+
+
+class DatasetSummary(_Envelope):
+    """`GET /datasets` (06 §3.2): a dataset this laptop knows and its case count."""
+
+    dataset: str
+    cases: int
+
+
+class CaseSummary(_Envelope):
+    """`case_summary` (06 §3.2). `system` and `sources` come from the newest finished run's case
+    manifest and are null before the case's first run; never answer keys or hints."""
+
+    case_id: str
+    dataset: str
+    system: System | None
+    sources: Sources | None
+    runs: list[str]
+
+
+class CasePage(_Envelope):
+    """`GET /cases`: one page of case summaries, sorted by case id."""
+
+    items: list[CaseSummary]
+    total: int
+    limit: int
+    offset: int

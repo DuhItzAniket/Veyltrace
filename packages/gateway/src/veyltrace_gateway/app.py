@@ -19,6 +19,7 @@ from veyltrace_core.errors import ConfigError
 from veyltrace_core.pipeline import code_commit, runs_root
 from veyltrace_gateway import __version__
 from veyltrace_gateway.api_models import Health, HealthAI, HealthLive
+from veyltrace_gateway.cases import case_router
 from veyltrace_gateway.errors import add_error_handlers
 from veyltrace_gateway.runs import run_router
 from veyltrace_gateway.settings import GatewaySettings, load_settings
@@ -66,5 +67,7 @@ def create_app(
     def get_health() -> Health:
         return health
 
-    app.include_router(run_router(resolved, runs if runs is not None else runs_root()), prefix=API_PREFIX)
+    root = runs if runs is not None else runs_root()
+    app.include_router(case_router(resolved, root), prefix=API_PREFIX)
+    app.include_router(run_router(resolved, root), prefix=API_PREFIX)
     return app
