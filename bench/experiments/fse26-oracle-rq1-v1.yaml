@@ -1,0 +1,30 @@
+# Pre-registered (04 §1): FSE'26 propagation-aware Train Ticket × oracle, 04 §6 M4, only if feasible
+# (size, format and licence unverified; go/no-go at R-07, default stretch; adapter O-08, cut item 2
+# of 07 §1.1): baselines, Causatrix rankers alone + rrf and veyltrace:off. RQ1 "beyond easy
+# benchmarks"; estimation with CIs.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: fse26-oracle-rq1-v1
+description: "RQ1: FSE'26 Train Ticket, baselines, rankers alone + rrf and veyltrace:off, oracle alert"
+prereg: true
+rq: [RQ1]
+dataset: {parts: [fse26-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - {id: "causatrix:rrf", kind: causatrix}
+  - {id: "causatrix:baro_rs", kind: causatrix, overrides: {causatrix.rankers.enabled: [baro_rs]}}
+  - {id: "causatrix:change_prox", kind: causatrix, overrides: {causatrix.rankers.enabled: [change_prox]}}
+  - {id: "causatrix:cp_sbfl", kind: causatrix, overrides: {causatrix.rankers.enabled: [cp_sbfl]}}
+  - {id: "causatrix:graph_walk", kind: causatrix, overrides: {causatrix.rankers.enabled: [graph_walk]}}
+  - {id: "causatrix:nsigma", kind: causatrix, overrides: {causatrix.rankers.enabled: [nsigma]}}
+  - {id: "causatrix:prism_m", kind: causatrix, overrides: {causatrix.rankers.enabled: [prism_m]}}
+  - {id: "rcaeval:baro", kind: rcaeval, rcaeval: {method: baro, length: 20}}
+  - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
+  - {id: "simplerca", kind: internal_baseline}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}

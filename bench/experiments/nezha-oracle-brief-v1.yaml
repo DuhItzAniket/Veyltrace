@@ -1,0 +1,21 @@
+# Pre-registered (04 §1): Nezha × oracle, veyltrace:brief (04 §6 M4; agent-only is not planned on
+# Nezha), paired with veyltrace:off; 3 seeds. Exploratory.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: nezha-oracle-brief-v1
+description: "RQ2 (exploratory): veyltrace:brief vs veyltrace:off on Nezha, oracle alert"
+prereg: true
+rq: [RQ2]
+dataset: {parts: [nezha-ob, nezha-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
