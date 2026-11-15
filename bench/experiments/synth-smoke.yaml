@@ -1,0 +1,25 @@
+# Harness smoke test (R-04): veyltrace:off on synth-01..05 end to end. Fields: 04 §9; omitted fields
+# take the defaults cited in veyltrace_bench/experiment.py. Synth is never reported as results
+# (04 §3 "Smoke"), so `--table` refuses this file and `--out` must name a scratch dir.
+experiment_id: synth-smoke
+description: "Harness smoke: full pipeline, AI off, oracle alert, synth-01..05 (never reported)"
+prereg: false
+rq: []
+dataset:
+  parts: [synth]
+  cases: all              # the synth adapter's list_cases: synth-01..05
+  exclude: null
+  # synth-05 is the dataset's own no-fault case and the synth normal window (04 §5.4 item 6): its
+  # answer key has no truth, so its row is scored with null hits and stays out of every denominator.
+  normal_windows: none
+split:
+  scheme: none            # no calibration folds: the fold column stays empty
+protocol:
+  alert: oracle
+  shift_s: 0
+  sources_drop: []
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, chance, lift]
+resources: {workers: 1, timeout_s: 600}

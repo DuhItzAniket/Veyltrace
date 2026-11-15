@@ -9,7 +9,8 @@ order already breaks ties (02 §6.9). Denominators are the full split: a non-``o
 run with empty ``ranks`` or a slate with ``rankers_active == []``: that slate orders U (06 §2.1) by
 tie-break only (A→Z on the R-00 stubs, packages/causatrix/README.md), so nothing built on it is
 scored. No-fault cases and normal windows have no truth: null hits (03 §13.2), outside every accuracy
-denominator.
+denominator. Onset error (04 §7) = |t_onset − t_inject| / 1e6 of an ``ok`` run; the runner passes
+t_onset only under the detected protocol, and a case without an injection time has none (#215).
 """
 
 from __future__ import annotations
@@ -26,8 +27,10 @@ DB_SUFFIX = "-db"  # removed by RCAEval's coarse transform x.split("_")[0].repla
 NO_INDICATOR = "unknown"  # indicator_ranks' indicator of an entry without one (RCAEval scoring.py)
 AC_KS = (1, 2, 3, 4, 5)  # Avg@5 = mean of AC@1…AC@5 (04 §7, RCAEval's definition)
 HIT_COLUMN_KS = (1, 3, 5)  # per_case.csv hit_at_<k> columns (03 §13.2)
-FIELD_COLUMNS = ("retrieval_hit", "pool_hit", "in_set", "set_size", "fault_class_hit")  # 03 §13.2
+#: The per_case.csv columns a CaseScore fills besides ranks and hits (03 §13.2).
+FIELD_COLUMNS = ("retrieval_hit", "pool_hit", "in_set", "set_size", "fault_class_hit", "onset_error_ms")
 OK = "ok"  # the only scored run outcome (04 §7 "Failed runs")
+NS_PER_MS = 1_000_000  # onset error is in ms: "/ 1e6" of a nanosecond difference (04 §7)
 CODE_MODE = "code"  # RE3 F1-F5 have no fault class: fault type is scored as mode = code (04 §7)
 RUN_OUTCOMES: frozenset[str] = frozenset(get_args(BenchResultRow.model_fields["run_outcome"].annotation))
 
@@ -69,6 +72,7 @@ class Truth:
     indicator: str | None = None
     fault_class: str | None = None
     mode: str | None = None
+    t_inject_ns: int | None = None  # answer_key.t_inject_ns; None = no injection time (e.g. no fault)
 
     @classmethod
     def from_answer_key(cls, row: AnswerKeyRow) -> Truth:
@@ -78,7 +82,7 @@ class Truth:
             return cls(None)
         if row.root_service is None:
             raise ContractValidationError("answer_key", f"fault case {row.case_id} has no root_service")
-        return cls(row.root_service, row.indicator, row.fault_class, row.mode)
+        return cls(row.root_service, row.indicator, row.fault_class, row.mode, row.t_inject_ns)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +101,7 @@ class MethodOutput:
     root_fault_class: str | None = None
     root_mode: str | None = None
     slate_k: int | None = None
+    t_onset_ns: int | None = None  # onsets.t_onset_ns, set by the runner only under the detected protocol
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,6 +124,7 @@ class CaseScore:
     n_candidates: int | None
     in_universe: bool | None
     slate_k: int | None
+    onset_error_ms: float | None = None
 
     def hit_at(self, k: int) -> bool | None:
         """1[r_i ∈ R_i[:k]]; None without a truth."""
@@ -140,6 +146,13 @@ def _member(services: Sequence[str] | None, root: str | None, scored: bool = Tru
     if services is None or root is None:
         return None
     return scored and root in {coarse_service(s) for s in services}
+
+
+def _onset_error_ms(t_onset_ns: int | None, t_inject_ns: int | None) -> float | None:
+    """|t_onset − t_inject| in ms (04 §7); None when either time is missing."""
+    if t_onset_ns is None or t_inject_ns is None:
+        return None
+    return abs(t_onset_ns - t_inject_ns) / NS_PER_MS
 
 
 def score_case(truth: Truth, out: MethodOutput, *, universe: Sequence[str] | None = None) -> CaseScore:
@@ -174,4 +187,5 @@ def score_case(truth: Truth, out: MethodOutput, *, universe: Sequence[str] | Non
         n_candidates=None if universe is None else len(universe),
         in_universe=_member(universe, root),
         slate_k=out.slate_k,
+        onset_error_ms=_onset_error_ms(out.t_onset_ns, truth.t_inject_ns) if ran else None,
     )

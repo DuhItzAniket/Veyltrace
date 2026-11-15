@@ -1,0 +1,16 @@
+# Bundled Locust load generator at its documented defaults, set explicitly so every capture
+# records them (05 §3.2: USERS=10, RATE=1).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: loadgenerator
+spec:
+  template:
+    spec:
+      containers:
+        - name: main
+          env:
+            - name: USERS
+              value: "10"
+            - name: RATE
+              value: "1"
