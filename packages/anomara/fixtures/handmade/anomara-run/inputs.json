@@ -1,0 +1,31 @@
+{
+ "_comment": [
+  "Hand-made Anomara inputs (O-04g): a synth-shaped toy, frontend -> checkout -> {cart, payment}. Not real data, no answer key.",
+  "tests/test_handmade.py expands `series` into signal_cube.series rows and writes every input through io.write, so each one is",
+  "contract-validated on every run. A series is {id, family, klass, unit, step_s, segments}: from data_start_ns, each segment",
+  "[until_s, [v...]] fills one point per step_s up to until_s (offset from data_start, exclusive), cycling its values; null = no point.",
+  "t_alert = data_start + 1320 s; baseline [+120 s, +1200 s), incident [+1200 s, +1800 s). Expected: anomalies.txt and onsets.txt.",
+  "What each series exercises: checkout cpu = internal step at t_alert; checkout latency = a ramp from +1330 s that BOCPD moves back;",
+  "frontend latency = a step at +1350 s; cart rps = zero-silence from +1380 s (context klass, so an external onset and silent=true);",
+  "checkout mem = absence-silence from +1500 s while other metrics go on; payment error_rate = one spike that persistence rejects;",
+  "payment mem = noise only. External onsets: checkout (ramp), frontend, cart -> t_onset = the second (second_external)."
+ ],
+ "case_manifest": {"schema_version": "0.1.0", "case_id": "a0a0a0a0a0a0", "dataset": "handmade", "system": "other", "t_alert_hint_ns": null, "hint_source": "none", "data_start_ns": 1767225600000000000, "data_end_ns": 1767227520000000000, "sources": {"metrics": true, "logs": false, "traces": true, "events": false}, "services": ["cart", "checkout", "frontend", "payment"], "inputs": [], "adapter": {"name": "handmade", "version": "1"}, "scrub": {"rules_version": "none", "dropped_attributes": 0, "dropped_rows": 0}},
+ "alert": {"schema_version": "0.1.0", "protocol": "oracle", "t_alert_ns": 1767226920000000000, "shift_ns": 0, "detector": null, "windows": {"baseline": [1767225720000000000, 1767226800000000000], "incident": [1767226800000000000, 1767227400000000000]}, "clamped": false},
+ "signal_cube.edges": [
+  {"caller": "checkout", "callee": "cart", "window": "baseline", "calls": 300, "error_rate": 0.0, "p50_caller_ms": null, "p99_caller_ms": null, "p50_callee_ms": 4.0, "p99_callee_ms": 6.0, "p50_gap_ms": null, "p99_gap_ms": null},
+  {"caller": "checkout", "callee": "payment", "window": "baseline", "calls": 300, "error_rate": 0.0, "p50_caller_ms": null, "p99_caller_ms": null, "p50_callee_ms": 6.0, "p99_callee_ms": 9.0, "p50_gap_ms": null, "p99_gap_ms": null},
+  {"caller": "frontend", "callee": "checkout", "window": "baseline", "calls": 300, "error_rate": 0.0, "p50_caller_ms": null, "p99_caller_ms": null, "p50_callee_ms": 10.0, "p99_callee_ms": 12.0, "p50_gap_ms": null, "p99_gap_ms": null},
+  {"caller": "checkout", "callee": "payment", "window": "incident", "calls": 180, "error_rate": 0.0, "p50_caller_ms": null, "p99_caller_ms": null, "p50_callee_ms": 6.0, "p99_callee_ms": 9.0, "p50_gap_ms": null, "p99_gap_ms": null},
+  {"caller": "frontend", "callee": "checkout", "window": "incident", "calls": 180, "error_rate": 0.0, "p50_caller_ms": null, "p99_caller_ms": null, "p50_callee_ms": 25.0, "p99_callee_ms": 30.0, "p50_gap_ms": null, "p99_gap_ms": null}
+ ],
+ "series": [
+  {"id": "cart|cart|rps|traces", "family": "traffic", "klass": "context", "unit": "1/s", "step_s": 10, "segments": [[1380, [1.0, 1.1, 0.9, 1.0]], [1920, [0.0]]]},
+  {"id": "checkout|checkout|cpu|metrics", "family": "cpu", "klass": "internal", "unit": "cores", "step_s": 15, "segments": [[1320, [0.15, 0.16, 0.14, 0.15, 0.155]], [1920, [3.5, 3.45, 3.55]]]},
+  {"id": "checkout|checkout|latency_p99|traces", "family": "latency", "klass": "external", "unit": "ms", "step_s": 10, "segments": [[1330, [12.0, 12.5, 11.5, 12.2, 11.8]], [1390, [13.0, 15.0, 18.0, 22.0, 26.0, 30.0]], [1920, [30.0, 31.0, 29.5]]]},
+  {"id": "checkout|checkout|mem|metrics", "family": "mem", "klass": "internal", "unit": "bytes", "step_s": 15, "segments": [[1500, [250000000.0, 251000000.0, 249500000.0]], [1920, [null]]]},
+  {"id": "frontend|frontend|latency_p99|traces", "family": "latency", "klass": "external", "unit": "ms", "step_s": 10, "segments": [[1350, [20.0, 21.0, 19.0, 20.5, 19.5]], [1920, [40.0, 41.0, 39.0]]]},
+  {"id": "payment|payment|error_rate|traces", "family": "errors", "klass": "external", "unit": "ratio", "step_s": 10, "segments": [[1400, [0.0]], [1410, [0.5]], [1920, [0.0]]]},
+  {"id": "payment|payment|mem|metrics", "family": "mem", "klass": "internal", "unit": "bytes", "step_s": 15, "segments": [[1920, [220000000.0, 221000000.0, 219000000.0, 220500000.0]]]}
+ ]
+}

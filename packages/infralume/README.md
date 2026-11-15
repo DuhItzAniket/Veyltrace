@@ -14,10 +14,12 @@ Spec: [docs/engines/01-infralume.md](../../docs/engines/01-infralume.md). Rules 
 | Writes | `case_manifest.json`, `telemetry/{metrics,logs,spans,events}.parquet` |
 | Config | `config/infralume.yaml` |
 
-Once implemented (O-01):
+Built so far (O-01): the `rcaeval` adapter (Hugging Face Parquet and Zenodo CSV layouts), the fetcher (Hugging Face mirror), name normalisation, the span error-status rule, scrubbing and the convert cache. Modules: `adapters/rcaeval.py` (resolve, layouts, allow-list, hint), `adapters/rcaeval_tables.py` (rows), `names.py`, `status.py`, `scrub.py`, `cache.py`, `casekey.py`, `index.py`, `fetch/rcaeval.py`.
 
 ```bash
-uv run veyltrace data fetch rcaeval --suite re2-ss
-uv run python scripts/check.py --package infralume
+uv run veyltrace data fetch rcaeval --suite re2-ss          # into ${VEYLTRACE_DATA}, default ~/veyltrace-data
+uv run veyltrace data list re2-ss                           # fetched case ids
 uv run veyltrace diagnose --dataset re2-ss --case <case_id> --ai off
+uv run python scripts/observe/ingest_check.py re2-ob re2-ss re2-tt --expect-cases 90   # all RE2, <= 10 s each
+uv run python scripts/check.py --package infralume
 ```

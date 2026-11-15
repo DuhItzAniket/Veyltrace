@@ -34,16 +34,20 @@ def _remove(name: str, run_dir: Path) -> None:
 
 # --- engine pass ------------------------------------------------------------------------------
 def test_main_writes_schema_valid_evidence_on_stub_upstreams(main_dir: Path) -> None:
-    # synth Observe outputs are stubs: only onsets.per_service has rows, so every service gets a
-    # silence atom (06 §3.4: it appears in onsets.per_service) and nothing else.
+    # Every synth-01 service is in onsets.per_service, so each gets one silence atom (06 §3.4).
+    # Which other kinds appear depends on Anomara's and Causalith's outputs (stubs or engines), so
+    # for those only the bookkeeping is pinned: per-kind metrics match the table and add up.
     ctx = make_context("faultloom", main_dir)
     result = run(ctx)
     assert result.status == "ok"
     assert result.outputs == (("evidence", sha256_file(io.path_of("evidence", main_dir))),)
     table = io.read_table("evidence", main_dir, validate=True)
     assert table.schema.equals(io.arrow_schema("evidence"), check_metadata=False)
-    assert set(table.column("kind").to_pylist()) == {"silence"}
-    assert result.metrics["atoms"] == result.metrics["atoms.silence"] == result.metrics["universe"] == 6
+    kinds = table.column("kind").to_pylist()
+    assert result.metrics["atoms.silence"] == kinds.count("silence") == result.metrics["universe"] == 6
+    per_kind = {k: v for k, v in result.metrics.items() if k.startswith("atoms.")}
+    assert all(per_kind[f"atoms.{kind}"] == kinds.count(kind) for kind in set(kinds))
+    assert result.metrics["atoms"] == sum(per_kind.values()) == len(kinds)
     assert result.notes == (STUB_NOTE,)
 
 

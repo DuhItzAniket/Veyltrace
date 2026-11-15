@@ -60,3 +60,10 @@ def test_load_profile_per_entry() -> None:
     for bad in (20, True, "30"):
         with pytest.raises(ValueError):
             parse(_plan(entries=[{"fault": "F01", "target": "frontend", "users": bad}]))
+
+
+def test_no_fault_entries_take_no_target() -> None:
+    plan = parse(_plan(entries=[{"fault": "F14"}, {"fault": "F14", "users": 30}]))
+    assert [(e.fault, e.target, e.users) for e in plan.entries] == [("F14", "", 10), ("F14", "", 30)]
+    with pytest.raises(ValueError):
+        parse(_plan(entries=[{"fault": "F14", "target": "frontend"}]))
