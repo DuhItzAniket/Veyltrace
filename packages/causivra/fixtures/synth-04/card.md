@@ -6,5 +6,5 @@ Candidate set: empty
 
 prose: template
 
-verdict_hash: c634abc384a0c5303d84a1ff3a677906fc83067e8b6aac938c77af53cbee71bf
-card_hash: 9f9dfa9351cd5746ee22e2aed309781f7b139f8bbb0f7e3711dcdbfafa1126ea
+verdict_hash: a995dc5040f3cdf4925bab103225a717f4418b286099c5d7bacb8d235b6763d1
+card_hash: 978ffe919e8558dbeaa345c28c7ad5f982db9a9ae63562b49e991392a213bc49
