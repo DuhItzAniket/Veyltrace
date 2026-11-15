@@ -1,0 +1,6 @@
+# The vendored OB release manifest as a kustomize base (kustomize only loads files outside an
+# overlay through a directory with its own kustomization).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - kubernetes-manifests.yaml
