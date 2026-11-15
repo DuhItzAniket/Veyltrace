@@ -1,7 +1,8 @@
 # config/gateway.yaml: section "gateway" (file stem). Owner: Explain lane.
 # Spec: docs/06-gateway-and-console.md §6. Loaded only by the gateway (load_section_file("gateway"))
 # and never written to config.lock.json (03 §12.2), so these keys never change a run id.
-# X-00: the keys the empty app reads; X-04 (routes, jobs) and X-10 (live) add the rest of 06 §6.
+# X-00 and X-04: the keys the app reads so far; X-04 (jobs) and X-10 (live) add the rest of 06 §6.
+# The runs root is core's paths.runs (config/core.yaml), the directory run_case writes to.
 
 api:
   # Loopback by default: v1 has no authentication (06 §3.6). A non-loopback host needs the
@@ -10,6 +11,12 @@ api:
   port: 8000
   # Origins allowed by CORS: the Vite dev server only; the built console is served same-origin (06 §3.6).
   cors_origins: ["http://127.0.0.1:5173"]
+  # Largest page a list route returns (06 §6; a priori).
+  page_limit_max: 1000
+  # Evidence rows per page when the request gives no limit (06 §3.2 "default limit 200"; a priori).
+  evidence_limit: 200
+  # Points per series the series route returns at most (06 §6; a priori, chart size; display only).
+  series_max_points: 2000
 
 jobs:
   # AI mode of runs the console starts: AI on is opt-in (06 §6).
