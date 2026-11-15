@@ -54,7 +54,9 @@ def load_attempts(captures: Path) -> list[dict[str, Any]]:
         if t_ns is None and orch.is_file():
             t_ns = json.loads(orch.read_text(encoding="utf-8")).get("t_capture_start_ns")
         validated = key.get("validated", rec.get("validated"))
-        out.append({**rec, "day": _day(t_ns), "validated": validated})
+        impact = json.loads(key["sli_impact_json"]) if key.get("sli_impact_json") else {}
+        reason = impact.get("reason", rec.get("reason"))  # the verdict's own reason, not a stale one
+        out.append({**rec, "day": _day(t_ns), "validated": validated, "reason": reason})
     return out
 
 

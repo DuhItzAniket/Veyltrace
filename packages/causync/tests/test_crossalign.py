@@ -5,8 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pyarrow as pa
 
-from veyltrace_causync.crossalign import comovement_offset, log_span_offset
-from veyltrace_causync.settings import causync_config
+from veyltrace_causync.crossalign import comovement_offset, log_span_offsets
+from veyltrace_causync.settings import AlignConfig, causync_config
+from veyltrace_causync.tracepairs import Offset
 from veyltrace_core.config import resolve_config
 from veyltrace_core.testing import golden
 
@@ -36,6 +37,15 @@ def logs(times_ms: list[int], span_ids: list[str | None]) -> pa.Table:
             "span_id": pa.array(span_ids, pa.string()),
         }
     )
+
+
+def log_span_offset(
+    lines: pa.Table, trace: pa.Table, cfg: AlignConfig, trace_offsets: dict[str, int] | None = None
+) -> Offset | None:
+    """The source-level row of `log_span_offsets`, None when no line joins."""
+    found = log_span_offsets(lines, trace, cfg, trace_offsets)
+    assert [o.service for o in found] == ([None, *sorted(str(o.service) for o in found[1:])] if found else [])
+    return found[0] if found else None
 
 
 def test_lines_inside_their_span_need_no_offset() -> None:
@@ -85,6 +95,21 @@ def test_spans_are_moved_to_the_reference_clock_before_the_join() -> None:
     assert moved is not None
     assert moved.offset_ns == -50 * MS  # the nearest in-span shift; a lower bound on the 70 ms
     assert log_span_offset(lines, trace, ALIGN, {"other": -70 * MS}) == raw
+
+
+def test_each_service_gets_its_own_log_offset() -> None:
+    # the #272 probe: a and b both log inside their spans on their own clocks; only a's traces are
+    # skewed (offset −70 ms). One source-level row would move b's logs and half-correct a's.
+    trace = spans(40).append_column("service", pa.array(["a", "b"] * 20))
+    lines = logs([100 * i + 20 for i in range(40)], [f"s{i}" for i in range(40)])
+    lines = lines.set_column(1, "service", pa.array(["a", "b"] * 20))
+    rows = {o.service: o for o in log_span_offsets(lines, trace, ALIGN, {"a": -70 * MS})}
+    assert (rows["a"].offset_ns, rows["a"].confidence) == (-50 * MS, 1.0)  # corrected with its traces
+    assert (rows["b"].offset_ns, rows["b"].confidence) == (0, 1.0)  # untouched
+    assert all(o.source == "logs" and o.method == "log_span_join" for o in rows.values())
+    assert rows[None].offset_ns == -25 * MS  # the smeared source-level value, kept for services without joins
+    only_b = lines.filter(pa.array([False, True] * 20))
+    assert [o.service for o in log_span_offsets(only_b, trace, ALIGN, {"a": -70 * MS})] == [None, "b"]
 
 
 def traffic(
