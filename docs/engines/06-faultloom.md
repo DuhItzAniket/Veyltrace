@@ -411,6 +411,11 @@ FaultLoom also reports per-case counters (atoms per kind, claims evaluated, clai
     - Log atoms cite the templates counted.
 16. **Sets in `propagation` and D(*c*).** *Default:* "anomalous services" range over U, and a silent service counts as anomalous. `atoms.disabled` drops the named kinds from the output only; other kinds and predicates still read the same inputs.
 17. **`log_error_rate` with a zero-length window** has no rate. *Default:* no atom.
+18. **Card details (§3.7).** *Default (R-08h):*
+    - `k` defaults to `cards.k_default` (not a literal 6).
+    - An atom line renders `<unit>=<value>` when the atom has a unit, as in the §3.7 example `z=9.1`.
+    - The `change` field's "ms before onset" comes from `changes.delta_to_onset_ms`, the one table read beyond §3.7's list.
+    - In against-fact (a), a candidate without an internal `robust_z` atom has internal z 0, as `I(s)` in [07 §2.1](07-causatrix.md).
 
 ## 12. References
 
