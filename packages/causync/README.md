@@ -14,7 +14,7 @@ Spec: [docs/engines/04-causync.md](../../docs/engines/04-causync.md). Rules for 
 | Writes | `alignment.json`, `changes.parquet` |
 | Config | `config/causync.yaml` |
 
-Once implemented (O-06):
+Built (O-06): typed config (`settings.py`), source steps and tolerance (`steps.py`), trace offsets (`tracepairs.py`), log and metric offsets (`crossalign.py`), the change timeline and time evidence (`changes.py`), peer contrast (`peers.py`), the engine step (`api.py`).
 
 ```bash
 uv run python scripts/check.py --package causync

@@ -9,7 +9,7 @@ the same error the recording saw.
 from __future__ import annotations
 
 from veyltrace_core.errors import VeyltraceError
-from veyltrace_llm.request import CallError
+from veyltrace_llm.request import CallError, Completion
 
 __all__ = ["AIDisabled", "LLMError", "ProviderError", "ProviderTimeout", "ProviderUnavailable"]
 
@@ -23,14 +23,17 @@ class AIDisabled(LLMError):
 
 
 class ProviderError(LLMError):
-    """The provider returned no usable completion; `error` is what the cassette records."""
+    """The provider returned no usable completion; `error` is what the cassette records and
+    `completion` (when known) the whole recorded outcome, whose usage and latency still count
+    towards the caller's budgets (08 §5.1 rule 1)."""
 
-    def __init__(self, error: CallError) -> None:
+    def __init__(self, error: CallError, completion: Completion | None = None) -> None:
         super().__init__(f"LLM provider error ({error.kind}): {error.message}")
         self.error = error
+        self.completion = completion
 
-    def __reduce__(self) -> tuple[type[ProviderError], tuple[CallError]]:
-        return (type(self), (self.error,))
+    def __reduce__(self) -> tuple[type[ProviderError], tuple[CallError, Completion | None]]:
+        return (type(self), (self.error, self.completion))
 
 
 class ProviderUnavailable(ProviderError):
@@ -41,10 +44,10 @@ class ProviderTimeout(ProviderError):
     """Generation did not finish within `request.timeout_s`."""
 
 
-def raise_for(error: CallError) -> None:
+def raise_for(error: CallError, completion: Completion | None = None) -> None:
     """Raise the `ProviderError` subclass that matches `error.kind`."""
     if error.kind == "connection":
-        raise ProviderUnavailable(error)
+        raise ProviderUnavailable(error, completion)
     if error.kind == "timeout":
-        raise ProviderTimeout(error)
-    raise ProviderError(error)
+        raise ProviderTimeout(error, completion)
+    raise ProviderError(error, completion)

@@ -1,6 +1,6 @@
 # 03 · Data contracts
 
-> **Status:** v0.1-draft (frozen as v1.0 at milestone M1) · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-08 (R-04: bench_result `ranks` and `summary.json` CI notes)
+> **Status:** v0.1-draft (frozen as v1.0 at milestone M1) · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-14 (#69: `bench_summary` and `bench_manifest`, §13.3–13.4)
 > Master spec: [02-architecture](02-architecture.md). This doc is the field-level truth for every artifact that crosses a package boundary. If a field is not here, no engine may rely on it.
 
 ## 1. How contracts work
@@ -48,7 +48,9 @@ Catalog (producer → consumers):
 | `calibration` | JSON (`config/calibration/<family>.json`) | bench | Causentra (via `ctx.config`) |
 | `predicates` | JSON (`contracts/predicates.json`, repo file, not a run artifact) | lead (FaultLoom predicate library, §7) | FaultLoom, Relentra, Causentra (via generated `veyltrace_contracts.predicates`) |
 | `answer_key` | Parquet | bench / lab | **bench only** |
-| `bench_result` | CSV + JSON | bench | paper tables |
+| `bench_result` | CSV | bench | paper tables |
+| `bench_summary` | JSON | bench | table generator (R-17), bench/stats (O-14) |
+| `bench_manifest` | JSON | bench | paper traceability ([04 §10.2](04-evaluation-protocol.md)) |
 | API types (§14) | OpenAPI → TS | gateway | console, MCP clients |
 
 Gateway and console may read every run artifact above for display; they never write them.
@@ -556,7 +558,40 @@ Normal windows (e.g. RCAEval pre-injection segments, [04 §5](04-evaluation-prot
 ### 13.2 `bench_result`
 
 `bench/results/<experiment_id>/per_case.csv` — UTF-8 CSV (committed to git, diffable; released with the paper), sorted by key `case_id, method, seed, variant` (unique). Columns: `case_id`, `dataset`, `system`, `method`, `ai_mode`, `seed` (empty = a deterministic method), `variant` (bench variant of the case, e.g. `shift-510` for an RCAEval normal window, `perm-3` for a proposal permutation; empty = the unperturbed run), `fold`, `protocol`, `run_outcome` (`ok | failed | timeout | no_alert | rejected`), `pool_hit` (truth in decision pool), `shift_s`, `sources_dropped` (`;`-joined), `status`, `ranks` (`;`-joined; empty for an unranked or non-`ok` run, [04 §7](04-evaluation-protocol.md)), `hit_at_1`, `hit_at_3`, `hit_at_5`, `retrieval_hit` (truth in slate), `fault_class_hit`, `in_set`, `set_size`, `onset_error_ms`, `decoy_present`, `decoy_ranked_first`, `wall_ms`, `peak_rss_mb`, `tokens_in`, `tokens_out`, `verdict_hash`. Booleans are `0/1`; missing values are empty. `run_outcome` comes from the run's outcome (`ok`, `failed`, `no_alert`, `rejected`; `rejected` covers cases that were not run, invalid cases and unsupported formats), except `timeout`, and `failed` for an `ok` run that wrote no verdict or slate, which bench sets itself ([04 §7](04-evaluation-protocol.md)).
-`bench/results/<experiment_id>/summary.json` — metrics per (dataset, system, method) with bootstrap CIs (from `bench/stats`, O-14; until then "not run", [04 §9](04-evaluation-protocol.md)); `manifest.json` — the experiment and its hash, the code state, input and config hashes, and the run ids ([04 §9](04-evaluation-protocol.md) lists every field).
+The same directory holds `summary.json` (§13.3) and `manifest.json` (§13.4).
+
+### 13.3 `bench_summary`
+
+`bench/results/<experiment_id>/summary.json` — canonical JSON written by bench through core io, committed with the results; tables are generated from it only (R-17).
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema_version` | str | `0.1.x` |
+| `producer` | str | `bench@<ALGO_VERSION>`: the bench code that scored the runs |
+| `experiment_id` | str | names the results directory |
+| `groups` | [group] | one per (dataset, system, method), sorted by those three |
+| `excluded` | {dataset: [case_id]} | the experiment's excluded case ids per dataset part, sorted |
+| `statistics` | str | "not run: …" until `bench/stats` (O-14) adds bootstrap CIs and tests (then an object, a minor bump) |
+
+A group holds `dataset`, `system`, `method`; the counts `n_rows`, `n_fault` (fault cases F, every rate's denominator), `n_no_truth`, `n_unranked`, `n_fine`, `n_chance`, `n_outside_services` (fault cases whose root is not among the case's `case_manifest.services`, i.e. n_i of [04 §7](04-evaluation-protocol.md), not the universe U); `outcomes` (rows per `run_outcome`, all five present, 0 when none); and `metrics`, one entry per [04 §9](04-evaluation-protocol.md) metric name bench computes (`ac_at_k`, `avg_at_5`, `mrr`, `fine_ac_at_k`, `retrieval_at_k`, `rerank_at_1`, `chance`, `lift`, `onset_error`). An entry the experiment's `metrics` does not list is null; a listed one is an object with exactly that metric's keys (`ac_at_1`…`ac_at_5`, `retrieval_at_k` + `retrieval_k` + `pool_retrieval`, `onset_error_median_ms` + `onset_error_max_ms` + `n_onset`, …), each null when undefined (e.g. no fault case). So null inside an entry never means "not requested". Definitions: [04 §7](04-evaluation-protocol.md).
+
+### 13.4 `bench_manifest`
+
+`bench/results/<experiment_id>/manifest.json` — canonical JSON written last by bench through core io, so its presence marks a whole result.
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema_version` | str | `0.1.x` |
+| `producer` | str | `bench@<ALGO_VERSION>` |
+| `experiment_id` | str | |
+| `experiment_sha256` | sha256 | `sha256_text_lf` of the experiment YAML |
+| `experiment` | object | the validated experiment with defaults filled; bench's strict experiment model ([04 §9](04-evaluation-protocol.md)) defines its shape |
+| `code` | {`commit`, `dirty`, `bench_dirty`} | core's code state (as `run_manifest.code`) plus uncommitted `bench/` files; `--table` refuses either dirty flag |
+| `uv_lock_sha256` | sha256 | |
+| `datasets` | [{`dataset`, `answer_key_sha256`, `inputs_sha256`, `cases`, `cases_without_inputs`, `excluded`}] | one per dataset part, in the experiment's order; case-id lists sorted |
+| `configs` | [{`dataset`, `method`, `config_sha256`}] | in run order |
+| `seeds` | [int] | distinct AI seeds, sorted |
+| `runs` | [{`case_id`, `dataset`, `method`, `run_id`?, `inputs_sha256`?}] | every executed run, in run order; `run_id` null for a run killed at `timeout_s`, `inputs_sha256` null when the run wrote no `case_manifest` |
 
 ---
 
