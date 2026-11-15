@@ -353,7 +353,7 @@ The CLI sets `OMP/OPENBLAS/MKL_NUM_THREADS=1` with `setdefault` and reconfigures
 - **`textio`** provides `read_bytes`, `read_text`, `write_bytes`, `write_text`, `open_text`, `atomic_replace` and `AtomicTextWriter`, all UTF-8, LF and atomic.
 - **`yaml12.load_yaml_bytes(data, source=)`** and **`schemacheck.validate_json_schema(name, obj)`** are the lower-level helpers behind `config` and `io`.
 - **`stubs.run_stub(ctx, engine)`** is the R-02 bootstrap.
-  - Every engine's `api.run` calls it until the owning lane replaces it (O-00 / R-00 / X-00). Since R-00 (#9) FaultLoom, Causatrix and Causentra run their packages' own stubs (`veyltrace_<engine>.stub`) and no longer call it; core keeps their writers because `STUB_STEPS` covers every engine sub-step and the core tests exercise them directly.
+  - Every engine's `api.run` calls it until the owning lane replaces it (O-00 / R-00 / X-00). Since R-00 (#9) FaultLoom, Causatrix and Causentra no longer call it: each runs its own package code, a package stub (`veyltrace_<engine>.stub`) until its engine lands (Causatrix's since #114); core keeps their writers because `STUB_STEPS` covers every engine sub-step and the core tests exercise them directly.
   - It writes schema-valid placeholder outputs and tags its result with `STUB_NOTE`.
   - The stub Infralume converts through the dataset's adapter when one is registered. Otherwise it writes the placeholder case described at the top (dataset `synth` only).
   - It lives in core, not in `testing.stub` as lead decision §2.13 says, because engines may not import `veyltrace_core.testing` (AST ban); it is on the hint allow-list while it plays Infralume. Both go away when O-00/R-00/X-00 land.
