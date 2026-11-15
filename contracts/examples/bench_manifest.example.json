@@ -1,0 +1,134 @@
+{
+  "schema_version": "0.1.0",
+  "code": {
+    "bench_dirty": false,
+    "commit": "fixture",
+    "dirty": false
+  },
+  "configs": [
+    {
+      "config_sha256": "80c76d95f475bf7158684fa3b803f25ca1c57b54d8bbf5495b68e88c251b1e97",
+      "dataset": "synth",
+      "method": "veyltrace:off"
+    }
+  ],
+  "datasets": [
+    {
+      "answer_key_sha256": "5808d8822d6dd76742a9a66f426ea572243548f8ae4a13d034b8a16d6ed09465",
+      "cases": [
+        "067c1ba0c360",
+        "0ad66f75c9ac"
+      ],
+      "cases_without_inputs": [],
+      "dataset": "synth",
+      "excluded": [],
+      "inputs_sha256": "a1155747417ed7bdb0ec3ef36352b7416211fe47407cc0caeb8a38f79b7727c8"
+    }
+  ],
+  "experiment": {
+    "calibration": {
+      "alpha": 0.1,
+      "fit": false,
+      "no_fault_beta": 0.1
+    },
+    "dataset": {
+      "cases": "all",
+      "exclude": null,
+      "normal_windows": "none",
+      "parts": [
+        "synth"
+      ]
+    },
+    "description": "Harness smoke: full pipeline, AI off, oracle alert, synth-01..05 (never reported)",
+    "experiment_id": "synth-smoke",
+    "methods": [
+      {
+        "ai": {
+          "mode": "off",
+          "model": null,
+          "relentra_mode": null,
+          "seeds": []
+        },
+        "id": "veyltrace:off",
+        "kind": "veyltrace",
+        "overrides": {},
+        "rcaeval": null
+      }
+    ],
+    "metrics": [
+      "ac_at_k",
+      "avg_at_5",
+      "mrr",
+      "fine_ac_at_k",
+      "retrieval_at_k",
+      "chance",
+      "lift"
+    ],
+    "prereg": false,
+    "protocol": {
+      "alert": "oracle",
+      "anonymize_services": false,
+      "decoys": null,
+      "inject_proposals": null,
+      "permute_proposals": null,
+      "shift_s": 0,
+      "sources_drop": []
+    },
+    "resources": {
+      "max_rss_mb": null,
+      "timeout_s": 600,
+      "workers": 1
+    },
+    "rq": [],
+    "split": {
+      "cluster": [
+        "system",
+        "service",
+        "fault"
+      ],
+      "family": null,
+      "scheme": "none",
+      "seed": 20261108,
+      "stratify": [
+        "system",
+        "fault"
+      ]
+    },
+    "statistics": {
+      "bootstrap": {
+        "resamples": 2000,
+        "seed": 1
+      },
+      "holm_family": null,
+      "mcnemar": true,
+      "noninferiority": null,
+      "per": "system",
+      "permutation": {
+        "n": 10000,
+        "seed": 2
+      },
+      "primary_metric": "ac_at_1"
+    }
+  },
+  "experiment_id": "synth-smoke",
+  "experiment_sha256": "10e2c353f7c8e673ec4b2d1ebdf4efcc077af3951da8a2beb6700a22e92dd614",
+  "producer": "bench@0",
+  "runs": [
+    {
+      "case_id": "067c1ba0c360",
+      "dataset": "synth",
+      "inputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "method": "veyltrace:off",
+      "run_id": "2de4142ff8ae93bf"
+    },
+    {
+      "case_id": "0ad66f75c9ac",
+      "dataset": "synth",
+      "inputs_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+      "method": "veyltrace:off",
+      "run_id": "cd7d804e5cc6427e"
+    }
+  ],
+  "seeds": [],
+  "uv_lock_sha256": "719a5615385f471b1eb10b1c5c5468237526aa3ca473b6eb0a7389fc7d5551c1"
+}

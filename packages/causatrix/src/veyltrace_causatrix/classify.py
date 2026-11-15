@@ -10,15 +10,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Final
+from typing import Final, cast
 
 from veyltrace_causatrix.config import FAMILIES, CausatrixConfig
 from veyltrace_causatrix.views import CHANGE, EXTERNAL, ROBUST_Z, Atom, EvidenceView, GraphView, component_of
+from veyltrace_contracts.models import FaultClass, Indicator, Mode
 
 __all__ = ["Classification", "classify"]
 
 #: R2: resource families and their fault class (net → socket, 03 §1).
-RESOURCE: Final = {"cpu": "cpu", "mem": "mem", "disk": "disk", "net": "socket"}
+RESOURCE: Final[dict[str, FaultClass]] = {"cpu": "cpu", "mem": "mem", "disk": "disk", "net": "socket"}
 #: R3: internal families that point at the service's own code.
 CODE_FAMILIES: Final = frozenset({"logs", "self_time", "other"})
 #: R4: graph node kinds of a dependency.
@@ -27,16 +28,15 @@ DEPENDENCY_KINDS: Final = frozenset({"db", "cache", "queue", "external"})
 CONFIG_EVENTS: Final = frozenset({"config", "flag"})
 LOG_NEW_TEMPLATE: Final = "log_new_template"
 EDGE_GAP: Final = "edge_gap"
-UNKNOWN: Final = "unknown"
 
 
 @dataclass(frozen=True)
 class Classification:
     """mode and fault_class (03 §1), the RCAEval indicator, and the candidate component."""
 
-    mode: str
-    fault_class: str
-    indicator: str
+    mode: Mode
+    fault_class: FaultClass
+    indicator: Indicator
     component: str | None
 
 
@@ -50,7 +50,9 @@ def _family(atom: Atom | None) -> str:
     return family if isinstance(family, str) and family in FAMILIES else "other"
 
 
-def _rules_2_to_5(service: str, ev: EvidenceView, graph: GraphView, cfg: CausatrixConfig) -> tuple[str, str]:
+def _rules_2_to_5(
+    service: str, ev: EvidenceView, graph: GraphView, cfg: CausatrixConfig
+) -> tuple[Mode, FaultClass]:
     """(mode, fault_class) of the first matching rule among R2–R5, else R6."""
     f, k = ev.of(service), cfg.k_anom
     top_family = _family(f.top_internal)
@@ -64,7 +66,7 @@ def _rules_2_to_5(service: str, ev: EvidenceView, graph: GraphView, cfg: Causatr
         if (new_errors or 0.0) >= 1:
             return "code", "exception"
         error_z = _max(a for a in errors if a.args.get("detector") == ROBUST_Z) or 0.0
-        return "code", "error" if error_z >= k else UNKNOWN
+        return "code", "error" if error_z >= k else "unknown"
     if graph.kinds.get(service) in DEPENDENCY_KINDS and (f.silent == 1.0 or f.external >= k):  # R4
         return "dependency", "dependency"
     gaps = [a for a in ev.atoms_of(service, EDGE_GAP) if a.args.get("direction") == "in"]
@@ -74,7 +76,7 @@ def _rules_2_to_5(service: str, ev: EvidenceView, graph: GraphView, cfg: Causatr
         tail = p50 is not None and p99 is not None and p99 > 0 and p50 / p99 <= cfg.tail_ratio
         loss = (_max(errors) or 0.0) >= k or tail
         return "network", "loss" if loss else "delay"
-    return UNKNOWN, UNKNOWN  # R6
+    return "unknown", "unknown"  # R6
 
 
 def classify(service: str, ev: EvidenceView, graph: GraphView, cfg: CausatrixConfig) -> Classification:
@@ -95,4 +97,6 @@ def classify(service: str, ev: EvidenceView, graph: GraphView, cfg: CausatrixCon
         family = _family(f.top_external)
     else:
         family = "other"
-    return Classification(mode, fault_class, cfg.indicator(family), component_of(service, ev))
+    # config.py checks every indicator_map value against the 03 §1 Indicator enum, so the cast holds.
+    indicator = cast(Indicator, cfg.indicator(family))
+    return Classification(mode, fault_class, indicator, component_of(service, ev))
