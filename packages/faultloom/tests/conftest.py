@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from veyltrace_contracts import models
-from veyltrace_core.testing import fixture_run_dir
+from veyltrace_core import io
+from veyltrace_core.context import RunContext
+from veyltrace_core.testing import fixture_run_dir, make_context
+from veyltrace_faultloom.api import run
 from veyltrace_faultloom.inputs import (
     AnomalyRow,
     CallEdge,
@@ -21,7 +25,9 @@ from veyltrace_faultloom.inputs import (
     PathRow,
     ServiceOnset,
     TemplateRow,
+    load_inputs,
 )
+from veyltrace_faultloom.predicates import ClaimView
 
 #: A t_onset and windows on a round grid (ns): baseline [0, 600 s), incident [600 s, 1200 s).
 T0 = 900 * 10**9
@@ -135,3 +141,16 @@ def main_dir(tmp_path: Path) -> Path:
 def claim_dir(tmp_path: Path) -> Path:
     """synth-01 run dir holding everything before the claim pass (main evidence, slate; AI off)."""
     return fixture_run_dir("synth-01", tmp_path, through="relentra")
+
+
+@pytest.fixture
+def cpu_hog(tmp_path: Path) -> tuple[RunContext, ClaimView]:
+    """The hand-made cpu-hog case after the engine pass: its context and the predicates' view."""
+    inputs = json.loads(
+        (Path(__file__).parents[1] / "fixtures/handmade/cpu-hog/inputs.json").read_text("utf-8")
+    )
+    for name in sorted(n for n in inputs if not n.startswith("_")):
+        io.write(name, inputs[name], tmp_path)
+    ctx = make_context("faultloom", tmp_path, dataset="handmade")
+    assert run(ctx).status == "ok"
+    return ctx, ClaimView(load_inputs(ctx), tuple(io.read_table("evidence", tmp_path).to_pylist()))
