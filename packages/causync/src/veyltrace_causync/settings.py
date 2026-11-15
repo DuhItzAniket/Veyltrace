@@ -30,6 +30,7 @@ class AlignConfig:
     max_lag_ns: int
     min_corr: float
     min_points: int
+    tolerance_step_quantile: float
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,7 @@ def causync_config(cfg: Mapping[str, Any]) -> CausyncConfig:
             max_lag_ns=round(_number(align, "align", "max_lag_s") * NS),
             min_corr=_number(align, "align", "min_corr", top=1.0),
             min_points=_count(align, "align", "min_points"),
+            tolerance_step_quantile=_number(align, "align", "tolerance_step_quantile", top=1.0),
         ),
         change_kinds=frozenset(str(k) for k in cast("Sequence[object]", kinds)),
         tau_ns=round(tau_s * NS),
