@@ -63,14 +63,18 @@ class HttpProvider:
     def version(self) -> str | None:
         """The runtime's version string; None when the runtime does not say.
 
-        Asked until one probe gets a 2xx, then latched: a single failed probe (server still
-        starting) must not leave `runtime.version` null for the rest of the run (#149).
+        Latched after a 2xx, or after a 4xx (the server has no such route, so asking again cannot
+        help). A transport error or 5xx (server still starting) is asked again on the next call, so
+        one failed probe does not leave `runtime.version` null for the rest of the run (#149).
         """
         if self._version_asked or self.version_route is None:
             return self._version
         try:
             response = self._send("GET", self.version_route, None)
         except TransportError:
+            return None
+        if 400 <= response.status < 500:
+            self._version_asked = True
             return None
         if not 200 <= response.status < 300:
             return None

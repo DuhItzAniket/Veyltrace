@@ -171,13 +171,22 @@ def test_configured_timeouts_reach_the_transport() -> None:
     assert transport.timeouts and set(transport.timeouts) == {(3.0, 77.0)}  # chat and version GET
 
 
-def test_version_is_latched_only_after_a_2xx() -> None:
-    transport = FakeTransport(_ok(), _ok(), _ok())
+def test_version_is_asked_again_after_a_transport_error_or_5xx() -> None:
+    transport = FakeTransport(_ok(), _ok(), _ok(), _ok())
     transport.version_answers = [TransportError("connection", "starting"), HttpResponse(503, b"")]
     provider = OllamaProvider(_settings(), transport)
-    versions = [provider.complete(_request()).runtime.version for _ in range(3)]
-    assert versions == [None, None, "0.12.3"]  # a failed or non-2xx probe is asked again
+    versions = [provider.complete(_request()).runtime.version for _ in range(4)]
+    assert versions == [None, None, "0.12.3", "0.12.3"]  # latched after the 2xx
     assert [s[1] for s in transport.sent].count("/api/version") == 3
+
+
+def test_version_is_latched_after_a_4xx() -> None:
+    transport = FakeTransport(_ok(), _ok(), _ok())
+    transport.version_answers = [HttpResponse(404, b"")]  # no such route: asking again cannot help
+    provider = OllamaProvider(_settings(), transport)
+    versions = [provider.complete(_request()).runtime.version for _ in range(3)]
+    assert versions == [None, None, None]
+    assert [s[1] for s in transport.sent].count("/api/version") == 1
 
 
 def test_no_retry_after_a_failure() -> None:
