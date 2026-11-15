@@ -31,5 +31,7 @@ packages = ["src/veyltrace_gateway"]
 [tool.veyltrace.isolation]
 # fastapi: the HTTP API routes in app.py (02 §8 API row; 06 §2).
 # uvicorn: the ASGI server that __main__.py binds to loopback (06 §2).
-# pydantic: the gateway-only envelopes in api_models.py (06 §3.1).
-allow = ["fastapi", "pydantic", "uvicorn"]
+# pydantic: the gateway-only envelopes in api_models.py (06 §3.1). starlette: FastAPI's base
+# HTTPException, which the router raises for unknown routes; FastAPI documents registering the
+# error handler on it (errors.py). It ships with fastapi, so it adds no dependency.
+allow = ["fastapi", "pydantic", "starlette", "uvicorn"]
