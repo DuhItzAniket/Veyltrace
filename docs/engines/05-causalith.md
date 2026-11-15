@@ -105,7 +105,7 @@ For a known service name `n` (already normalised, regex-escaped):
 | Form | Pattern (sketch) | Example |
 |---|---|---|
 | host:port | `(?<![\w.-])n(\.[a-z0-9-]+)*:\d{2,5}\b` (optional cluster DNS suffix) | `ts-order-service:12031`, `cartservice.default.svc.cluster.local:7070` |
-| URL | `[a-z][a-z0-9+.-]*://n(\.[a-z0-9-]+)*(:\d+)?(/\|\b)` | `http://carts:80/carts/1` |
+| URL | `[a-z][a-z0-9+.-]*://n(\.[a-z0-9-]+)*(:\d+)?(?![\w-])` (the host ends at a non-name character, so `mongodb://carts-db:27017` is not `carts`) | `http://carts:80/carts/1` |
 | gRPC package | `\b[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*\.([A-Z]\w*)\b` where lowercase of the last part equals `n`, or equals `n` after removing a trailing `service` | `hipstershop.CartService` → `cartservice`; `oteldemo.CartService` → `cart` |
 | plain word | `(?<![\w.-])n(?![\w-])` | `ts-order-service` |
 
@@ -143,7 +143,7 @@ class CIResult:
     explained_fraction: float           # clip(1 - stat_resid / stat_raw, 0, 1); 0 if stat_raw == 0
     p_value: float                      # block-conformal p-value of the residual deviation
     independent_of_parents: bool | None # True: anomaly NOT explained by parents (T8 pass); None: untestable
-    reason: str | None                  # no_target | no_parents | short_baseline | singular
+    reason: str | None                  # no_target | no_parents | short_baseline | no_incident | singular
 
 def intervention_test(series: pa.Table, graph_edges: pa.Table, alert: Alert,
                       candidate: str, config: CIConfig,
@@ -158,7 +158,7 @@ def partial_corr_test(x: np.ndarray, y: np.ndarray, z: np.ndarray) -> tuple[floa
 2. **Parents** (≤ `ci.max_parents` = 5 regressors): callees of the candidate in `graph.edges` ordered by (`anomalous` desc with null as false, `weight` desc, name asc), each represented by its target-priority series; then the candidate's own `rps` or `workload` series as a load covariate, if a slot is left. No regressor → `no_parents`.
 3. **Grid**: step = the largest effective step among involved series; last value per bucket; keep buckets where every column is observed.
 4. **Fit on baseline buckets** (`alert.windows.baseline`; residuals are judged on `alert.windows.incident`): standardise each column with the robust scale floor of [03-anomara §3.2](03-anomara.md) (re-implemented locally to avoid a circular package dependency; a parity test compares both). Ridge regression with an unpenalised intercept: centre, then solve `(ZᵀZ + λ n I) b = Zᵀx` with `numpy.linalg.solve`, `λ = ci.ridge`. Requires ≥ `ci.min_baseline_points` buckets and more than `2(p + 1)` (else `short_baseline`); a singular system gives `singular`.
-5. **Residuals** `r = x − Zb` over all buckets. `stat_raw` and `stat_resid` = max persistent robust z (Anomara §3.2 steps 3–5, `p = 3`) of `x` and of `r`, each against its own baseline.
+5. **Residuals** `r = x − Zb` over all buckets. `stat_raw` and `stat_resid` = max persistent z (Anomara §3.2 steps 3–5, `p = 3` contiguous grid buckets) of `x` and of `r`, each centred on its own baseline median and measured in `x`'s floored scale from step 4. They are not standardised a second time: dividing by their own baseline spread would undo the scale floor, and a residual that is a scaled copy of its parent would then score like the parent. No incident bucket → `no_incident`.
 6. **p-value** (technique T2b, [rcaeval_facts §Anomaly scoring methods][rf-methods]): cut baseline residual z-values into non-overlapping blocks as long as the incident span (at most baseline/4); `g` = median `|z|` per block; `p = (1 + #{blocks with g_b ≥ g_I}) / (n_blocks + 1)`. Its floor is `1/(n_blocks + 1)`, so it is reported, not used for the decision.
 7. `independent_of_parents = stat_resid ≥ ci.threshold` (3.0).
 

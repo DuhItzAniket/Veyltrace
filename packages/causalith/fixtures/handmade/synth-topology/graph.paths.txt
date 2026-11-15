@@ -1,0 +1,12 @@
+field candidate: string not null
+field path_rank: int32 not null
+field nodes: list<string not null> not null
+field anomalous_fraction: double not null
+metadata veyltrace.schema: graph.paths/0.1.0
+row {"anomalous_fraction":0.333333333,"candidate":"cart","nodes":["cart","checkout","frontend"],"path_rank":1}
+row {"anomalous_fraction":0.0,"candidate":"catalog","nodes":["catalog","frontend"],"path_rank":1}
+row {"anomalous_fraction":0.0,"candidate":"catalog","nodes":["catalog","recommend","frontend"],"path_rank":2}
+row {"anomalous_fraction":0.5,"candidate":"checkout","nodes":["checkout","frontend"],"path_rank":1}
+row {"anomalous_fraction":0.0,"candidate":"frontend","nodes":["frontend"],"path_rank":1}
+row {"anomalous_fraction":0.666666667,"candidate":"payment","nodes":["payment","checkout","frontend"],"path_rank":1}
+row {"anomalous_fraction":0.0,"candidate":"recommend","nodes":["recommend","frontend"],"path_rank":1}

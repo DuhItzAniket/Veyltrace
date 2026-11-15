@@ -1,0 +1,20 @@
+# Tracing on, spans to the lab Collector (05 §3.2). Variable names follow OB's tracing kustomize
+# component; which services honour them at v0.10.7 is checked on the first live capture (05 OQ-6).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: any   # replaced by the patch target in kustomization.yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: server
+          env:
+            - name: ENABLE_TRACING
+              value: "1"
+            - name: COLLECTOR_SERVICE_ADDR
+              value: veyllab-collector.veyllab-obs.svc.cluster.local:4317
+            - name: OTEL_SERVICE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['app']

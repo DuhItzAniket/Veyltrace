@@ -1,1 +1,1 @@
-{"offsets":[],"reference":"traces","schema_version":"0.1.0","tolerance_ns":0}
+{"offsets":[{"confidence":0.0,"method":"none","offset_ns":0,"service":null,"source":"logs"}],"reference":"metrics","schema_version":"0.1.0","tolerance_ns":10000000000}
