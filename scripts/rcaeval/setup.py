@@ -34,7 +34,11 @@ EXTRA_DROP = ("torch",)  # the `core` extra = requirements.txt without torch (RC
 
 def sh(*cmd: str) -> str:
     print("+", " ".join(cmd), flush=True)
-    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout.strip()
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        print(proc.stderr, file=sys.stderr)
+        raise SystemExit(f"error: {cmd[0]} exited {proc.returncode}")
+    return proc.stdout.strip()
 
 
 def checkout(cfg: rcaeval.Settings, source: Path) -> None:
@@ -63,7 +67,7 @@ def install(cfg: rcaeval.Settings, source: Path) -> None:
     venv = ROOT / cfg.venv
     python = rcaeval.python_path(cfg, ROOT)
     if not python.is_file():
-        sh("uv", "venv", "--python", PYTHON, str(venv))
+        sh("uv", "venv", "--allow-existing", "--python", PYTHON, str(venv))  # the clone lives in src/
     sh("uv", "pip", "sync", "--python", str(python), str(LOCK))
     sh("uv", "pip", "install", "--python", str(python), "--no-deps", "-e", str(source))
 
