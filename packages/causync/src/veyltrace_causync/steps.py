@@ -4,7 +4,9 @@ Each present source has a step, derived from `signal_cube.series` alone (no othe
 is read): metrics take the median effective step of their series (the median duration of runs of
 equal consecutive values, at least the observation spacing; the definition of 03-anomara §3.1),
 logs and traces the bucket spacing of their zero-filled count series. Two onsets closer than the
-largest step cannot be ordered, so that step is `tolerance_ns`.
+largest step cannot be ordered, so that step is `tolerance_ns`; for it the metrics step is an
+upper quantile over the metric series, because an onset found on a coarse series cannot be placed
+more finely than that series' step, however many other series change every second.
 """
 
 from __future__ import annotations
@@ -51,8 +53,11 @@ def _effective_step(t: Vec, x: Vec) -> float | None:
     return max(float(np.median(runs)), spacing) if runs.size else spacing
 
 
-def source_steps(series: pa.Table) -> dict[str, int]:
-    """{source: step_ns} for every source with a stepped series (`metrics`, `logs`, `traces`)."""
+def source_steps(series: pa.Table, metrics_quantile: float = 0.5) -> dict[str, int]:
+    """{source: step_ns} for every source with a stepped series (`metrics`, `logs`, `traces`).
+    The metrics step is the `metrics_quantile` quantile (exact, linear) of the effective steps
+    over metric series: the median for resampling, a higher quantile for the tolerance, where
+    the coarse series must be covered (04 §3.1)."""
     found: dict[str, list[float]] = {}
     for (source, _, _, signal), t, x in series_groups(series):
         if source == "metrics":
@@ -63,7 +68,11 @@ def source_steps(series: pa.Table) -> dict[str, int]:
             step = None
         if step is not None:
             found.setdefault(source, []).append(step)
-    return {source: max(int(np.rint(np.median(steps))), 1) for source, steps in sorted(found.items())}
+    out: dict[str, int] = {}
+    for source, steps in sorted(found.items()):
+        q = metrics_quantile if source == "metrics" else 0.5
+        out[source] = max(int(np.rint(np.quantile(np.asarray(steps), q, method="linear"))), 1)
+    return out
 
 
 def tolerance(steps: dict[str, int]) -> int:
