@@ -15,6 +15,8 @@ api:
   page_limit_max: 1000
   # Evidence rows per page when the request gives no limit (06 §3.2 "default limit 200"; a priori).
   evidence_limit: 200
+  # Points per series the series route returns at most (06 §6; a priori, chart size; display only).
+  series_max_points: 2000
 
 jobs:
   # AI mode of runs the console starts: AI on is opt-in (06 §6).

@@ -20,13 +20,25 @@ from fastapi import APIRouter, Query
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-from veyltrace_contracts.models import ChangesRow, EvidenceRow
+from veyltrace_contracts.models import (
+    AgentTraceLine,
+    ChangesRow,
+    EvidenceRow,
+    GraphEdgesRow,
+    GraphNodesRow,
+    GraphPathsRow,
+    RunManifest,
+    SignalCubeSeriesRow,
+)
 from veyltrace_contracts.registry import CONTRACTS
 from veyltrace_core import io
-from veyltrace_core.errors import ArtifactMissing
-from veyltrace_core.ids import is_atom_id
-from veyltrace_core.pipeline import find_run
-from veyltrace_gateway.api_models import EvidencePage
+from veyltrace_core.adapters import find_adapter
+from veyltrace_core.errors import ArtifactMissing, ChainBroken
+from veyltrace_core.hashing import verify_chain
+from veyltrace_core.ids import is_atom_id, is_case_id, is_run_id
+from veyltrace_core.pipeline import PARTIAL_SEPARATOR, find_run, is_finished
+from veyltrace_core.steps import STEPS
+from veyltrace_gateway.api_models import AgentTrace, EvidencePage, GraphView, RunStatus
 from veyltrace_gateway.errors import ApiError
 from veyltrace_gateway.settings import GatewaySettings
 
@@ -58,7 +70,7 @@ def _run_dir(root: Path, run_id: str) -> Path:
 def _read(name: str, run_dir: Path) -> Any:
     try:
         return io.read(name, run_dir)
-    except ArtifactMissing as exc:  # e.g. proposals when AI is off (06 §3.2)
+    except ArtifactMissing as exc:  # e.g. proposals and agent_trace when AI is off (06 §3.2)
         raise ApiError(404, "artifact_missing", f"this run has no {name}") from exc
 
 
@@ -74,6 +86,38 @@ def _json_route(root: Path, name: str) -> Callable[[str], Response]:
 def _rows[M: BaseModel](name: str, run_dir: Path, model: type[M]) -> list[M]:
     table = _read(name, run_dir)
     return [model.model_validate(row) for row in cast(list[dict[str, Any]], table.to_pylist())]
+
+
+def _status(run_dir: Path) -> RunStatus:
+    """A finished run's status. The job runner (X-04, next) adds queued, running and failed runs."""
+    manifest = cast(RunManifest, _read("run_manifest", run_dir))
+    last = STEPS[-1]  # 06 §3.2 says step 0-10; core counts its 14 sub-steps, so its index is served
+    return RunStatus(
+        run_id=manifest.run_id, dataset=manifest.dataset, case_id=manifest.case_id, ai_mode=manifest.ai.mode,
+        state="done", step=last.index, step_name=last.name, error=None,
+    )  # fmt: skip
+
+
+def _finished_runs(root: Path, dataset: str | None, case_id: str | None) -> list[Path]:
+    """Finished run dirs, sorted; the filters are validated before they reach a glob (rule 5)."""
+    if dataset is not None and find_adapter(dataset) is None:
+        raise ApiError(404, "dataset_not_found", f"unknown dataset {dataset!r}")
+    if case_id is not None and not is_case_id(case_id):
+        raise ApiError(404, "case_not_found", f"{case_id!r} is not a case id")
+    pattern = f"{dataset or '*'}/{case_id or '*'}/*"
+    return sorted(
+        p for p in root.glob(pattern)
+        if is_run_id(p.name) and PARTIAL_SEPARATOR not in p.name and is_finished(p)
+    )  # fmt: skip
+
+
+def _thin(rows: list[SignalCubeSeriesRow], max_points: int) -> list[SignalCubeSeriesRow]:
+    """At most `max_points` per series: every n-th point, n fixed by the series length (06 §3.2;
+    display only, never analysis)."""
+    by_series: dict[str, list[SignalCubeSeriesRow]] = {}
+    for row in rows:
+        by_series.setdefault(row.series_id, []).append(row)
+    return [r for s in by_series.values() for r in s[:: -(-len(s) // max_points)]]
 
 
 def run_router(settings: GatewaySettings, runs_root: Path) -> APIRouter:
@@ -130,5 +174,43 @@ def run_router(settings: GatewaySettings, runs_root: Path) -> APIRouter:
         if found is None:
             raise ApiError(404, "atom_not_found", f"this run has no atom {atom_id}")
         return found
+
+    @router.get("/runs/{run_id}/agent-trace", response_model=AgentTrace)
+    def get_agent_trace(run_id: str) -> AgentTrace:
+        lines = cast(list[AgentTraceLine], _read("agent_trace", _run_dir(runs_root, run_id)))
+        try:
+            verify_chain(lines)
+            chain_ok = True
+        except ChainBroken:
+            chain_ok = False
+        return AgentTrace(lines=lines, chain_ok=chain_ok)
+
+    @router.get("/runs/{run_id}/graph", response_model=GraphView)
+    def get_graph(run_id: str) -> GraphView:
+        run_dir = _run_dir(runs_root, run_id)
+        return GraphView(
+            nodes=_rows("graph.nodes", run_dir, GraphNodesRow),
+            edges=_rows("graph.edges", run_dir, GraphEdgesRow),
+            paths=_rows("graph.paths", run_dir, GraphPathsRow),
+        )
+
+    @router.get("/runs/{run_id}/series", response_model=list[SignalCubeSeriesRow])
+    def get_series(
+        run_id: str, service: str | None = None, signal: str | None = None
+    ) -> list[SignalCubeSeriesRow]:
+        rows = [
+            r
+            for r in _rows("signal_cube.series", _run_dir(runs_root, run_id), SignalCubeSeriesRow)
+            if (service is None or r.service == service) and (signal is None or r.signal == signal)
+        ]
+        return _thin(rows, settings.series_max_points)
+
+    @router.get("/runs/{run_id}", response_model=RunStatus)
+    def get_run(run_id: str) -> RunStatus:
+        return _status(_run_dir(runs_root, run_id))
+
+    @router.get("/runs", response_model=list[RunStatus])
+    def list_runs(dataset: str | None = None, case_id: str | None = None) -> list[RunStatus]:
+        return [_status(p) for p in _finished_runs(runs_root, dataset, case_id)]
 
     return router

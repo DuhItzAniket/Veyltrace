@@ -52,7 +52,7 @@ flowchart LR
 | GET | `/api/v1/cases/{dataset}/{case_id}` | — | `case_manifest` (03 §2.1) | the console does not display `t_alert_hint_ns` |
 | POST | `/api/v1/runs` | `run_request` `{dataset, case_id, ai_mode: off \| record \| replay}` | 202 `run_status`; 200 if a finished run with that `run_id` exists | 409 when `ai_mode = replay` and the run has no cassette |
 | GET | `/api/v1/runs?dataset=&case_id=` | — | `[run_status]` | |
-| GET | `/api/v1/runs/{run_id}` | — | `run_status` | `{run_id, dataset, case_id, ai_mode, state: queued \| running \| done \| failed, step: 0–10, step_name, error?}` |
+| GET | `/api/v1/runs/{run_id}` | — | `run_status` | `{run_id, dataset, case_id, ai_mode, state: queued \| running \| done \| failed, step, step_name, error?}`; `step` is core's step index (0–13, `veyltrace_core.steps`) and `step_name` its name |
 | GET | `/api/v1/runs/{run_id}/events` | — | `text/event-stream` | step started/finished, done, failed |
 | GET | `/api/v1/runs/{run_id}/alert` | — | `alert` (03 §2.6) | |
 | GET | `/api/v1/runs/{run_id}/slate` | — | `slate` (03 §8) | |

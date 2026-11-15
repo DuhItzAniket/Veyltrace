@@ -36,6 +36,7 @@ class GatewaySettings:
     live_enabled: bool
     page_limit_max: int
     evidence_limit: int
+    series_max_points: int
 
 
 def _get(body: Mapping[str, Any], dotted: str) -> object:
@@ -77,6 +78,7 @@ def settings_from(body: Mapping[str, Any]) -> GatewaySettings:
         live_enabled=live,
         page_limit_max=limit_max,
         evidence_limit=evidence,
+        series_max_points=_positive(body, "api.series_max_points"),
     )
 
 
