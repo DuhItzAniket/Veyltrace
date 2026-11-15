@@ -29,10 +29,12 @@ __all__ = [
     "REF_HEX",
     "AnomalyRow",
     "CallEdge",
+    "ChangeRow",
     "EvidenceInputs",
     "GraphNode",
     "PathRow",
     "ServiceOnset",
+    "TemplateRow",
     "align",
     "anomaly_rows",
     "load_inputs",
@@ -175,6 +177,30 @@ class PathRow:
 
 
 @dataclass(frozen=True)
+class ChangeRow:
+    """One changes row with the fields 06 §2.1 reads (03 §5.2)."""
+
+    change_id: str
+    entity: str
+    kind: str
+    scope: str
+    delta_to_onset_ms: float | None
+    proximity: float
+    peer_contrast: float | None
+
+
+@dataclass(frozen=True)
+class TemplateRow:
+    """One signal_cube.templates row with the fields 06 §2.1 reads (03 §3.3)."""
+
+    service: str
+    template_id: str
+    count_baseline: int
+    count_incident: int
+    error_level: bool
+
+
+@dataclass(frozen=True)
 class EvidenceInputs:
     """What both passes read, plus the shared values of 06 §2.1.
 
@@ -183,7 +209,8 @@ class EvidenceInputs:
     [start_ns, end_ns) like alert.windows (03 §2.6). `anomalies` holds every anomalies row, sorted
     by the contract key (series_id, detector). `onsets` holds the aligned per-service onsets
     (sorted by service), `edges` and `paths` the graph rows (sorted by key) and `k_anom` is core
-    `thresholds.anomaly_z` (06 §2.1).
+    `thresholds.anomaly_z` (06 §2.1). `components` is the component map (service -> components in
+    signal_cube.series); `changes` and `templates` are sorted by their contract keys.
     """
 
     case_id: str
@@ -205,6 +232,9 @@ class EvidenceInputs:
     entry_services: tuple[str, ...]
     edges: tuple[CallEdge, ...]
     paths: tuple[PathRow, ...]
+    components: Mapping[str, frozenset[str]]
+    changes: tuple[ChangeRow, ...]
+    templates: tuple[TemplateRow, ...]
 
     @property
     def node_names(self) -> frozenset[str]:
@@ -327,15 +357,21 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
 
     rows: dict[str, int] = {}
     absent: list[str] = []
-    anomalies: tuple[AnomalyRow, ...] = ()
+    found: dict[str, list[dict[str, Any]]] = {}
     for name in sorted(BOTH_PASS_TABLES):
         if not ctx.exists(name):
             absent.append(name)
             continue
-        table = ctx.read_table(name, columns=BOTH_PASS_TABLES[name])
+        columns = (
+            ("service", "component", "signal") if name == "signal_cube.series" else BOTH_PASS_TABLES[name]
+        )
+        table = ctx.read_table(name, columns=columns)
         rows[name] = table.num_rows
-        if name == "anomalies":
-            anomalies = anomaly_rows(table.to_pylist())
+        if name in ("anomalies", "changes", "signal_cube.series", "signal_cube.templates"):
+            found[name] = table.to_pylist()
+    pairs = {(str(r["service"]), str(r["component"])) for r in found.get("signal_cube.series", [])}
+    changes = (ChangeRow(**{f: r[f] for f in BOTH_PASS_TABLES["changes"]}) for r in found.get("changes", []))
+    templates = (TemplateRow(**r) for r in found.get("signal_cube.templates", []))
     nodes = _nodes(ctx)
 
     notes: list[str] = []
@@ -362,7 +398,7 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         w_base=alert.windows.baseline,
         w_inc=w_inc,
         w_score=score_window(onsets.t_onset_ns, w_inc, score_ns),
-        anomalies=anomalies,
+        anomalies=anomaly_rows(found.get("anomalies", [])),
         rows=dict(sorted(rows.items())),
         absent=tuple(sorted(absent)),
         notes=tuple(notes),
@@ -371,4 +407,7 @@ def load_inputs(ctx: RunContext) -> EvidenceInputs:
         entry_services=tuple(sorted(onsets.entry_services)),
         edges=_edges(ctx),
         paths=_paths(ctx),
+        components={s: frozenset(c for t, c in pairs if t == s) for s in sorted({s for s, _ in pairs})},
+        changes=tuple(sorted(changes, key=lambda c: (c.entity, c.change_id))),
+        templates=tuple(sorted(templates, key=lambda t: (t.service, t.template_id))),
     )

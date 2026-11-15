@@ -401,6 +401,16 @@ FaultLoom also reports per-case counters (atoms per kind, claims evaluated, clai
 10. ~~`bad_args` has no home in the verdict.~~ *Resolved in 03 §10 (2026-10-30):* `bad_args` is a `proposals_rejected.reason`.
 11. **Score window.** *Default* 5 min; whether onset-anchored windows should also be used for Signalyth's aggregates is an Observe question (it runs before `t_onset` exists).
 12. **Anomaly direction** is not stored on atoms. *Default:* recover from `refs`; CCR only if the mode rules need it.
+13. **Which kinds use W_score?** No §3.4 formula aggregates over W_score. Anomaly atoms take Anomara's incident-window score, the trace and log tables carry Signalyth's own window labels, and the onset-window kinds use onset times and Causync's `proximity`. *Default (R-08, literal reading):* W_score is the extent the `onset` window label names. No atom value depends on it, so the `window.score_ms` ablation (§9) changes no FaultLoom output. It reaches the evidence only if Anomara scores on W_score (Q11).
+14. **Clocks in `onset_precedence{self}`.** `onset(c)` is aligned (§2.1), but `t_onset_ns` is in source time ([03 §4.2](../03-contracts.md)). *Default:* `t_onset_ns` as given. `internal_vs_external` uses the two aligned onsets.
+15. **`refs` of derived atoms** (§3.3 lists the grammar, not the rows). *Default (R-08):*
+    - `onset_precedence` cites the `onsets` entries used: *c*'s, plus D(*c*)'s for `dependents`.
+    - `propagation{entry, anomalous}` cites the `graph.edges` rows walked from *c*; `{path}` cites its `graph.paths` row.
+    - `silence` = 1.0 cites the rows that set it; `silence` = 0.0 cites every row examined.
+    - `peer_contrast` cites each component's maximising series, or the maximising changes.
+    - Log atoms cite the templates counted.
+16. **Sets in `propagation` and D(*c*).** *Default:* "anomalous services" range over U, and a silent service counts as anomalous. `atoms.disabled` drops the named kinds from the output only; other kinds and predicates still read the same inputs.
+17. **`log_error_rate` with a zero-length window** has no rate. *Default:* no atom.
 
 ## 12. References
 
