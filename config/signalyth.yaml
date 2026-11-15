@@ -1,9 +1,84 @@
 # config/signalyth.yaml: section "signalyth" (file stem). Owner: Observe lane.
-# Spec: docs/engines/02-signalyth.md §4. R-02 bootstrap: only the keys core needs now; the Observe
-# lane adds the rest in O-00. Overrides must name keys present here (packages/core/README.md:
-# unknown keys are an error).
+# Spec: docs/engines/02-signalyth.md §4.
+# Overrides must name keys present here (packages/core/README.md: unknown keys are an error).
 
 duckdb:
   # Read by veyltrace_core.duck.connect (M0 lead decision 2026-11-06).
   threads: 1             # determinism (02-signalyth §4; rcaeval_facts §Engineering)
   memory_limit: "1.5GB"  # 02-signalyth §4, §8 memory budget
+
+buckets:
+  logs_s: 10             # 02 §6.2
+  traces_s: 10           # a priori; the log grid of 02 §6.2 (02-signalyth §3.1)
+
+metrics:
+  # First matching rule wins: a case-insensitive regex on the raw name (02-signalyth §3.2 table;
+  # PRISM's internal/external split, rcaeval_facts §Anomaly scoring methods). `signal` is a fixed
+  # name or "{name}" (the sanitised raw name); `exact` is the raw name that keeps itself as signal;
+  # `quantile` appends _p{q} when the name carries a quantile.
+  family_rules:
+    - {pattern: "spec|quota|limit|request_bytes|requests_bytes", signal: "{name}", family: other, klass: context}
+    - {pattern: "^cpu$|cpu_usage|cpu_seconds|^container[_.-]cpu|process[_.]cpu", signal: cpu, family: cpu, klass: internal}
+    - {pattern: "^mem$|memory|working_set|rss|heap", signal: mem, family: mem, klass: internal}
+    - {pattern: "^diskio$|disk|^container[_.-]fs|blkio", signal: disk, exact: diskio, family: disk, klass: internal}
+    - {pattern: "^socket$|socket|network|tcp|_rx|_tx|receive|transmit", signal: net, exact: socket, family: net, klass: internal}
+    - {pattern: "latency|duration|response_time", signal: latency, quantile: true, family: latency, klass: external}
+    - {pattern: "^error$|error|fail|5xx", signal: error, family: errors, klass: external}
+    - {pattern: "^workload$|request|rps|qps|throughput", signal: rps, exact: workload, family: traffic, klass: context}
+    - {pattern: ".*", signal: "{name}", family: other, klass: context}
+  counter_name_patterns: ["_total$", "_count$", "_sum$", "_bucket$"]  # Prometheus naming
+  counter_shape_test: true  # a priori
+  counter_shape:
+    min_increases: 10       # a priori
+    min_increase_share: 0.99  # a priori
+    reset_ratio: 0.1        # a drop below 10 % of the previous value is a reset (a priori)
+    exclude_families: [mem, latency, disk]  # protects monotone leak gauges
+
+traces:
+  reconstruct_parents: if_missing  # if_missing | never (rcaeval_facts §Traces)
+  infer_client_spans: true  # RCAEval spans have no kind
+  skew_tolerance_ms: 1.0    # a priori
+  min_spans_per_quantile: 5 # a priori
+  keep_fraction: 1.0        # sampling robustness arm (novel_building_blocks §Q6)
+
+cp:
+  min_tree_fraction: 0.8      # a priori
+  max_traces_per_window: 20000  # performance cap (estimate-based, 02-signalyth §8)
+
+logs:
+  first_line_max_chars: 512  # a priori
+  # Applied in this order by DuckDB regexp_replace, so the syntax is RE2 (02-signalyth §3.5 step 2;
+  # rcaeval_facts §Engineering). The number mask is word-bounded: names such as svc1 stay intact.
+  mask_patterns:
+    - {pattern: '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', token: "<UUID>"}
+    - {pattern: '\b\d{1,3}(\.\d{1,3}){3}(:\d+)?\b', token: "<IP>"}
+    - {pattern: '\b[0-9a-fA-F]{8,}\b', token: "<HEX>"}
+    - {pattern: '\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?', token: "<TS>"}
+    - {pattern: '\b\d+(\.\d+)?(ns|us|µs|ms|s|m|h)\b', token: "<DUR>"}
+    - {pattern: '\b\d+(\.\d+)?\b', token: "<NUM>"}
+  drain:
+    sim_th: 0.4          # fixed a priori (Drain3 default)
+    depth: 4             # fixed a priori (Drain3 default)
+    max_children: 100    # Drain3 default
+  min_template_count: 3  # a priori
+  max_template_series_per_service: 200  # a priori cost cap
+  # A line is error-level at severity ERROR/FATAL or when its full body matches one of these (RE2,
+  # case-sensitive unless marked; 02-signalyth §3.5 step 7).
+  error_lexicon:
+    # rcaeval_facts §Logs
+    - '\bERROR\b'
+    - '\bFATAL\b'
+    - 'Exception'
+    - 'Traceback \(most recent call last\)'
+    - 'panic:'
+    - 'DEADLINE_EXCEEDED'
+    - 'UNAVAILABLE'
+    # a priori
+    - '(?i)\brefused\b'
+    - '(?i)\btimed? ?out\b'
+    # a priori; a bare 5\d\d would match numbers such as "512ms"
+    - '(?i)\b(http|status|code)[ :=]+5\d\d\b'
+    # stack-trace detectors, a priori
+    - '(?m)^\s+at [\w.$]+\('
+    - 'goroutine \d+ \['
+    - 'Exception in thread'

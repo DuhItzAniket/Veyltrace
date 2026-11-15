@@ -1,0 +1,80 @@
+{
+  "schema_version": "0.1.0",
+  "excluded": {
+    "synth": []
+  },
+  "experiment_id": "synth-smoke",
+  "groups": [
+    {
+      "dataset": "synth",
+      "method": "veyltrace:off",
+      "metrics": {
+        "ac_at_k": {
+          "ac_at_1": 0.0,
+          "ac_at_2": 0.0,
+          "ac_at_3": 0.0,
+          "ac_at_4": 0.0,
+          "ac_at_5": 0.0
+        },
+        "avg_at_5": {
+          "avg_at_5": 0.0
+        },
+        "chance": {
+          "chance_at_1": 0.166666667,
+          "chance_at_2": 0.333333333,
+          "chance_at_3": 0.5,
+          "chance_at_4": 0.666666667,
+          "chance_at_5": 0.833333333
+        },
+        "fine_ac_at_k": {
+          "fine_ac_at_1": 0.0,
+          "fine_ac_at_2": 0.0,
+          "fine_ac_at_3": 0.0,
+          "fine_ac_at_4": 0.0,
+          "fine_ac_at_5": 0.0
+        },
+        "lift": {
+          "chance_diff_at_1": -0.166666667,
+          "chance_diff_at_2": -0.333333333,
+          "chance_diff_at_3": -0.5,
+          "chance_diff_at_4": -0.666666667,
+          "chance_diff_at_5": -0.833333333,
+          "lift_at_1": 0.0,
+          "lift_at_2": 0.0,
+          "lift_at_3": 0.0,
+          "lift_at_4": 0.0,
+          "lift_at_5": 0.0
+        },
+        "mrr": {
+          "mrr": 0.0
+        },
+        "onset_error": null,
+        "rerank_at_1": null,
+        "retrieval_at_k": {
+          "pool_retrieval": 0.0,
+          "retrieval_at_k": 0.0,
+          "retrieval_k": [
+            5
+          ]
+        }
+      },
+      "n_chance": 4,
+      "n_fault": 4,
+      "n_fine": 4,
+      "n_no_truth": 1,
+      "n_outside_services": 0,
+      "n_rows": 5,
+      "n_unranked": 4,
+      "outcomes": {
+        "failed": 0,
+        "no_alert": 0,
+        "ok": 5,
+        "rejected": 0,
+        "timeout": 0
+      },
+      "system": "other"
+    }
+  ],
+  "producer": "bench@0",
+  "statistics": "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
+}
