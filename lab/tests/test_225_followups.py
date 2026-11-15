@@ -3,7 +3,6 @@
 import json
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import campaign
 import package as package_cli
@@ -11,7 +10,7 @@ import pytest
 import report
 from test_package import CTX, T0, _span_req, _write_capture
 from vlab.faults import CATALOG
-from vlab.package import package_capture, scrub_request
+from vlab.package import Report, package_capture, scrub_request
 from vlab.plan import parse
 
 
@@ -61,18 +60,12 @@ def test_feature_flag_attributes_are_stripped_from_span_events_and_data_points()
     flag = [{"key": "feature_flag.key", "value": {"stringValue": "x"}}]
     span["events"] = [{"name": "evaluation", "attributes": list(flag)}]
     span["links"] = [{"traceId": "t", "attributes": list(flag)}]
-    scrub_request(req, "traces", CTX, _report(), [])
+    scrub_request(req, "traces", CTX, Report(), [])
     assert "feature_flag" not in json.dumps(req)
     metric = {"name": "m", "sum": {"dataPoints": [{"asInt": "1", "attributes": list(flag)}]}}
     mreq = {"resourceMetrics": [{"resource": {"attributes": []}, "scopeMetrics": [{"metrics": [metric]}]}]}
-    scrub_request(mreq, "metrics", CTX, _report(), [])
+    scrub_request(mreq, "metrics", CTX, Report(), [])
     assert "feature_flag" not in json.dumps(mreq)
-
-
-def _report() -> Any:
-    from vlab.package import Report
-
-    return Report()
 
 
 def test_a_surviving_feature_flag_fails_packaging(tmp_path: Path) -> None:

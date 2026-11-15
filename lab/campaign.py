@@ -35,9 +35,8 @@ def reset(runner: Runner, pins: Mapping[str, Any], users: int = DEFAULT_USERS) -
     """Remove leftover faults, restore config and images from the overlay, set the load profile and
     restart every app Deployment (05 §8.1 Reset)."""
     names = deployments(pins)
-    if not names:  # nothing to wait on would pass the reset unchecked (#230 review)
-        why = manifest_problem(pins) or "the vendored OB manifest has no Deployments"
-        raise CommandError("rollout status", 1, why)
+    if not names:  # waiting on nothing would pass the reset unchecked (#230 review)
+        raise CommandError("rollout status", 1, manifest_problem(pins) or "no Deployments in the manifest")
     app = str(pins["app_namespace"])
     runner.run(kubectl(pins, "-n", app, "delete", CHAOS_KINDS, "--all", "--ignore-not-found"))
     runner.run(kubectl(pins, "apply", "-k", str(OB_DIR / "overlay")))
