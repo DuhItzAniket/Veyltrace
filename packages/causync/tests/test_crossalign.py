@@ -73,6 +73,20 @@ def test_lines_without_a_matching_span_do_not_join() -> None:
     )
 
 
+def test_spans_are_moved_to_the_reference_clock_before_the_join() -> None:
+    # service a's trace clock runs 70 ms ahead and its trace offset is −70 ms; its logs share the
+    # skewed clock, so they must come out with the same correction (#271)
+    trace = spans(20).append_column("service", pa.array(["a"] * 20))
+    lines = logs([100 * i + 20 for i in range(20)], [f"s{i}" for i in range(20)])
+    raw = log_span_offset(lines, trace, ALIGN)
+    assert raw is not None
+    assert raw.offset_ns == 0  # against raw spans the lines look fine
+    moved = log_span_offset(lines, trace, ALIGN, {"a": -70 * MS})
+    assert moved is not None
+    assert moved.offset_ns == -50 * MS  # the nearest in-span shift; a lower bound on the 70 ms
+    assert log_span_offset(lines, trace, ALIGN, {"other": -70 * MS}) == raw
+
+
 def traffic(
     lag_steps: int, services: tuple[str, ...] = ("a", "b", "c"), noise: float = 0.0, n: int = 80
 ) -> pa.Table:
@@ -129,6 +143,15 @@ def test_comovement_rejects_what_it_cannot_support() -> None:
     assert result(traffic(2), steps={"traces": 10 * S}) == none  # the source has no step
     flat = traffic(2).set_column(5, "value", pa.array([1.0] * traffic(2).num_rows, pa.float64()))
     assert result(flat) == none  # constant traffic has no co-movement
+
+
+def test_a_best_lag_at_the_edge_rejects_the_service() -> None:
+    # the true lag is exactly max_lag (12 steps of 10 s): the winner is at the edge of the search,
+    # so the services are rejected rather than given their next-best lag (#271)
+    found = comovement_offset(traffic(12), "logs", "traces", STEPS, ALIGN)
+    assert (found.offset_ns, found.method) == (0, "none")
+    inside = comovement_offset(traffic(11), "logs", "traces", STEPS, ALIGN)
+    assert (inside.offset_ns, inside.method) == (-110 * S, "comovement")
 
 
 def test_coarser_step_sets_the_resolution() -> None:

@@ -3,8 +3,8 @@
 A client-like span `p` and its only child `c` in another service give the NTP on-wire estimate
 `θ = ((c.start − p.start) + (c.end − p.end)) / 2`: callee clock minus caller clock under symmetric
 network delay (RFC 5905). Per caller→callee pair the median θ is propagated breadth-first from the
-root service. Client overhead biases θ by small amounts, so an offset is published only where the
-data shows skew (children sticking out of their parents); otherwise 0.
+root service. Client overhead biases θ by small amounts, so a pair's θ is applied only where the
+data shows skew (children sticking out of their parents); otherwise it counts as 0.
 
 A span is client-like when its kind is `client`, or when its kind is `unspecified`, its parent is
 in its own service and its only child is in another one (the rule of 02-signalyth §3.3 without
@@ -105,37 +105,42 @@ def trace_offsets(spans: pa.Table, entry_services: list[str], cfg: AlignConfig) 
 
     Breadth-first from the root (the first entry service A→Z that has spans, else the service
     with the most spans) over pairs with at least `min_pairs` samples, neighbours by (pairs desc,
-    name asc). Along A→B, `offset(B) = offset(A) − θ_AB`; against the call direction the sign
-    flips. A service keeps its offset only if it is at least `trace_min_offset_ms` and the pairs
-    of the edge that reached it violate containment often enough; unreachable services get
-    method `none`."""
+    name asc). The publish gate is per edge: along A→B, `offset(B) = offset(A) − θ_AB` when the
+    A→B pairs show skew (|θ| at least `trace_min_offset_ms` and children sticking out of their
+    parents often enough), else `offset(B) = offset(A)`; against the call direction the sign
+    flips. So a callee on its caller's skewed clock inherits the caller's correction.
+    Unreachable services get method `none`, as does every service when the case has no
+    client/server pair at all (04 §6)."""
     stats, counts = pair_stats(spans)
     if not counts:
         return []
     entries = sorted(s for s in entry_services if s in counts)
     root = entries[0] if entries else min(counts, key=lambda s: (-counts[s], s))
+    if not stats:
+        return [Offset("traces", service, 0, "none", 0.0) for service in sorted(counts)]
     links: dict[str, list[tuple[int, str, float, PairStats]]] = {}
     for (caller, callee), st in stats.items():
         if st.n >= cfg.min_pairs:
-            links.setdefault(caller, []).append((-st.n, callee, -st.theta_ns, st))
-            links.setdefault(callee, []).append((-st.n, caller, st.theta_ns, st))
-    raw: dict[str, tuple[float, PairStats | None]] = {root: (0.0, None)}
+            shown = (
+                abs(st.theta_ns) >= cfg.trace_min_offset_ns and st.violation_share >= cfg.min_violation_share
+            )
+            theta = st.theta_ns if shown else 0.0
+            links.setdefault(caller, []).append((-st.n, callee, -theta, st))
+            links.setdefault(callee, []).append((-st.n, caller, theta, st))
+    found: dict[str, tuple[float, PairStats | None]] = {root: (0.0, None)}
     queue = [root]
     for node in queue:  # the list grows while it is walked: breadth-first
         for _, other, delta, st in sorted(links.get(node, []), key=lambda link: link[:2]):
-            if other not in raw:
-                raw[other] = (raw[node][0] + delta, st)
+            if other not in found:
+                found[other] = (found[node][0] + delta, st)
                 queue.append(other)
     out: list[Offset] = []
     for service in sorted(counts):
-        if service not in raw:
+        if service not in found:
             out.append(Offset("traces", service, 0, "none", 0.0))
             continue
-        value, st = raw[service]
-        if st is None:  # the root defines the trace clock
-            out.append(Offset("traces", service, 0, "trace_pairs", 1.0))
-            continue
-        shown = abs(value) >= cfg.trace_min_offset_ns and st.violation_share >= cfg.min_violation_share
-        confidence = st.n / (st.n + cfg.min_pairs) * st.sign_share
-        out.append(Offset("traces", service, int(np.rint(value)) if shown else 0, "trace_pairs", confidence))
+        value, st = found[service]
+        # the root defines the trace clock; elsewhere the edge that reached the service speaks
+        confidence = 1.0 if st is None else st.n / (st.n + cfg.min_pairs) * st.sign_share
+        out.append(Offset("traces", service, int(np.rint(value)), "trace_pairs", confidence))
     return out

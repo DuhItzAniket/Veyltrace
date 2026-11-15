@@ -77,7 +77,7 @@ def test_synth_alignment_reports_no_skew() -> None:
 def test_component_change_gets_a_peer_contrast() -> None:
     by_scope = {c["scope"]: c for c in _changes("synth-03")}
     assert by_scope["component"]["peer_contrast"] is not None  # a replica against its peer
-    assert by_scope["service"]["peer_contrast"] is None  # no replica appeared after it
+    assert by_scope["service"]["peer_contrast"] is None  # its service has no replicas in synth-03
 
 
 def test_scores_ignore_source_system_and_actor(tmp_path: Path) -> None:

@@ -77,10 +77,10 @@ def test_no_visible_skew_publishes_zero() -> None:
 def test_skew_propagates_along_the_chain() -> None:
     found = offsets(chain(40, skew_b=200, skew_c=200))
     assert found["B"][0] == -213 * MS  # the micro-example: B ran 200 ms ahead
-    assert found["C"][0] == 0  # θ_BC is small and contained: gated, although its raw offset is −215 ms
+    assert found["C"][0] == -213 * MS  # B → C shows no skew, so C inherits B's correction (#271)
     only_c = offsets(chain(40, skew_c=-300))
-    assert only_c["B"][0] == 0
-    assert only_c["C"][0] == (-13 + 300) * MS  # offset(B) − θ_BC, from B's raw −13 ms
+    assert only_c["B"][0] == 0  # A → B is contained: its 13 ms of client overhead is not applied
+    assert only_c["C"][0] == 300 * MS  # offset(B) − θ_BC
 
 
 def test_propagation_against_the_call_direction() -> None:
@@ -88,6 +88,54 @@ def test_propagation_against_the_call_direction() -> None:
     assert found["C"][:2] == (0, "trace_pairs")
     assert found["B"][0] == 0  # B → C pairs show no violation
     assert found["A"][0] == 213 * MS  # offset(A) = offset(B) + θ_AB
+
+
+def fan(first: tuple[str, int], second: tuple[str, int], skew: dict[str, int]) -> list[Span]:
+    """A calls two services (name, pairs); B calls D in 40 of its traces, any other service in 35.
+    Calls have symmetric delay (client [0, 50] ms, server [10, 40] ms), so θ is exactly the
+    clock difference."""
+    spans: list[Span] = []
+
+    def call(trace: str, parent: str, caller: str, callee: str, base: int) -> str:
+        a, b = skew.get(caller, 0), skew.get(callee, 0)
+        spans.append((trace, f"{parent}>{callee}", parent, caller, "client", base + a, base + 50 + a))
+        spans.append(
+            (
+                trace,
+                f"{parent}/{callee}",
+                f"{parent}>{callee}",
+                callee,
+                "server",
+                base + 10 + b,
+                base + 40 + b,
+            )
+        )
+        return f"{parent}/{callee}"
+
+    for mid, pairs in (first, second):
+        for i in range(pairs):
+            trace, base = f"{mid}{i}", 1000 * i
+            spans.append((trace, "root", None, "A", "server", base, base + 60))
+            server = call(trace, "root", "A", mid, base)
+            if i < (40 if mid == "B" else 35):
+                call(trace, server, mid, "D", base + 12)
+    return spans
+
+
+def test_neighbours_are_visited_by_pairs_then_name() -> None:
+    skew = {"B": 200}  # only B's clock is off; D is reachable through B and through C
+    by_pairs = offsets(fan(("B", 40), ("C", 50), skew))
+    assert (by_pairs["B"][0], by_pairs["C"][0], by_pairs["D"][0]) == (-200 * MS, 0, 0)
+    assert by_pairs["D"][2] == 35 / (35 + 30)  # C has more pairs with A: visited first, it reaches D
+    by_name = offsets(fan(("C", 40), ("B", 40), skew))
+    assert by_name["D"][0] == 0  # offset(B) − θ_BD = −200 + 200
+    assert by_name["D"][2] == 40 / (40 + 30)  # equal pairs: B comes first by name and reaches D
+
+
+def test_no_client_server_pair_means_no_estimate() -> None:
+    servers = [s for s in chain(40, skew_b=200) if s[4] == "server"]
+    orphans: list[Span] = [(t, sid, None, svc, kind, a, b) for t, sid, _, svc, kind, a, b in servers]
+    assert offsets(orphans) == {s: (0, "none", 0.0) for s in "ABC"}  # 04 §6: not even the root
 
 
 def test_too_few_pairs_leave_a_service_unreachable() -> None:
@@ -121,10 +169,10 @@ def test_gate_thresholds() -> None:
 
 @given(st.integers(min_value=-5000, max_value=5000).filter(lambda d: abs(d) >= 50), st.randoms())
 def test_planted_skew_is_recovered_whatever_the_row_order(delta: int, rnd: object) -> None:
-    spans = chain(40, skew_b=delta, skew_c=delta)
+    spans = fan(("B", 40), ("C", 40), {"B": delta})
     found = offsets(spans)
-    assert abs(found["B"][0] - (-delta - 13) * MS) == 0
-    assert abs(found["B"][0] + delta * MS) <= 13 * MS  # −δ up to the client overhead bias
+    assert abs(found["B"][0] + delta * MS) <= MS  # 04 §7: −δ within 1 ms (symmetric delay: exact)
+    assert found["C"][0] == 0
     shuffled = list(spans)
     rnd.shuffle(shuffled)  # type: ignore[attr-defined]  # hypothesis Random
     assert offsets(shuffled) == found

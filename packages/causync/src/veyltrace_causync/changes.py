@@ -23,7 +23,7 @@ from veyltrace_causync.tracepairs import Offset
 from veyltrace_contracts import models
 from veyltrace_core.ids import short_id
 
-__all__ = ["EVENT_COLUMNS", "Change", "aligned_onsets", "evidence", "timeline"]
+__all__ = ["EVENT_COLUMNS", "Change", "aligned_onsets", "aligned_t_onset", "evidence", "timeline"]
 
 EVENT_COLUMNS: Final = ("t_ns", "entity", "kind", "source_system", "detail_json", "actor")
 CHANGE_ID_HEX: Final = 10
@@ -62,6 +62,18 @@ def aligned_onsets(onsets: models.Onsets, offsets: list[Offset]) -> dict[str, in
         if found:
             out[p.service] = min(found)
     return out
+
+
+def aligned_t_onset(onsets: models.Onsets, offsets: list[Offset]) -> int:
+    """`t_onset_ns` on the reference clock (03 §5.2: every target onset is aligned). The incident
+    onset is one of the per-service external onsets, so it is on the clock of that onset's
+    source: the first service A→Z whose external onset equals it names the source, and that
+    source's source-level offset is added. A `t_alert` fallback matches no service and stays."""
+    table = {o.source: o.offset_ns for o in offsets if o.service is None}
+    for p in sorted(onsets.per_service, key=lambda p: p.service):
+        if p.external_onset_ns == onsets.t_onset_ns and p.external_onset_source is not None:
+            return onsets.t_onset_ns + table.get(p.external_onset_source, 0)
+    return onsets.t_onset_ns
 
 
 def timeline(

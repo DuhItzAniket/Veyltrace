@@ -12,7 +12,7 @@ from typing import Any
 
 import pyarrow as pa
 
-from veyltrace_causync.changes import EVENT_COLUMNS, aligned_onsets, evidence, timeline
+from veyltrace_causync.changes import EVENT_COLUMNS, aligned_onsets, aligned_t_onset, evidence, timeline
 from veyltrace_causync.crossalign import JOIN_LOG_COLUMNS, comovement_offset, log_span_offset
 from veyltrace_causync.peers import ANOMALY_COLUMNS, peer_contrast, replica_scores, replicas
 from veyltrace_causync.settings import causync_config
@@ -58,7 +58,8 @@ def run(ctx: RunContext) -> EngineResult:
         joined = None
         if spans is not None:
             logs = ctx.read_table("telemetry.logs", columns=JOIN_LOG_COLUMNS)
-            joined = log_span_offset(logs, spans, cfg.align)
+            per_service = {o.service: o.offset_ns for o in offsets if o.source == "traces" and o.service}
+            joined = log_span_offset(logs, spans, cfg.align, per_service)
         offsets.append(joined or comovement_offset(series, "logs", reference, steps, cfg.align))
     if sources.events:
         offsets.append(Offset("events", None, 0, "none", 0.0))  # no estimator for events (04 §3.3)
@@ -75,13 +76,17 @@ def run(ctx: RunContext) -> EngineResult:
         events = ctx.read_table("telemetry.events", columns=EVENT_COLUMNS)
         changes = timeline(events, list(manifest.services), pods.service_of, cfg)
     by_service = aligned_onsets(onsets, offsets)
+    t_onset = aligned_t_onset(onsets, offsets)
     with duck.connect(ctx.config, ctx.run_dir) as con:
-        cols = evidence(con, changes, by_service, onsets.t_onset_ns, tol, cfg)
+        cols = evidence(con, changes, by_service, t_onset, tol, cfg)
     if changes:
         scores = replica_scores(ctx.read_table("anomalies", columns=ANOMALY_COLUMNS))
+        metrics_offset = next(
+            (o.offset_ns for o in offsets if o.source == "metrics" and o.service is None), 0
+        )
         cols["peer_contrast"] = [
             peer_contrast(
-                c, by_service.get(c.service or "", onsets.t_onset_ns), pods, scores, cfg.min_replicas
+                c, by_service.get(c.service or "", t_onset), pods, scores, cfg.min_replicas, metrics_offset
             )
             for c in changes
         ]
