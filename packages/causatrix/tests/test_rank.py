@@ -91,6 +91,16 @@ def test_no_vote_gives_zero_scores_and_the_tie_break_order() -> None:
     assert result.order == ("c", "b", "d", "a")  # internal-first, then earliest onset, then name
 
 
+def test_equal_non_zero_fused_scores_fall_back_to_the_name() -> None:
+    # a and b have the same evidence, so every voting ranker ties them: equal F > 0, both internal
+    # anomalies, no onsets, so the step-5 key comes down to the name (07 §3.1 step 5).
+    facts = {"b": SE(internal=5.0, external=6.0), "a": SE(internal=5.0, external=6.0), "c": SE(1.0, 1.0)}
+    result = rank(_view(facts), _graph(list(facts), []), NO_EVENTS, CFG)
+    assert result.active and result.fused["a"] == result.fused["b"] > result.fused["c"]
+    assert result.order == ("a", "b", "c")
+    assert hash(result) == hash(rank(_view(facts), _graph(list(facts), []), NO_EVENTS, CFG))
+
+
 def test_other_fusion_methods_and_mismatched_views_are_refused() -> None:
     graph = _graph(list(EXAMPLE), CALLS)
     with pytest.raises(ConfigError, match="borda"):

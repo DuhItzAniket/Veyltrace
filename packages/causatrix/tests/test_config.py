@@ -164,7 +164,7 @@ def test_core_values_are_validated() -> None:
         config_from(cfg, core)
 
 
-def test_engine_run_rejects_a_bad_key_even_if_the_stub_does_not_use_it(tmp_path: Path) -> None:
+def test_engine_run_rejects_a_bad_config_key(tmp_path: Path) -> None:
     run_dir = fixture_run_dir("synth-01", tmp_path, through="faultloom")
     ctx = make_context("causatrix", run_dir, overrides={"causatrix.graph_walk.damping": 2.0})
     with pytest.raises(ConfigError, match=r"causatrix\.graph_walk\.damping"):

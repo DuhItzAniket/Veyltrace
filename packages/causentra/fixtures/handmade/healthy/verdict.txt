@@ -210,7 +210,6 @@
   "checkout_latency"
  ],
  "root": null,
- "run_id": "5db64f0d11bb7aa6",
  "schema_version": "0.1.0",
  "status": "NO_FAULT",
  "verdict_hash": "dd50d4f4a11cf4c395625e3f8908f8ea80d9fae6a59b4eae02377ea7df3859c6"

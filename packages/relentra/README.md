@@ -14,3 +14,5 @@ uv run python scripts/check.py --package relentra
 ```
 
 With `--ai off` this engine is skipped and writes nothing.
+
+**Status (X-00 stub).** No model is called yet: with AI on, Relentra reads `case_manifest` and `slate` and writes `proposals.json` with `status = skipped`, `model = null`, a zero budget, and an empty `agent_trace.jsonl`; the step's notes say why (`relentra.enabled` false, empty slate, or brief mode not built yet). Brief mode arrives in X-07.

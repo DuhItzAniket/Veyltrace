@@ -62,9 +62,22 @@ def test_worked_example_rows_and_scores() -> None:
         "payment": ([], 0.057, 0.943),
     }
     result = vote(load_ranker("graph_walk"), _view(EXAMPLE), graph, ALL, CFG)
-    expected = {"checkout": 0.5004, "currency": 0.2085, "frontend": 0.2565, "payment": 0.0346}
-    assert result.scores == pytest.approx(expected, abs=5e-5)
+    expected = {"checkout": 0.500381, "currency": 0.208490, "frontend": 0.256530, "payment": 0.034598}
+    assert result.scores == pytest.approx(expected, abs=1e-6)  # 07 §3.7 values, 07 §7 tolerance
     assert dict(result.ranks) == {"checkout": 1, "frontend": 2, "currency": 3, "payment": 4}
+
+
+def test_a_disconnected_node_keeps_a_self_loop_and_restart() -> None:
+    # A node with no edge in or out: its row has no moves, never a negative part, and it is still
+    # ranked through its own prior mass rather than dropped.
+    facts = {**EXAMPLE, "ledger": SE(internal=6.0, external=0.0)}
+    graph = _graph(list(facts), CALLS)
+    rows = transition_rows(_view(facts), graph, CFG)
+    assert rows["ledger"].moves == () and rows["ledger"].stay == pytest.approx(6.0 / 14.0)
+    assert rows["ledger"].restart == pytest.approx(8.0 / 14.0)
+    assert all(x >= 0 for r in rows.values() for x in (r.stay, r.restart, *(f for _, f in r.moves)))
+    pi = score(_view(facts), graph, CFG)
+    assert pi["ledger"] > 0 and math.fsum(pi.values()) == pytest.approx(1.0, abs=1e-9)
 
 
 def test_abstains_without_edges_or_anomaly() -> None:

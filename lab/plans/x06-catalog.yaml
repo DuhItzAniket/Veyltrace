@@ -1,0 +1,14 @@
+# X-06 acceptance plan (05 §14): every catalog type not yet captured by x02-smoke, once each.
+# Together with x02-smoke (F01, F04) that is 9 fault types. Mixes one-shot and scheduled kills and
+# one 30-user load profile (05 §3.2).
+profile: ob
+dataset: veyllab-ob
+seed: 20261110
+entries:
+  - {fault: F02, target: recommendationservice, severity: L1}   # 450Mi limit: 256 MB stress fits
+  - {fault: F05, target: cartservice, severity: L1, users: 30}
+  - {fault: F06, target: productcatalogservice, severity: L2}   # pod kill every 120 s (Schedule)
+  - {fault: F07, target: checkoutservice, severity: L1}         # one container kill
+  - {fault: F08, target: shippingservice, severity: L1}         # 200 s pod failure
+  - {fault: F11, target: frontend, severity: L1}                # CPU limit 200m -> 50m
+  - {fault: F13, target: redis-cart, severity: L1}

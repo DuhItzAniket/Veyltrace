@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
@@ -24,6 +25,7 @@ from veyltrace_core.testing import content_lines, make_context
 HANDMADE = Path(__file__).resolve().parents[1] / "fixtures" / "handmade"
 CASES = tuple(sorted(p.name for p in HANDMADE.iterdir() if p.is_dir()))
 UPDATE_ENV = "VEYLTRACE_UPDATE_HANDMADE"
+RUN_ID = re.compile(r"[0-9a-f]{16}(-x[0-9a-f]{12})?")  # the 03 §1 run_id pattern
 
 
 def _verdict(case: str, run_dir: Path) -> models.Verdict:
@@ -35,10 +37,18 @@ def _verdict(case: str, run_dir: Path) -> models.Verdict:
     return io.read_model("verdict", run_dir, models.Verdict, validate=True)
 
 
+def _without_run_id(lines: list[str]) -> list[str]:
+    # run_id hashes the whole resolved config (03 §1), so any unrelated config key would move it.
+    # The verdict itself never depends on it: verdict_hash excludes run_id (09 §3.13, 03 §10), and
+    # core's tests own the run_id derivation. The golden pins the decision, not the run identity.
+    return [line for line in lines if not line.lstrip().startswith('"run_id":')]
+
+
 @pytest.mark.parametrize("case", CASES)
 def test_verdict_matches_the_handmade_golden(tmp_path: Path, case: str) -> None:
-    _verdict(case, tmp_path)
-    actual = content_lines("verdict", io.path_of("verdict", tmp_path))
+    v = _verdict(case, tmp_path)
+    assert RUN_ID.fullmatch(v.run_id), v.run_id  # present and well-formed, though not compared
+    actual = _without_run_id(content_lines("verdict", io.path_of("verdict", tmp_path)))
     golden = HANDMADE / case / "verdict.txt"
     if os.environ.get(UPDATE_ENV) == "1":
         assert not os.environ.get("CI"), "hand-made goldens are refreshed locally and reviewed"

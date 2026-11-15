@@ -1,0 +1,5 @@
+dist
+coverage
+pnpm-lock.yaml
+# Markdown follows the repo doc conventions (docs/), not Prettier.
+*.md
