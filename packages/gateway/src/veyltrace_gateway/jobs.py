@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import queue
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -20,7 +21,7 @@ from veyltrace_core.ids import run_id as make_run_id
 from veyltrace_core.pipeline import StepEvent, code_commit, run_case
 from veyltrace_core.steps import STEPS
 
-__all__ = ["Job", "JobRunner", "JobState"]
+__all__ = ["Job", "JobRunner", "JobState", "ReplayJob"]
 
 JobState = Literal["queued", "running", "done", "failed"]
 
@@ -41,13 +42,25 @@ class Job:
     finished: threading.Event = field(default_factory=threading.Event)
 
 
+@dataclass
+class ReplayJob:
+    """One replay of a finished run's receipt (06 §3.2): the replay command's exit code (0-6)."""
+
+    run_id: str
+    state: JobState = "queued"
+    exit_code: int | None = None
+    error: str | None = None
+    finished: threading.Event = field(default_factory=threading.Event)
+
+
 class JobRunner:
     """FIFO runner with one worker thread, started on the first submit."""
 
     def __init__(self, runs_root: Path, *, commit: str | None = None, config_dir: Path | None = None) -> None:
         self._root, self._commit, self._config_dir = runs_root, commit, config_dir
-        self._queue: queue.Queue[Job] = queue.Queue()
+        self._queue: queue.Queue[Callable[[], None]] = queue.Queue()  # runs and replays, in order
         self._jobs: dict[str, Job] = {}
+        self._replays: dict[str, ReplayJob] = {}
         self._lock = threading.Lock()
         self._worker: threading.Thread | None = None
 
@@ -74,15 +87,45 @@ class JobRunner:
                 return job
             job = Job(run_id=run_id, dataset=dataset, case_id=case_id, ai_mode=ai_mode)
             self._jobs[run_id] = job
-            if self._worker is None:
-                self._worker = threading.Thread(target=self._work, name="veyltrace-jobs", daemon=True)
-                self._worker.start()
-        self._queue.put(job)
+            self._start()
+        self._queue.put(lambda: self._run(job))
         return job
+
+    def replay(self, run_id: str) -> ReplayJob | None:
+        with self._lock:
+            return self._replays.get(run_id)
+
+    def submit_replay(self, run_id: str, receipt: Path, command: Callable[[list[str]], int]) -> ReplayJob:
+        """Queue `command([receipt])` (the replay entry point) unless one is queued or running."""
+        with self._lock:
+            job = self._replays.get(run_id)
+            if job is not None and job.state in ("queued", "running"):
+                return job
+            job = ReplayJob(run_id=run_id)
+            self._replays[run_id] = job
+            self._start()
+        self._queue.put(lambda: self._replay(job, receipt, command))
+        return job
+
+    def _start(self) -> None:
+        if self._worker is None:  # caller holds the lock
+            self._worker = threading.Thread(target=self._work, name="veyltrace-jobs", daemon=True)
+            self._worker.start()
 
     def _work(self) -> None:
         while True:
-            self._run(self._queue.get())
+            self._queue.get()()
+
+    def _replay(self, job: ReplayJob, receipt: Path, command: Callable[[list[str]], int]) -> None:
+        with self._lock:
+            job.state = "running"
+        try:
+            code, error = int(command([str(receipt)])), None
+        except Exception as exc:  # any failure is the replay's, never the worker thread's
+            code, error = None, f"{type(exc).__name__}: {exc}"
+        with self._lock:
+            job.state, job.exit_code, job.error = ("done" if code is not None else "failed"), code, error
+        job.finished.set()
 
     def _run(self, job: Job) -> None:
         def progress(event: StepEvent) -> None:

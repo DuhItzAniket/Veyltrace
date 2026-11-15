@@ -4,26 +4,38 @@ run is 200, a queued or running one 202; replay without a record run's cassette 
 # No `from __future__ import annotations`: FastAPI reads the route annotations at creation.
 import asyncio
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
-from typing import Final
+from typing import Final, cast
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from veyltrace_core import plugins
 from veyltrace_core.config import data_root
+from veyltrace_core.errors import ReplayExit
 from veyltrace_core.ids import is_case_id, is_run_id
 from veyltrace_core.pipeline import CASSETTE_DIR, find_run, run_dir_for
-from veyltrace_gateway.api_models import RunRequest
+from veyltrace_gateway.api_models import ReplayReport, RunRequest
 from veyltrace_gateway.cases import check_dataset
 from veyltrace_gateway.errors import ApiError
-from veyltrace_gateway.jobs import Job, JobRunner
+from veyltrace_gateway.jobs import Job, JobRunner, ReplayJob
 from veyltrace_gateway.runs import finished_status, job_status
 from veyltrace_gateway.settings import GatewaySettings
 
 __all__ = ["submit_router"]
 
 _FINAL: Final = frozenset({"done", "failed"})
+#: The replay entry point Causivra registers (`veyltrace.commands:replay`, as core's CLI uses).
+REPLAY_COMMAND: Final = "replay"
+
+
+def _report(job: ReplayJob) -> ReplayReport:
+    known = {int(e): e.name.lower() for e in ReplayExit}
+    meaning = known.get(job.exit_code) if job.exit_code is not None else None
+    return ReplayReport(
+        run_id=job.run_id, state=job.state, exit_code=job.exit_code, meaning=meaning, error=job.error
+    )
 
 
 def _sse(event: str, data: dict[str, object]) -> bytes:
@@ -49,6 +61,23 @@ def submit_router(settings: GatewaySettings, runs_root: Path, runner: JobRunner)
                 raise ApiError(409, "no_cassette", "replay needs a finished record run of this case")
         job = runner.submit(request.dataset, request.case_id, request.ai_mode, rid)
         return JSONResponse(job_status(job).model_dump(mode="json"), status_code=202)
+
+    @router.post("/runs/{run_id}/replay", status_code=202, response_model=ReplayReport)
+    def post_replay(run_id: str) -> ReplayReport:
+        found = find_run(run_id, runs_root)
+        if found is None:
+            raise ApiError(404, "run_not_found", f"no finished run {run_id!r}")
+        if REPLAY_COMMAND not in plugins.names(plugins.COMMANDS):
+            raise ApiError(503, "replay_unavailable", "Causivra's replay command is not installed yet")
+        command = cast(Callable[[list[str]], int], plugins.load_one(plugins.COMMANDS, REPLAY_COMMAND))
+        return _report(runner.submit_replay(run_id, found / "receipt.json", command))
+
+    @router.get("/runs/{run_id}/replay", response_model=ReplayReport)
+    def get_replay(run_id: str) -> ReplayReport:
+        job = runner.replay(run_id) if is_run_id(run_id) else None
+        if job is None:
+            raise ApiError(404, "replay_not_found", f"no replay of {run_id!r} was requested")
+        return _report(job)
 
     @router.get("/runs/{run_id}/events", response_class=StreamingResponse)
     async def run_events(run_id: str) -> StreamingResponse:

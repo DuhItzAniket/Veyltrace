@@ -68,7 +68,7 @@ flowchart LR
 | GET | `/api/v1/runs/{run_id}/graph` | — | `{nodes: [graph.nodes], edges: [graph.edges], paths: [graph.paths]}` | three contract row lists |
 | GET | `/api/v1/runs/{run_id}/series?service=&signal=` | — | `[signal_cube.series rows]` | at most `api.series_max_points` per series (every n-th point, n fixed by length; display only) |
 | GET | `/api/v1/runs/{run_id}/onsets` · `/changes` | — | `onsets` (03 §4.2) · `[changes rows]` (03 §5.2) | timeline annotations |
-| POST | `/api/v1/runs/{run_id}/replay` | — | 202 | runs `veyltrace replay` on the run's receipt in the job queue |
+| POST | `/api/v1/runs/{run_id}/replay` | — | 202 `replay_report` | runs Causivra's replay command (`veyltrace.commands:replay`) on the run's receipt in the job queue; 503 while that command is not installed |
 | GET | `/api/v1/runs/{run_id}/replay` | — | `replay_report` (envelope; [10 §3.9](engines/10-causivra.md#39-replay)) | exit code 0–6 with meaning |
 
 The gateway and console read these artifacts for display only and never write them ([03 §1](03-contracts.md#1-how-contracts-work), catalog note).
