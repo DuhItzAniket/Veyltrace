@@ -12,3 +12,5 @@ uv run veyltrace diagnose --dataset synth --case synth-01 --ai off
 uv run veyltrace replay runs/synth/<case_id>/<run_id>/receipt.json
 uv run python scripts/check.py --package causivra
 ```
+
+**Status (X-00).** The receipt step (10b) is this package's: it checks that `run_manifest.json` lists `verdict.json`, `card.json` and `card.md` with their current hashes and that the card belongs to the verdict, verifies the agent-trace chain (head `null` when the trace is absent or empty) and writes the in-toto Statement as canonical JSON. The card step (10a) is still the R-02 bootstrap template card until X-03; signing and replay arrive in X-09.

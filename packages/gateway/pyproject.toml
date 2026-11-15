@@ -9,7 +9,15 @@ description = "Veyltrace gateway: local HTTP API and MCP server."
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+# FastAPI + uvicorn: the HTTP API and its ASGI server (02 §8 API row; 06 §2); pydantic: the
+# gateway-only envelopes, imported directly (06 §3.1). Minimums only; uv.lock pins.
+dependencies = [
+    "veyltrace-core",
+    "veyltrace-contracts",
+    "fastapi>=0.162.2",
+    "uvicorn>=0.54.0",
+    "pydantic>=2.9",
+]
 
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
@@ -21,4 +29,5 @@ packages = ["src/veyltrace_gateway"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-allow = []
+# pydantic: the gateway-only envelopes in api_models.py (06 §3.1).
+allow = ["fastapi", "pydantic", "uvicorn"]

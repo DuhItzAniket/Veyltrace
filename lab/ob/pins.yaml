@@ -1,0 +1,22 @@
+# Pinned versions of the `ob` profile (05 §2.3; ADR docs/adr/20261109-cl-lab-ob-profile.md).
+# Versions are sourced in 05 §2.3. Digests were copied from the first live capture's
+# orchestrator.json (2026-11-09); every capture records the digests that actually ran.
+cluster_name: veyllab
+node_container: veyllab-control-plane   # kind names the single node <cluster>-control-plane
+app_namespace: veyllab-app
+obs_namespace: veyllab-obs
+chaos_namespace: chaos-mesh
+online_boutique:
+  version: v0.10.7
+  manifest: upstream/kubernetes-manifests.yaml
+  manifest_url: https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/v0.10.7/release/kubernetes-manifests.yaml
+chaos_mesh:
+  chart: chaos-mesh/chaos-mesh
+  repo: https://charts.chaos-mesh.org
+  version: 2.8.7
+collector:
+  image: otel/opentelemetry-collector-contrib:0.164.0
+  digest: sha256:340c9ca6a36617084c6661bdc4f0fe92b7cda5a805d61673ec8db375fddc522b
+kind_node:
+  image: kindest/node:v1.37.0   # default node image of kind v0.33.0
+  digest: sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5
