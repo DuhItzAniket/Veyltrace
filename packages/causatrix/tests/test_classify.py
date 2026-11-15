@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import itertools
+import zlib
 from dataclasses import replace
 from typing import Any
 
@@ -11,17 +11,17 @@ import pytest
 from veyltrace_causatrix.classify import Classification, classify
 from veyltrace_causatrix.config import config_from
 from veyltrace_causatrix.views import Atom, evidence_view, graph_view
+from veyltrace_core.canonical import canonical_json_str
 from veyltrace_core.config import load_section_file
 
 CFG = config_from(load_section_file("causatrix"), load_section_file("core"))
 INC = {"window": "incident"}
 
 
-_IDS = itertools.count(1)
-
-
 def _a(kind: str, value: float, **args: Any) -> Atom:
-    return Atom(f"E{next(_IDS):010x}", "s", None, kind, args, value)
+    """An atom whose id is fixed by its content, not by test order."""
+    key = canonical_json_str({"args": args, "kind": kind, "value": value})
+    return Atom(f"E{zlib.crc32(key.encode()):010x}", "s", None, kind, args, value)
 
 
 def _z(kind: str, value: float, family: str, detector: str = "robust_z") -> Atom:
@@ -64,6 +64,16 @@ def test_r1_change_takes_config_or_the_next_rule_class() -> None:
     # Below e^-1, or on a service that is neither anomalous nor silent, R1 does not fire.
     assert _classify(cpu, _change(0.36, "config")) == ("resource", "cpu", "cpu")
     assert _classify(_z("internal_anomaly", 2.0, "cpu"), _change(0.9, "config"))[0] == "unknown"
+
+
+def test_earlier_rules_win() -> None:
+    # 07 §3.5: the first matching rule decides.
+    cpu, new_errors = _z("internal_anomaly", 6.0, "cpu"), _new_errors(2.0)
+    assert _classify(cpu, new_errors)[:2] == ("resource", "cpu")  # R2 > R3
+    dependency = (cpu, _z("external_anomaly", 5.0, "latency"))
+    assert _classify(*dependency, kind="db")[:2] == ("resource", "cpu")  # R2 > R4
+    network = (new_errors, _z("external_anomaly", 5.0, "latency"))
+    assert _classify(*network)[:2] == ("code", "exception")  # R3 > R5
 
 
 def test_r3_code_from_logs_or_new_error_templates() -> None:

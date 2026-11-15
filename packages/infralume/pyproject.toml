@@ -16,6 +16,14 @@ dependencies = ["veyltrace-core", "veyltrace-contracts", "duckdb>=1.1", "numpy>=
 [project.entry-points."veyltrace.engines"]
 infralume = "veyltrace_infralume.api:run"
 
+# Dataset adapters (01 §3.3), resolved by dataset pattern through veyltrace_core.adapters.
+[project.entry-points."veyltrace.adapters"]
+rcaeval = "veyltrace_infralume.adapters.rcaeval:RcaevalAdapter"
+
+# `veyltrace data fetch rcaeval` (01 §3.11): the single network exemption, never imported by api.py.
+[project.entry-points."veyltrace.fetchers"]
+rcaeval = "veyltrace_infralume.fetch.rcaeval:fetch"
+
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
