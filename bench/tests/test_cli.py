@@ -23,7 +23,7 @@ def test_synth_smoke_runs_through_the_core_cli_and_again_byte_identically(tmp_pa
     assert cli.main(["bench", *argv]) == 0  # core delegates to veyltrace.commands:bench
     out = tmp_path / "results" / "synth-smoke"
     first = [textio.read_text(out / name) for name in OUTPUTS]
-    assert (out / "per_case.csv").is_file() and '"n_unranked":4' in first[0]  # R-00 stubs rank nothing
+    assert (out / "per_case.csv").is_file() and '"n_unranked":0' in first[0]  # R-09: all ranked
     assert bench_cli.main(argv) == 0  # again on the same runs root: bench empties its dir, all re-run
     assert [textio.read_text(out / name) for name in OUTPUTS] == first
 
