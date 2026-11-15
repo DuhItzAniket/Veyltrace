@@ -122,7 +122,10 @@ def test_stub_manifest_hint_fits_the_default_windows(off_run: RunSummary) -> Non
     assert alert.t_alert_ns == manifest.t_alert_hint_ns
     assert not alert.clamped  # both default windows lie inside the stub data span
     onsets = io.read_model("onsets", off_run.run_dir, models.Onsets)
-    assert onsets.t_onset_ns == alert.t_alert_ns and onsets.method == "t_alert_fallback"
+    if onsets.method == "t_alert_fallback":  # Anomara's stub, or no external onsets (03 §4.2)
+        assert onsets.t_onset_ns == alert.t_alert_ns
+    else:  # Anomara's own onset: inside the case's data span
+        assert manifest.data_start_ns <= onsets.t_onset_ns <= manifest.data_end_ns
 
 
 def test_ai_on_stub_relentra_writes_skipped_proposals_and_empty_trace(tmp_path: Path) -> None:

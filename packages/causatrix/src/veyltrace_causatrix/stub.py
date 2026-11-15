@@ -22,6 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, cast
 
+from veyltrace_causatrix.config import config_from
 from veyltrace_contracts import models
 from veyltrace_core.context import EngineResult, RunContext
 from veyltrace_core.errors import ConfigError
@@ -326,6 +327,7 @@ def run_stub(ctx: RunContext) -> EngineResult:
     for required in ("evidence", "graph.nodes"):
         if not ctx.exists(required):
             return _failed(f"{required} is absent (07 §6)")
+    config_from(ctx.config, ctx.config.core)  # every 07 §4 key is validated, even unused ones
     settings = settings_from(ctx.config, ctx.config.core)
     manifest = ctx.read_model("case_manifest", models.CaseManifest)
     rows = ctx.read_table("evidence", columns=EVIDENCE_COLUMNS).to_pylist()

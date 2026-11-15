@@ -167,7 +167,8 @@ def test_assert_golden_accepts_models_mappings_tables_and_paths(tree: Path, stub
     vt.assert_golden(slate.model_dump(mode="json", by_alias=True), "slate", CASE)
     vt.assert_golden(stub_run_dir / "verdict.json", "verdict", CASE)
     vt.assert_golden(io.read("evidence", stub_run_dir), "evidence", CASE, phase="final")
-    vt.assert_golden(io.empty_table("evidence"), "evidence", CASE, phase="main")  # no metadata: skipped
+    bare = io.read_table("evidence", stub_run_dir).replace_schema_metadata(None)  # AI off: main = final
+    vt.assert_golden(bare, "evidence", CASE, phase="main")  # no metadata: skipped
 
 
 def test_assert_golden_reports_a_diff(tree: Path, stub_run_dir: Path) -> None:
