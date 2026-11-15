@@ -47,12 +47,12 @@ flowchart LR
 | Method | Path | Request | Response (contract or envelope) | Notes |
 |---|---|---|---|---|
 | GET | `/api/v1/health` | — | `health` (envelope) | `{status: ok \| degraded, version, code_commit, ai: {default_mode, provider, model, reachable}, live: {enabled, receiving}}`; `reachable` from a cheap provider probe in `veyltrace_llm` |
-| GET | `/api/v1/datasets` | — | `[dataset_summary]` | dataset id, case count |
-| GET | `/api/v1/cases?dataset=&limit=&offset=` | — | page of `case_summary` | `case_id`, `dataset`, `system`, `sources`, `runs: [run_id]`; never answer keys or hints |
+| GET | `/api/v1/datasets` | — | `[dataset_summary]` | dataset id, case count; a dataset is known when an adapter accepts it and it is an adapter's literal name, a folder under the runs root or a fetched index (X-04) |
+| GET | `/api/v1/cases?dataset=&limit=&offset=` | — | page of `case_summary` | `case_id`, `dataset`, `system`, `sources`, `runs: [run_id]`; never answer keys or hints; `system` and `sources` from the newest finished run, null before the first run |
 | GET | `/api/v1/cases/{dataset}/{case_id}` | — | `case_manifest` (03 §2.1) | the console does not display `t_alert_hint_ns` |
 | POST | `/api/v1/runs` | `run_request` `{dataset, case_id, ai_mode: off \| record \| replay}` | 202 `run_status`; 200 if a finished run with that `run_id` exists | 409 when `ai_mode = replay` and the run has no cassette |
 | GET | `/api/v1/runs?dataset=&case_id=` | — | `[run_status]` | |
-| GET | `/api/v1/runs/{run_id}` | — | `run_status` | `{run_id, dataset, case_id, ai_mode, state: queued \| running \| done \| failed, step: 0–10, step_name, error?}` |
+| GET | `/api/v1/runs/{run_id}` | — | `run_status` | `{run_id, dataset, case_id, ai_mode, state: queued \| running \| done \| failed, step, step_name, error?}`; `step` is core's step index (0–13, `veyltrace_core.steps`) and `step_name` its name |
 | GET | `/api/v1/runs/{run_id}/events` | — | `text/event-stream` | step started/finished, done, failed |
 | GET | `/api/v1/runs/{run_id}/alert` | — | `alert` (03 §2.6) | |
 | GET | `/api/v1/runs/{run_id}/slate` | — | `slate` (03 §8) | |
@@ -209,9 +209,10 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `api.cors_origins` | `[http://127.0.0.1:5173]` | — | Vite dev server |
 | `api.series_max_points` | 2,000 | points | a priori; chart size |
 | `api.page_limit_max` | 1,000 | rows | a priori |
+| `api.evidence_limit` | 200 | rows | a priori; the evidence route's default page (§3.2) |
 | `jobs.workers` | 1 | threads | RAM and single LLM slot |
 | `jobs.default_ai_mode` | `off` | enum | AI on is opt-in |
-| `runs.root` | `runs/` | path | 02 §4.1 |
+| runs root | `runs/` | path | 02 §4.1; read from `config/core.yaml` `paths.runs`, not a gateway key, so the gateway reads the root `run_case` writes (X-04) |
 | `live.enabled` | `false` | bool | only on the demo laptop |
 | `live.otlp_host` / `live.otlp_port` | `127.0.0.1` / 4319 | — | a priori; not the Collector's own 4318 |
 | `live.max_body_mb` | 16 | MB | a priori |
