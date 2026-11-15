@@ -1,0 +1,30 @@
+# Pre-registered (04 §1): RCAEval-C × decoy grid, π = 1.0, λ = 6/h (04 §5.2, a priori; generator
+# bench/decoys/, O-13; seed rng(case_id, "rcaeval-c")), 04 §6 M3: naive-change, Causatrix rankers
+# alone + rrf and veyltrace:off on RE2 with synthetic change events.
+# This cell is a true change (H4c: AC@1 rises).
+# RQ4 H4c, estimation with CIs per cell; the decoy metrics (decoy_present, decoy_ranked_first, 04 §7)
+# are per_case.csv columns.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: rcaevalc-pi1-l6-v1
+description: "RQ4: RCAEval-C decoy grid pi=1.0, rate=6/h; naive-change, rankers alone + rrf, veyltrace:off"
+prereg: true
+rq: [RQ4]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: {pi: 1.0, rate_per_h: 6, window_s: [-1800, 300]},
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - {id: "causatrix:rrf", kind: causatrix}
+  - {id: "causatrix:baro_rs", kind: causatrix, overrides: {causatrix.rankers.enabled: [baro_rs]}}
+  - {id: "causatrix:change_prox", kind: causatrix, overrides: {causatrix.rankers.enabled: [change_prox]}}
+  - {id: "causatrix:cp_sbfl", kind: causatrix, overrides: {causatrix.rankers.enabled: [cp_sbfl]}}
+  - {id: "causatrix:graph_walk", kind: causatrix, overrides: {causatrix.rankers.enabled: [graph_walk]}}
+  - {id: "causatrix:nsigma", kind: causatrix, overrides: {causatrix.rankers.enabled: [nsigma]}}
+  - {id: "causatrix:prism_m", kind: causatrix, overrides: {causatrix.rankers.enabled: [prism_m]}}
+  - {id: "naive-change", kind: internal_baseline}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
