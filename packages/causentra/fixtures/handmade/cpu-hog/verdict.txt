@@ -229,7 +229,6 @@
   "mode": "resource",
   "service": "checkout"
  },
- "run_id": "9aa39ed03a1ac402",
  "schema_version": "0.1.0",
  "status": "CONFIRMED",
  "verdict_hash": "a36227b2b02eb5e1359f71cc9ce284e0b8c6ede696a2948f536d98dee9c35d2d"
