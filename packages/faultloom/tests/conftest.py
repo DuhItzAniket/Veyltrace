@@ -54,6 +54,7 @@ _BASE = EvidenceInputs(
     edges=(),
     paths=(),
     components={},
+    signals=frozenset(),
     changes=(),
     templates=(),
     critical_path=(),
