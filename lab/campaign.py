@@ -18,7 +18,7 @@ from typing import Any
 
 import yaml
 from vlab import CAPTURES_DIR, answer_key, capture, validate
-from vlab.cluster import OB_DIR, cpu_limits, deployments, kubectl, load_pins
+from vlab.cluster import OB_DIR, cpu_limits, deployments, kubectl, load_pins, manifest_problem
 from vlab.faults import CHAOS_KINDS, CONTAINER, NO_FAULT, Injection, get_fault, injection
 from vlab.plan import Entry, Plan, load
 from vlab.shell import CommandError, HostSuspended, Runner
@@ -34,6 +34,10 @@ DEFAULT_USERS = 10
 def reset(runner: Runner, pins: Mapping[str, Any], users: int = DEFAULT_USERS) -> None:
     """Remove leftover faults, restore config and images from the overlay, set the load profile and
     restart every app Deployment (05 §8.1 Reset)."""
+    names = deployments(pins)
+    if not names:  # nothing to wait on would pass the reset unchecked (#230 review)
+        why = manifest_problem(pins) or "the vendored OB manifest has no Deployments"
+        raise CommandError("rollout status", 1, why)
     app = str(pins["app_namespace"])
     runner.run(kubectl(pins, "-n", app, "delete", CHAOS_KINDS, "--all", "--ignore-not-found"))
     runner.run(kubectl(pins, "apply", "-k", str(OB_DIR / "overlay")))
@@ -43,7 +47,7 @@ def reset(runner: Runner, pins: Mapping[str, Any], users: int = DEFAULT_USERS) -
     # `wait --for=condition=available` returns at once: with 1 replica and maxUnavailable 0 the old
     # pod stays Available for the whole rollout (#225). Wait for each rollout to finish instead; a
     # CommandError here means the case is reset_failed (05 §8.1).
-    for name in deployments(pins):
+    for name in names:
         runner.run(kubectl(pins, "-n", app, "rollout", "status", f"deploy/{name}", RESET_TIMEOUT))
 
 

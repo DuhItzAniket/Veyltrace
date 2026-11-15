@@ -64,6 +64,16 @@ def test_a_rollout_that_does_not_finish_is_reset_failed(
     assert "delete stresschaos" in runner.log[-1]  # the sweep still ran
 
 
+def test_a_missing_manifest_is_reset_failed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _cluster(monkeypatch)
+    monkeypatch.setattr(campaign, "deployments", lambda pins: [])  # manifest not vendored
+    runner = InstantRunner(dry_run=False)
+    assert campaign.run_case(runner, load_pins(), PLAN, PLAN.entries[0], tmp_path) == "reset_failed"
+    (attempt,) = _attempts(tmp_path)
+    assert attempt["outcome"] == "reset_failed"
+    assert not any("rollout restart" in c for c in runner.log)  # nothing restarted, nothing injected
+
+
 def test_a_failing_case_is_logged_and_the_next_one_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
