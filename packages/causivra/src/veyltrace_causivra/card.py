@@ -31,7 +31,6 @@ TEMPLATE_NARRATOR: Final[Mapping[str, Any]] = {
 
 def build_card(
     *,
-    case_id: str,
     verdict: models.Verdict,
     evidence: Sequence[Mapping[str, Any]],
     alert: models.Alert,
@@ -42,7 +41,10 @@ def build_card(
     settings: CardSettings,
     playbooks: Mapping[str, Playbook],
 ) -> dict[str, Any]:
-    """The card object with its `card_hash` (SHA-256 of the canonical card without it, 03 §11.1)."""
+    """The card object with its `card_hash` (SHA-256 of the canonical card without it, 03 §11.1).
+
+    `case_id` is the verdict's, so the card cannot name a different case than the verdict it copies.
+    """
     table = assemble.evidence_table(verdict, evidence, settings)
     atoms = assemble.table_atoms(table, evidence)
     ctx = assemble.fill_context(verdict, atoms, nodes, onsets, settings.sig_digits)
@@ -50,7 +52,7 @@ def build_card(
     v = verdict.model_dump(mode="json", by_alias=True)
     card: dict[str, Any] = {
         "schema_version": CONTRACTS["card"].version,
-        "case_id": case_id,
+        "case_id": verdict.case_id,
         "verdict_hash": verdict.verdict_hash,
         "title": assemble.title(verdict),
         "status": v["status"],
