@@ -28,9 +28,12 @@ from veyltrace_core.pipeline import code_commit
 
 #: Config keys the protocol block sets (04 §9: "each value maps to a pipeline hook"; §5.1, §5.2).
 PROTOCOL_KEYS = ("core.alert.protocol", "core.alert.shift_s", "infralume.sources.drop")
+RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method runs alone (04 §3, §9)
+CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
+FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
-    "coverage", "set_size", "risk_coverage", "no_fault_rates", "cost",
+    "onset_error", "coverage", "set_size", "risk_coverage", "no_fault_rates", "cost",
 ]  # fmt: skip
 #: The 04 §9 metrics v0 does not compute (summary.METRIC_KEYS has the rest), with the adding task.
 METRIC_TASKS = {
@@ -38,7 +41,7 @@ METRIC_TASKS = {
     "set_size": "R-12 conformal sets",
     "risk_coverage": "R-12 statuses",
     "no_fault_rates": "R-13 normal windows",
-    "cost": "per-stage wall time and peak RSS need a subprocess runner",
+    "cost": "p50/p95 of wall time and peak RSS in summary.json, per stage (not built yet)",
 }
 
 
@@ -82,10 +85,34 @@ class AISpec(_Strict):
 
 class MethodSpec(_Strict):
     id: str = Field(min_length=1)
-    kind: Literal["veyltrace", "rcaeval", "internal_baseline", "agent_only"]
+    # causatrix: the pipeline scored on its slate, not the verdict (04 §3 `causatrix:<ranker>`, `:rrf`)
+    kind: Literal["veyltrace", "causatrix", "rcaeval", "internal_baseline", "agent_only"]
     ai: AISpec = AISpec()
     overrides: dict[str, object] = Field(default_factory=dict)  # dotted config keys
     rcaeval: dict[str, object] | None = None  # {method, length}
+
+    @model_validator(mode="after")
+    def _causatrix_id_names_what_runs(self) -> MethodSpec:
+        """A slate-scored method's id must say what runs, so results are never mislabelled (04 §3):
+        causatrix:rrf has no ranker override; causatrix:<r> overrides rankers.enabled to [r]."""
+        if self.kind != "causatrix":
+            return self
+        where = f"method {self.id}"
+        if not self.id.startswith(CAUSATRIX_PREFIX):
+            raise ValueError(f"{where}: a causatrix method id is causatrix:rrf or causatrix:<ranker>")
+        ranker = self.id.removeprefix(CAUSATRIX_PREFIX)
+        override = self.overrides.get(RANKERS_KEY)
+        if ranker == FUSED and RANKERS_KEY in self.overrides:
+            raise ValueError(f"{where}: causatrix:rrf fuses the configured rankers; drop {RANKERS_KEY}")
+        if ranker != FUSED and override != [ranker]:
+            raise ValueError(f"{where}: needs overrides {{{RANKERS_KEY}: [{ranker}]}}, got {override!r}")
+        return self
+
+    @property
+    def ranker(self) -> str | None:
+        """The one ranker a causatrix:<ranker> method runs; None for causatrix:rrf and other kinds."""
+        name = self.id.removeprefix(CAUSATRIX_PREFIX)
+        return name if self.kind == "causatrix" and name != FUSED else None
 
 
 class CalibrationSpec(_Strict):
@@ -117,7 +144,7 @@ class StatisticsSpec(_Strict):
 class ResourcesSpec(_Strict):
     workers: int = Field(default=1, ge=1)  # a priori: cases run one after another, in sorted order
     timeout_s: int = Field(default=600, ge=1)  # 04 §9; per case per method, a timeout is a miss
-    max_rss_mb: int | None = None  # None: not enforced (04 §9's 3072 needs a subprocess runner)
+    max_rss_mb: int | None = None  # None: not enforced; peak_rss_mb is recorded either way (#68)
 
 
 class Experiment(_Strict):
@@ -173,12 +200,12 @@ def unsupported(exp: Experiment) -> list[str]:
         (p.decoys is not None, "protocol.decoys (O-13)"),
         (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
-        (r.max_rss_mb is not None, "resources.max_rss_mb (needs a subprocess runner)"),
+        (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
     )
     todo = [what for bad, what in checks if bad]
     todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
     for m in exp.methods:
-        if m.kind != "veyltrace":
+        if m.kind not in ("veyltrace", "causatrix"):
             todo.append(f"methods {m.id}: kind {m.kind} (baselines, R-05)")
         elif m.ai.mode != "off" or m.ai.seeds:
             todo.append(f"methods {m.id}: AI arms (ai.mode {m.ai.mode}, seeds)")

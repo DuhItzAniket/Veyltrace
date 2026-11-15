@@ -75,7 +75,7 @@ Persistence is a deliberate difference from BARO's raw max: it stops one-sample 
 
 ### 3.3 `nsigma`
 
-`μ_B`, `σ_B` (population std, ddof = 0). `σ' = σ_B` if `σ_B > 0` else 1 (scikit-learn's zero-scale convention, which RCAEval's N-Sigma inherits through `StandardScaler`, [rcaeval_facts §Ground truth and scoring][rf-scoring]). `score = max_{t ∈ I} |x_t − μ_B| / σ'` (raw, no persistence). `score_norm = log1p(max_{t ∈ I} |x_t − μ_B| / max(σ_B, ε, η·|μ_B|))`. `threshold = 3.0`. `onset_ns` = first `t ∈ I` with `|x_t − μ_B|/σ' ≥ 3`. Direction as in §3.2.
+`μ_B`, `σ_B` (population std, ddof = 0). `σ' = 1` if the baseline is constant up to float rounding (`σ_B² ≤ n·eps·σ_B² + (n·μ_B·eps)²`, scikit-learn's `_is_constant_feature`), else `σ' = σ_B` (scikit-learn's zero-scale convention, which RCAEval's N-Sigma inherits through `StandardScaler`, [rcaeval_facts §Ground truth and scoring][rf-scoring]). A constant 0.3 baseline has a std of a few ULPs, which is not a scale. `score = max_{t ∈ I} |x_t − μ_B| / σ'` (raw, no persistence). `score_norm = log1p(max_{t ∈ I} |x_t − μ_B| / max(σ_B, ε, η·|μ_B|))`. `threshold = 3.0`. `onset_ns` = first `t ∈ I` with `|x_t − μ_B|/σ' ≥ 3`. Direction as in §3.2.
 
 ### 3.4 `bocpd` — Bayesian online change-point onset
 
@@ -137,7 +137,7 @@ def detect_alert(telemetry: TelemetryTables, manifest: CaseManifest,
 1. **Entry services.** Build caller→callee pairs from `telemetry.spans` over the full span (parent and child in different services) and call the shared rule `veyltrace_causalith.entry.entry_services(call_pairs, services, system, cfg)` ([05-causalith §3.3](05-causalith.md)). No traces → the rule's system hint. Empty → return `None`.
 2. **SLI series per entry service**, on `slo.bucket_s` (10 s) epoch-aligned buckets:
    - traces present: entry spans of the service (parent null, missing, or in another service; [02-signalyth §3.3](02-signalyth.md) definition, client-like spans excluded): `latency_p99` = 0.99 quantile of durations (ms, exact, linear), `error_rate` = share with `status = error`; buckets with fewer than `slo.min_spans` spans are skipped;
-   - no traces: metrics of the service whose name matches `slo.latency_metric_pattern` (highest quantile in the name wins; unit converted to ms from `unit`) and `slo.error_metric_pattern`; names matching Signalyth's counter-name patterns are differenced into per-second rates first.
+   - no traces: metrics of the service whose name matches `slo.latency_metric_pattern` (highest quantile in the name wins, read strictly as in `quantile_of`: `quantile=q`, `p99`/`p99.9` after a non-alphanumeric, `-90` at the end of the name; a counter-pattern name is never the latency SLI, since a histogram's `_count` is a request rate and its `_sum` cumulative time; unit converted to ms from `unit`) and `slo.error_metric_pattern`; names matching Signalyth's counter-name patterns are differenced into per-second rates first.
 3. **Scan** each SLI from `data_start + slo.window_s + slo.gap_s`. At bucket `t` the trailing baseline is the buckets in `[t − slo.gap_s − slo.window_s, t − slo.gap_s)` (≥ `slo.min_baseline_points`); scale per §3.2; one-sided `z_t = (x_t − med)/s` (only increases breach).
 4. A breach starts at `t` when `z ≥ slo.k` for `slo.persist_steps` consecutive buckets. Result = earliest breach start over all entry SLIs (ties: latency before errors, then service A→Z); `signal` names the SLI that breached.
 5. **No breach** → `None`. Core then has no alert; 04's default counts the fault case as a miss and reports the count separately (`bench_result.run_outcome = no_alert`, 03 §13.2; [04-evaluation-protocol](../04-evaluation-protocol.md)).
@@ -179,6 +179,8 @@ Zero-shot time-series foundation models only tie classical detectors on TSB-AD-U
 | `t_onset.clamp_s` | `[-60, 300]` | s | [02 §6.3](../02-architecture.md) |
 | `slo.bucket_s` | `10` | s | a priori, same grid as Signalyth traces |
 | `slo.min_spans` | `5` | spans | a priori, as `traces.min_spans_per_quantile` |
+| `slo.infer_client_spans` | `true` | — | as Signalyth `traces.infer_client_spans` (RCAEval spans have no kind) |
+| `slo.skew_tolerance_ms` | `1.0` | ms | as Signalyth `traces.skew_tolerance_ms`, a priori |
 | `slo.window_s` | `300` | s | a priori trailing baseline |
 | `slo.gap_s` | `30` | s | a priori |
 | `slo.k` | `3.0` | z | a priori |

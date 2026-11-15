@@ -1,0 +1,1 @@
+{"clamped":false,"detector":{"entry_services":["frontend"],"signal":"latency_p99","threshold":3.0},"protocol":"detected","schema_version":"0.1.0","shift_ns":0,"t_alert_ns":1767226930000000000,"windows":{"baseline":[1767225730000000000,1767226810000000000],"incident":[1767226810000000000,1767227410000000000]}}
