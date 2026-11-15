@@ -146,6 +146,7 @@ def _case(base: CausentraInputs, atoms: list[Atom], k: int = 2, **changes: Any) 
         ev=evidence_view(atoms, graph.universe),
         graph=graph,
         graph_nodes=frozenset(scores),
+        domain=replace(base.domain, nodes=frozenset(scores), signals=frozenset({"cpu"})),
         **changes,
     )
 
@@ -203,6 +204,18 @@ def test_admission_needs_a_supporting_claim_that_holds(base: CausentraInputs) ->
     assert not decide(_case(base, _i("c", 5.0), proposals=proposals, claims=false_claim), CFG).admitted
     budget = replace(CFG, proposals_max=0)
     assert not decide(_case(base, _i("c", 5.0), proposals=proposals, claims=claims), budget).admitted
+
+
+def test_claims_match_on_validated_args(base: CausentraInputs) -> None:
+    # The claim pass stores validate()'s canonical args (06 §3.5 step 4): an int k finds the atom
+    # of 4.0 (#216). A claim validate() rejects (a `subject` key, an unknown signal) never holds.
+    claims = (_claim("c", "zscore_above", True, '{"k":4.0,"signal":"cpu"}'),)
+    as_int = _proposals(("P00000001", "c", "zscore_above", {"k": 4, "signal": "cpu"}))
+    inp = _case(base, _i("c", 5.0), proposals=as_int, claims=claims)
+    assert decide(inp, CFG).admitted == frozenset({"P00000001"})
+    for args in ({"k": 4, "signal": "cpu", "subject": "c"}, {"k": 4, "signal": "mem"}):
+        bad = _proposals(("P00000001", "c", "zscore_above", args))
+        assert not decide(replace(inp, proposals=bad), CFG).admitted
 
 
 def test_no_leader_and_exact_ties(base: CausentraInputs) -> None:

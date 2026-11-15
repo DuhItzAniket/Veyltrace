@@ -1,10 +1,10 @@
 # INCONCLUSIVE: no root cause (stub)
 
-Status: INCONCLUSIVE (confidence: low)
+Status: INCONCLUSIVE (confidence: none)
 
 Candidate set: empty
 
 prose: template
 
-verdict_hash: 8f951136be1eea00bea89ce600a8cd38ee8d9517305a78c10807e77f1dddf7f5
-card_hash: 13b239aac7fdf8b4008fce9bff1c8df56ab05ba02ed9a0e4dba992ba7f0d42e2
+verdict_hash: b977358445fa7b4794f955f16fae6272fbdb5d98a9ab4dca0bf0d9e0f64a5fd2
+card_hash: f7ad143d8a6744e94390984bae4a6ee9d14734cfbfa823d16aa8d4414e3e89ec
