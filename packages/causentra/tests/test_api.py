@@ -61,15 +61,16 @@ def test_config_declares_every_spec_key_with_its_default(synth01_dir: Path) -> N
     assert list(cfg.get_path("trials.disabled")) == []
 
 
-def test_run_writes_a_valid_verdict(synth01_dir: Path) -> None:
-    ctx = make_context("causentra", synth01_dir)
+def test_run_writes_a_valid_verdict(no_evidence_dir: Path) -> None:
+    ctx = make_context("causentra", no_evidence_dir)
     result = api.run(ctx)
     assert result.status == "ok"
     assert not any(n.startswith("stub: ") for n in result.notes)
     assert [name for name, _ in result.outputs] == ["verdict"]
-    io.read("verdict", synth01_dir, validate=True)
-    verdict = _verdict(synth01_dir)
-    slate = io.read_model("slate", synth01_dir, models.Slate)
+    io.read("verdict", no_evidence_dir, validate=True)
+    verdict = _verdict(no_evidence_dir)
+    slate = io.read_model("slate", no_evidence_dir, models.Slate)
+    assert (slate.rankers_active, slate.candidates) == ([], [])  # no atoms: no ranker votes (07 §3.1)
     assert verdict.case_id == ctx.case_id and verdict.run_id == ctx.run_id
     assert verdict.status == "INCONCLUSIVE" and verdict.root is None
     assert [r.service for r in verdict.ranked] == [c.service for c in slate.candidates]
@@ -90,10 +91,10 @@ def test_override_changes_params_sha256_and_alpha(synth01_dir: Path) -> None:
     assert after.params_sha256 != before.params_sha256
 
 
-def test_populated_slate_is_ranked_whole(synth01_dir: Path, example_slate: models.Slate) -> None:
-    io.write("slate", example_slate, synth01_dir)
-    api.run(make_context("causentra", synth01_dir))
-    verdict = _verdict(synth01_dir)
+def test_populated_slate_is_ranked_whole(no_evidence_dir: Path, example_slate: models.Slate) -> None:
+    io.write("slate", example_slate, no_evidence_dir)
+    api.run(make_context("causentra", no_evidence_dir))
+    verdict = _verdict(no_evidence_dir)
     assert sorted(r.service for r in verdict.ranked) == sorted(c.service for c in example_slate.candidates)
     # No atoms: T1-T4 untestable (0.85 each), so V keeps the slate's order and the leader is rank 1.
     assert [r.service for r in verdict.ranked] == [c.service for c in example_slate.candidates]
@@ -139,17 +140,17 @@ def test_ai_on_every_proposal_gets_one_outcome(
 
 
 def test_calibration_file_sets_family_hash_and_q_hat(
-    synth01_dir: Path, tmp_path: Path, example_slate: models.Slate
+    no_evidence_dir: Path, tmp_path: Path, example_slate: models.Slate
 ) -> None:
     config_dir = tmp_path / "config"
     shutil.copytree(repo_root() / "config", config_dir)
     content = stub_calibration("synth.off.oracle.foldA", q_hat=None)
     write_calibration(config_dir / "calibration", content)
-    io.write("slate", example_slate, synth01_dir)
-    ctx = make_context("causentra", synth01_dir, config_dir=config_dir)
+    io.write("slate", example_slate, no_evidence_dir)
+    ctx = make_context("causentra", no_evidence_dir, config_dir=config_dir)
     assert ctx.config.calibration is not None
     api.run(ctx)
-    verdict = _verdict(synth01_dir)
+    verdict = _verdict(no_evidence_dir)
     assert verdict.calibration.family == "synth.off.oracle.foldA"
     assert verdict.calibration.sha256 == ctx.config.calibration_sha256
     assert verdict.confidence.q_hat is None  # +inf: the whole decision pool is the set (09 §3.7)
