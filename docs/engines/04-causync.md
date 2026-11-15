@@ -112,6 +112,16 @@ For each change, target onset `O` = `O(entity)` for service scope, `O(service of
 
 **No events.** RCAEval has none ([novel_building_blocks §Q5][nbb]): `changes` has zero rows, and the change channel abstains downstream.
 
+**Built (O-06).** Where the text above left a choice:
+
+- *Offsets written.* One source-level row per present source (`traces` and `metrics` as `reference` when they are the reference clock; `events` always `none`), plus one `traces` row per service with a span. The root service has offset 0 and confidence 1. Logs and metrics get source-level rows only.
+- *Client-like spans* (§3.2 step 1) are `client` spans, or `unspecified` spans whose parent is in their own service. The containment test of 02-signalyth §3.3 is left out on purpose: a skewed child lies outside its parent, and that is what is measured.
+- *Publish gate* (§3.2 step 5) uses the violation share and pair count of the pair that reached the service in the breadth-first walk. Raw offsets are propagated before the gate, so a gated service still passes its small raw offset on.
+- *Logs.* `log_span_join` when any line joins a span, else `comovement`. The projection moves a line to the nearest edge of its span, so the estimate is a lower bound on the skew.
+- *Co-movement* resamples bucketed sources by the **mean** of their rate points, not the sum: a sum alternates with the number of 10 s buckets that fall into each 15 s step and correlates with that pattern alone. A median lag of at most one step is published as 0 (method `comovement`): a rate stamped at the end of its interval lags by up to one step, and one step is inside `tolerance_ns`. `confidence` is the median correlation of the agreeing services.
+- *Tolerance.* On the synth cases `tolerance_ns` is 15 s (metrics scraped every 15 s), 10 s without metrics, 0 for an events-only case.
+- *Peer contrast.* A replica's first and last observation are taken from `signal_cube.series` in source time. A component named by two services belongs to the first A→Z.
+
 ### 3.7 RCAEval-C decoy generator (O-13, `bench/decoys/`)
 
 Observe owns this bench module to balance load ([08 §2](../08-collaboration-and-git.md)). It is bench code: it may read answer keys and injection times, and the engines never import it.
