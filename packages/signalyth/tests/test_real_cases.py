@@ -1,8 +1,10 @@
 """Real-case smoke (02 §7): RE2-OB, RE2-SS, RE2-TT through the pipeline up to Signalyth.
 
 Skipped without `${VEYLTRACE_DATA}` (marker `real_data`). Per suite, the first fetched case runs
-twice: the signal cube validates against its contracts, Sock Shop has no trace series or edges,
-and both runs write byte-identical files (the writer sorts by the 03 keys). The Signalyth step
+twice: the signal cube validates against its contracts, its series come from exactly the sources
+the case manifest lists (logs included since O-03), Sock Shop has no trace series or edges, a
+case with logs has templates, and both runs write byte-identical files (the writer sorts by the
+03 keys). The Signalyth step
 time is reported; the 10 s of 02 §8 is an estimate that O-11 measures, so only the 30 s run
 budget is asserted here.
 """
@@ -13,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from veyltrace_contracts.models import CaseManifest
 from veyltrace_core import io
 from veyltrace_core.config import data_root
 from veyltrace_core.context import RunPlan
@@ -40,12 +43,17 @@ def test_real_signal_cube(suite: str, tmp_path: Path) -> None:
     print(f"{suite} {case}: signalyth {wall_ms / 1000:.1f} s")
     assert wall_ms <= RUN_BUDGET_MS
     tables = {c: io.read_table(c, first, validate=True) for c in OUTPUTS}
-    sources = set(tables["signal_cube.series"].column("source").to_pylist())
+    manifest = io.read("case_manifest", first)
+    assert isinstance(manifest, CaseManifest)
+    present = manifest.sources
+    expected = {name for name in ("metrics", "logs", "traces") if getattr(present, name)}
+    assert set(tables["signal_cube.series"].column("source").to_pylist()) == expected
     if suite == "re2-ss":  # Sock Shop publishes no traces (rcaeval_facts)
-        assert sources == {"metrics"} and tables["signal_cube.edges"].num_rows == 0
+        assert not present.traces and tables["signal_cube.edges"].num_rows == 0
     else:
-        assert sources == {"metrics", "traces"} and tables["signal_cube.edges"].num_rows > 0
+        assert present.traces and tables["signal_cube.edges"].num_rows > 0
         assert tables["signal_cube.critical_path"].num_rows > 0
+    assert (tables["signal_cube.templates"].num_rows > 0) == present.logs
     second, _ = _run(suite, case, tmp_path / "b")
     for contract in OUTPUTS:
         assert io.path_of(contract, first).read_bytes() == io.path_of(contract, second).read_bytes(), contract
