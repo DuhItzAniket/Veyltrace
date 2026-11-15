@@ -18,7 +18,7 @@
 ## Timeline
 
 - 00:22:00 UTC — alert (oracle)
-- 00:22:00 UTC — incident onset
+- 00:22:15 UTC — incident onset
 
 ## Path
 
@@ -26,13 +26,13 @@ none
 
 ## Why not
 
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **checkout**: checkout failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
 - **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- **cart**: cart failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
 
 ## Asks
 
-- telemetry: all — no anomaly evidence in any source
+- none
 
 ## Next steps
 
@@ -44,6 +44,6 @@ prose: template
 
 ---
 
-verdict_hash: `677f2c943fdc04c9ccc0c84719aa8c1ed9c03abc85ca0bb771065231338f7d99`  
-card_hash: `4dcaf4930b1ef2ff049f5903582f17f1030c96278cbfa18d878f1d9810aa9d82`  
+verdict_hash: `6a2695ba3b298c9973ae0bc0998fb7a2626555ac9e6a2caa9c56ef5de37c8a8a`  
+card_hash: `1219bc53cdffc6ef932d4d1c90a0aa7e18a9da44b5b7058e73889d86cfc523df`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

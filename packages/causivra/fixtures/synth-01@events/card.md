@@ -26,9 +26,7 @@ none
 
 ## Why not
 
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **checkout**: checkout failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- none
 
 ## Asks
 
@@ -44,6 +42,6 @@ prose: template
 
 ---
 
-verdict_hash: `677f2c943fdc04c9ccc0c84719aa8c1ed9c03abc85ca0bb771065231338f7d99`  
-card_hash: `4dcaf4930b1ef2ff049f5903582f17f1030c96278cbfa18d878f1d9810aa9d82`  
+verdict_hash: `7c6e53291bd3334f13a99206c539dea99f6ad72d47d6471966daaefa5a6816a0`  
+card_hash: `efbc5581fa044ff2dd8c3fbaea5c91156748ecae75aa9390837e0ef653d1e360`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

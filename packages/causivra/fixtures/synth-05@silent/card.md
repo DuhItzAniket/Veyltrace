@@ -32,7 +32,7 @@ none
 
 ## Asks
 
-- telemetry: all — no anomaly evidence in any source
+- none
 
 ## Next steps
 
@@ -44,6 +44,6 @@ prose: template
 
 ---
 
-verdict_hash: `64163e766783d935dacbd66bfc78602904be4e2c5246223001836bcecdc6cd78`  
-card_hash: `14609d16249b48e4dcbe3faf726142e188f2944fa634d7f1e22d23a967103967`  
+verdict_hash: `4dfab7c338ed90819d9525af4f0334739d6f6d7006aaae47b4892f17e76f886b`  
+card_hash: `11b6c9427691d876d75cb568306048b4b7c44d45d64e1c0e5748368df8ec73a4`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

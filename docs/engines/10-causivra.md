@@ -159,7 +159,7 @@ Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): 3 significan
 
 ### 3.4 Claim checker
 
-Applied to the raw LLM sentence (before filling) in this order; the first failing rule is reported. Rules C4–C6 consider only text **outside** placeholders.
+Applied to the raw LLM sentence (before filling) in this order, each rule over the whole sentence before the next (C1 on every placeholder, then C2 on every placeholder, then C3); the first failing rule is reported, at its first offending token. Rules C4–C6 consider only text **outside** placeholders.
 
 | Rule | Rejects when | Config |
 |---|---|---|
@@ -176,7 +176,7 @@ C6 forces every entity through `{SVC:…}`/`{ROOT}`, so "entity outside the enum
 
 ### 3.5 Template prose (fallback, and `ai.mode = off`)
 
-Same grammar, same filler. The atom chosen for `{E*}` below is the first atom of the named kind on the root in `evidence_table` order; if none exists the sentence is skipped.
+Same grammar, same filler. The atom chosen for `{E*}` below is the root's strongest atom of the named kind: highest `value`, ties by `atom_id`, the same rule as FaultLoom's best atom ([06 §3.7](06-faultloom.md)). A root can carry several `internal_anomaly` atoms (one per family, detector and source), so table order alone could name a weaker one. If none exists the sentence is skipped.
 
 | Status | Sentences |
 |---|---|
@@ -185,7 +185,7 @@ Same grammar, same filler. The atom chosen for `{E*}` below is the first atom of
 | `INCONCLUSIVE` | "No single root cause could be established; the candidate set has {CONF.set_size} services." · "The leading candidate is {ROOT}." (root present) · "The asks below list the telemetry or trials that would settle it." |
 | `NO_FAULT` | "No anomaly above threshold was found at the entry service or inside any service." · "The candidate set is empty and no root cause is named." |
 
-Template sentences may have empty `cites` only when no citable atom exists (for example a `NO_FAULT` case with no atoms); LLM sentences never may.
+Template sentences may have empty `cites` only when no citable atom exists, or for `NO_FAULT`: its two sentences state no number and name no candidate, so they cite nothing even when the table has atoms (every number in a card still links to an atom). LLM sentences never may have empty `cites`.
 
 ### 3.6 Deterministic playbooks
 

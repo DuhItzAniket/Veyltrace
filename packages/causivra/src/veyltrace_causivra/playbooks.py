@@ -47,7 +47,10 @@ def _parse(raw: object, source: str) -> dict[str, Playbook]:
     if not isinstance(entries, list) or not entries:
         raise ConfigError(f"{source}: needs a non-empty `playbooks` list")
     out: dict[str, Playbook] = {}
-    for entry in cast(list[Any], entries):
+    for entry in cast(list[object], entries):
+        if not isinstance(entry, Mapping):
+            raise ConfigError(f"{source}: playbook entry {entry!r} must be a mapping")
+        entry = cast(Mapping[str, Any], entry)
         pb_id, classes, steps = entry.get("id"), entry.get("fault_classes"), entry.get("steps")
         if not isinstance(pb_id, str) or _ID_RE.fullmatch(pb_id) is None or pb_id in out:
             raise ConfigError(f"{source}: bad or duplicate playbook id {pb_id!r}")

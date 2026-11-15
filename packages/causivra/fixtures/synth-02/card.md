@@ -26,13 +26,13 @@ none
 
 ## Why not
 
+- **recommend**: recommend passed the mandatory trials but its verified score did not exceed the leader's.
+- **cart**: cart failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
 - **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **checkout**: checkout failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
 
 ## Asks
 
-- telemetry: all — no anomaly evidence in any source
+- none
 
 ## Next steps
 
@@ -44,6 +44,6 @@ prose: template
 
 ---
 
-verdict_hash: `a4769ec7a6bb95898b397da762387bbf1adf596287db1b7edb3472b267b20502`  
-card_hash: `acb3f60b6c2f9e0081c41500b8d6c1570a7192096766c975578dbe0c355424f4`  
+verdict_hash: `7c2ecd6757eda491ad8876ba8ab09315379a9ddbb2d4cf670cfeb6863bfeaa8d`  
+card_hash: `ad2fb6515ac8ce182dc4123b7ccfe4bd3723e23a2011fcc4e4994adbae6143d6`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

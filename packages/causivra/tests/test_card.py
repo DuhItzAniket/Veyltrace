@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import dataclasses
+import json
 import re
 from collections.abc import Callable
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, get_args
 
@@ -13,8 +16,9 @@ from veyltrace_causivra import assemble, sections
 from veyltrace_causivra.assemble import CardSettings
 from veyltrace_causivra.card import build_card
 from veyltrace_causivra.playbooks import load_playbooks, next_steps, select
-from veyltrace_causivra.prose import SENTENCES, summary
+from veyltrace_causivra.prose import SENTENCES, strongest, summary
 from veyltrace_contracts import models
+from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import self_hash
 from veyltrace_core.schemacheck import validate_json_schema
 
@@ -49,6 +53,14 @@ def test_playbooks_file_is_valid_and_covers_every_fault_class() -> None:
     assert covered == set(get_args(models.FaultClass))  # 02 §6.10: a playbook per fault class
     owners = [c for p in playbooks.values() for c in p.fault_classes]
     assert len(owners) == len(set(owners))  # no class is claimed twice
+
+
+@pytest.mark.parametrize("entry", ["PB-CPU-01", ["PB-CPU-01"], 7])
+def test_a_playbook_entry_that_is_not_a_mapping_is_a_config_error(tmp_path: Path, entry: object) -> None:
+    path = tmp_path / "playbooks.yaml"
+    path.write_text(json.dumps({"playbooks": [entry]}), encoding="utf-8")
+    with pytest.raises(ConfigError, match="must be a mapping"):
+        load_playbooks(path)
 
 
 @pytest.mark.parametrize("fault_class", sorted(get_args(models.FaultClass)))
@@ -171,6 +183,42 @@ def test_signal_sentence_is_skipped_without_an_internal_atom(
     assert [r["text"][:16] for r in rows] == ["payment is the o", "Confidence is hi"]
 
 
+def _with_internal(ctx: Any, atom_id: str, value: float, label: str, scenario: SimpleNamespace) -> Any:
+    """ctx with a second internal atom on the root, placed first in table order."""
+    extra = dataclasses.replace(ctx.table[scenario.a_int], atom_id=atom_id, value=value, label=label)
+    return dataclasses.replace(ctx, table={atom_id: extra, **ctx.table})
+
+
+def test_signal_sentence_names_the_strongest_internal_atom(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    verdict = make_verdict("LIKELY")
+    weak = "E0000000001"
+    ctx = _with_internal(
+        _ctx(verdict, scenario, card_settings), weak, 2.5, "payment memory anomaly (incident)", scenario
+    )
+    assert next(iter(ctx.table)) == weak  # first in table order, but weaker than A_INT (9.42)
+    kinds = {**_kinds(scenario), weak: "internal_anomaly"}
+    rows = summary(verdict, ctx, kinds)
+    assert rows[1] == {
+        "text": "Its strongest internal signal was payment cpu anomaly (incident) at 9.42 z.",
+        "cites": [scenario.a_int],
+    }
+
+
+def test_strongest_breaks_ties_by_atom_id(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    verdict = make_verdict("LIKELY")
+    tie = "Effffffffff"  # sorts after A_INT, so A_INT wins the tie
+    ctx = _with_internal(_ctx(verdict, scenario, card_settings), tie, 9.42, "payment cpu anomaly", scenario)
+    assert strongest([tie, scenario.a_int], ctx) == scenario.a_int
+    low = "E0000000001"
+    ctx = _with_internal(_ctx(verdict, scenario, card_settings), low, 9.42, "payment cpu anomaly", scenario)
+    assert strongest([scenario.a_int, low], ctx) == low
+    assert strongest([], ctx) is None
+
+
 def test_every_template_is_free_of_raw_numbers() -> None:
     texts = [t for sentences in SENTENCES.values() for t in sentences]
     texts += [*sections.WHY_NOT_FAILED.values(), sections.WHY_NOT_PASSED, sections.WHY_NOT_UNTESTED]
@@ -183,7 +231,6 @@ def test_every_template_is_free_of_raw_numbers() -> None:
 
 def _card(verdict: models.Verdict, scenario: SimpleNamespace, settings: CardSettings) -> dict[str, Any]:
     return build_card(
-        case_id=verdict.case_id,
         verdict=verdict,
         evidence=scenario.evidence,
         alert=ALERT,
@@ -214,6 +261,7 @@ def test_card_is_valid_copies_the_verdict_and_hashes_itself(
     assert (card["status"], card["root"], card["confidence"]) == (v["status"], v["root"], v["confidence"])
     assert [c["service"] for c in card["candidate_set"]] == [c["service"] for c in v["candidate_set"]]
     assert card["verdict_hash"] == verdict.verdict_hash
+    assert card["case_id"] == verdict.case_id
     assert card["card_hash"] == self_hash("card", card)
     assert card["narrator"] == {"path": "template", "model": None, "attempts": 0, "checker_failures": 0}
     assert card == _card(verdict, scenario, card_settings)  # pure function of its inputs
