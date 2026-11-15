@@ -33,6 +33,7 @@ __all__ = [
     "Health",
     "HealthAI",
     "HealthLive",
+    "RunRequest",
     "RunStatus",
 ]
 
@@ -138,3 +139,11 @@ class CasePage(_Envelope):
     total: int
     limit: int
     offset: int
+
+
+class RunRequest(_Envelope):
+    """`POST /runs` body (06 §3.2)."""
+
+    dataset: str
+    case_id: str
+    ai_mode: AIMode
