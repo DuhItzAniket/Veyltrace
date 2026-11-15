@@ -33,7 +33,9 @@ FLAG_KEYS = ("emailMemoryLeak", "recommendationCacheFailure", "paymentFailure", 
 #: container image for this placeholder, and kubelet then logs pulling it (seen on the live F08 run).
 TOOL_ARTEFACTS = ("google-containers/pause",)
 _WORDS = "|".join(map(re.escape, DENY_TOKENS + FLAG_KEYS))
-DENY = re.compile(rf"(?i)\b(?:{_WORDS})|" + "|".join(map(re.escape, TOOL_ARTEFACTS)))
+#: "chaos" also matches inside CRD kinds (StressChaos, PodChaos, …), which a word start misses (#225).
+_ANYWHERE = ("chaos", "feature_flag")
+DENY = re.compile(rf"(?i)\b(?:{_WORDS})|" + "|".join(map(re.escape, _ANYWHERE + TOOL_ARTEFACTS)))
 DROP_ATTR = re.compile(r"^(feature_flag\.|chaos-mesh\.org/)")
 DROP_NAMESPACES = frozenset({"chaos-mesh"})
 DROP_SERVICES = frozenset({"flagd"})
@@ -48,6 +50,18 @@ def _attrs(items: Iterable[Mapping[str, Any]] | None) -> dict[str, Any]:
         value = item.get("value", {})
         out[str(item["key"])] = next(iter(value.values()), None) if value else None
     return out
+
+
+def _strip_nested(rec: dict[str, Any]) -> None:
+    """Drop denied attributes of a record and of what it nests: span events and links, and the data
+    points of every metric type (05 §11; #225 item 9)."""
+    if "attributes" in rec:
+        rec["attributes"] = _strip(rec["attributes"])
+    for child in (*rec.get("events", []), *rec.get("links", [])):
+        child["attributes"] = _strip(child.get("attributes"))
+    for kind in ("gauge", "sum", "histogram", "exponentialHistogram", "summary"):
+        for point in rec.get(kind, {}).get("dataPoints", []):
+            point["attributes"] = _strip(point.get("attributes"))
 
 
 def _strip(items: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
@@ -109,7 +123,7 @@ def service_of(name: str, services: tuple[str, ...]) -> str:
 
 def _event(t_ns: int, entity: str, kind: str, detail: Mapping[str, Any]) -> dict[str, Any]:
     return {"t_ns": t_ns, "entity": entity, "kind": kind, "source_system": "k8s",
-            "detail_json": canonical_json(dict(detail))}  # fmt: skip
+            "detail_json": canonical_json(dict(detail)), "actor": None}  # fmt: skip  # 03 §2.5
 
 
 def _deployment_event(obj: Mapping[str, Any], t_ns: int, ctx: Context) -> dict[str, Any] | None:
@@ -177,8 +191,7 @@ def scrub_request(
         for scope in res.get(scope_key, []):
             kept = []
             for rec in scope.get(rec_key, []):
-                if "attributes" in rec:
-                    rec["attributes"] = _strip(rec["attributes"])
+                _strip_nested(rec)
                 if signal == "logs":
                     body = rec.get("body", {})
                     rec_attrs = _attrs(rec.get("attributes"))
