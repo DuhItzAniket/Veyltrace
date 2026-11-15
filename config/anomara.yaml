@@ -50,3 +50,39 @@ silence:
   max_baseline_zero_share: 0.2   # zero-silence needs a baseline at most 20% zero (a priori)
   min_baseline_coverage: 0.8     # absence-silence needs 80% of baseline buckets observed (a priori)
   service_metric_share: 0.5      # per_service.silent when half its metric series are silent (a priori)
+
+bocpd:
+  # 03-anomara §3.4: Adams & MacKay on the standardised grid series y = (x - median_B) / s_B.
+  lambda: 100               # grid steps; hazard 1/lambda, a priori (one fault per case, ~96-150 steps)
+  prior: {mu0: 0.0, kappa0: 1.0, alpha0: 1.0, beta0: 1.0}   # Normal-Gamma, a priori (unit-free data)
+  r_max: 200                # run-length truncation, a priori (covers the longest case grid)
+  short_run: 2              # m in cp_t = P(r_t <= m), a priori
+  threshold: 0.5            # probability, a priori
+
+onset:
+  # 03-anomara §3.6: a BOCPD onset at most this far before the robust_z onset replaces it (a ramp's start).
+  bocpd_max_lead_s: 120     # a priori
+
+t_onset:
+  # 03-anomara §3.7: t_onset is clamped to [t_alert + low, t_alert + high] (02 §6.3).
+  clamp_s: [-60, 300]
+
+slo:
+  # detect_alert (03-anomara §3.8): the first sustained entry-service SLO breach (detected protocol).
+  bucket_s: 10              # a priori, the same grid as Signalyth's traces
+  min_spans: 5              # a priori, as signalyth traces.min_spans_per_quantile
+  # Client-like spans are not entry spans (02-signalyth §3.3 item 2). An engine reads only its own
+  # section, so these mirror Signalyth's keys (02-signalyth §4 defaults); once O-02's keys are on
+  # main, the lead moves each pair into config/core.yaml as a shared value.
+  infer_client_spans: true  # mirrors signalyth traces.infer_client_spans; RCAEval spans have no kind
+  skew_tolerance_ms: 1.0    # mirrors signalyth traces.skew_tolerance_ms; a priori
+  window_s: 300             # trailing baseline, a priori
+  gap_s: 30                 # gap between the baseline and the judged bucket, a priori
+  k: 3.0                    # one-sided z threshold, a priori
+  persist_steps: 3          # consecutive buckets that confirm a breach, a priori
+  min_baseline_points: 10   # baseline buckets needed to judge a bucket, a priori
+  # Metrics fallback without traces: the same case-insensitive name rules as Signalyth
+  # (02-signalyth §3.2 rules 5 and 6, metrics.counter_name_patterns).
+  latency_metric_pattern: "latency|duration|response_time"
+  error_metric_pattern: "^error$|error|fail|5xx"
+  counter_name_patterns: ["_total$", "_count$", "_sum$", "_bucket$"]

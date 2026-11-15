@@ -109,6 +109,7 @@ def test_detected_runs_fill_onset_error(tmp_path: Path, monkeypatch: pytest.Monk
         run_dirs[cid] = summary.run_dir
         return summary
 
+    monkeypatch.setattr(runner, "IN_PROCESS", True)  # the spy and the detector live in this process
     monkeypatch.setattr(runner, "run_case", spy)
     exp = _experiment(tmp_path, "detected", ["synth-01", "synth-05"])
     out, summary = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
@@ -116,12 +117,13 @@ def test_detected_runs_fill_onset_error(tmp_path: Path, monkeypatch: pytest.Monk
     injected, normal = rows[case_id("synth-01")], rows[case_id("synth-05")]
     assert injected["protocol"] == "detected" and injected["run_outcome"] == "ok"
     onsets = io.read_model("onsets", run_dirs[case_id("synth-01")], Onsets)
-    assert onsets.t_onset_ns != lay.T_INJECT_NS  # the detector fired late, so the error is not 0
+    # bench copies Anomara's onset; whether it is exact is O-04's business, and the gap
+    # arithmetic (non-zero, either sign) is pinned by the unit tests above
     assert injected["onset_error_ms"] == abs(onsets.t_onset_ns - lay.T_INJECT_NS) / 1e6
     assert normal["run_outcome"] == "ok" and normal["onset_error_ms"] is None  # no injection time
     groups = summary["groups"]
     assert isinstance(groups, list)
-    values = [g for g in groups if g["n_onset"]]
+    values = [g["metrics"]["onset_error"] for g in groups if g["metrics"]["onset_error"]["n_onset"]]
     assert len(values) == 1 and values[0]["onset_error_max_ms"] == injected["onset_error_ms"]
 
 
@@ -132,4 +134,4 @@ def test_oracle_runs_leave_onset_error_empty(tmp_path: Path) -> None:
     row = _rows(out)[case_id("synth-01")]
     assert row["run_outcome"] == "ok" and row["onset_error_ms"] is None
     groups = summary["groups"]
-    assert isinstance(groups, list) and all(g["n_onset"] == 0 for g in groups)
+    assert isinstance(groups, list) and all(g["metrics"]["onset_error"]["n_onset"] == 0 for g in groups)

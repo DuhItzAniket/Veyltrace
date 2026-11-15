@@ -6,20 +6,28 @@ failed, no_alert, rejected) from the RunSummary. Runs go to bench's own, emptied
 `<runs root>/bench/<experiment_id>/`, so each is executed and timed: a reused run has no wall time,
 which would turn a timeout (a miss, 04 §9) into ok and lose its cost (04 §6). The one exception is
 a run another method of this experiment made with the same config and a different `kind` (e.g.
-`causatrix:rrf` and `veyltrace:off`, #172): it is scored again with that run's time. Results, in
+`causatrix:rrf` and `veyltrace:off`, #172): it is scored again with that run's time. Each run is a
+child process (`veyltrace_bench.child`, #68): bench kills it at `resources.timeout_s` and records
+its peak RSS. Results, in
 `<results root>/<experiment_id>/`: per_case.csv (bench_result, 03 §13.2, through core io),
-summary.json (the requested metrics per (dataset, system, method)) and manifest.json (experiment,
-code, uv.lock, answer-key, telemetry-input and config hashes, run ids; 04 §9, §10.2), both canonical
-JSON and byte-identical across invocations; only per_case.csv's wall_ms differs.
+summary.json (bench_summary, 03 §13.3: the requested metrics per (dataset, system, method)) and
+manifest.json (bench_manifest, 03 §13.4: experiment, code, uv.lock, answer-key, telemetry-input and
+config hashes, run ids; 04 §9, §10.2), both written through core io (validated canonical JSON) and
+byte-identical across invocations; only per_case.csv's wall_ms and peak_rss_mb differ.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
+import subprocess
+import sys
+import tempfile
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from veyltrace_bench import ALGO_VERSION
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
@@ -33,29 +41,109 @@ from veyltrace_bench.experiment import (
     select_cases,
     unsupported,
 )
-from veyltrace_bench.metrics import CaseScore, MethodOutput, Truth, score_case
-from veyltrace_bench.summary import summarize
+from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
+from veyltrace_bench.summary import METRIC_KEYS, summarize
 from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
 from veyltrace_core import io, textio
-from veyltrace_core.canonical import JSONLike, canonical_json
+from veyltrace_core.cli import THREAD_ENV
 from veyltrace_core.config import ResolvedConfig, config_sha256, find_config_dir, resolve_config
-from veyltrace_core.errors import ArtifactMissing, ConfigError, ContractValidationError, UsageError
+from veyltrace_core.errors import (
+    ArtifactMissing,
+    ConfigError,
+    ContractValidationError,
+    UsageError,
+    VeyltraceError,
+)
 from veyltrace_core.hashing import manifest_hash, sha256_file, sha256_text_lf
 from veyltrace_core.log import get_logger
 from veyltrace_core.pipeline import run_case, uv_lock_sha256
 from veyltrace_core.pipeline import runs_root as default_runs_root
 
 PRODUCER = f"bench@{ALGO_VERSION}"
-SUMMARY_SCHEMA = "veyltrace.bench_summary/0"
-MANIFEST_SCHEMA = "veyltrace.bench_manifest/0"
 RESULTS_DIR = ("bench", "results")  # default results root below the repo (04 §9)
 BENCH_RUNS = "bench"  # bench's own subdirectory of the runs root, one directory per experiment
 SYNTH = "synth"  # smoke cases, never reported (04 §3)
 MS_PER_S = 1000.0
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 STATISTICS_NOT_RUN = "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
+#: Run each case in this process instead of a child: for tests that substitute `run_case` or
+#: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
+IN_PROCESS = False
 
 _log = get_logger(__name__)
+#: run_id -> (wall_ms, peak_rss_mb, the method kinds that scored it), for runs reused across kinds.
+type Timed = dict[str, tuple[float, float | None, frozenset[str]]]
+
+
+@dataclass(frozen=True)
+class Executed:
+    """One case run as bench sees it. run_id and run_dir are None for a run killed at the timeout."""
+
+    outcome: str
+    run_id: str | None
+    run_dir: Path | None
+    cached: bool
+    wall_ms: float
+    peak_rss_mb: float | None
+
+
+def child_command(request: Path, result: Path) -> list[str]:
+    """The child process of one run (veyltrace_bench.child), in this interpreter's environment."""
+    return [sys.executable, "-m", "veyltrace_bench.child", str(request), str(result)]
+
+
+def _execute(
+    key: AnswerKeyRow,
+    method: MethodSpec,
+    cfg: ResolvedConfig,
+    overrides: dict[str, object],
+    runs_root: Path,
+    timeout_s: int,
+) -> Executed:
+    """Diagnose one case, in a child killed at `timeout_s` (#68), or in process (IN_PROCESS)."""
+    if IN_PROCESS:
+        start = time.perf_counter()
+        s = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root)
+        wall_ms = (time.perf_counter() - start) * MS_PER_S
+        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None)
+    request = {
+        "dataset": key.dataset,
+        "case_id": key.case_id,
+        "ai_mode": method.ai.mode,
+        "overrides": overrides,
+        "runs_root": str(runs_root),
+    }
+    env = {**os.environ, **{v: os.environ.get(v, "1") for v in THREAD_ENV}}  # as the CLI pins them
+    with tempfile.TemporaryDirectory(prefix="veyltrace-bench-") as tmp:
+        request_path, result_path = Path(tmp, "request.json"), Path(tmp, "result.json")
+        textio.write_bytes(request_path, json.dumps(request).encode())
+        start = time.perf_counter()
+        try:  # on a timeout, subprocess.run kills the child and waits for it
+            cmd = child_command(request_path, result_path)
+            subprocess.run(
+                cmd,
+                cwd=find_config_dir().parent,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                timeout=timeout_s,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return Executed("timeout", None, None, False, (time.perf_counter() - start) * MS_PER_S, None)
+        if not result_path.is_file():
+            raise VeyltraceError(f"{key.case_id} ({method.id}): the bench child exited without a result")
+        got = cast("dict[str, Any]", json.loads(textio.read_text(result_path)))
+    if (error := got.get("error")) is not None:
+        raise VeyltraceError(f"{key.case_id} ({method.id}): {error['type']}: {error['detail']}")
+    s = cast("dict[str, Any]", got["summary"])
+    return Executed(
+        str(s["outcome"]),
+        str(s["run_id"]),
+        Path(s["run_dir"]),
+        bool(s["cached"]),
+        float(got["wall_ms"]),
+        float(got["peak_rss_mb"]),
+    )
 
 
 def overrides_for(exp: Experiment, method: MethodSpec) -> dict[str, object]:
@@ -124,8 +212,12 @@ def check_rankers(exp: Experiment) -> None:
         raise ConfigError(f"methods name unknown rankers {unknown}: {RANKERS_KEY} is {sorted(configured)}")
 
 
-def _read[M: (Verdict, Slate, CaseManifest, Onsets)](name: str, run_dir: Path, model: type[M]) -> M | None:
-    """A JSON output of the run, or None when the run did not write a valid one."""
+def _read[M: (Verdict, Slate, CaseManifest, Onsets)](
+    name: str, run_dir: Path | None, model: type[M]
+) -> M | None:
+    """A JSON output of the run, or None when the run did not write a valid one (or was killed)."""
+    if run_dir is None:
+        return None
     try:
         return io.read_model(name, run_dir, model)
     except (ArtifactMissing, ContractValidationError):
@@ -138,33 +230,31 @@ def _run_one(
     cfg: ResolvedConfig,
     key: AnswerKeyRow,
     runs_root: Path,
-    timed: dict[str, tuple[float, frozenset[str]]],
+    timed: Timed,
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Diagnose one case with one method and score it: (per_case row, score, manifest run entry).
     n_i (its `services`) and the input hashes come from the run's case_manifest (Infralume, step 0):
     the case's own, the same for every method and for every outcome that got that far."""
-    start = time.perf_counter()
-    summary = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root)
-    wall_ms = (time.perf_counter() - start) * MS_PER_S
+    done = _execute(key, method, cfg, overrides_for(exp, method), runs_root, exp.resources.timeout_s)
+    wall_ms, peak = done.wall_ms, done.peak_rss_mb
     kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
-    if summary.cached:  # bench emptied its runs dir, so another method of this experiment ran it
-        earlier = timed.get(summary.run_id)
-        if earlier is None or method.kind in earlier[1]:  # unknown time, or a duplicated method
-            raise ConfigError(
-                f"method {method.id} reuses run {summary.run_id}: same config as another method"
-            )
-        wall_ms, kinds = earlier  # e.g. causatrix:rrf and veyltrace:off: one run, scored two ways
-    timed[summary.run_id] = (wall_ms, kinds | {method.kind})
-    outcome = run_outcome(summary.outcome, wall_ms, exp.resources.timeout_s)
+    if done.cached and done.run_id is not None:  # bench emptied its runs dir: another method ran it
+        earlier = timed.get(done.run_id)
+        if earlier is None or method.kind in earlier[2]:  # unknown time, or a duplicated method
+            raise ConfigError(f"method {method.id} reuses run {done.run_id}: same config as another method")
+        wall_ms, peak, kinds = earlier  # e.g. causatrix:rrf and veyltrace:off: one run, scored twice
+    if done.run_id is not None:
+        timed[done.run_id] = (wall_ms, peak, kinds | {method.kind})
+    outcome = run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
     slate_scored = method.kind == "causatrix"
-    verdict = _read("verdict", summary.run_dir, Verdict) if outcome == "ok" and not slate_scored else None
-    slate = _read("slate", summary.run_dir, Slate) if outcome == "ok" else None
+    verdict = _read("verdict", done.run_dir, Verdict) if outcome == "ok" and not slate_scored else None
+    slate = _read("slate", done.run_dir, Slate) if outcome == "ok" else None
     if outcome == "ok" and (slate is None or (verdict is None and not slate_scored)):
         outcome = "failed"  # a missing output is a failed run (04 §7)
-    case = _read("case_manifest", summary.run_dir, CaseManifest)
+    case = _read("case_manifest", done.run_dir, CaseManifest)
     universe = tuple(case.services) if case is not None else None
     detected = outcome == "ok" and exp.protocol.alert == DETECTED
-    onsets = _read("onsets", summary.run_dir, Onsets) if detected else None
+    onsets = _read("onsets", done.run_dir, Onsets) if detected else None
     out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
     score = score_case(Truth.from_answer_key(key), out, universe=universe)
@@ -185,16 +275,33 @@ def _run_one(
         "status": verdict.status if verdict is not None else None,
         "verdict_hash": verdict.verdict_hash if verdict is not None else None,
         "wall_ms": wall_ms,
+        "peak_rss_mb": peak,
         **score.columns(),
     }
     inputs = manifest_hash((i.name, i.sha256) for i in case.inputs) if case is not None else None
     run: dict[str, object] = {"case_id": key.case_id, "dataset": key.dataset, "method": method.id}
-    return row, score, run | {"run_id": summary.run_id, "inputs_sha256": inputs}
+    return row, score, run | {"run_id": done.run_id, "inputs_sha256": inputs}  # run_id None: killed
 
 
-def _write_json(path: Path, obj: dict[str, object]) -> None:
-    """Canonical JSON plus LF (03 §1); summary and manifest hold only JSON values."""
-    textio.write_bytes(path, canonical_json(cast("JSONLike", obj)) + b"\n")
+def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...]) -> dict[str, object]:
+    """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
+    one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9)."""
+    flat = summarize(scores, metrics)
+    counted = cast("dict[str, int]", flat.pop("outcomes"))
+    entries = {
+        name: {k: flat.pop(k) for k in keys} if name in metrics else None
+        for name, keys in METRIC_KEYS.items()
+    }
+    dataset, system, method = key
+    outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
+    return {
+        "dataset": dataset,
+        "system": system,
+        "method": method,
+        **flat,
+        "outcomes": outcomes,
+        "metrics": entries,
+    }
 
 
 def run_experiment(
@@ -206,9 +313,9 @@ def run_experiment(
     `table` and needs an explicit `out_root` outside the repository.
 
     per_case.csv columns v0 leaves null: seed and variant (no AI arms, no perturbed variants),
-    fold (split none), decoy_present and decoy_ranked_first (not evaluated yet), peak_rss_mb (not
-    measurable in-process) and tokens_in/out (AI off); onset_error_ms is filled under the detected
-    protocol only (04 §7).
+    fold (split none), decoy_present and decoy_ranked_first (not evaluated yet), peak_rss_mb of a
+    run killed at the timeout (never reported) and tokens_in/out (AI off); onset_error_ms is filled
+    under the detected protocol only (04 §7).
     """
     exp = load_experiment(path)
     if todo := unsupported(exp):
@@ -235,7 +342,7 @@ def run_experiment(
     runs: list[dict[str, object]] = []
     configs: list[dict[str, object]] = []
     groups: dict[tuple[str, str, str], list[CaseScore]] = {}
-    timed: dict[str, tuple[float, frozenset[str]]] = {}  # run_id -> (wall_ms, kinds that scored it)
+    timed: Timed = {}
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
             cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
@@ -246,19 +353,17 @@ def run_experiment(
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
     summary: dict[str, object] = {
-        "schema": SUMMARY_SCHEMA,
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            {"dataset": d, "system": s, "method": m, **summarize(scores, exp.metrics)}
-            for (d, s, m), scores in sorted(groups.items(), key=lambda item: item[0])
+            _group(k, scores, exp.metrics) for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
-        "statistics": STATISTICS_NOT_RUN,  # 03 §13.2 wants bootstrap CIs here once bench/stats exists
+        "statistics": STATISTICS_NOT_RUN,  # bootstrap CIs and tests once bench/stats exists (O-14)
     }
     out_dir = (out_root if out_root is not None else repo.joinpath(*RESULTS_DIR)) / exp.experiment_id
     io.write_path("bench_result", rows, out_dir / "per_case.csv")
-    _write_json(out_dir / "summary.json", summary)
+    io.write_path("bench_summary", summary, out_dir / "summary.json")  # validated (03 §13.3)
     datasets: list[dict[str, object]] = []
     for d, (cases, excluded) in selected.items():
         mine = [r for r in runs if r["dataset"] == d and r["inputs_sha256"] is not None]
@@ -274,7 +379,6 @@ def run_experiment(
             }
         )
     manifest: dict[str, object] = {
-        "schema": MANIFEST_SCHEMA,
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "experiment_sha256": sha256_text_lf(Path(path)),
@@ -286,5 +390,5 @@ def run_experiment(
         "seeds": sorted({seed for m in exp.methods for seed in m.ai.seeds}),
         "runs": runs,
     }
-    _write_json(out_dir / "manifest.json", manifest)  # written last: its presence marks a whole result
+    io.write_path("bench_manifest", manifest, out_dir / "manifest.json")  # last: marks a whole result
     return out_dir, summary
