@@ -1,7 +1,7 @@
 """Gateway-only API envelopes (03 §14; 06 §3.1). Run artifacts are never redefined here.
 
-X-00: the `health` envelope of 06 §3.2. Its OpenAPI export (`openapi.json`) and the generated
-TypeScript types arrive with X-04, together with the other envelopes.
+X-00: the `health` envelope of 06 §3.2. X-04 adds the error envelope (06 §3.1) and the wrappers
+of the artifact routes; their items are the generated contract models, unchanged.
 """
 
 from __future__ import annotations
@@ -10,9 +10,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from veyltrace_contracts.models import EvidenceRow
 from veyltrace_core.ids import AIMode
 
-__all__ = ["Health", "HealthAI", "HealthLive"]
+__all__ = ["ErrorBody", "ErrorDetail", "EvidencePage", "Health", "HealthAI", "HealthLive"]
 
 
 class _Envelope(BaseModel):
@@ -41,3 +42,23 @@ class Health(_Envelope):
     code_commit: str
     ai: HealthAI
     live: HealthLive
+
+
+class ErrorDetail(_Envelope):
+    code: str
+    message: str
+
+
+class ErrorBody(_Envelope):
+    """Every error response (06 §3.1)."""
+
+    error: ErrorDetail
+
+
+class EvidencePage(_Envelope):
+    """`GET /runs/{run_id}/evidence`: one page of evidence rows (03 §7) after the filters."""
+
+    items: list[EvidenceRow]
+    total: int
+    limit: int
+    offset: int

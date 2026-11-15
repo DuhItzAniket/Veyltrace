@@ -34,6 +34,8 @@ class GatewaySettings:
     cors_origins: tuple[str, ...]
     default_ai_mode: AIMode
     live_enabled: bool
+    page_limit_max: int
+    evidence_limit: int
 
 
 def _get(body: Mapping[str, Any], dotted: str) -> object:
@@ -64,13 +66,25 @@ def settings_from(body: Mapping[str, Any]) -> GatewaySettings:
         raise ConfigError(f"gateway.jobs.default_ai_mode must be one of {AI_MODES}, got {mode!r}")
     if not isinstance(live, bool):
         raise ConfigError(f"gateway.live.enabled must be a bool, got {live!r}")
+    limit_max, evidence = _positive(body, "api.page_limit_max"), _positive(body, "api.evidence_limit")
+    if evidence > limit_max:
+        raise ConfigError(f"gateway.api.evidence_limit {evidence} exceeds api.page_limit_max {limit_max}")
     return GatewaySettings(
         host=host,
         port=port,
         cors_origins=tuple(cast(list[str], origins)),
         default_ai_mode=cast(AIMode, mode),
         live_enabled=live,
+        page_limit_max=limit_max,
+        evidence_limit=evidence,
     )
+
+
+def _positive(body: Mapping[str, Any], dotted: str) -> int:
+    value = _get(body, dotted)
+    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+        raise ConfigError(f"gateway.{dotted} must be an int >= 1, got {value!r}")
+    return value
 
 
 def load_settings(config_dir: Path | None = None) -> GatewaySettings:
