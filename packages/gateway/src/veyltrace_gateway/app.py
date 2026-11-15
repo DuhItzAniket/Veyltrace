@@ -1,4 +1,5 @@
-"""The gateway's FastAPI app (06 §2, §3). X-00: an empty app with `GET /api/v1/health`.
+"""The gateway's FastAPI app (06 §2, §3): `GET /api/v1/health` (X-00) and the read-only artifact
+routes of finished runs (X-04, `veyltrace_gateway.runs`).
 
 The gateway holds no analysis logic (package rule 1). Health is computed once, when the app is
 created, from config and the code commit; a request handler never calls an LLM or starts a run.
@@ -15,9 +16,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from veyltrace_core.config import load_section_file
 from veyltrace_core.errors import ConfigError
-from veyltrace_core.pipeline import code_commit
+from veyltrace_core.pipeline import code_commit, runs_root
 from veyltrace_gateway import __version__
 from veyltrace_gateway.api_models import Health, HealthAI, HealthLive
+from veyltrace_gateway.errors import add_error_handlers
+from veyltrace_gateway.runs import run_router
 from veyltrace_gateway.settings import GatewaySettings, load_settings
 
 __all__ = ["API_PREFIX", "build_health", "create_app"]
@@ -42,8 +45,11 @@ def build_health(settings: GatewaySettings, llm: Mapping[str, Any], commit: str)
     )
 
 
-def create_app(settings: GatewaySettings | None = None, *, config_dir: Path | None = None) -> FastAPI:
-    """The ASGI app; `settings` default to `config/gateway.yaml`."""
+def create_app(
+    settings: GatewaySettings | None = None, *, config_dir: Path | None = None, runs: Path | None = None
+) -> FastAPI:
+    """The ASGI app; `settings` default to `config/gateway.yaml`, `runs` to core's runs root (the
+    directory `run_case` writes, `config/core.yaml` paths.runs)."""
     resolved = settings if settings is not None else load_settings(config_dir)
     health = build_health(resolved, load_section_file(LLM_SECTION, config_dir=config_dir), code_commit()[0])
     app = FastAPI(title="Veyltrace gateway", version=__version__, docs_url=None, redoc_url=None)
@@ -54,8 +60,11 @@ def create_app(settings: GatewaySettings | None = None, *, config_dir: Path | No
         allow_headers=["Content-Type"],
     )
 
+    add_error_handlers(app)
+
     @app.get(f"{API_PREFIX}/health", response_model=Health)
     def get_health() -> Health:
         return health
 
+    app.include_router(run_router(resolved, runs if runs is not None else runs_root()), prefix=API_PREFIX)
     return app
