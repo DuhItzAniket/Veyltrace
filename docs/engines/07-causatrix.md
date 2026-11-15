@@ -159,7 +159,7 @@ Ranker scores and ranks:
 - `baro_rs`: frontend 14.0, checkout 11.0, currency 4.5, payment 1.0 → frontend first: the classic max-deviation failure where the entry service accumulates the largest symptom [rcaeval_facts §Anomaly scoring methods][rf-methods].
 - `nsigma`: frontend 16.0 first, checkout second.
 - `cp_sbfl`: checkout 1, frontend 2, currency 3, payment 4.
-- `graph_walk`: `a` = checkout 0.786, currency 0.321, frontend 1.0, payment 0.071; `aI` = 0.643, 0.143, 0.086, 0.057. Rows: frontend → checkout 0.393, → currency 0.161, stay 0.038, restart 0.408; checkout → currency 0.161, → payment 0.036, stay 0.517, restart 0.287; leaves stay `aI` and restart the rest. After 200 steps: checkout 0.5004, frontend 0.2565, currency 0.2085, payment 0.0346 → ranks 1, 2, 3, 4.
+- `graph_walk`: `a` = checkout 0.786, currency 0.321, frontend 1.0, payment 0.071; `aI` = 0.643, 0.143, 0.086, 0.057. Rows: frontend → checkout 0.393, → currency 0.161, stay 0.038, restart 0.408; checkout → currency 0.161, → payment 0.036, stay 0.517, restart 0.287; leaves stay `aI` and restart the rest. After 200 steps: checkout 0.500381, frontend 0.256530, currency 0.208490, payment 0.034598 → ranks 1, 2, 3, 4 (tests pin these to 1e-6, §7).
 - `change_prox` abstains (no events).
 
 Fusion (5 active rankers):

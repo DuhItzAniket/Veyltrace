@@ -116,8 +116,8 @@ class NameRules:
         unfolded = self._alias(name).replace("_", "-")
         if pod:
             component = original.replace("_", "-")
-        elif unfolded != service and self._fold(unfolded) == service:
-            component = unfolded
+        elif unfolded != service and self._fold(unfolded) != unfolded:
+            component = unfolded  # a folded suffix keeps the original, even when an alias then applies
         else:
             component = service
         return Normalised(service=_check(service, raw), component=_check(component, raw))

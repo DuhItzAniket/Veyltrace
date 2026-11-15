@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from vlab.faults import get_fault
+from vlab.faults import NO_FAULT, get_fault
 
 #: Phase lengths in seconds (05 §8.1). A plan may shorten them for smoke runs; the values used are
 #: recorded in every capture's orchestrator.json.
@@ -61,6 +61,11 @@ def parse(data: Any) -> Plan:
         users = raw.get("users", USERS[0])
         if users not in USERS or isinstance(users, bool):
             raise ValueError(f"entry {i}: users must be one of {list(USERS)}")
+        if raw.get("fault") == NO_FAULT:
+            if "target" in raw or "severity" in raw:
+                raise ValueError(f"entry {i}: {NO_FAULT} (no fault) takes no target or severity")
+            entries.append(Entry(NO_FAULT, "", "", int(users)))
+            continue
         entry = Entry(
             str(raw.get("fault")), str(raw.get("target")), str(raw.get("severity", "L1")), int(users)
         )
