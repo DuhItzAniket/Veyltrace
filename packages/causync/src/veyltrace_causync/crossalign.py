@@ -1,8 +1,10 @@
 """Logs and metrics onto the reference clock (04-causync §3.3).
 
-Two estimators, both source-level (`service` null). `log_span_join`: a log line that names its
-span should lie inside it, so the lines that do not say how far the log clock is off.
-`comovement`: the fallback for logs without span ids and for metrics. Traffic seen by two sources
+Two estimators. `log_span_join`: a log line that names its span should lie inside it, so the
+lines that do not say how far the log clock is off; it writes a row per logging service as well
+as a source-level one.
+`comovement` (source-level): the fallback for logs without span ids and for metrics. Traffic seen
+by two sources
 rises and falls together, so the lag that best correlates their first differences is the clock
 difference. Its resolution is one step: it only catches gross misalignment, finer differences
 are inside `tolerance_ns` by construction.
@@ -21,7 +23,7 @@ from veyltrace_causync.settings import AlignConfig
 from veyltrace_causync.steps import series_groups
 from veyltrace_causync.tracepairs import Offset
 
-__all__ = ["JOIN_LOG_COLUMNS", "TRAFFIC_SIGNALS", "comovement_offset", "log_span_offset"]
+__all__ = ["JOIN_LOG_COLUMNS", "TRAFFIC_SIGNALS", "comovement_offset", "log_span_offsets"]
 
 _pc: Any = pc  # pyarrow-stubs type compute kernels with Unknown parts (as core's io.py)
 type Vec = np.ndarray[Any, Any]
@@ -30,25 +32,35 @@ JOIN_LOG_COLUMNS: Final = ("t_ns", "service", "trace_id", "span_id")
 TRAFFIC_SIGNALS: Final = {"logs": ("log_rate",), "traces": ("rps",), "metrics": ("workload", "rps")}
 
 
-def log_span_offset(
+def _inside_offset(lo: Vec, hi: Vec, service: str | None, cfg: AlignConfig) -> Offset:
+    """The `logs` offset of lines whose in-span shifts are `[lo, hi]`: 0 if at least
+    `log_inside_share` of them already lie inside their span, else the median shift that would
+    put each line inside. `confidence` is the share of lines inside their span after the shift."""
+    inside = float(np.mean((lo <= 0) & (hi >= 0)))
+    if inside >= cfg.log_inside_share:
+        return Offset("logs", service, 0, "log_span_join", inside)
+    shift = int(np.rint(np.median(np.clip(0, lo, hi))))  # each line's nearest in-span shift
+    return Offset("logs", service, shift, "log_span_join", float(np.mean((lo <= shift) & (hi >= shift))))
+
+
+def log_span_offsets(
     logs: pa.Table, spans: pa.Table, cfg: AlignConfig, trace_offsets: Mapping[str, int] | None = None
-) -> Offset | None:
-    """The `logs` offset from lines joined to their span on (trace_id, span_id), or None when no
-    line joins. Spans are first moved to the reference clock by their service's `trace_offsets`
-    (spans then need a `service` column), so a skewed service's logs are corrected with its
-    traces. Offset 0 if at least `log_inside_share` of the lines already lie inside their span;
-    else the median shift that would put each line inside. `confidence` is the share of lines
-    inside their span after the shift."""
+) -> list[Offset]:
+    """`logs` offsets from lines joined to their span on (trace_id, span_id); empty when no line
+    joins. Spans are first moved to the reference clock by their service's `trace_offsets` (spans
+    then need a `service` column). The first row is source-level, over all joined lines, for
+    services without joined lines; then one row per logging service with joined lines, A→Z, from
+    that service's lines alone, so one service's skew is never smeared over the others."""
     named = logs.filter(_pc.and_(_pc.is_valid(logs.column("trace_id")), _pc.is_valid(logs.column("span_id"))))
     if named.num_rows == 0 or spans.num_rows == 0:
-        return None
+        return []
     span_keys = _pc.binary_join_element_wise(spans.column("trace_id"), spans.column("span_id"), "\x00")
     log_keys = _pc.binary_join_element_wise(named.column("trace_id"), named.column("span_id"), "\x00")
     found = _pc.fill_null(_pc.index_in(log_keys, value_set=span_keys), -1)
     index = np.asarray(found.to_numpy(zero_copy_only=False), dtype=np.int64)
     joined = index >= 0
     if not joined.any():
-        return None
+        return []
     t = np.asarray(named.column("t_ns").to_numpy(), dtype=np.int64)[joined]
     moved = np.zeros(spans.num_rows, dtype=np.int64)
     if trace_offsets:
@@ -57,11 +69,12 @@ def log_span_offset(
         )
     lo = (np.asarray(spans.column("start_ns").to_numpy(), dtype=np.int64) + moved)[index[joined]] - t
     hi = (np.asarray(spans.column("end_ns").to_numpy(), dtype=np.int64) + moved)[index[joined]] - t
-    inside = float(np.mean((lo <= 0) & (hi >= 0)))
-    if inside >= cfg.log_inside_share:
-        return Offset("logs", None, 0, "log_span_join", inside)
-    shift = int(np.rint(np.median(np.clip(0, lo, hi))))  # each line's nearest in-span shift
-    return Offset("logs", None, shift, "log_span_join", float(np.mean((lo <= shift) & (hi >= shift))))
+    services = np.asarray(named.column("service").to_pylist(), dtype=object)[joined]
+    out = [_inside_offset(lo, hi, None, cfg)]
+    for service in sorted({str(s) for s in services.tolist()}):
+        mine = services == service
+        out.append(_inside_offset(lo[mine], hi[mine], service, cfg))
+    return out
 
 
 def _traffic(series: pa.Table, source: str, step: int) -> dict[str, dict[int, float]]:
