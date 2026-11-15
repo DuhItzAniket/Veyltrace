@@ -1,6 +1,6 @@
 # 04 · Evaluation protocol (pre-registered)
 
-> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-11
+> **Status:** v0.1-draft (frozen at tag `prereg-v1`, §1) · **Owner:** lead (Reason lane); `bench/decoys/` and `bench/stats/` are implemented by the Observe lane (O-13, O-14) · **Last updated:** 2026-11-16
 > Master spec: [02-architecture](02-architecture.md) (wins on architecture; this file wins on protocol details, as [11](11-research-paper-plan.md) states). Targets: [01 §9](01-vision-and-requirements.md). Engine specs: [06 FaultLoom](engines/06-faultloom.md), [07 Causatrix](engines/07-causatrix.md), [09 Causentra](engines/09-causentra.md). Tasks: [07-roadmap](07-roadmap.md). Every reported number must come from the procedure below or be listed as a deviation (§12).
 
 ## 1. Scope and pre-registration
@@ -206,7 +206,8 @@ dataset:
   normal_windows: rcaeval_pre_injection # none | rcaeval_pre_injection | veyllab
 split:
   family: rcaeval-re2
-  scheme: crossfit2                     # crossfit2 | loso | none
+  scheme: crossfit2                     # crossfit2 | loso | transfer | none
+  calibrate_from: null                  # transfer only: the family whose fit is applied, e.g. rcaeval-re2
   cluster: [system, service, fault]
   stratify: [system, fault]
   seed: 20261108
@@ -216,7 +217,7 @@ protocol:
   sources_drop: []                      # -> sources.drop
   decoys: null                          # {pi: 0.5, rate_per_h: 2, window_s: [-1800, 300]}
   anonymize_services: false
-  inject_proposals: null                # planted decoy proposals
+  inject_proposals: null                # planted decoy proposals: {n: 1, seed: 4}
   permute_proposals: null               # {n: 5, seed: 3}
 methods:
   - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
@@ -237,18 +238,18 @@ statistics:
   bootstrap: {resamples: 2000, seed: 1}
   permutation: {n: 10000, seed: 2}
   mcnemar: true
-resources: {workers: 2, timeout_s: 600, max_rss_mb: 3072}
+resources: {workers: 2, timeout_s: 600}   # max_rss_mb: measured as peak_rss_mb, not enforced (H5 is descriptive, §2)
 ```
 
 | Field | Meaning |
 |---|---|
 | `experiment_id`, `description`, `prereg`, `rq` | identity; `prereg: true` files change only through §12 |
 | `dataset.*` | case selection: `cases` is `all` or a path (from the repo root) to a YAML list of 12-hex case ids, `exclude` a path to such a list; case ids are unique across datasets, so one list serves every part; exclusions listed in the summary; `normal_windows` adds the §5.4 normal windows |
-| `split.*` | §5.4; `crossfit2` runs both folds and reports test predictions only |
-| `protocol.*` | §5.1–§5.2; each value maps to a pipeline hook and is recorded in every `run_manifest` (through the config hash) |
+| `split.*` | §5.4; `crossfit2` runs both folds and reports test predictions only; `loso` calibrates on all systems but one and tests on it (§5.2); `transfer` applies the fit of family `calibrate_from` (fitted by its own experiment) to every case of `dataset.parts`, all of them test cases (§5.2 "RE2 (OB + TT) → Nezha (OB + TT)"); `calibrate_from` is set only for `transfer` |
+| `protocol.*` | §5.1–§5.2; each value maps to a pipeline hook and is recorded in every `run_manifest` (through the config hash). `permute_proposals: {n, seed}` re-runs Causentra on `n` seeded permutations of the recorded proposals; `inject_proposals: {n, seed}` adds `n` fabricated proposals per case (`n: 1` in the matrix), each for a healthy service with false claims (§5.2), drawn with `seed` |
 | `methods[]` | `kind` ∈ {veyltrace, causatrix, rcaeval, internal_baseline, agent_only}; `overrides` are dotted config keys; `seeds` multiply runs. `causatrix` methods (§3 `causatrix:<ranker>` with `overrides: {causatrix.rankers.enabled: [<ranker>]}`, and `causatrix:rrf`) are scored on the slate, not the verdict. The id must name what runs: `causatrix:rrf` has no `causatrix.rankers.enabled` override, and `causatrix:<r>` sets it to `[<r>]` with `<r>` in `rankers.enabled` of `config/causatrix.yaml`; anything else is a ConfigError before the first case. Ranks = the top-K candidates as `{service}_{indicator}`, then the rest of U in `all_scores` order; the pool, set and fault-type columns stay empty. A `causatrix` method whose config equals a `veyltrace` method's shares that run and its `wall_ms` |
 | `calibration.*` | fit on the calibration fold and write `config/calibration/` before testing |
-| `metrics`, `statistics`, `resources` | §7, §8; `metrics` is required and `summary.json` holds only the listed metrics plus counts; `statistics` is recorded as not run until `bench/stats` (O-14) exists; `timeout_s` per case per method; a timeout is a miss |
+| `metrics`, `statistics`, `resources` | §7, §8; `metrics` is required and `summary.json` holds only the listed metrics plus counts. Vocabulary: `ac_at_k`, `avg_at_5`, `mrr`, `fine_ac_at_k`, `retrieval_at_k`, `rerank_at_1`, `chance`, `lift`, `onset_error`, `coverage`, `set_size`, `risk_coverage` (risk–coverage and AURC, H3c), `selective_accuracy` (§7 "Selective accuracy", H4b), `no_fault_rates`, `decoy_top1_change` (share of cases whose top-1 changed under planted decoy proposals, H2b), `decoy_ranked_first` (RCAEval-C: share of cases with a decoy-changed service ranked first, H4c), `permutation_invariance` (share of cases with one `verdict_hash` across proposal permutations, H2c), `cost`; `cost` is skipped with a logged note until `bench_summary` has its entry (CCR #316). `statistics` is recorded as not run until `bench/stats` (O-14) exists; `timeout_s` per case per method; a timeout is a miss; `max_rss_mb` is not set: peak RSS is measured (`peak_rss_mb`), not enforced |
 
 Outputs ([03 §13.2](03-contracts.md)):
 

@@ -34,6 +34,7 @@ from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.experiment import (
     PROTOCOL_KEYS,
     RANKERS_KEY,
+    SKIPPED_METRICS,
     Experiment,
     MethodSpec,
     code_state,
@@ -320,6 +321,8 @@ def run_experiment(
     exp = load_experiment(path)
     if todo := unsupported(exp):
         raise ConfigError(f"{Path(path).as_posix()}: not supported by the v0 runner yet: {'; '.join(todo)}")
+    for name in sorted(set(exp.metrics) & set(SKIPPED_METRICS)):  # listed, but no summary entry yet
+        _log.info("bench.metric_skipped", metric=name, reason=SKIPPED_METRICS[name])
     repo = find_config_dir().parent
     code = code_state(repo)
     if table and (code["dirty"] or code["bench_dirty"]):

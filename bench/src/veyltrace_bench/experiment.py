@@ -33,7 +33,8 @@ CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and cau
 FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
-    "onset_error", "coverage", "set_size", "risk_coverage", "no_fault_rates", "cost",
+    "onset_error", "coverage", "set_size", "risk_coverage", "selective_accuracy", "no_fault_rates",
+    "decoy_top1_change", "decoy_ranked_first", "permutation_invariance", "cost",
 ]  # fmt: skip
 #: The 04 §9 metrics v0 does not compute (summary.METRIC_KEYS has the rest), with the adding task.
 METRIC_TASKS = {
@@ -41,8 +42,15 @@ METRIC_TASKS = {
     "set_size": "R-12 conformal sets",
     "risk_coverage": "R-12 statuses",
     "no_fault_rates": "R-13 normal windows",
-    "cost": "p50/p95 of wall time and peak RSS in summary.json, per stage (not built yet)",
+    "selective_accuracy": "R-12 statuses (04 §7 Selective accuracy, H4b)",
+    "decoy_top1_change": "RQ2 planted decoy proposals (H2b, M4)",
+    "decoy_ranked_first": "O-13 RCAEval-C decoys (H4c, M3)",
+    "permutation_invariance": "RQ2 proposal permutations (H2c, M4)",
+    "cost": "p50/p95 of wall time, peak RSS and tokens in summary.json (CCR #316)",
 }
+#: Listed metrics the runner skips with a logged note instead of refusing the experiment, because
+#: their summary.json entry needs a contract change first (04 §9, lead decision #314).
+SKIPPED_METRICS = {"cost": "bench_summary has no cost entry until CCR #316 (the contracts-1.0 bump)"}
 
 
 class _Strict(BaseModel):
@@ -60,10 +68,28 @@ class DatasetSpec(_Strict):
 
 class SplitSpec(_Strict):
     family: str | None = None
-    scheme: Literal["crossfit2", "loso", "none"] = "none"  # none: bench_result.fold stays null
+    scheme: Literal["crossfit2", "loso", "transfer", "none"] = "none"  # none: bench_result.fold stays null
+    calibrate_from: str | None = None  # transfer only: the family whose fit is applied (04 §9, §5.2)
     cluster: tuple[str, ...] = ("system", "service", "fault")  # 04 §5.4 item 1
     stratify: tuple[str, ...] = ("system", "fault")  # 04 §5.4 item 2
     seed: int = 20261108  # 04 §5.4 item 2
+
+    @model_validator(mode="after")
+    def _transfer_names_its_source(self) -> SplitSpec:
+        """`transfer` tests every case on another family's fit, so it needs that family; no other
+        scheme reads one (04 §9)."""
+        if (self.scheme == "transfer") != (self.calibrate_from is not None):
+            raise ValueError("split.calibrate_from is set exactly when split.scheme is transfer")
+        return self
+
+
+class ProposalDraw(_Strict):
+    """A seeded proposal perturbation (04 §5.2, §9): `permute_proposals` re-runs Causentra on `n`
+    permutations of the recorded proposals; `inject_proposals` adds `n` fabricated proposals per
+    case, each for a healthy service with false claims."""
+
+    n: int = Field(ge=1)
+    seed: int
 
 
 class ProtocolSpec(_Strict):
@@ -72,8 +98,8 @@ class ProtocolSpec(_Strict):
     sources_drop: tuple[Source, ...] = ()  # infralume.sources.drop default (config/infralume.yaml)
     decoys: dict[str, object] | None = None  # {pi, rate_per_h, window_s} (04 §5.2)
     anonymize_services: bool = False
-    inject_proposals: dict[str, object] | None = None
-    permute_proposals: dict[str, int] | None = None  # {n, seed}
+    inject_proposals: ProposalDraw | None = None  # planted decoy proposals, {n: 1, seed} (H2b)
+    permute_proposals: ProposalDraw | None = None  # {n, seed} (H2c)
 
 
 class AISpec(_Strict):
@@ -203,7 +229,11 @@ def unsupported(exp: Experiment) -> list[str]:
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
     )
     todo = [what for bad, what in checks if bad]
-    todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
+    todo += [
+        f"metrics {m} ({METRIC_TASKS[m]})"
+        for m in exp.metrics
+        if m not in METRIC_KEYS and m not in SKIPPED_METRICS
+    ]
     for m in exp.methods:
         if m.kind not in ("veyltrace", "causatrix"):
             todo.append(f"methods {m.id}: kind {m.kind} (baselines, R-05)")

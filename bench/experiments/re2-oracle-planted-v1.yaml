@@ -1,0 +1,27 @@
+# Pre-registered (04 §1): RE2 × planted decoy proposals, 04 §6 (veyltrace:brief M4, agent-only:brief
+# M4; investigate is "opt" and not pre-registered): one fabricated proposal per case for a healthy
+# service with false claims (04 §5.2; protocol.inject_proposals {n: 1, seed}, seed a priori). RQ2
+# H2b: the planted proposal changes the top-1 in ≤ 5% of cases (decoy_top1_change, vs the
+# unperturbed rows of re2-oracle-rq2-v1), a proportion with an exact binomial CI; agent-only shows
+# the same model without the verifier. H2c is re2-oracle-permute-v1 (permute_proposals).
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: re2-oracle-planted-v1
+description: "RQ2 H2b: planted decoy proposals on RE2, veyltrace:brief and agent-only:brief"
+prereg: true
+rq: [RQ2]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: {n: 1, seed: 4}, permute_proposals: null}
+methods:
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+  - id: "agent-only:brief"
+    kind: agent_only
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: false}
+metrics: [ac_at_k, decoy_top1_change, cost]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}

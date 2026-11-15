@@ -35,6 +35,8 @@ def test_prereg_experiments_exclude_the_development_cases_on_test_splits() -> No
     for exp in prereg:
         assert exp.dataset.exclude == DEV_CASES, exp.experiment_id  # 04 §1
         assert not set(exp.dataset.parts) & set(NOT_TEST), exp.experiment_id
+        assert "cost" in exp.metrics, exp.experiment_id  # 04 §9 lists cost; RQ5 is cross-cutting (04 §6)
+        assert exp.resources.max_rss_mb is None, exp.experiment_id  # measured, not enforced (04 §9)
 
 
 def test_prereg_ranker_methods_cover_every_configured_ranker() -> None:

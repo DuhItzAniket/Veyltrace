@@ -80,7 +80,7 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
     todo = " | ".join(unsupported(exp))
     for task in ("scheme crossfit2 (R-13)", "decoys (O-13)", "workers", "R-05", "AI arms", "coverage (R-13"):
         assert task in todo
-    assert len(unsupported(exp)) == 7
+    assert len(unsupported(exp)) == 6 and "cost" not in todo  # cost: skipped with a note (#314)
     assert sorted([*METRIC_KEYS, *METRIC_TASKS]) == sorted(get_args(MetricName))  # each: computed or a task
 
 

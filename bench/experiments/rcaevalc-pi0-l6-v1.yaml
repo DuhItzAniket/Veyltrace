@@ -2,8 +2,8 @@
 # bench/decoys/, O-13; seed rng(case_id, "rcaeval-c")), 04 §6 M3: naive-change, Causatrix rankers
 # alone + rrf and veyltrace:off on RE2 with synthetic change events.
 # This cell is decoys alone (H4c: ≤ 5 AC@1 points below pi0-l0).
-# RQ4 H4c, estimation with CIs per cell; the decoy metrics (decoy_present, decoy_ranked_first, 04 §7)
-# are per_case.csv columns.
+# RQ4 H4c, estimation with CIs per cell; decoy_ranked_first (04 §9) is the share of cases with a
+# decoy-changed service ranked first.
 # Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
 experiment_id: rcaevalc-pi0-l6-v1
 description: "RQ4: RCAEval-C decoy grid pi=0.0, rate=6/h; naive-change, rankers alone + rrf, veyltrace:off"
@@ -24,7 +24,7 @@ methods:
   - {id: "causatrix:prism_m", kind: causatrix, overrides: {causatrix.rankers.enabled: [prism_m]}}
   - {id: "naive-change", kind: internal_baseline}
 calibration: {fit: false}
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, decoy_ranked_first, cost]
 statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
              bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
 resources: {workers: 1, timeout_s: 600}

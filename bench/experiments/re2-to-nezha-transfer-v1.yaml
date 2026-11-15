@@ -1,0 +1,21 @@
+# Pre-registered (04 §1): RE2 → Nezha transfer, 04 §6 (veyltrace:off, M4): the RE2 calibration
+# (family rcaeval-re2, fitted by its own experiment) applied unchanged to every Nezha case, which
+# are all test cases (split.scheme transfer, 04 §9; 04 §5.2 "RE2 (OB + TT) → Nezha (OB + TT)").
+# RQ3/RQ4: coverage, set size and wrong-NO_FAULT on fault cases across sources; estimation only.
+# Needs the Nezha adapter (O-08) and transfer calibration (R-13) before it can run.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: re2-to-nezha-transfer-v1
+description: "RQ3/RQ4: RE2 calibration transferred to Nezha, veyltrace:off"
+prereg: true
+rq: [RQ3, RQ4]
+dataset: {parts: [nezha-ob, nezha-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: transfer, calibrate_from: rcaeval-re2}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+calibration: {fit: false}
+metrics: [ac_at_k, coverage, set_size, no_fault_rates, cost]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
