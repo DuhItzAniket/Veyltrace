@@ -30,6 +30,8 @@ from veyltrace_core.pipeline import code_commit
 PROTOCOL_KEYS = ("core.alert.protocol", "core.alert.shift_s", "infralume.sources.drop")
 RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method runs alone (04 §3, §9)
 CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
+#: internal_baseline ids v0 runs (04 §4); `chance` is the `chance` metric of every group (04 §7).
+INTERNAL_BASELINES = frozenset({"simplerca"})
 FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
@@ -120,7 +122,13 @@ class MethodSpec(_Strict):
     @model_validator(mode="after")
     def _causatrix_id_names_what_runs(self) -> MethodSpec:
         """A slate-scored method's id must say what runs, so results are never mislabelled (04 §3):
-        causatrix:rrf has no ranker override; causatrix:<r> overrides rankers.enabled to [r]."""
+        causatrix:rrf has no ranker override; causatrix:<r> overrides rankers.enabled to [r]. An
+        rcaeval method names its RCAEval method (04 §9 `rcaeval: {method, length}`)."""
+        if self.kind == "rcaeval" and not isinstance((self.rcaeval or {}).get("method"), str):
+            raise ValueError(
+                f"method {self.id}: kind rcaeval needs `rcaeval: {{method: <name>, length: <min>}}`"
+                " (baselines, R-05)"
+            )
         if self.kind != "causatrix":
             return self
         where = f"method {self.id}"
@@ -235,8 +243,12 @@ def unsupported(exp: Experiment) -> list[str]:
         if m not in METRIC_KEYS and m not in SKIPPED_METRICS
     ]
     for m in exp.methods:
-        if m.kind not in ("veyltrace", "causatrix"):
-            todo.append(f"methods {m.id}: kind {m.kind} (baselines, R-05)")
+        if m.kind == "agent_only":
+            todo.append(f"methods {m.id}: kind agent_only (RQ2 arms)")
+        elif m.kind == "internal_baseline" and m.id == "chance":
+            todo.append("methods chance: chance is analytic; list the `chance` metric instead (04 §7)")
+        elif m.kind == "internal_baseline" and m.id not in INTERNAL_BASELINES:
+            todo.append(f"methods {m.id}: internal baseline not built (v0 has {sorted(INTERNAL_BASELINES)})")
         elif m.ai.mode != "off" or m.ai.seeds:
             todo.append(f"methods {m.id}: AI arms (ai.mode {m.ai.mode}, seeds)")
     return todo

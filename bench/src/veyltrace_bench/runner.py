@@ -8,7 +8,10 @@ which would turn a timeout (a miss, 04 §9) into ok and lose its cost (04 §6). 
 a run another method of this experiment made with the same config and a different `kind` (e.g.
 `causatrix:rrf` and `veyltrace:off`, #172): it is scored again with that run's time. Each run is a
 child process (`veyltrace_bench.child`, #68): bench kills it at `resources.timeout_s` and records
-its peak RSS. Results, in
+its peak RSS. Baselines (R-05) run the pipeline through the alert step only, in their own runs
+directory per method, so they read Infralume's tables and alert.json (the same t_alert as
+Veyltrace, 04 §4): `simplerca` ranks in the child; `rcaeval:<m>` exports each case, then runs
+RCAEval's main.py once per dataset in its own venv, and its report goes to `rcaeval/`. Results, in
 `<results root>/<experiment_id>/`: per_case.csv (bench_result, 03 §13.2, through core io),
 summary.json (bench_summary, 03 §13.3: the requested metrics per (dataset, system, method)) and
 manifest.json (bench_manifest, 03 §13.4: experiment, code, uv.lock, answer-key, telemetry-input and
@@ -29,8 +32,9 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
-from veyltrace_bench import ALGO_VERSION
+from veyltrace_bench import ALGO_VERSION, baselines, rcaeval, simplerca
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
+from veyltrace_bench.child import after_run
 from veyltrace_bench.experiment import (
     PROTOCOL_KEYS,
     RANKERS_KEY,
@@ -59,12 +63,18 @@ from veyltrace_core.hashing import manifest_hash, sha256_file, sha256_text_lf
 from veyltrace_core.log import get_logger
 from veyltrace_core.pipeline import run_case, uv_lock_sha256
 from veyltrace_core.pipeline import runs_root as default_runs_root
+from veyltrace_core.steps import LAST_STEP
 
 PRODUCER = f"bench@{ALGO_VERSION}"
 RESULTS_DIR = ("bench", "results")  # default results root below the repo (04 §9)
 BENCH_RUNS = "bench"  # bench's own subdirectory of the runs root, one directory per experiment
 SYNTH = "synth"  # smoke cases, never reported (04 §3)
 MS_PER_S = 1000.0
+BASELINE_RUNS = "baselines"  # <bench runs>/baselines/<method>/: each baseline's own alert-step runs
+RCAEVAL_WORK = "rcaeval"  # <bench runs>/rcaeval/<method>/<dataset>/: main.py's working directory
+RCAEVAL_REPORTS = "rcaeval"  # <results>/<experiment>/rcaeval/<dataset>.<method>.txt: main.py stdout
+INPUT_STEP = "alert"  # baselines read Infralume's tables and alert.json (03 §2), nothing later
+BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 STATISTICS_NOT_RUN = "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
@@ -86,6 +96,12 @@ class Executed:
     cached: bool
     wall_ms: float
     peak_rss_mb: float | None
+    ranks: tuple[str, ...] | None = None  # a baseline's ranks (simplerca); None otherwise
+
+
+def slug(method_id: str) -> str:
+    """A method id as a directory name (`rcaeval:baro` -> `rcaeval-baro`)."""
+    return method_id.replace(":", "-")
 
 
 def child_command(request: Path, result: Path) -> list[str]:
@@ -100,19 +116,26 @@ def _execute(
     overrides: dict[str, object],
     runs_root: Path,
     timeout_s: int,
+    baseline: dict[str, Any] | None = None,
 ) -> Executed:
-    """Diagnose one case, in a child killed at `timeout_s` (#68), or in process (IN_PROCESS)."""
+    """Diagnose one case, in a child killed at `timeout_s` (#68), or in process (IN_PROCESS).
+    `baseline` ({to_step, baseline?, export?}) stops the run early for a baseline (child.py)."""
+    extra = baseline or {}
     if IN_PROCESS:
         start = time.perf_counter()
-        s = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root)
+        step = cast("str", extra.get("to_step", LAST_STEP))
+        s = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root, to_step=step)
+        ranks = after_run(extra, s)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
-        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None)
+        got = tuple(ranks) if ranks is not None else None
+        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None, got)
     request = {
         "dataset": key.dataset,
         "case_id": key.case_id,
         "ai_mode": method.ai.mode,
         "overrides": overrides,
         "runs_root": str(runs_root),
+        **extra,
     }
     env = {**os.environ, **{v: os.environ.get(v, "1") for v in THREAD_ENV}}  # as the CLI pins them
     with tempfile.TemporaryDirectory(prefix="veyltrace-bench-") as tmp:
@@ -137,6 +160,7 @@ def _execute(
     if (error := got.get("error")) is not None:
         raise VeyltraceError(f"{key.case_id} ({method.id}): {error['type']}: {error['detail']}")
     s = cast("dict[str, Any]", got["summary"])
+    ranks = cast("list[str] | None", got.get("ranks"))
     return Executed(
         str(s["outcome"]),
         str(s["run_id"]),
@@ -144,6 +168,7 @@ def _execute(
         bool(s["cached"]),
         float(got["wall_ms"]),
         float(got["peak_rss_mb"]),
+        tuple(ranks) if ranks is not None else None,
     )
 
 
@@ -232,11 +257,11 @@ def _run_one(
     key: AnswerKeyRow,
     runs_root: Path,
     timed: Timed,
+    baseline: dict[str, Any] | None = None,
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
-    """Diagnose one case with one method and score it: (per_case row, score, manifest run entry).
-    n_i (its `services`) and the input hashes come from the run's case_manifest (Infralume, step 0):
-    the case's own, the same for every method and for every outcome that got that far."""
-    done = _execute(key, method, cfg, overrides_for(exp, method), runs_root, exp.resources.timeout_s)
+    """Diagnose one case with one method and score it: (per_case row, score, manifest run entry)."""
+    over = overrides_for(exp, method)
+    done = _execute(key, method, cfg, over, runs_root, exp.resources.timeout_s, baseline)
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
     kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
     if done.cached and done.run_id is not None:  # bench emptied its runs dir: another method ran it
@@ -246,17 +271,35 @@ def _run_one(
         wall_ms, peak, kinds = earlier  # e.g. causatrix:rrf and veyltrace:off: one run, scored twice
     if done.run_id is not None:
         timed[done.run_id] = (wall_ms, peak, kinds | {method.kind})
+    return _record(exp, method, key, replace(done, wall_ms=wall_ms, peak_rss_mb=peak))
+
+
+def _record(
+    exp: Experiment, method: MethodSpec, key: AnswerKeyRow, done: Executed
+) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
+    """Score one executed run: (per_case row, score, manifest run entry). n_i (its `services`) and
+    the input hashes come from the run's case_manifest (Infralume, step 0): the case's own, the
+    same for every method and for every outcome that got that far. A baseline is scored on its
+    ranks alone: it has no slate, pool, set or fault type (metrics.MethodOutput)."""
+    wall_ms, peak = done.wall_ms, done.peak_rss_mb
     outcome = run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
-    slate_scored = method.kind == "causatrix"
-    verdict = _read("verdict", done.run_dir, Verdict) if outcome == "ok" and not slate_scored else None
-    slate = _read("slate", done.run_dir, Slate) if outcome == "ok" else None
-    if outcome == "ok" and (slate is None or (verdict is None and not slate_scored)):
+    slate_scored, baseline = method.kind == "causatrix", method.kind in BASELINE_KINDS
+    verdict = (
+        _read("verdict", done.run_dir, Verdict) if outcome == "ok" and method.kind == "veyltrace" else None
+    )
+    slate = _read("slate", done.run_dir, Slate) if outcome == "ok" and not baseline else None
+    if outcome == "ok" and (
+        done.ranks is None if baseline else slate is None or (verdict is None and not slate_scored)
+    ):
         outcome = "failed"  # a missing output is a failed run (04 §7)
     case = _read("case_manifest", done.run_dir, CaseManifest)
     universe = tuple(case.services) if case is not None else None
     detected = outcome == "ok" and exp.protocol.alert == DETECTED
     onsets = _read("onsets", done.run_dir, Onsets) if detected else None
-    out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
+    if baseline:
+        out = MethodOutput(outcome=outcome, ranks=done.ranks if outcome == "ok" and done.ranks else ())
+    else:
+        out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
     score = score_case(Truth.from_answer_key(key), out, universe=universe)
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
@@ -282,6 +325,91 @@ def _run_one(
     inputs = manifest_hash((i.name, i.sha256) for i in case.inputs) if case is not None else None
     run: dict[str, object] = {"case_id": key.case_id, "dataset": key.dataset, "method": method.id}
     return row, score, run | {"run_id": done.run_id, "inputs_sha256": inputs}  # run_id None: killed
+
+
+type Scored = tuple[dict[str, object], CaseScore, dict[str, object]]
+
+
+def _run_method(
+    exp: Experiment,
+    method: MethodSpec,
+    cfg: ResolvedConfig,
+    cases: list[AnswerKeyRow],
+    bench_runs: Path,
+    timed: Timed,
+    reports: dict[tuple[str, str], str],
+) -> list[Scored]:
+    """Every case of one dataset with one method. A baseline gets its own runs directory, so its
+    alert-step runs are executed and timed, never reused from another method."""
+    if method.kind == "rcaeval":
+        return _run_rcaeval(exp, method, cfg, cases, bench_runs, reports)
+    root, extra = bench_runs, None
+    if method.kind == "internal_baseline":
+        root, extra = (
+            bench_runs / BASELINE_RUNS / slug(method.id),
+            {"to_step": INPUT_STEP, "baseline": method.id},
+        )
+    return [_run_one(exp, method, cfg, key, root, timed, extra) for key in cases]
+
+
+def _run_rcaeval(
+    exp: Experiment,
+    method: MethodSpec,
+    cfg: ResolvedConfig,
+    cases: list[AnswerKeyRow],
+    bench_runs: Path,
+    reports: dict[tuple[str, str], str],
+) -> list[Scored]:
+    """Export every case (alert-step run, in a child), then one main.py run over the exported ones
+    with a budget of `timeout_s` per case; its wall time is shared equally among them."""
+    repo = find_config_dir().parent
+    settings = rcaeval.settings(repo)
+    args = rcaeval.method_args(method.rcaeval, settings, method.id)
+    mapping = settings.datasets[cases[0].dataset]
+    work = bench_runs / RCAEVAL_WORK / slug(method.id) / cases[0].dataset
+    root, over, timeout_s = (
+        bench_runs / BASELINE_RUNS / slug(method.id),
+        overrides_for(exp, method),
+        exp.resources.timeout_s,
+    )
+    done: dict[str, Executed] = {}
+    for key in cases:
+        extra = {"to_step": INPUT_STEP, "export": str(rcaeval.case_dir(work, mapping, key))}
+        done[key.case_id] = _execute(key, method, cfg, over, root, timeout_s, extra)
+    exported = [c for c, d in done.items() if run_outcome(d.outcome, d.wall_ms, timeout_s) == "ok"]
+    if exported:
+        got = rcaeval.run_main(settings, repo, work, mapping, args, exported, timeout_s * len(exported))
+        reports[(cases[0].dataset, method.id)] = got.report
+        share = got.wall_ms / len(exported)
+        for c in exported:
+            d = done[c]
+            outcome = "timeout" if got.timed_out else d.outcome
+            done[c] = replace(d, outcome=outcome, wall_ms=d.wall_ms + share, ranks=got.ranks[c])
+    return [_record(exp, method, key, done[key.case_id]) for key in cases]
+
+
+def check_baselines(exp: Experiment, repo: Path) -> None:
+    """Baseline settings, RCAEval method blocks, dataset mappings and the RCAEval environment are
+    valid before the first case (a missing venv names the setup script)."""
+    if any(m.kind == "internal_baseline" for m in exp.methods):
+        baselines.load("simplerca", simplerca.SimpleRcaConfig, repo)
+    wrapped = [m for m in exp.methods if m.kind == "rcaeval"]
+    if not wrapped:
+        return
+    settings = rcaeval.settings(repo)
+    for m in wrapped:
+        rcaeval.method_args(m.rcaeval, settings, m.id)
+    if missing := [d for d in exp.dataset.parts if d not in settings.datasets]:
+        raise ConfigError(f"bench/baselines.yaml rcaeval.datasets has no entry for {missing}")
+    rcaeval.check_environment(settings, repo)
+
+
+def method_config_sha256(method: MethodSpec, cfg: ResolvedConfig) -> str:
+    """03 §13.4 configs[].config_sha256: the pipeline config, plus a baseline's own section."""
+    if method.kind not in BASELINE_KINDS:
+        return config_sha256(cfg)
+    name = "rcaeval" if method.kind == "rcaeval" else "simplerca"
+    return baselines.config_sha256(config_sha256(cfg), name)
 
 
 def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...]) -> dict[str, object]:
@@ -324,6 +452,7 @@ def run_experiment(
     for name in sorted(set(exp.metrics) & set(SKIPPED_METRICS)):  # listed, but no summary entry yet
         _log.info("bench.metric_skipped", metric=name, reason=SKIPPED_METRICS[name])
     repo = find_config_dir().parent
+    check_baselines(exp, repo)  # settings and the RCAEval venv, before any data is read
     code = code_state(repo)
     if table and (code["dirty"] or code["bench_dirty"]):
         raise UsageError("--table refuses a dirty work tree (bench/AGENTS.md Never 3); commit first")
@@ -346,12 +475,15 @@ def run_experiment(
     configs: list[dict[str, object]] = []
     groups: dict[tuple[str, str, str], list[CaseScore]] = {}
     timed: Timed = {}
+    reports: dict[tuple[str, str], str] = {}
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
             cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
-            configs.append({"dataset": dataset, "method": method.id, "config_sha256": config_sha256(cfg)})
-            for case_id in cases:
-                row, score, run = _run_one(exp, method, cfg, keys[dataset][case_id], bench_runs, timed)
+            configs.append(
+                {"dataset": dataset, "method": method.id, "config_sha256": method_config_sha256(method, cfg)}
+            )
+            rows_keys = [keys[dataset][c] for c in cases]
+            for row, score, run in _run_method(exp, method, cfg, rows_keys, bench_runs, timed, reports):
                 rows.append(row)
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
@@ -367,6 +499,10 @@ def run_experiment(
     out_dir = (out_root if out_root is not None else repo.joinpath(*RESULTS_DIR)) / exp.experiment_id
     io.write_path("bench_result", rows, out_dir / "per_case.csv")
     io.write_path("bench_summary", summary, out_dir / "summary.json")  # validated (03 §13.3)
+    if (report_dir := out_dir / RCAEVAL_REPORTS).exists():
+        shutil.rmtree(report_dir)  # no stale report of a method this run did not repeat
+    for (dataset, method_id), text in sorted(reports.items()):  # RCAEval's own scoring, 04 §4
+        textio.write_bytes(report_dir / f"{dataset}.{slug(method_id)}.txt", text.encode())
     datasets: list[dict[str, object]] = []
     for d, (cases, excluded) in selected.items():
         mine = [r for r in runs if r["dataset"] == d and r["inputs_sha256"] is not None]
