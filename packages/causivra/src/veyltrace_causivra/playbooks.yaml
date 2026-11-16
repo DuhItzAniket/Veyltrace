@@ -3,7 +3,9 @@
 # Every step is a read-only diagnostic or "consider … after review": v1.0 never acts on a system
 # (02 §11; packages/causivra AGENTS Never list). Step texts contain no digits and use only the
 # placeholders {ROOT} and {ROOT.component}; they are filled by the card's placeholder filler and
-# kept in file order. Selection (10 §3.6): NO_FAULT -> PB-NOFAULT-01, INCONCLUSIVE -> PB-INCONC-01,
+# kept in file order. A step written as {ask_kind, text} is shown only when the verdict has an ask of
+# that kind; a playbook's tied steps form one block at the first one's place, in the order the
+# kinds first appear in verdict.asks (10 §3.6). Selection (10 §3.6): NO_FAULT -> PB-NOFAULT-01, INCONCLUSIVE -> PB-INCONC-01,
 # CONFIRMED/LIKELY -> the playbook whose fault_classes holds root.fault_class (PB-UNK-01 when none
 # does), then PB-CHANGE-01 when root.mode is change or the root passed T6.
 # Editing a step changes card_hash: a replay of an older run then exits 6 (narrative only).
@@ -91,7 +93,12 @@ playbooks:
   - id: PB-INCONC-01
     fault_classes: []
     steps:
-      - "Collect the telemetry named in the asks."
+      - ask_kind: telemetry
+        text: "Collect the telemetry named in the asks."
+      - ask_kind: trial
+        text: "Check the trials named in the asks (failed or untestable)."
+      - ask_kind: context
+        text: "Inspect the named service, or the ranked slate, around the incident onset."
       - "Inspect each member of the candidate set."
       - "Run the diagnosis again once the asks are answered."
   - id: PB-NOFAULT-01

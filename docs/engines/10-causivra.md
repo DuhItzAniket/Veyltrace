@@ -189,7 +189,7 @@ Template sentences may have empty `cites` only when no citable atom exists, or f
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
@@ -206,7 +206,7 @@ Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `C
 | `PB-DEP-01` | `dependency` | check the datastore or cache used by {ROOT}: latency, connections, locks; compare callers of the dependency |
 | `PB-UNK-01` | `unknown` | review the evidence table; collect the telemetry listed under asks |
 | `PB-CHANGE-01` | change mode or T6 pass | identify the change that preceded onset on the timeline; compare with peers or the previous version; consider rollback after review |
-| `PB-INCONC-01` | `INCONCLUSIVE` | collect the telemetry named in asks; inspect each candidate-set member; re-run the diagnosis |
+| `PB-INCONC-01` | `INCONCLUSIVE` | per ask kind present, in ask order: `telemetry` collect the telemetry named in the asks, `trial` check the trials named in the asks (failed or untestable), `context` inspect the named service or the ranked slate around the incident onset; then inspect each candidate-set member; re-run the diagnosis |
 | `PB-NOFAULT-01` | `NO_FAULT` | confirm with the alert source whether the alert was spurious; check SLO thresholds; check for silent services or telemetry gaps |
 
 The full step texts live in `playbooks.yaml`; they contain no digits and use only `{ROOT}`/`{ROOT.component}`.
