@@ -1,11 +1,11 @@
-# INCONCLUSIVE · no single root cause
+# NO_FAULT · no fault detected in the incident window
 
-**INCONCLUSIVE** · confidence: none · candidate set size: 0 · margin: 0.00
+**NO_FAULT** · confidence: none · candidate set size: 0 · margin: 0.00
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 0 services.
-- The asks below list the telemetry or trials that would settle it.
+- No anomaly above threshold was found at the entry service or inside any service.
+- The candidate set is empty and no root cause is named.
 
 ## Candidate set
 
@@ -13,7 +13,14 @@
 
 ## Evidence
 
-- none
+| Atom | Evidence | Value | Unit |
+|---|---|---|---|
+| E847fffbec6 | catalog self_time anomaly (incident) | 1.05 | z |
+| E7b0771b7a9 | catalog silence (incident) | 0 |  |
+| Ec3ee13da9f | checkout self_time anomaly (incident) | 1.03 | z |
+| E69dec80d43 | checkout silence (incident) | 0 |  |
+| E89d6468c5f | payment mem anomaly (incident) | 1.09 | z |
+| E23c811e2ae | payment silence (incident) | 0 |  |
 
 ## Timeline
 
@@ -26,9 +33,7 @@ none
 
 ## Why not
 
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **checkout**: checkout failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- none
 
 ## Asks
 
@@ -36,14 +41,14 @@ none
 
 ## Next steps
 
-- Collect the telemetry named in the asks. (PB-INCONC-01)
-- Inspect each member of the candidate set. (PB-INCONC-01)
-- Run the diagnosis again once the asks are answered. (PB-INCONC-01)
+- Confirm with the alert source whether the alert was spurious. (PB-NOFAULT-01)
+- Check the service level thresholds of the entry services. (PB-NOFAULT-01)
+- Check for silent services or gaps in the telemetry. (PB-NOFAULT-01)
 
 prose: template
 
 ---
 
-verdict_hash: `4c6c523248acfa187a35ddc75d2ba9278af34b503648612bf8fc70a2be4af52f`  
-card_hash: `490b1ec2527d04bab2e8282fab0a02c7249893ae058d3eded8ea1aca4663a7eb`  
+verdict_hash: `b18b910875260a0eb54cf0593ce35743ab32273491408cf3ccc93b819743f591`  
+card_hash: `3988352b4de9b3307d056a54d7d3566cfaa74ce5c926a5c081647a176cae7e13`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

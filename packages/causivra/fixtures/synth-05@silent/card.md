@@ -1,38 +1,51 @@
-# INCONCLUSIVE · no single root cause
+# INCONCLUSIVE · leading candidate cart
 
-**INCONCLUSIVE** · confidence: none · candidate set size: 0 · margin: 0.00
+**INCONCLUSIVE** · confidence: low · candidate set size: 1 · margin: 0.79
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 0 services.
-- The asks below list the telemetry or trials that would settle it.
+- No single root cause could be established; the candidate set has 1 services. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
+- The leading candidate is cart. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
+- The asks below list the telemetry or trials that would settle it. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
 
 ## Candidate set
 
-- empty
+- cart
 
 ## Evidence
 
-- none
+| Atom | Evidence | Value | Unit |
+|---|---|---|---|
+| Efeb591839a | cart logs anomaly (incident) | 4.00 | z |
+| E2e0bd9e9a2 | cart onset precedence over self (onset) | 0 | ms |
+| E9609f44d49 | cart silence (incident) | 1.00 |  |
+| E847fffbec6 | catalog self_time anomaly (incident) | 1.05 | z |
+| E7b0771b7a9 | catalog silence (incident) | 0 |  |
+| Ec3ee13da9f | checkout self_time anomaly (incident) | 1.03 | z |
+| E69dec80d43 | checkout silence (incident) | 0 |  |
+| E89d6468c5f | payment mem anomaly (incident) | 1.09 | z |
+| E23c811e2ae | payment silence (incident) | 0 |  |
 
 ## Timeline
 
 - 00:22:00 UTC — alert (oracle)
+- 00:22:00 UTC — cart external onset (cites: E2e0bd9e9a2, Ed16b111d18)
+- 00:22:00 UTC — cart internal onset (cites: E2e0bd9e9a2, Ed16b111d18)
 - 00:22:00 UTC — incident onset
 
 ## Path
 
-none
+cart → checkout → frontend
 
 ## Why not
 
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **checkout**: checkout failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
+- **catalog**: catalog showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E7b0771b7a9, E847fffbec6)
+- **checkout**: checkout showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E69dec80d43, Ec3ee13da9f)
 
 ## Asks
 
-- none
+- trial: T3:cart — mandatory trial T3 untestable: no_anomalous_entry
 
 ## Next steps
 
@@ -44,6 +57,6 @@ prose: template
 
 ---
 
-verdict_hash: `4dfab7c338ed90819d9525af4f0334739d6f6d7006aaae47b4892f17e76f886b`  
-card_hash: `11b6c9427691d876d75cb568306048b4b7c44d45d64e1c0e5748368df8ec73a4`  
+verdict_hash: `b473724165dc132daf6e02bef0f015efb7c21790bf5d21bc4b4fef220c81d8c6`  
+card_hash: `bc29707d1a5482f907aee0031f3d8dd26a66798aea1674588ee06472f8f74173`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

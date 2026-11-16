@@ -6,8 +6,11 @@ after `veyltrace_core.io` has checked the contract version, so a response can ne
 file a receipt hashes (06 §3.1: contract objects unchanged). Table artifacts come back as rows of
 the generated contract models; the gateway adds only envelopes (pages, chain check).
 
-A run is found by `veyltrace_core.pipeline.find_run`, which validates the 16-hex run id before it
-touches the filesystem and never returns a partial run (06 §3.1; gateway rule 5).
+A run is found by `finished_run`: `veyltrace_core.pipeline.find_run` validates the 16-hex run id
+before it touches the filesystem and skips `~` partial runs (06 §3.1; gateway rule 5), and
+`is_finished` then requires the receipt, the last file a run writes. A full run's directory exists
+from its first step, so without the receipt check a run still being written, or one that crashed,
+would be served as finished.
 """
 
 # No `from __future__ import annotations`: FastAPI resolves the `limit` annotation, which uses the
@@ -40,9 +43,10 @@ from veyltrace_core.pipeline import PARTIAL_SEPARATOR, find_run, is_finished
 from veyltrace_core.steps import STEPS
 from veyltrace_gateway.api_models import AgentTrace, EvidencePage, GraphView, RunStatus
 from veyltrace_gateway.errors import ApiError
+from veyltrace_gateway.jobs import Job, JobRunner
 from veyltrace_gateway.settings import GatewaySettings
 
-__all__ = ["CARD_MD", "JSON_ARTIFACTS", "run_router"]
+__all__ = ["CARD_MD", "JSON_ARTIFACTS", "finished_run", "finished_status", "job_status", "run_router"]
 
 #: JSON artifact routes of 06 §3.2: path segment -> contract name.
 JSON_ARTIFACTS: Final[Mapping[str, str]] = {
@@ -60,8 +64,14 @@ CARD_MD: Final = "card.md"
 _JSON: Final = "application/json"
 
 
-def _run_dir(root: Path, run_id: str) -> Path:
+def finished_run(root: Path, run_id: str) -> Path | None:
+    """The directory of the finished run `run_id` (it has its receipt), else None."""
     found = find_run(run_id, root)
+    return found if found is not None and is_finished(found) else None
+
+
+def _run_dir(root: Path, run_id: str) -> Path:
+    found = finished_run(root, run_id)
     if found is None:
         raise ApiError(404, "run_not_found", f"no finished run {run_id!r}")
     return found
@@ -88,7 +98,7 @@ def _rows[M: BaseModel](name: str, run_dir: Path, model: type[M]) -> list[M]:
     return [model.model_validate(row) for row in cast(list[dict[str, Any]], table.to_pylist())]
 
 
-def _status(run_dir: Path) -> RunStatus:
+def finished_status(run_dir: Path) -> RunStatus:
     """A finished run's status. The job runner (X-04, next) adds queued, running and failed runs."""
     manifest = cast(RunManifest, _read("run_manifest", run_dir))
     last = STEPS[-1]  # 06 §3.2 says step 0-10; core counts its 14 sub-steps, so its index is served
@@ -120,8 +130,17 @@ def _thin(rows: list[SignalCubeSeriesRow], max_points: int) -> list[SignalCubeSe
     return [r for s in by_series.values() for r in s[:: -(-len(s) // max_points)]]
 
 
-def run_router(settings: GatewaySettings, runs_root: Path) -> APIRouter:
-    """The artifact routes of 06 §3.2 for runs under `runs_root`."""
+def job_status(job: Job) -> RunStatus:
+    """A queued, running or failed job's status (06 §3.2 run_status)."""
+    return RunStatus(
+        run_id=job.run_id, dataset=job.dataset, case_id=job.case_id, ai_mode=job.ai_mode,
+        state=job.state, step=job.step, step_name=job.step_name, error=job.error,
+    )  # fmt: skip
+
+
+def run_router(settings: GatewaySettings, runs_root: Path, runner: JobRunner | None = None) -> APIRouter:
+    """The artifact routes of 06 §3.2 for runs under `runs_root`; status also reports `runner`'s
+    queued, running and failed jobs (a done job is its run directory)."""
     router = APIRouter()
     for segment, name in JSON_ARTIFACTS.items():
         model = cast(type[BaseModel], CONTRACTS[name].model)
@@ -207,10 +226,20 @@ def run_router(settings: GatewaySettings, runs_root: Path) -> APIRouter:
 
     @router.get("/runs/{run_id}", response_model=RunStatus)
     def get_run(run_id: str) -> RunStatus:
-        return _status(_run_dir(runs_root, run_id))
+        job = runner.get(run_id) if runner is not None else None
+        if job is not None and job.state != "done":
+            return job_status(job)
+        return finished_status(_run_dir(runs_root, run_id))
 
     @router.get("/runs", response_model=list[RunStatus])
     def list_runs(dataset: str | None = None, case_id: str | None = None) -> list[RunStatus]:
-        return [_status(p) for p in _finished_runs(runs_root, dataset, case_id)]
+        done = {p.name: finished_status(p) for p in _finished_runs(runs_root, dataset, case_id)}
+        pending = {
+            j.run_id: job_status(j)
+            for j in (runner.jobs() if runner is not None else [])
+            if j.state != "done" and j.run_id not in done
+            and dataset in (None, j.dataset) and case_id in (None, j.case_id)
+        }  # fmt: skip
+        return [s for _, s in sorted({**done, **pending}.items())]
 
     return router

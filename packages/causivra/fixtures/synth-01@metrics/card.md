@@ -1,23 +1,36 @@
-# INCONCLUSIVE · no single root cause
+# INCONCLUSIVE · leading candidate checkout
 
-**INCONCLUSIVE** · confidence: none · candidate set size: 0 · margin: 0.00
+**INCONCLUSIVE** · confidence: low · candidate set size: 1 · margin: 0.75
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 0 services.
-- The asks below list the telemetry or trials that would settle it.
+- No single root cause could be established; the candidate set has 1 services. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
+- The leading candidate is checkout. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
+- The asks below list the telemetry or trials that would settle it. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
 
 ## Candidate set
 
-- empty
+- checkout
 
 ## Evidence
 
-- none
+| Atom | Evidence | Value | Unit |
+|---|---|---|---|
+| Eb2a1231709 | cart mem anomaly (incident) | 0.822 | z |
+| E9609f44d49 | cart silence (incident) | 0 |  |
+| Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
+| E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
+| E69dec80d43 | checkout silence (incident) | 0 |  |
+| E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
+| E2a9591ce1a | frontend silence (incident) | 0 |  |
+| E3fa4c27025 | recommend mem anomaly (incident) | 0.401 | z |
+| Efd34e2ffcd | recommend silence (incident) | 0 |  |
 
 ## Timeline
 
 - 00:22:00 UTC — alert (oracle)
+- 00:22:15 UTC — checkout external onset (cites: E39040cc71a, E58f665f302)
+- 00:22:15 UTC — checkout internal onset (cites: E39040cc71a, E58f665f302)
 - 00:22:15 UTC — incident onset
 
 ## Path
@@ -26,13 +39,15 @@ none
 
 ## Why not
 
-- **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **cart**: cart failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
+- **cart**: cart showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E9609f44d49, Eb2a1231709)
+- **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E3fa4c27025, Efd34e2ffcd)
 
 ## Asks
 
-- none
+- telemetry: events — T6 untestable without events
+- trial: T3:checkout — mandatory trial T3 untestable: no_graph_edges
+- trial: T4:checkout — mandatory trial T4 untestable: no_graph_edges
 
 ## Next steps
 
@@ -44,6 +59,6 @@ prose: template
 
 ---
 
-verdict_hash: `6a2695ba3b298c9973ae0bc0998fb7a2626555ac9e6a2caa9c56ef5de37c8a8a`  
-card_hash: `1219bc53cdffc6ef932d4d1c90a0aa7e18a9da44b5b7058e73889d86cfc523df`  
+verdict_hash: `c3d176860d0c82287a1a5ebaa6abcd636756401e45548d9fa28bf331d57e8887`  
+card_hash: `a4cfddba55a2a941fed1c734bfe521059ad857c976810147c6e82e4996c9c173`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

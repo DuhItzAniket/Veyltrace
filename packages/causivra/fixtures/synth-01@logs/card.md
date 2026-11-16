@@ -1,11 +1,11 @@
-# INCONCLUSIVE · no single root cause
+# NO_FAULT · no fault detected in the incident window
 
-**INCONCLUSIVE** · confidence: none · candidate set size: 0 · margin: 0.00
+**NO_FAULT** · confidence: none · candidate set size: 0 · margin: 0.02
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 0 services.
-- The asks below list the telemetry or trials that would settle it.
+- No anomaly above threshold was found at the entry service or inside any service.
+- The candidate set is empty and no root cause is named.
 
 ## Candidate set
 
@@ -13,7 +13,14 @@
 
 ## Evidence
 
-- none
+| Atom | Evidence | Value | Unit |
+|---|---|---|---|
+| Ec7616db24a | catalog logs anomaly (incident) | 0 | z |
+| E7b0771b7a9 | catalog silence (incident) | 0 |  |
+| E11349da276 | checkout logs anomaly (incident) | 0 | z |
+| E69dec80d43 | checkout silence (incident) | 0 |  |
+| E652ceb691c | frontend logs anomaly (incident) | 0 | z |
+| E2a9591ce1a | frontend silence (incident) | 0 |  |
 
 ## Timeline
 
@@ -26,9 +33,7 @@ none
 
 ## Why not
 
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **checkout**: checkout failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **frontend**: frontend failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- none
 
 ## Asks
 
@@ -36,14 +41,14 @@ none
 
 ## Next steps
 
-- Collect the telemetry named in the asks. (PB-INCONC-01)
-- Inspect each member of the candidate set. (PB-INCONC-01)
-- Run the diagnosis again once the asks are answered. (PB-INCONC-01)
+- Confirm with the alert source whether the alert was spurious. (PB-NOFAULT-01)
+- Check the service level thresholds of the entry services. (PB-NOFAULT-01)
+- Check for silent services or gaps in the telemetry. (PB-NOFAULT-01)
 
 prose: template
 
 ---
 
-verdict_hash: `1a7f89d44a73c9993d6ede598aea96dc9e7a0da4e88660c8830fb231f9752af5`  
-card_hash: `80155911f9a5b7c294c0abaff9d5036e90a02106159640fc1a0e2b51bcf001d5`  
+verdict_hash: `b6d2fc2db3dcd67ffc2fe6ad10ae21790986185af9c987d3bdb8aa937f7e4390`  
+card_hash: `46e29a9b4bbcc870c643cef0a72d1d6a5d5df200d21326eaebac801abd501ca2`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

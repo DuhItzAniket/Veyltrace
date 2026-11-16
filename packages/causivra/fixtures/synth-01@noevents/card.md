@@ -1,34 +1,51 @@
-# INCONCLUSIVE · no single root cause
+# CONFIRMED · checkout · cpu
 
-**INCONCLUSIVE** · confidence: none · candidate set size: 0 · margin: 0.00
+**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.76
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 0 services.
-- The asks below list the telemetry or trials that would settle it.
+- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, E69dec80d43)
+- Its strongest internal signal was checkout cpu anomaly (incident) at 33.8 z. (cites: Ec2738c422e)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.76. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, E69dec80d43)
 
 ## Candidate set
 
-- empty
+- checkout
 
 ## Evidence
 
-- none
+| Atom | Evidence | Value | Unit |
+|---|---|---|---|
+| Eb2a1231709 | cart mem anomaly (incident) | 0.822 | z |
+| Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
+| E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
+| E8aa8de679c | checkout onset precedence over dependents (onset) | 1.00 |  |
+| E586a046788 | checkout propagation to entry (incident) | 1.00 |  |
+| Ee33689c27e | checkout propagation to path (incident) | 1.00 |  |
+| E69dec80d43 | checkout silence (incident) | 0 |  |
+| E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
+| E2a9591ce1a | frontend silence (incident) | 0 |  |
+| E89d6468c5f | payment mem anomaly (incident) | 0.593 | z |
+| E23c811e2ae | payment silence (incident) | 0 |  |
+| E106e938451 | recommend self_time anomaly (incident) | 0.744 | z |
+| Efd34e2ffcd | recommend silence (incident) | 0 |  |
 
 ## Timeline
 
 - 00:22:00 UTC — alert (oracle)
+- 00:22:00 UTC — checkout external onset (cites: E39040cc71a, E58f665f302)
+- 00:22:00 UTC — checkout internal onset (cites: E39040cc71a, E58f665f302)
 - 00:22:00 UTC — incident onset
 
 ## Path
 
-none
+checkout → frontend
 
 ## Why not
 
-- **frontend**: frontend passed the mandatory trials but its verified score did not exceed the leader's.
-- **cart**: cart failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
-- **catalog**: catalog failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's.
+- **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
+- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
+- **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E106e938451, Efd34e2ffcd)
 
 ## Asks
 
@@ -36,14 +53,15 @@ none
 
 ## Next steps
 
-- Collect the telemetry named in the asks. (PB-INCONC-01)
-- Inspect each member of the candidate set. (PB-INCONC-01)
-- Run the diagnosis again once the asks are answered. (PB-INCONC-01)
+- Compare CPU use with the limit and check throttling on checkout. (PB-CPU-01)
+- Compare checkout with its replicas. (PB-CPU-01)
+- Look for a deploy, config or traffic change before the onset. (PB-CPU-01)
+- Consider scaling out or raising the CPU limit after review. (PB-CPU-01)
 
 prose: template
 
 ---
 
-verdict_hash: `c5b0e0cad59e8533c615530d20978d6fbcc6911fdedbb0f052f1c9b0839a0187`  
-card_hash: `738d319c5f0176674baa9d963510128a3afef4a3796a6a366ce8e548c156e219`  
+verdict_hash: `d28bf87731b1d52fd3db002acf698fa6287b19fc15516b640818288edffef3e8`  
+card_hash: `457cc46d9a5f343bc8271b0bbba602123340020200b189e82def9df59150044d`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

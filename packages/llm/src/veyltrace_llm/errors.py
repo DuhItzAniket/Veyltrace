@@ -8,10 +8,19 @@ the same error the recording saw.
 
 from __future__ import annotations
 
+from typing import NoReturn
+
 from veyltrace_core.errors import VeyltraceError
 from veyltrace_llm.request import CallError, Completion
 
-__all__ = ["AIDisabled", "LLMError", "ProviderError", "ProviderTimeout", "ProviderUnavailable"]
+__all__ = [
+    "AIDisabled",
+    "LLMError",
+    "ProviderError",
+    "ProviderTimeout",
+    "ProviderUnavailable",
+    "raise_for",
+]
 
 
 class LLMError(VeyltraceError):
@@ -44,8 +53,8 @@ class ProviderTimeout(ProviderError):
     """Generation did not finish within `request.timeout_s`."""
 
 
-def raise_for(error: CallError, completion: Completion | None = None) -> None:
-    """Raise the `ProviderError` subclass that matches `error.kind`."""
+def raise_for(error: CallError, completion: Completion | None = None) -> NoReturn:
+    """Raise the `ProviderError` subclass that matches `error.kind` (always raises)."""
     if error.kind == "connection":
         raise ProviderUnavailable(error, completion)
     if error.kind == "timeout":

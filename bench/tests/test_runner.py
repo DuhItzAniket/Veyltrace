@@ -1,9 +1,7 @@
 """Tests of the bench runner as a library: synth end to end, outcomes, case lists, guards.
 
-The R-00 stub engines rank nothing (slate rankers_active == []), so every synth fault case must be
-scored as unranked (empty ranks, misses) and synth-05, the no-fault normal window, with null hits
-(04 §7 "Unranked runs", added by #14; packages/causatrix/README.md). Outputs go to tmp_path, never
-into bench/results. The CLI over this runner (#14) is tested in test_cli.py.
+Synth rows equal their cases' committed verdict goldens (every case has ranker votes since R-09).
+Outputs go to tmp_path, never into bench/results. The CLI over this runner (#14): test_cli.py.
 """
 
 from __future__ import annotations
@@ -14,8 +12,9 @@ from pathlib import Path
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import runner
-from veyltrace_core import cli, io, textio
+from veyltrace_bench import answer_keys, runner
+from veyltrace_contracts import models
+from veyltrace_core import cli, io, testing, textio
 from veyltrace_core.config import find_config_dir
 from veyltrace_core.errors import ConfigError, UsageError
 from veyltrace_core.hashing import sha256_text_lf
@@ -25,7 +24,22 @@ from veyltrace_core.pipeline import Outcome, RunSummary
 SMOKE = Path(__file__).resolve().parents[1] / "experiments" / "synth-smoke.yaml"
 NORMAL_WINDOW = case_id("synth-05")
 HITS = ("hit_at_1", "hit_at_3", "hit_at_5", "retrieval_hit", "pool_hit", "in_set")
-STUB = {"run_outcome": "ok", "method": "veyltrace:off", "ranks": [], "set_size": None}
+RAN = {"run_outcome": "ok", "method": "veyltrace:off"}
+#: hit_at_1/3/5, retrieval_hit, pool_hit per fault case: each of synth-01..04 leads with its root.
+RANK_HITS = {f"synth-0{i}": (True,) * 5 for i in range(1, 5)}
+
+
+def _check_against_the_goldens(row: dict[str, object], case: str, root: str | None) -> None:
+    """A row equals its case's committed verdict golden; ranks cover U (the slate's all_scores)."""
+    verdict, slate = testing.golden("verdict", case), testing.golden("slate", case)
+    assert isinstance(verdict, models.Verdict) and isinstance(slate, models.Slate)
+    ranks, in_set = verdict.ranks_rcaeval, sorted(c.service for c in verdict.candidate_set)
+    want = (ranks, verdict.status, verdict.verdict_hash, len(in_set))
+    assert (row["ranks"], row["status"], row["verdict_hash"], row["set_size"]) == want
+    assert all(len(r.split("_")) == 2 for r in ranks)  # service_indicator (03 §10)
+    assert sorted(r.split("_")[0] for r in ranks) == sorted(s.service for s in slate.all_scores)
+    hits = [row[c] for c in HITS]  # the normal window has no truth, so every hit stays null (04 §7)
+    assert hits == ([None] * 6 if root is None else [*RANK_HITS[case], root in in_set])
 
 
 def _rows(out: Path, *, unmeasured: bool = False) -> dict[str, dict[str, object]]:
@@ -46,19 +60,21 @@ def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
     out = run()
     assert out == tmp_path / "results" / "synth-smoke"
     rows = _rows(out)
-    assert sorted(rows) == sorted(case_id(f"synth-0{i}") for i in range(1, 6))
-    for row in rows.values():
-        assert {c: row[c] for c in STUB} == STUB and isinstance(row["wall_ms"], float)
+    cases = {case_id(f"synth-0{i}"): f"synth-0{i}" for i in range(1, 6)}
+    assert sorted(rows) == sorted(cases)
+    keys = answer_keys.load_answer_keys("synth")
+    for cid, row in rows.items():
+        assert {c: row[c] for c in RAN} == RAN and isinstance(row["wall_ms"], float)
         assert isinstance(row["peak_rss_mb"], float) and row["peak_rss_mb"] > 0  # measured by the child
-        assert row["verdict_hash"] and row["status"]
-        assert [row[c] for c in HITS] == ([None] * 6 if row["case_id"] == NORMAL_WINDOW else [False] * 6)
+        _check_against_the_goldens(row, cases[cid], None if cid == NORMAL_WINDOW else keys[cid].root_service)
     summary, manifest = (textio.read_text(out / name) for name in ("summary.json", "manifest.json"))
     for name in ("summary", "manifest"):  # both are contracts now (03 §13.3, §13.4), not free JSON
         io.read_path(f"bench_{name}", out / f"{name}.json", validate=True)
     assert '"outcomes":{"failed":0,"no_alert":0,"ok":5,"rejected":0,"timeout":0}' in summary
-    for part in ('"n_unranked":4', '"n_fault":4', '"n_chance":4', '"ac_at_1":0.0', '"chance_at_1":0.16666'):
+    # n_unranked 0: every synth case has ranker votes since R-09; ac and mrr follow from RANK_HITS.
+    for part in ('"n_unranked":0', '"n_fault":4', '"n_chance":4', '"ac_at_1":1.0', '"chance_at_1":0.16666'):
         assert part in summary
-    assert '"mrr":{"mrr":0.0}' in summary and '"rerank_at_1":null' in summary  # only the YAML's metrics
+    assert '"mrr":{"mrr":1.0}' in summary and '"rerank_at_1":null' in summary  # only the YAML's metrics
     assert f'"experiment_sha256":"{sha256_text_lf(SMOKE)}"' in manifest and manifest.count('"run_id"') == 5
     assert manifest.count('"inputs_sha256":"') == 6 and '"cases_without_inputs":[]' in manifest
     assert run() == out  # again on the same runs root: bench empties its dir, all re-run
