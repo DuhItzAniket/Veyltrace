@@ -5,9 +5,10 @@ Why: anyone holding the run directory can re-check a verdict. The receipt binds 
 and card self-hashes, and the head of the agent-trace hash chain. It is a pure function of files
 in the run directory, written as canonical JSON, so two runs give the same bytes.
 
-Refusals (10 §6): core's manifest must list `verdict.json`, `card.json` and `card.md` with the
-hashes those files have now, the card must belong to this verdict, and the agent-trace chain must
-verify. Any failure stops the run before a receipt exists. Optional minisign signing is X-09.
+Refusals (10 §6): core's manifest must list `verdict.json`, `card.json`, `card.md` and, when the
+run has one, `agent_trace.jsonl` (its head goes into the receipt) with the hashes those files
+have now; the card must belong to this verdict; and the agent-trace chain must verify. Any
+failure stops the run before a receipt exists. Optional minisign signing is X-09.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ PREDICATE_TYPE: Final = "https://veyltrace.dev/rca-verdict/v1"
 CARD_MD: Final = "card.md"
 #: Outputs the manifest must list before the receipt may be written (10 §3.8 step 1).
 REQUIRED_OUTPUTS: Final = tuple(sorted((CONTRACTS["verdict"].path, CONTRACTS["card"].path, CARD_MD)))
+AGENT_TRACE: Final = CONTRACTS["agent_trace"].path
 
 
 def trace_head(ctx: RunContext) -> str | None:
@@ -48,11 +50,17 @@ def trace_head(ctx: RunContext) -> str | None:
 
 def _check_manifest(ctx: RunContext, manifest: models.RunManifest) -> None:
     listed = {o.name: o.sha256 for o in manifest.outputs}
-    missing = [name for name in REQUIRED_OUTPUTS if name not in listed]
+    has_trace = AGENT_TRACE in listed or ctx.exists("agent_trace")
+    attested = [*REQUIRED_OUTPUTS, *([AGENT_TRACE] if has_trace else [])]
+    missing = [name for name in attested if name not in listed]
     if missing:
         msg = f"outputs lack {missing}; core writes the manifest after step 10a (02 §6.10)"
         raise ContractValidationError("run_manifest", msg)
-    changed = [name for name in REQUIRED_OUTPUTS if sha256_file(ctx.run_dir / name) != listed[name]]
+    changed = [
+        name
+        for name in attested
+        if not (ctx.run_dir / name).is_file() or sha256_file(ctx.run_dir / name) != listed[name]
+    ]
     if changed:
         raise ContractValidationError("run_manifest", f"{changed} changed after the manifest was written")
 

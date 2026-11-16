@@ -17,10 +17,14 @@ api:
   evidence_limit: 200
   # Points per series the series route returns at most (06 §6; a priori, chart size; display only).
   series_max_points: 2000
+  # How often the run event stream checks a job for new step events (s; a priori).
+  events_poll_s: 0.2
 
 jobs:
   # AI mode of runs the console starts: AI on is opt-in (06 §6).
   default_ai_mode: "off"
+  # One worker: a run may use 3 GB of RAM and the LLM runtime has one slot (06 §2, §6).
+  workers: 1
 
 live:
   # The OTLP receiver and alert watcher run only on the demo laptop (06 §6; built in X-10).
