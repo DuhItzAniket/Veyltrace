@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from veyltrace_bench.answer_keys import load_answer_keys
 from veyltrace_bench.experiment import read_yaml
 from veyltrace_bench.subsets import RE2, one_per_cluster, re2_subset
 from veyltrace_contracts.models import AnswerKeyRow
@@ -13,6 +14,7 @@ from veyltrace_core.config import data_root
 
 REPO = Path(__file__).resolve().parents[2]
 SUBSET = REPO / "bench" / "re2_investigate_cases.yaml"
+RE2_CASES_PER_PART = 90  # 04 §3: 6 faults × 5 services × 3 repetitions per RE2 system
 
 
 def _row(case: str, service: str | None, fault: str | None, *, no_fault: bool = False) -> AnswerKeyRow:
@@ -50,6 +52,8 @@ def test_committed_subset_is_one_per_re2_cluster() -> None:
 def test_committed_subset_is_the_generators_output() -> None:
     if not all((data_root() / "answer_keys" / f"{p}.parquet").is_file() for p in RE2):
         pytest.skip(f"RE2 answer keys not built under {data_root()}")
+    if any(len(load_answer_keys(p)) < RE2_CASES_PER_PART for p in RE2):  # e.g. a dev-cases-only root
+        pytest.skip(f"RE2 not fully fetched under {data_root()}: the subset is drawn from all 270 cases")
     dev = read_yaml(REPO / "bench" / "dev_cases.yaml", "case list")
     assert isinstance(dev, list)
     assert read_yaml(SUBSET, "case list") == re2_subset({str(c) for c in dev})
