@@ -34,6 +34,8 @@ from urllib.parse import unquote
 
 ROOT = Path(__file__).resolve().parent.parent
 PRUNE = {".git", "node_modules", ".venv", "venv", "__pycache__", "_hackday-v1", "dist", "build"}
+#: Side venvs (`.venv-*/` in .gitignore, e.g. bench/.venv-rcaeval) hold third-party docs.
+PRUNE_DIR_PREFIX = ".venv-"
 PRUNE_PREFIXES = (".claude/worktrees/",)
 
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
@@ -167,8 +169,8 @@ def collect(paths: list[str], excludes: list[str]) -> list[Path]:
             files.append(r.resolve())
         elif r.is_dir():
             for p in r.rglob("*.md"):
-                parts = p.relative_to(ROOT).parts
-                if any(part in PRUNE for part in parts):
+                dirs = p.relative_to(ROOT).parts[:-1]
+                if any(part in PRUNE or part.startswith(PRUNE_DIR_PREFIX) for part in dirs):
                     continue
                 files.append(p.resolve())
         else:

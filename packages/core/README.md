@@ -278,6 +278,7 @@ class EngineResult:
 ```python
 execute(plan: RunPlan, *, progress=None) -> RunSummary
 run_case(dataset, case, ai_mode="off", overrides=None, *, progress=None, **plan_fields) -> RunSummary
+plan_run_id(dataset, case, ai_mode="off", overrides=None, **plan_fields) -> str  # run_case's id, nothing run
 RunPlan(dataset, case, ai_mode="off", overrides={}, config=None, run_id=None, out_dir=None,
         from_step="infralume", to_step="causivra.receipt", reuse_dir=None, cassette_dir=None,
         external_proposals=None, write_manifest=True, write_receipt=True, force_record=False,
