@@ -21,7 +21,15 @@ from veyltrace_llm.request import LLMRequest, Message, ModelId, Usage
 from veyltrace_llm.settings import LLMSettings, settings_from
 from veyltrace_llm.transport import HttpResponse, HttpTransport, TransportError
 
-PARAMS = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5, "seed": 5, "max_tokens": 99}
+PARAMS = {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "presence_penalty": 1.5,
+    "seed": 5,
+    "max_tokens": 99,
+    "thinking": None,
+}
 SCHEMA = {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}
 
 
@@ -101,6 +109,17 @@ def test_payload_maps_the_canonical_request() -> None:
             "num_thread": 4,
         },
     }
+
+
+def test_null_params_are_not_sent() -> None:
+    # 03 §9.1 nullable params: null means the runtime's default, so the option is left out.
+    transport = FakeTransport(_ok())
+    OllamaProvider(_settings(), transport).complete(
+        _request(top_p=None, top_k=None, presence_penalty=None, thinking=None)
+    )
+    body = transport.sent[0][2]
+    assert "think" not in body
+    assert sorted(body["options"]) == ["num_ctx", "num_predict", "seed", "temperature"]
 
 
 def test_response_maps_to_a_completion_without_server_timestamps() -> None:

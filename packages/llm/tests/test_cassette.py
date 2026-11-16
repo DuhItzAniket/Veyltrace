@@ -12,9 +12,17 @@ from veyltrace_core.canonical import canonical_json
 from veyltrace_core.errors import CassetteMiss as CoreCassetteMiss
 from veyltrace_llm.cassette import INDEX_FILE, Cassette, CassetteMiss, CassetteNotEmpty
 from veyltrace_llm.fake import FakeReply
-from veyltrace_llm.request import LLMRequest, Message, ModelId
+from veyltrace_llm.request import Completion, LLMRequest, Message, ModelId, Runtime, Usage
 
-PARAMS = {"temperature": 0.7, "seed": 3, "max_tokens": 16}
+PARAMS = {
+    "temperature": 0.7,
+    "seed": 3,
+    "max_tokens": 16,
+    "top_p": None,
+    "top_k": None,
+    "presence_penalty": None,
+    "thinking": None,
+}
 AUDIT = {"provider": "ollama", "base_url": "http://127.0.0.1:11434", "timeout_s": 240.0}
 
 
@@ -65,6 +73,13 @@ def test_replay_returns_occurrences_in_order(tmp_path: Path) -> None:
     _record(tmp_path)
     replay = Cassette(tmp_path, "replay")
     assert [replay.lookup(r) for r, _ in CALLS] == [c for _, c in CALLS]
+
+
+def test_a_recorded_completion_replays_unchanged(tmp_path: Path) -> None:
+    # perf_counter latencies have more than 9 decimals; record and replay must still agree (08 §5.1).
+    measured = Completion("x", Usage(1, 2), 1234.5678901234567, Runtime("ollama", "0.12.0"))
+    Cassette(tmp_path, "record", recorded_with=AUDIT).record(_req("lat"), measured)
+    assert Cassette(tmp_path, "replay").lookup(_req("lat")) == measured
 
 
 def test_strict_misses(tmp_path: Path) -> None:

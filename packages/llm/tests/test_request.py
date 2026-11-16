@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
+import json
+from typing import Any, cast, get_args
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from veyltrace_contracts import models
 from veyltrace_core.canonical import canonical_json
 from veyltrace_core.hashing import sha256_bytes
 from veyltrace_llm.request import (
+    NULLABLE_PARAMS,
+    PARAM_NAMES,
     CallError,
     Completion,
     LLMRequest,
@@ -20,7 +24,15 @@ from veyltrace_llm.request import (
     Usage,
 )
 
-PARAMS: dict[str, Any] = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "seed": 123, "max_tokens": 64}
+PARAMS: dict[str, Any] = {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "seed": 123,
+    "max_tokens": 64,
+    "presence_penalty": None,
+    "thinking": None,
+}
 SCHEMA: dict[str, Any] = {"type": "object", "properties": {"x": {"type": "number"}}, "required": ["x"]}
 
 
@@ -83,11 +95,25 @@ def test_schema_and_params_are_private_copies() -> None:
         {"params": {**PARAMS, "max_tokens": True}},
         {"params": {**PARAMS, "temperature": float("nan")}},
         {"params": {**PARAMS, "thinking": 0}},
+        *({"params": {k: v for k, v in PARAMS.items() if k != name}} for name in sorted(PARAM_NAMES)),
+        *({"params": {**PARAMS, name: None}} for name in sorted(PARAM_NAMES - NULLABLE_PARAMS)),
     ],
 )
 def test_invalid_requests_are_rejected(kw: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         _request(**kw)
+
+
+def test_params_follow_03_sampler_params() -> None:
+    # 03 §9.1: `?` = required and nullable. A contract-valid params object builds a request, the
+    # request's params validate as SamplerParams, and null is part of the key, not an omission.
+    contract = models.SamplerParams.model_validate({**PARAMS, "top_k": None, "top_p": None})
+    req = _request(params=contract.model_dump())
+    assert models.SamplerParams(**req.params) == contract
+    fields = models.SamplerParams.model_fields
+    assert set(fields) == PARAM_NAMES
+    assert {n for n, f in fields.items() if type(None) in get_args(f.annotation)} == NULLABLE_PARAMS
+    assert _request(params={**PARAMS, "thinking": False}).key != _request().key
 
 
 def test_model_and_message_validation() -> None:
@@ -120,6 +146,14 @@ def test_completion_shapes() -> None:
     assert bad.response_sha256 == sha256_bytes(canonical_json({"kind": "timeout", "message": "slow"}))
     with pytest.raises(ValueError):
         Completion("x", Usage(0, 0), 1.0, Runtime("fake"), CallError("timeout", "both"))
+
+
+@given(st.floats(min_value=0, max_value=1e9, allow_nan=False))
+def test_latency_is_stored_as_canonical_json_writes_it(ms: float) -> None:
+    # Record mode returns this object; replay reads canonical_json of it back (08 §5.1).
+    latency = Completion("x", Usage(1, 1), ms, Runtime("fake")).latency_ms
+    assert latency == json.loads(canonical_json({"v": ms}))["v"]
+    assert Completion("x", Usage(1, 1), 0.1234567891234, Runtime("fake")).latency_ms == 0.123456789
     with pytest.raises(ValueError):
         Completion("x", Usage(0, 0), -1.0, Runtime("fake"))
     with pytest.raises(ValueError):

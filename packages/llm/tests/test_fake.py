@@ -8,7 +8,15 @@ from veyltrace_llm.errors import ProviderError, ProviderTimeout, ProviderUnavail
 from veyltrace_llm.fake import DEFAULT_LATENCY_MS, DEFAULT_USAGE, FakeProvider, FakeReply
 from veyltrace_llm.request import ErrorKind, LLMRequest, Message, ModelId, Usage
 
-PARAMS = {"temperature": 0.7, "seed": 7, "max_tokens": 32}
+PARAMS = {
+    "temperature": 0.7,
+    "seed": 7,
+    "max_tokens": 32,
+    "top_p": None,
+    "top_k": None,
+    "presence_penalty": None,
+    "thinking": None,
+}
 
 
 def _req(purpose: str = "relentra.brief", text: str = "q") -> LLMRequest:

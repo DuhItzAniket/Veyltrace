@@ -24,7 +24,15 @@ from veyltrace_llm.fake import FakeProvider, FakeReply
 from veyltrace_llm.request import Message
 from veyltrace_llm.settings import LLMSettings, settings_from
 
-PARAMS = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "seed": 11, "max_tokens": 64}
+PARAMS = {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "seed": 11,
+    "max_tokens": 64,
+    "presence_penalty": None,
+    "thinking": None,
+}
 SCHEMA = {"type": "object", "properties": {"ok": {"type": "boolean"}}, "required": ["ok"]}
 SCRIPT = {
     "relentra.brief": [FakeReply.json({"ok": True}), FakeReply("not json"), FakeReply.json({"ok": False})],
