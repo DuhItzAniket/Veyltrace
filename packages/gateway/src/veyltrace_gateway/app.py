@@ -21,8 +21,10 @@ from veyltrace_gateway import __version__
 from veyltrace_gateway.api_models import Health, HealthAI, HealthLive
 from veyltrace_gateway.cases import case_router
 from veyltrace_gateway.errors import add_error_handlers
+from veyltrace_gateway.jobs import JobRunner
 from veyltrace_gateway.runs import run_router
 from veyltrace_gateway.settings import GatewaySettings, load_settings
+from veyltrace_gateway.submit import submit_router
 
 __all__ = ["API_PREFIX", "build_health", "create_app"]
 
@@ -47,10 +49,14 @@ def build_health(settings: GatewaySettings, llm: Mapping[str, Any], commit: str)
 
 
 def create_app(
-    settings: GatewaySettings | None = None, *, config_dir: Path | None = None, runs: Path | None = None
+    settings: GatewaySettings | None = None,
+    *,
+    config_dir: Path | None = None,
+    runs: Path | None = None,
+    jobs: JobRunner | None = None,
 ) -> FastAPI:
     """The ASGI app; `settings` default to `config/gateway.yaml`, `runs` to core's runs root (the
-    directory `run_case` writes, `config/core.yaml` paths.runs)."""
+    directory `run_case` writes, `config/core.yaml` paths.runs), `jobs` to a runner over that root."""
     resolved = settings if settings is not None else load_settings(config_dir)
     health = build_health(resolved, load_section_file(LLM_SECTION, config_dir=config_dir), code_commit()[0])
     app = FastAPI(title="Veyltrace gateway", version=__version__, docs_url=None, redoc_url=None)
@@ -69,5 +75,7 @@ def create_app(
 
     root = runs if runs is not None else runs_root()
     app.include_router(case_router(resolved, root), prefix=API_PREFIX)
-    app.include_router(run_router(resolved, root), prefix=API_PREFIX)
+    runner = jobs if jobs is not None else JobRunner(root, config_dir=config_dir)
+    app.include_router(submit_router(resolved, root, runner), prefix=API_PREFIX)
+    app.include_router(run_router(resolved, root, runner), prefix=API_PREFIX)
     return app

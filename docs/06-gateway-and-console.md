@@ -211,6 +211,7 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `api.page_limit_max` | 1,000 | rows | a priori |
 | `api.evidence_limit` | 200 | rows | a priori; the evidence route's default page (§3.2) |
 | `jobs.workers` | 1 | threads | RAM and single LLM slot |
+| `api.events_poll_s` | 0.2 | s | a priori; how often `/runs/{run_id}/events` checks its job |
 | `jobs.default_ai_mode` | `off` | enum | AI on is opt-in |
 | runs root | `runs/` | path | 02 §4.1; read from `config/core.yaml` `paths.runs`, not a gateway key, so the gateway reads the root `run_case` writes (X-04) |
 | `live.enabled` | `false` | bool | only on the demo laptop |
