@@ -1,0 +1,305 @@
+{
+ "_comment": [
+  "Healthy case: every anomaly atom is 0.0 and nothing is silent, so every ranker abstains (constant",
+  "scores, or no prior for graph_walk) and the slate is empty (07 §3.1 last paragraph, §6): candidates = [],",
+  "rankers_active = [], every all_scores entry 0.0. card-gateway.example is external and stays out of U.",
+  "Hand-made, not real data, no answer key."
+ ],
+ "case_manifest": {
+  "schema_version": "0.1.0",
+  "case_id": "0f1e2d3c4b5a",
+  "dataset": "handmade",
+  "system": "other",
+  "t_alert_hint_ns": null,
+  "hint_source": "none",
+  "data_start_ns": 1767225600000000000,
+  "data_end_ns": 1767227520000000000,
+  "sources": {
+   "metrics": true,
+   "logs": true,
+   "traces": true,
+   "events": false
+  },
+  "services": [
+   "cart",
+   "frontend",
+   "payment"
+  ],
+  "inputs": [],
+  "adapter": {
+   "name": "handmade",
+   "version": "1"
+  },
+  "scrub": {
+   "rules_version": "scrub-1",
+   "dropped_attributes": 0,
+   "dropped_rows": 0
+  }
+ },
+ "evidence": [
+  {
+   "atom_id": "E4ec2034b60",
+   "candidate": "cart",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "cart|cart|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ecd14314b62",
+   "candidate": "cart",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "cart|cart|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E8384682d51",
+   "candidate": "cart",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"silence\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "score",
+   "window": "incident",
+   "refs": [
+    "cart|cart|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E9609f44d49",
+   "candidate": "cart",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee7ebb9ac8a",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eec03d297f6",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ef6dd9373e5",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"silence\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "score",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E2a9591ce1a",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E70f811c2a2",
+   "candidate": "payment",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "payment|payment|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eb23b7f3578",
+   "candidate": "payment",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"traces\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "payment|payment|latency|traces"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E319c486813",
+   "candidate": "payment",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"silence\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": "score",
+   "window": "incident",
+   "refs": [
+    "payment|payment|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E23c811e2ae",
+   "candidate": "payment",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 0.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  }
+ ],
+ "graph.nodes": [
+  {
+   "node": "card-gateway.example",
+   "kind": "external",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "cart",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "frontend",
+   "kind": "entry",
+   "is_entry": true,
+   "provenance": [
+    "traces"
+   ]
+  },
+  {
+   "node": "payment",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "traces"
+   ]
+  }
+ ],
+ "graph.edges": [
+  {
+   "src": "frontend",
+   "dst": "cart",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "frontend",
+   "dst": "payment",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "payment",
+   "dst": "card-gateway.example",
+   "provenance": [
+    "traces"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  }
+ ]
+}

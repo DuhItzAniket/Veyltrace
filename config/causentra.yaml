@@ -1,9 +1,9 @@
 # config/causentra.yaml: section "causentra" (file stem). Owner: Reason lane.
 # Spec: docs/engines/09-causentra.md §4 (every key of that table is declared here with its default,
 # so ablation overrides can name it; packages/core/README.md: unknown override keys are an error).
-# R-00 stub: the stub reads alpha, calibration.uncalibrated_q_hat, proposals.max,
-# status.likely_max_set and asks.max; the trial, factor, claim, other status and no_fault keys are
-# read from R-10/R-12 on.
+# veyltrace_causentra.config (R-10) reads and validates alpha, factors, mandatory, trials.disabled,
+# claims, predicates.<name>.weight, proposals.max, status, trials.T2/T3, calibration.uncalibrated_q_hat,
+# no_fault.detector/default_tau and asks.max; R-12 adds trials.T5-T7 and no_fault.beta.
 
 # Conformal miscoverage level alpha (09 §4; 02 §6.9).
 alpha: 0.10
