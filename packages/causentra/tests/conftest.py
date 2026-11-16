@@ -12,11 +12,14 @@ from typing import Any
 
 import pytest
 
+from veyltrace_causatrix import api as causatrix
 from veyltrace_contracts import models
-from veyltrace_core.testing import fixture_run_dir, repo_root
+from veyltrace_core import io
+from veyltrace_core.testing import fixture_run_dir, make_context, repo_root
 
 #: The step before Causentra: its run dir holds the claim-pass evidence (09 §2.1).
 THROUGH = "faultloom.claim_pass"
+NO_EVIDENCE = Path(__file__).resolve().parents[1] / "fixtures" / "handmade" / "no-evidence.json"
 
 
 def example(name: str) -> dict[str, Any]:
@@ -40,3 +43,15 @@ def example_proposals() -> models.Proposals:
 def synth01_dir(tmp_path: Path) -> Path:
     """synth-01's committed fixtures through the claim pass, AI off."""
     return fixture_run_dir("synth-01", tmp_path, through=THROUGH)
+
+
+@pytest.fixture
+def no_evidence_dir(synth01_dir: Path) -> Path:
+    """synth-01's run dir with the hand-made empty evidence, and Causatrix's slate re-run on it.
+
+    No ranker votes without atoms, so the slate is empty (07 §3.1): the no-atom paths stay tested."""
+    inputs: dict[str, Any] = json.loads(NO_EVIDENCE.read_text(encoding="utf-8"))
+    for name in sorted(n for n in inputs if not n.startswith("_")):
+        io.write(name, inputs[name], synth01_dir)
+    assert causatrix.run(make_context("causatrix", synth01_dir)).status == "ok"
+    return synth01_dir
