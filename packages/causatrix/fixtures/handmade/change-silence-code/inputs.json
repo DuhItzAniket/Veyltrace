@@ -1,0 +1,398 @@
+{
+ "_comment": [
+  "Events, no traces: cp_sbfl abstains, change_prox votes. cart: cpu z 6 and a deploy at proximity 0.8 ->",
+  "R1 change, fault class cpu from R2. cart-db (kind db) is silent -> R4 dependency, and prism_m counts it as",
+  "silence_z = 10. auth: logs z 5 and two new ERROR templates -> R3 code/exception, indicator logs. catalog's",
+  "config change (0.9) does not vote: catalog is neither anomalous nor silent. frontend: E = 8 -> R5 network.",
+  "Hand-made, not real data, no answer key."
+ ],
+ "case_manifest": {
+  "schema_version": "0.1.0",
+  "case_id": "5a4b3c2d1e0f",
+  "dataset": "handmade",
+  "system": "other",
+  "t_alert_hint_ns": null,
+  "hint_source": "none",
+  "data_start_ns": 1767225600000000000,
+  "data_end_ns": 1767227520000000000,
+  "sources": {
+   "metrics": true,
+   "logs": true,
+   "traces": false,
+   "events": true
+  },
+  "services": [
+   "auth",
+   "cart",
+   "catalog",
+   "frontend"
+  ],
+  "inputs": [],
+  "adapter": {
+   "name": "handmade",
+   "version": "1"
+  },
+  "scrub": {
+   "rules_version": "scrub-1",
+   "dropped_attributes": 0,
+   "dropped_rows": 0
+  }
+ },
+ "evidence": [
+  {
+   "atom_id": "E4ec2034b60",
+   "candidate": "cart",
+   "component": "cart-0",
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 6.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "cart|cart-0|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E0230b05f9f",
+   "candidate": "cart",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 4.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "cart|cart|latency|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E0a0c3fffe7",
+   "candidate": "cart",
+   "component": null,
+   "kind": "change_proximity",
+   "predicate": null,
+   "args_json": "{\"change_id\":\"C0123456789\",\"event_kind\":\"deploy\",\"window\":\"onset\"}",
+   "value": 0.8,
+   "unit": null,
+   "window": "onset",
+   "refs": [
+    "C0123456789"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E070fa3a5ee",
+   "candidate": "cart-db",
+   "component": null,
+   "kind": "silence",
+   "predicate": null,
+   "args_json": "{\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": null,
+   "window": "incident",
+   "refs": [],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E9fb39b02e1",
+   "candidate": "cart-db",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"silence\",\"family\":\"other\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 1.0,
+   "unit": "score",
+   "window": "incident",
+   "refs": [
+    "cart-db|cart-db|other|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E45e1c7d8ed",
+   "candidate": "auth",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"logs\",\"source\":\"logs\",\"window\":\"incident\"}",
+   "value": 5.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "auth|auth|logs|logs"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E350954b68b",
+   "candidate": "auth",
+   "component": null,
+   "kind": "log_new_template",
+   "predicate": null,
+   "args_json": "{\"error_level_only\":true,\"min_count\":3,\"window\":\"incident\"}",
+   "value": 2.0,
+   "unit": "count",
+   "window": "incident",
+   "refs": [
+    "T0a1b2c3d"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Eda6834a5a1",
+   "candidate": "auth",
+   "component": null,
+   "kind": "log_new_template",
+   "predicate": null,
+   "args_json": "{\"error_level_only\":false,\"min_count\":3,\"window\":\"incident\"}",
+   "value": 3.0,
+   "unit": "count",
+   "window": "incident",
+   "refs": [
+    "T0a1b2c3d",
+    "T1b2c3d4e"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E936f5b41b5",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 8.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|latency|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E2b39d027a4",
+   "candidate": "catalog",
+   "component": null,
+   "kind": "external_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"robust_z\",\"family\":\"latency\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 2.0,
+   "unit": "z",
+   "window": "incident",
+   "refs": [
+    "catalog|catalog|latency|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E500ee35183",
+   "candidate": "catalog",
+   "component": null,
+   "kind": "change_proximity",
+   "predicate": null,
+   "args_json": "{\"change_id\":\"C9876543210\",\"event_kind\":\"config\",\"window\":\"onset\"}",
+   "value": 0.9,
+   "unit": null,
+   "window": "onset",
+   "refs": [
+    "C9876543210"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ecb7719a331",
+   "candidate": "auth",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 4.0,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "auth|auth|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee3690404a6",
+   "candidate": "cart",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 7.0,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "cart|cart|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "E1ab74c5d42",
+   "candidate": "cart-db",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.5,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "cart-db|cart-db|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee7d6b53212",
+   "candidate": "catalog",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.5,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "catalog|catalog|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  },
+  {
+   "atom_id": "Ee0425738cd",
+   "candidate": "frontend",
+   "component": null,
+   "kind": "internal_anomaly",
+   "predicate": null,
+   "args_json": "{\"detector\":\"nsigma\",\"family\":\"cpu\",\"source\":\"metrics\",\"window\":\"incident\"}",
+   "value": 0.5,
+   "unit": "sigma",
+   "window": "incident",
+   "refs": [
+    "frontend|frontend|cpu|metrics"
+   ],
+   "origin": "engine",
+   "holds": null,
+   "producer": "faultloom@1"
+  }
+ ],
+ "graph.nodes": [
+  {
+   "node": "auth",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "topology"
+   ]
+  },
+  {
+   "node": "cart",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "topology"
+   ]
+  },
+  {
+   "node": "cart-db",
+   "kind": "db",
+   "is_entry": false,
+   "provenance": [
+    "topology"
+   ]
+  },
+  {
+   "node": "catalog",
+   "kind": "service",
+   "is_entry": false,
+   "provenance": [
+    "topology"
+   ]
+  },
+  {
+   "node": "frontend",
+   "kind": "entry",
+   "is_entry": true,
+   "provenance": [
+    "topology"
+   ]
+  }
+ ],
+ "graph.edges": [
+  {
+   "src": "cart",
+   "dst": "cart-db",
+   "provenance": [
+    "topology"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "frontend",
+   "dst": "auth",
+   "provenance": [
+    "topology"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "frontend",
+   "dst": "cart",
+   "provenance": [
+    "topology"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  },
+  {
+   "src": "frontend",
+   "dst": "catalog",
+   "provenance": [
+    "topology"
+   ],
+   "calls_incident": null,
+   "weight": 1.0,
+   "anomalous": null
+  }
+ ]
+}
