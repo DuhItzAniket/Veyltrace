@@ -19,6 +19,7 @@ from veyltrace_causentra.config import CausentraConfig
 from veyltrace_contracts import models
 from veyltrace_core.context import RunContext
 from veyltrace_core.errors import ContractValidationError
+from veyltrace_faultloom.validation import CaseDomain, read_domain
 
 #: Decimals every comparison and every verdict float uses (09 §5; 03 §1 canonical JSON).
 DECIMALS: Final = 9
@@ -39,7 +40,8 @@ class Claim:
 @dataclass(frozen=True)
 class CausentraInputs:
     """What the trials and the decision read (09 §2.1). q_hat None is +∞ (03 §10); tau_nf is the
-    calibrated NO_FAULT threshold or no_fault.default_tau; degraded: schema-invalid proposals."""
+    calibrated NO_FAULT threshold or no_fault.default_tau; degraded: schema-invalid proposals;
+    domain: FaultLoom's argument domains, to validate proposal claims as the claim pass did (06 §3.5)."""
 
     manifest: models.CaseManifest
     slate: models.Slate
@@ -47,6 +49,7 @@ class CausentraInputs:
     graph: GraphView
     graph_nodes: frozenset[str]
     claims: tuple[Claim, ...]
+    domain: CaseDomain
     entry_services: tuple[str, ...]
     tol_ms: float
     proposals: models.Proposals | None
@@ -121,6 +124,7 @@ def load_inputs(ctx: RunContext, cfg: CausentraConfig) -> CausentraInputs:
         graph=graph,
         graph_nodes=frozenset(n for n, _ in nodes),
         claims=tuple(claims),
+        domain=read_domain(ctx),
         entry_services=tuple(sorted(set(onsets.entry_services))),
         tol_ms=0.0 if alignment is None else alignment.tolerance_ns / 1e6,
         proposals=proposals,

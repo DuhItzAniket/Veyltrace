@@ -313,3 +313,23 @@ def test_proposal_outcomes_and_ranks(base: CausentraInputs) -> None:
         f"{c.service}_{labels(c.service, inp).indicator}" for c in d.ranked
     ]
     assert sorted(r.split("_")[0] for r in ranks_rcaeval(d, inp)) == ["a", "b", "c"]
+
+
+def test_a_claim_validate_rejects_is_bad_args(base: CausentraInputs) -> None:
+    # 09 §3.10 row 4 (#216): c's `silent` claim holds as {}, but written with a `subject` key it
+    # fails validate(), never holds, and the proposal is rejected bad_args instead of accepted.
+    plain = _proposals("complete", ("P00000001", "c"))
+    claim = plain.proposals[0].claims[0].model_copy(update={"args": {"subject": "c"}})
+    bad = plain.model_copy(update={"proposals": [plain.proposals[0].model_copy(update={"claims": [claim]})]})
+    atoms = [_z(s, "internal_anomaly", z) for s, z in (("a", 9.0), ("b", 1.0), ("c", 5.0))]
+    inp = replace(
+        _with(base, atoms, slate=_slate({"a": 0.05, "b": 0.04, "c": 0.01}, 1)),
+        claims=(Claim("E00000000a2", "c", "silent", "{}", True),),
+        graph_nodes=frozenset({"a", "b", "c"}),
+    )
+    for proposals, outcome in (
+        (plain, (["P00000001"], [])),
+        (bad, ([], [{"proposal_id": "P00000001", "reason": "bad_args"}])),
+    ):
+        case = replace(inp, proposals=proposals)
+        assert proposal_outcomes(decide(case, CFG), case, CFG) == outcome

@@ -22,6 +22,7 @@ from veyltrace_causentra.trials import FAIL, PASS, TrialResult, run_trials, tria
 from veyltrace_contracts import models
 from veyltrace_contracts.predicates import PREDICATES
 from veyltrace_core.canonical import canonical_json_str
+from veyltrace_faultloom.validation import CaseDomain, ValidClaim, validate
 
 SLATE: Final = "slate"
 PROPOSAL: Final = "proposal"
@@ -61,13 +62,26 @@ def eligible_proposals(proposals: models.Proposals | None, cfg: CausentraConfig)
     return sorted(proposals.proposals, key=lambda p: p.proposal_id)[: cfg.proposals_max]
 
 
-def claim_holds(claims: Iterable[Claim], service: str, claim: models.Claim) -> bool | None:
-    """`holds` of the claim_check atom of (predicate, canonical args) for `service`; None if absent."""
-    args = canonical_json_str(dict(claim.args))
+def claim_key(claim: models.Claim, domain: CaseDomain) -> str | None:
+    """The args_json of the claim's claim_check atom: FaultLoom's validated canonical args (06 §3.5
+    step 4, so `"k": 4` finds the atom of 4.0), or None when validate() rejects the claim."""
+    valid = validate(claim.predicate, claim.args, domain)
+    return canonical_json_str(dict(valid.args)) if isinstance(valid, ValidClaim) else None
+
+
+def claim_holds(
+    claims: Iterable[Claim], service: str, claim: models.Claim, domain: CaseDomain
+) -> bool | None:
+    """`holds` of the claim_check atom of (predicate, validated args) for `service`; None if absent.
+    A claim validate() rejects has no atom, so it never holds (09 §3.2)."""
+    args = claim_key(claim, domain)
     found = [
         c.holds
         for c in claims
-        if c.candidate == service and c.predicate == claim.predicate and c.args_json == args
+        if args is not None
+        and c.candidate == service
+        and c.predicate == claim.predicate
+        and c.args_json == args
     ]
     return found[0] if found else None
 
@@ -78,7 +92,7 @@ def admitted(inp: CausentraInputs, cfg: CausentraConfig) -> dict[str, str]:
     for p in eligible_proposals(inp.proposals, cfg):
         service = p.hypothesis.service
         supported = any(
-            _POLARITY.get(c.predicate) == 1.0 and claim_holds(inp.claims, service, c) is True
+            _POLARITY.get(c.predicate) == 1.0 and claim_holds(inp.claims, service, c, inp.domain) is True
             for c in p.claims
         )
         if service in inp.graph_nodes and supported:
