@@ -33,6 +33,8 @@ __all__ = [
     "Health",
     "HealthAI",
     "HealthLive",
+    "ReplayReport",
+    "RunRequest",
     "RunStatus",
 ]
 
@@ -138,3 +140,22 @@ class CasePage(_Envelope):
     total: int
     limit: int
     offset: int
+
+
+class RunRequest(_Envelope):
+    """`POST /runs` body (06 §3.2)."""
+
+    dataset: str
+    case_id: str
+    ai_mode: AIMode
+
+
+class ReplayReport(_Envelope):
+    """`replay_report` (06 §3.2; 10 §3.9): the replay's state and exit code with its meaning
+    (`veyltrace_core.errors.ReplayExit`, e.g. 0 ok, 2 hash_mismatch, 6 narrative_mismatch)."""
+
+    run_id: str
+    state: Literal["queued", "running", "done", "failed"]
+    exit_code: int | None
+    meaning: str | None
+    error: str | None
