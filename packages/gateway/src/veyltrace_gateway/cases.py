@@ -29,7 +29,7 @@ from veyltrace_gateway.api_models import CasePage, CaseSummary, DatasetSummary
 from veyltrace_gateway.errors import ApiError
 from veyltrace_gateway.settings import GatewaySettings
 
-__all__ = ["INDEX_DIR", "case_router", "known_datasets"]
+__all__ = ["INDEX_DIR", "case_router", "check_dataset", "known_datasets"]
 
 #: Where fetchers write a dataset's index (01 §2): `<data root>/index/<dataset>.json`.
 INDEX_DIR: Final = "index"
@@ -50,7 +50,7 @@ def known_datasets(runs_root: Path, data: Path) -> list[str]:
     return sorted(n for n in names if find_adapter(n) is not None)
 
 
-def _check_dataset(dataset: str, runs_root: Path, data: Path) -> Adapter:
+def check_dataset(dataset: str, runs_root: Path, data: Path) -> Adapter:
     adapter = find_adapter(dataset) if dataset in known_datasets(runs_root, data) else None
     if adapter is None:
         raise ApiError(404, "dataset_not_found", f"unknown dataset {dataset!r}")
@@ -112,13 +112,13 @@ def case_router(settings: GatewaySettings, runs_root: Path) -> APIRouter:
         offset: Annotated[int, Query(ge=0)] = 0,
     ) -> CasePage:
         data = data_root()
-        ids = _case_ids(_check_dataset(dataset, runs_root, data), dataset, runs_root, data)
+        ids = _case_ids(check_dataset(dataset, runs_root, data), dataset, runs_root, data)
         page = [_summary(runs_root, dataset, c) for c in ids[offset : offset + limit]]
         return CasePage(items=page, total=len(ids), limit=limit, offset=offset)
 
     @router.get("/cases/{dataset}/{case_id}", response_model=CaseManifest)
     def get_case(dataset: str, case_id: str) -> CaseManifest:
-        _check_dataset(dataset, runs_root, data_root())
+        check_dataset(dataset, runs_root, data_root())
         if not is_case_id(case_id):
             raise ApiError(404, "case_not_found", f"{case_id!r} is not a case id")
         runs = _runs_of(runs_root, dataset, case_id)

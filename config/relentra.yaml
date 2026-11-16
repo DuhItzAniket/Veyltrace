@@ -5,6 +5,7 @@
 
 # false: Relentra reports status = skipped even with AI on (narration-only runs) (08-relentra §4).
 enabled: true
-# brief | investigate | agent_only (08-relentra §4; 02 §6.8 default). With AI on, core uses it as
-# the calibration ai_arm when building the family_id (03 §12.1).
+# brief | investigate (08-relentra §4; 02 §6.8 default). agent_only is a bench-only baseline, never a
+# pipeline mode (08-relentra §3.9). With AI on, core uses it as the calibration ai_arm when building
+# the family_id (03 §12.1).
 mode: brief
