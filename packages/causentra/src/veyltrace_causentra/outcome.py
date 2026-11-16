@@ -21,6 +21,9 @@ from veyltrace_contracts.predicates import PREDICATES
 #: Untestable reasons that mean "a telemetry source is absent" (09 §3.11 priority 2).
 SOURCE_OF_REASON: Final = {"no_events": "events"}
 NO_EVIDENCE_WHY: Final = "no anomaly evidence in any source"
+#: Row 6b (09 §3.11): anomaly evidence, but no leader; empty pool, or every V9 is 0.
+NO_POOL_WHY: Final = "anomaly evidence present but no candidate reached the decision pool"
+NO_LEADER_WHY: Final = "anomaly evidence present but no decision-pool candidate has a verified score above 0"
 _LIBRARY: Final = frozenset(p.name for p in PREDICATES)
 
 
@@ -85,7 +88,11 @@ def anomalous_evidence(inp: CausentraInputs, cfg: CausentraConfig) -> bool:
 
 
 def asks(d: Decision, status: str, inp: CausentraInputs, cfg: CausentraConfig) -> list[dict[str, str]]:
-    """The 09 §3.11 asks of a LIKELY or INCONCLUSIVE verdict: sorted, de-duplicated, truncated."""
+    """The 09 §3.11 asks of a LIKELY or INCONCLUSIVE verdict: sorted, de-duplicated, truncated.
+
+    Every INCONCLUSIVE verdict carries at least one ask (02 §6.9): without a leader, row 6 or 6b
+    fires; with one, row 7 names the unmet status rule when no other row does.
+    """
     if status not in ("LIKELY", "INCONCLUSIVE"):
         return []
     found: set[tuple[int, str, str, str]] = set()
@@ -110,6 +117,11 @@ def asks(d: Decision, status: str, inp: CausentraInputs, cfg: CausentraConfig) -
         found.add((4, "trial", f"set:{first}", f"candidate set has {len(d.candidate_set)} members"))
     if top is None and not anomalous_evidence(inp, cfg):
         found.add((6, "telemetry", "all", NO_EVIDENCE_WHY))
+    elif top is None:
+        found.add((6, "context", "slate", NO_LEADER_WHY if d.ranked else NO_POOL_WHY))
+    elif status == "INCONCLUSIVE" and not found:
+        size = len(d.candidate_set)
+        found.add((7, "context", top.service, f"no status rule met at set size {size} and margin {d.margin}"))
     return [{"kind": k, "target": t, "why": w} for _, k, t, w in sorted(found)[: cfg.asks_max]]
 
 
