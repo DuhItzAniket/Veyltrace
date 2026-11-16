@@ -35,6 +35,7 @@ from veyltrace_core.pipeline import (
     execute,
     find_run,
     is_finished,
+    plan_run_id,
     run_case,
     summary_dict,
     write_summary,
@@ -410,6 +411,39 @@ def test_run_case_and_summary_json(tmp_path: Path, fakes: Fakes) -> None:
     write_summary(s, path)
     assert json.loads(path.read_bytes())["run_id"] == s.run_id
     assert path.read_bytes() == canonical_json(d) + b"\n"
+
+
+PINNED: dict[str, Any] = {"config_dir": REPO / "config", "code_commit": "fixture", "env": ENV}
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {},
+        {"ai_mode": "record"},
+        {"external_proposals": {"mode": "external", "model": None}},
+        {"run_id": "0123456789abcdef"},
+        {"overrides": {"causatrix.slate.k": 10}},
+    ],
+    ids=["off", "record", "external", "fixed-id", "overrides"],
+)
+def test_plan_run_id_is_the_id_the_run_uses(tmp_path: Path, fakes: Fakes, extra: dict[str, Any]) -> None:
+    """02 §4.1: the run id is known before the run (#284, the gateway's idempotent POST /runs)."""
+    kw = {**PINNED, "runs_root": tmp_path / "runs", **extra}
+    planned = plan_run_id("synth", CASE, **kw)
+    assert planned == run_case("synth", CASE, **kw).run_id
+
+
+def test_plan_run_id_for_replay(tmp_path: Path, fakes: Fakes) -> None:
+    kw = {**PINNED, "runs_root": tmp_path / "runs"}
+    run_case("synth", CASE, "record", **kw)
+    assert plan_run_id("synth", CASE, "replay", **kw) == run_case("synth", CASE, "replay", **kw).run_id
+    assert len({plan_run_id("synth", CASE, mode, **kw) for mode in ("off", "record", "replay")}) == 3
+
+
+def test_plan_run_id_writes_nothing(tmp_path: Path, fakes: Fakes) -> None:
+    plan_run_id("synth", CASE, runs_root=tmp_path / "runs", **PINNED)
+    assert not (tmp_path / "runs").exists() and fakes.calls == []
 
 
 def test_code_commit_and_env_info() -> None:
