@@ -50,7 +50,7 @@ All methods run in **one harness** (`veyltrace bench run`), on the same cases, i
 
 | Method id | What | Code |
 |---|---|---|
-| `chance` | analytic: AC@k = min(k, n)/n, n = candidate services in the case | bench |
+| `chance` | analytic: AC@k = min(k, n)/n, n = candidate services in the case; reported as the `chance` and `lift` metrics of every group (§7), not as a method of its own | bench |
 | `prior-only` | ranks services by how often they are the root in the calibration fold; reads no telemetry | bench |
 | `rcaeval:nsigma`, `rcaeval:baro`, `rcaeval:mmbaro` | N-Sigma, BARO, multi-source BARO | RCAEval's own code in an isolated venv (below) |
 | `rcaeval:circa`, `rcaeval:tracerca`, `rcaeval:microrank`, `rcaeval:pc_pagerank`, `rcaeval:causalrca` | other RCAEval methods "where runnable" under Python 3.12 within `resources.timeout_s` (timeouts are misses) | same; TraceRCA may need a wrapper because it is not wired into `main.py` (source in team's local archive; verify at R-05) |
@@ -226,7 +226,6 @@ methods:
   - {id: "rcaeval:baro", kind: rcaeval, rcaeval: {method: baro, length: 20}}
   - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
   - {id: "simplerca", kind: internal_baseline}
-  - {id: "chance", kind: internal_baseline}
 calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}   # writes config/calibration/<family>.fold*.json
 metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, onset_error, coverage, set_size, risk_coverage, no_fault_rates, cost]
 statistics:
