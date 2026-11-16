@@ -18,7 +18,7 @@ from veyltrace_core.config import load_section_file
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.pipeline import code_commit, runs_root
 from veyltrace_gateway import __version__
-from veyltrace_gateway.api_models import Health, HealthAI, HealthLive
+from veyltrace_gateway.api_models import ErrorBody, Health, HealthAI, HealthLive
 from veyltrace_gateway.cases import case_router
 from veyltrace_gateway.errors import add_error_handlers
 from veyltrace_gateway.jobs import JobRunner
@@ -30,6 +30,8 @@ __all__ = ["API_PREFIX", "build_health", "create_app"]
 
 API_PREFIX: Final = "/api/v1"
 LLM_SECTION: Final = "llm"
+#: Every API route documents the 06 §3.1 error envelope, so OpenAPI shows the body actually sent.
+ERRORS: Final[dict[int | str, dict[str, Any]]] = {c: {"model": ErrorBody} for c in (404, 409, 422, 503)}
 
 
 def build_health(settings: GatewaySettings, llm: Mapping[str, Any], commit: str) -> Health:
@@ -74,8 +76,8 @@ def create_app(
         return health
 
     root = runs if runs is not None else runs_root()
-    app.include_router(case_router(resolved, root), prefix=API_PREFIX)
+    app.include_router(case_router(resolved, root), prefix=API_PREFIX, responses=ERRORS)
     runner = jobs if jobs is not None else JobRunner(root, config_dir=config_dir)
-    app.include_router(submit_router(resolved, root, runner), prefix=API_PREFIX)
-    app.include_router(run_router(resolved, root, runner), prefix=API_PREFIX)
+    app.include_router(submit_router(resolved, root, runner), prefix=API_PREFIX, responses=ERRORS)
+    app.include_router(run_router(resolved, root, runner), prefix=API_PREFIX, responses=ERRORS)
     return app

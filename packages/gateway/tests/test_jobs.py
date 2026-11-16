@@ -10,6 +10,7 @@ from typing import Any
 
 import pytest
 
+from veyltrace_core import plugins
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.ids import case_id
 from veyltrace_core.testing import FIXTURE_CODE_COMMIT, repo_root
@@ -176,3 +177,41 @@ def test_job_settings_are_checked(dotted: str, value: object) -> None:
     body[section][key] = value
     with pytest.raises(ConfigError):
         settings_from(body)
+
+
+def test_replay_runs_the_causivra_command_on_the_receipt(
+    setup: tuple[Any, JobRunner, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app, _, root = setup
+    rid = "0123456789abcdef"
+    run_dir = root / "synth" / CASE / rid
+    run_dir.mkdir(parents=True)
+    status, body = _call(app, "POST", f"/api/v1/runs/{rid}/replay")
+    assert (status, json.loads(body)["error"]["code"]) == (404, "run_not_found")  # no receipt yet
+    (run_dir / "receipt.json").write_text("{}\n", encoding="utf-8")  # finished: only the file counts
+    assert _call(app, "GET", f"/api/v1/runs/{rid}/replay")[0] == 404  # nothing requested yet
+    monkeypatch.setattr(plugins, "names", lambda group: ())
+    status, body = _call(app, "POST", f"/api/v1/runs/{rid}/replay")
+    assert (status, json.loads(body)["error"]["code"]) == (503, "replay_unavailable")
+    seen: list[list[str]] = []
+
+    def fake_replay(argv: list[str]) -> int:
+        seen.append(argv)
+        return 6  # only the card narrative differs (10 §3.9)
+
+    monkeypatch.setattr(plugins, "names", lambda group: ("replay",))
+    monkeypatch.setattr(plugins, "load_one", lambda group, name: fake_replay)
+    status, body = _call(app, "POST", f"/api/v1/runs/{rid}/replay")
+    assert status == 202 and json.loads(body)["state"] in ("queued", "running", "done")
+    job = setup[1].replay(rid)
+    assert job is not None and job.finished.wait(WAIT_S)
+    report = json.loads(_call(app, "GET", f"/api/v1/runs/{rid}/replay")[1])
+    assert report == {
+        "run_id": rid,
+        "state": "done",
+        "exit_code": 6,
+        "meaning": "narrative_mismatch",
+        "error": None,
+    }
+    assert seen == [[str(root / "synth" / CASE / rid / "receipt.json")]]
+    assert _call(app, "POST", "/api/v1/runs/fedcba9876543210/replay")[0] == 404
