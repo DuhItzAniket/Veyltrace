@@ -3,17 +3,32 @@
 from __future__ import annotations
 
 import itertools
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from veyltrace_causatrix.views import Atom, evidence_view, graph_view
 from veyltrace_causentra.config import config_from
 from veyltrace_causentra.decision import Candidate, Decision, decide
 from veyltrace_causentra.inputs import CausentraInputs, Claim, load_inputs
-from veyltrace_causentra.outcome import asks, labels, no_fault, proposal_outcomes, ranks_rcaeval, status_of
+from veyltrace_causentra.outcome import (
+    NO_EVIDENCE_WHY,
+    NO_LEADER_WHY,
+    NO_POOL_WHY,
+    SOURCE_OF_REASON,
+    anomalous_evidence,
+    asks,
+    labels,
+    no_fault,
+    proposal_outcomes,
+    ranks_rcaeval,
+    status_of,
+)
 from veyltrace_causentra.trials import TrialResult
 from veyltrace_contracts import models
 from veyltrace_core.config import load_section_file
@@ -134,8 +149,81 @@ def test_no_evidence_ask_uses_values_not_atom_existence(base: CausentraInputs) -
         *(_sil(s, 0.0) for s in ("a", "b", "c")),
     ]  # R-06: healthy atoms (robust_z 0, silence 0.0) are not evidence
     assert asks(empty, "INCONCLUSIVE", _with(base, healthy), CFG) == [no_ask]
-    assert asks(empty, "INCONCLUSIVE", _with(base, [*healthy, _sil("c", 1.0)]), CFG) == []
-    assert asks(empty, "INCONCLUSIVE", _with(base, [*healthy, _z("b", "external_anomaly", 3.0)]), CFG) == []
+    # Anomaly evidence but no leader is row 6b, never an empty list (02 §6.9; #204 review).
+    pool = {"kind": "context", "target": "slate", "why": NO_POOL_WHY}
+    assert asks(empty, "INCONCLUSIVE", _with(base, [*healthy, _sil("c", 1.0)]), CFG) == [pool]
+    assert asks(empty, "INCONCLUSIVE", _with(base, [*healthy, _z("b", "external_anomaly", 3.0)]), CFG) == [
+        pool
+    ]
+    zero = asks(_d([_c("a", 0.0)], 0, 0.0), "INCONCLUSIVE", _with(base, [_sil("c", 1.0)]), CFG)
+    assert zero == [{"kind": "context", "target": "slate", "why": NO_LEADER_WHY}]
+    # Row 7: a leader whose mandatory trials pass but no other row fires still gets an ask.
+    lone = asks(_d([_c("a", 1.0)], 1, 0.2), "INCONCLUSIVE", base, replace(CFG, c_med=0.25))
+    assert lone == [
+        {"kind": "context", "target": "a", "why": "no status rule met at set size 1 and margin 0.2"}
+    ]
+
+
+_RESULTS = st.sampled_from(
+    [("pass", None), ("fail", "no_internal_anomaly"), ("untestable", "no_onset"), ("untestable", "no_events")]
+)
+
+
+@st.composite
+def _decisions(draw: st.DrawFn) -> Decision:
+    ranked = []
+    for s in "abcde"[: draw(st.integers(0, 5))]:
+        trials = tuple(TrialResult(t, *draw(_RESULTS), ()) for t in ("T1", "T2", "T3", "T4"))
+        if draw(st.booleans()):
+            trials += (TrialResult("T6", "untestable", "no_events", ()),)
+        ranked.append(_c(s, draw(st.sampled_from([0.0, 0.5, 1.0])), trials))
+    ranked.sort(key=lambda c: -c.v)
+    leader = bool(ranked) and ranked[0].v > 0
+    members = draw(st.integers(1 if leader else 0, len(ranked)))
+    return _d(ranked, members, draw(st.sampled_from([0.0, 0.1, 0.15, 0.3, 1.0])) if leader else 0.0)
+
+
+def _true(ask: dict[str, str], d: Decision, inp: CausentraInputs, status: str) -> bool:
+    """The 09 §3.11 row whose template produced `ask` really holds for d and inp."""
+    k, t, w, top = ask["kind"], ask["target"], ask["why"], d.leader
+    trials = {(x.id, x.result, x.reason) for x in top.trials} if top else set()
+    if m := re.fullmatch(r"mandatory trial (T\d) (failed|untestable): (\w+)", w):
+        res = "fail" if m[2] == "failed" else "untestable"
+        return (
+            top is not None and (k, t) == ("trial", f"{m[1]}:{top.service}") and (m[1], res, m[3]) in trials
+        )
+    if m := re.fullmatch(r"(T\d) untestable without (\w+)", w):
+        return (k, t) == ("telemetry", m[2]) and any(
+            (i, r) == (m[1], "untestable") and SOURCE_OF_REASON.get(why or "") == m[2] for i, r, why in trials
+        )
+    if m := re.fullmatch(r"candidate set has (\d+) members", w):
+        first = ",".join(c.service for c in d.candidate_set[:3])
+        return (k, t) == ("trial", f"set:{first}") and int(m[1]) == len(d.candidate_set) > CFG.likely_max_set
+    if m := re.fullmatch(r"runner-up within margin (\S+)", w):
+        return k == "context" and len(d.ranked) >= 2 and t == d.ranked[1].service and float(m[1]) == d.margin
+    if m := re.fullmatch(r"no status rule met at set size (\d+) and margin (\S+)", w):
+        ok = status == "INCONCLUSIVE" and top is not None and (k, t) == ("context", top.service)
+        return ok and (int(m[1]), float(m[2])) == (len(d.candidate_set), d.margin)
+    evidence = anomalous_evidence(inp, CFG)
+    if w == NO_EVIDENCE_WHY:
+        return (k, t) == ("telemetry", "all") and top is None and not evidence
+    pool_why = NO_LEADER_WHY if d.ranked else NO_POOL_WHY
+    return (k, t, w) == ("context", "slate", pool_why) and top is None and evidence
+
+
+@settings(max_examples=200, suppress_health_check=[HealthCheck.function_scoped_fixture])
+@given(d=_decisions(), anomalous=st.booleans())
+def test_every_inconclusive_verdict_asks_and_every_ask_is_true(
+    base: CausentraInputs, d: Decision, anomalous: bool
+) -> None:
+    inp = _with(base, [_z("a", "internal_anomaly", 9.0)] if anomalous else [])
+    status = status_of(d, False, CFG)[0]
+    got = asks(d, status, inp, CFG)
+    assert all(_true(a, d, inp, status) for a in got)
+    if status == "INCONCLUSIVE":
+        assert got
+    if status == "LIKELY":  # LIKELY asks are rows 1–5 only
+        assert not any(a["target"] == "slate" or a["why"].startswith("no ") for a in got)
 
 
 def test_no_fault_statistic(base: CausentraInputs) -> None:
