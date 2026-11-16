@@ -1,0 +1,29 @@
+# R-05 (#15): reproduce RCAEval's BARO and N-Sigma, and run the SimpleRCA re-implementation, on
+# all of RE2 (OB, SS, TT; 90 cases each) under the oracle alert (04 §4, §5.1). It measures other
+# methods only, so 04 §1 allows it before the prereg-v1 tag; it is not part of the frozen set and
+# runs no Veyltrace arm. Acceptance: BARO and N-Sigma within ±5 points of the published RCAEval
+# numbers, or the discrepancy written up (04 §4, SC-2). RCAEval's own report of each run is kept
+# in rcaeval/<dataset>.<method>.txt next to per_case.csv. Development cases are kept: the published
+# numbers cover all 90 cases per system.
+experiment_id: re2-oracle-baselines-r05
+description: "R-05: rcaeval:baro, rcaeval:nsigma and simplerca on RE2-OB/SS/TT, oracle alert"
+prereg: false
+rq: [RQ1]
+dataset:
+  parts: [re2-ob, re2-ss, re2-tt]
+  cases: all
+  exclude: null
+  normal_windows: none
+split:
+  scheme: none
+protocol:
+  alert: oracle
+  shift_s: 0
+  sources_drop: []
+methods:
+  - {id: "rcaeval:baro", kind: rcaeval, rcaeval: {method: baro, length: 20}}     # main.py default
+  - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
+  - {id: "simplerca", kind: internal_baseline}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, chance, lift]
+resources: {workers: 1, timeout_s: 600}
