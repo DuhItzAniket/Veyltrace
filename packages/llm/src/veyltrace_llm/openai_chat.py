@@ -13,7 +13,8 @@ Both speak the OpenAI chat-completions shape; `base_url` is the server root (the
   bearer key read from `VEYLTRACE_LLM_API_KEY` in the environment, never from config and never
   recorded (package Never list).
 
-Usage = `usage.prompt_tokens`, `usage.completion_tokens`; content = `choices[0].message.content`.
+A null sampler param is not sent (the server default applies). Usage = `usage.prompt_tokens`,
+`usage.completion_tokens`; content = `choices[0].message.content`.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ class _ChatCompletions(HttpProvider):
             "messages": [m.as_json() for m in request.messages],
             "stream": False,
         }
-        body.update({name: request.params[name] for name in self.sent_params if name in request.params})
+        body.update({n: request.params[n] for n in self.sent_params if request.params[n] is not None})
         return body
 
     def parse(self, body: Mapping[str, Any]) -> tuple[str, Usage]:
@@ -67,8 +68,11 @@ class LlamaCppProvider(_ChatCompletions):
         body = self._base(request)
         body["cache_prompt"] = self.settings.cache_prompt
         if request.schema is not None:
-            body["response_format"] = {"type": "json_schema", "json_schema": {"schema": dict(request.schema)}}
-        if "thinking" in request.params:
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"schema": request.schema_json()},
+            }
+        if request.params["thinking"] is not None:
             body["chat_template_kwargs"] = {"enable_thinking": request.params["thinking"]}
         return body
 
@@ -92,7 +96,7 @@ class OpenAICompatProvider(_ChatCompletions):
             name = request.purpose.replace(".", "_")
             body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {"name": name, "schema": dict(request.schema), "strict": True},
+                "json_schema": {"name": name, "schema": request.schema_json(), "strict": True},
             }
         return body
 
