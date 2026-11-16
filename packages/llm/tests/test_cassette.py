@@ -130,6 +130,15 @@ def test_force_refuses_foreign_subdirectories(tmp_path: Path) -> None:
         Cassette(tmp_path, "record", force_record=True)
 
 
+def test_a_refused_force_record_deletes_nothing(tmp_path: Path) -> None:
+    _record(tmp_path)
+    (tmp_path / "zz-nested").mkdir()  # sorts after every cassette file
+    before = sorted(p.name for p in tmp_path.iterdir())
+    with pytest.raises(CassetteNotEmpty, match="zz-nested"):
+        Cassette(tmp_path, "record", force_record=True)
+    assert sorted(p.name for p in tmp_path.iterdir()) == before
+
+
 def test_mode_guards_and_pickling(tmp_path: Path) -> None:
     record = Cassette(tmp_path / "r", "record")
     with pytest.raises(ValueError):

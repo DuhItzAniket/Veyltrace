@@ -68,7 +68,10 @@ class LlamaCppProvider(_ChatCompletions):
         body = self._base(request)
         body["cache_prompt"] = self.settings.cache_prompt
         if request.schema is not None:
-            body["response_format"] = {"type": "json_schema", "json_schema": {"schema": dict(request.schema)}}
+            body["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"schema": request.schema_json()},
+            }
         if request.params["thinking"] is not None:
             body["chat_template_kwargs"] = {"enable_thinking": request.params["thinking"]}
         return body
@@ -93,7 +96,7 @@ class OpenAICompatProvider(_ChatCompletions):
             name = request.purpose.replace(".", "_")
             body["response_format"] = {
                 "type": "json_schema",
-                "json_schema": {"name": name, "schema": dict(request.schema), "strict": True},
+                "json_schema": {"name": name, "schema": request.schema_json(), "strict": True},
             }
         return body
 

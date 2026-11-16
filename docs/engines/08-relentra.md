@@ -366,7 +366,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 {"v": 1,
  "purpose": "relentra.brief | relentra.investigate.pick | … | causivra.narrate | bench.agent_only",
  "model": {"name": "…", "gguf_sha256": "… or null"},
- "messages": [{"role": "system|user|assistant", "content": "… (CRLF→LF)"}],
+ "messages": [{"role": "system|user|assistant", "content": "… (every run of CRs before a LF → LF; idempotent)"}],
  "schema": {"…": "JSON schema or null"},
  "params": {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5, "seed": 123, "max_tokens": 1024, "thinking": false}}
 ```
@@ -382,7 +382,7 @@ Excluded from the key (recorded in the entry for audit): provider kind, `base_ur
 | Mode | Behaviour |
 |---|---|
 | `off` | `veyltrace_llm` refuses every call (`AIDisabled`) |
-| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record` ([02 §4.1](../02-architecture.md#41-run-directory)) |
+| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record`; even then it checks every entry before deleting any, and refuses (deleting nothing) when one is not a cassette file ([02 §4.1](../02-architecture.md#41-run-directory)) |
 | `replay` | look up key and occurrence; miss → `CassetteMiss`; never opens a socket |
 
 ### 5.3 `agent_trace.jsonl`
