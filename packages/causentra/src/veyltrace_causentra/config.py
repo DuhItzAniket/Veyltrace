@@ -136,6 +136,6 @@ def config_from(cfg: Mapping[str, Any], core: Mapping[str, Any]) -> CausentraCon
         t3_min_path_fraction=num("trials.T3.min_path_anomalous_fraction", 0.0, 1.0),
         uncalibrated_q_hat=num("calibration.uncalibrated_q_hat", 0.0),
         default_tau=num("no_fault.default_tau", 0.0),
-        asks_max=_int(get("asks.max"), "causentra.asks.max", 0),
+        asks_max=_int(get("asks.max"), "causentra.asks.max", 1),  # ≥ 1: INCONCLUSIVE always asks (09 §3.11)
         k_anom=_number(_get(core, "core", "thresholds.anomaly_z"), "core.thresholds.anomaly_z"),
     )

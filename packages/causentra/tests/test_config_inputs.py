@@ -55,6 +55,7 @@ def test_repo_config_matches_09_4() -> None:
         ("trials.T2.min_fraction", 2.0, r"causentra\.trials\.T2\.min_fraction"),
         ("no_fault.detector", "nsigma", r"causentra\.no_fault\.detector"),
         ("asks.max", True, r"causentra\.asks\.max"),
+        ("asks.max", 0, r"causentra\.asks\.max"),  # INCONCLUSIVE must keep one ask (09 §3.11)
     ],
 )
 def test_bad_values_name_their_key(dotted: str, value: object, match: str) -> None:
