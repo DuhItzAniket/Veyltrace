@@ -9,7 +9,9 @@ description = "Veyltrace engine 9 (Causentra): deterministic verifier that decid
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+# veyltrace-causatrix: rank(), classify() and the evidence/graph views (09 §2.1, §5).
+# veyltrace-faultloom: validate() and read_domain(), to match claims on validated args (09 §2, §5).
+dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-causatrix", "veyltrace-faultloom"]
 
 # Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
 [project.entry-points."veyltrace.engines"]
@@ -18,6 +20,8 @@ causentra = "veyltrace_causentra.api:run"
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
+veyltrace-causatrix = { workspace = true }
+veyltrace-faultloom = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/veyltrace_causentra"]
@@ -25,4 +29,6 @@ packages = ["src/veyltrace_causentra"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-allow = []
+# veyltrace_causatrix: Causatrix's pure rank(), classify() and views (09 §5 allowed imports).
+# veyltrace_faultloom: FaultLoom's validate() and read_domain() (09 §5 allowed imports).
+allow = ["veyltrace_causatrix", "veyltrace_faultloom"]
