@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import http.client
 import shlex
 import subprocess
 import sys
@@ -85,7 +86,8 @@ class Runner:
         try:
             with urllib.request.urlopen(url, timeout=timeout_s) as resp:
                 return 200 <= resp.status < 300
-        except (urllib.error.URLError, TimeoutError):
+        # RemoteDisconnected, ConnectionResetError and friends mean the service is not up (#225).
+        except (urllib.error.URLError, http.client.HTTPException, OSError):
             return False
 
     def time_ns(self) -> int:
