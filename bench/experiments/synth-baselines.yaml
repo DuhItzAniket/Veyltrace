@@ -1,0 +1,27 @@
+# Baseline smoke (R-05, #15): SimpleRCA and RCAEval's BARO and N-Sigma on synth-01..05, next to
+# veyltrace:off, through the same harness, cases and oracle t_alert (04 §4). Synth is never
+# reported (04 §3 "Smoke"): `--table` refuses this file and `--out` must name a scratch dir. The
+# rcaeval:* methods need the isolated venv (`uv run python scripts/rcaeval/setup.py`).
+experiment_id: synth-baselines
+description: "Baseline smoke: simplerca, rcaeval:baro, rcaeval:nsigma vs veyltrace:off on synth (never reported)"
+prereg: false
+rq: []
+dataset:
+  parts: [synth]
+  cases: all
+  exclude: null
+  normal_windows: none
+split:
+  scheme: none
+protocol:
+  alert: oracle
+  shift_s: 0
+  sources_drop: []
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - {id: "simplerca", kind: internal_baseline}
+  - {id: "rcaeval:baro", kind: rcaeval, rcaeval: {method: baro, length: 20}}
+  - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, chance, lift]
+resources: {workers: 1, timeout_s: 600}
