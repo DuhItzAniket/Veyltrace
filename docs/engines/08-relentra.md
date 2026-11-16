@@ -55,7 +55,7 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
 | `schema_version`, `case_id` | contract writer; `case_id` from `case_manifest` |
 | `status` | `complete`: state machine reached `done`. `budget_exhausted`: a budget in §4 stopped it (partial proposals kept). `failed`: provider error, or no valid output after repair. `skipped`: `ai.mode ≠ off` but Relentra did not call the model (`relentra.enabled = false`, or the slate is empty). With `ai.mode = off` no file is written ([02 §4.1](../02-architecture.md#41-run-directory)) |
 | `mode` | `brief` or `investigate` from config. `external` (03 §9.1) is written only for hypotheses submitted through the MCP `verify_hypothesis` tool ([06](../06-gateway-and-console.md)), never by Relentra |
-| `model` | `provider`, `name`, `gguf_sha256?` (from `config/llm.yaml`), `params` = {`temperature`, `seed`, `top_k`, `top_p`, `presence_penalty`, `thinking`, `max_tokens`} actually sent (`presence_penalty?`, `thinking?` are optional in 03 §9.1) |
+| `model` | `provider`, `name`, `gguf_sha256?` (from `config/llm.yaml`), `params` = {`temperature`, `seed`, `top_k`, `top_p`, `presence_penalty`, `thinking`, `max_tokens`} always all seven keys; `top_k?`, `top_p?`, `presence_penalty?`, `thinking?` are nullable in 03 §9.1 (`?` = required and nullable, 03 §1), and null means the provider does not send it |
 | `budget_used` | `turns` = LLM calls made (repairs included); `tokens_in`, `tokens_out` = sum of provider-reported usage stored in the cassette; `wall_ms` = sum of recorded `latency_ms` of those calls (so replay reproduces it, as 03 requires) |
 | `proposals[]` | after normalisation (§3.6). `proposal_id` = `P` + first 8 hex of SHA-256(canonical_json({hypothesis, claims without ids})). `claim_id` = `<proposal_id>-<i>`, `i` from 1 in sorted claim order. `hypothesis` = {`service`, `component?` (omitted in v0.1), `fault_class`, `indicator?`}. `claims[]` = {`claim_id`, `predicate`, `args`, `cites`}. `requested_trials` ⊆ `T1…T10`, sorted by number. `rationale` ≤ 280 chars, display only |
 | `asks[]` | {`kind` ∈ `telemetry \| trial \| context`, `target`, `why`} from the model, sorted by (`kind`, `target`) |
@@ -286,6 +286,14 @@ Query rules: exactly one statement (checked with DuckDB's statement extraction);
 | seed | derived | derived | derived | first integer in [0, 2³¹−1) from `veyltrace_core.rng(case_id, "relentra.seed/<seed_index>")` |
 | max_tokens | 1,024 | 384 per turn | 256 | |
 
+**Provider differences.** Every request carries all seven sampler params, and the cassette key
+and `proposals.model.params` record them as configured. A null param is not sent to any
+provider. The `openai_compat` provider also never sends `top_k` or `thinking`, because the
+OpenAI chat-completions API has neither, so on that provider the record names two settings the
+server did not receive. Use `ollama` or `llamacpp` for scored runs. `base_url` is the server
+root for every provider; one ending in `/v1` is refused for `llamacpp` and `openai_compat`, whose
+route already starts with `/v1`.
+
 Bench varies `sampler.seed_index` (0…4) through config, so each seed gets its own `config_sha256` and therefore its own `run_id`.
 
 ### 3.9 Agent-only baseline (evaluation only)
@@ -366,7 +374,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 {"v": 1,
  "purpose": "relentra.brief | relentra.investigate.pick | … | causivra.narrate | bench.agent_only",
  "model": {"name": "…", "gguf_sha256": "… or null"},
- "messages": [{"role": "system|user|assistant", "content": "… (CRLF→LF)"}],
+ "messages": [{"role": "system|user|assistant", "content": "… (every run of CRs before a LF → LF; idempotent)"}],
  "schema": {"…": "JSON schema or null"},
  "params": {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5, "seed": 123, "max_tokens": 1024, "thinking": false}}
 ```
@@ -382,7 +390,7 @@ Excluded from the key (recorded in the entry for audit): provider kind, `base_ur
 | Mode | Behaviour |
 |---|---|
 | `off` | `veyltrace_llm` refuses every call (`AIDisabled`) |
-| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record` ([02 §4.1](../02-architecture.md#41-run-directory)) |
+| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record`; even then it checks every entry before deleting any, and refuses (deleting nothing) when one is not a cassette file ([02 §4.1](../02-architecture.md#41-run-directory)) |
 | `replay` | look up key and occurrence; miss → `CassetteMiss`; never opens a socket |
 
 ### 5.3 `agent_trace.jsonl`
@@ -480,7 +488,7 @@ Each has a default that applies until decided. Items marked CCR are proposed Con
 |---|---|---|
 | OQ-1 | ~~CCR: 03's catalog does not list Relentra as a consumer of `onsets`, `changes`, `anomalies`~~ | Resolved in 03 (2026-10-30): "Relentra tools" are listed consumers; `timeline` and the extra views are enabled |
 | OQ-2 | The `CardDeck` returned by `evidence_cards` is documented in 06 §3.7 but is not a 03 contract, so FaultLoom can change it without a CCR | Treat 06 §3.7 as the interface; Relentra reads only the fields in §2.1 and pins them with a test on FaultLoom's synth fixtures. Also needed from FaultLoom: an optional candidate-order parameter for the permutation ablation |
-| OQ-3 | ~~CCR: `proposals.model.params` has no `thinking` or `presence_penalty`~~ | Resolved in 03 §9.1 (2026-10-30): optional `thinking?`, `presence_penalty?` added; both are sent and recorded (§3.8) |
+| OQ-3 | ~~CCR: `proposals.model.params` has no `thinking` or `presence_penalty`~~ | Resolved in 03 §9.1 (2026-10-30): nullable `thinking?`, `presence_penalty?` added; both are always in the request and the cassette key, and sent unless null (§3.8) |
 | OQ-4 | How Relentra and Causivra hand `prompt_sha256`, `schema_sha256`, `cassette_sha256` to core for `run_manifest.ai` | Core API: `EngineResult` carries an `ai_manifest` dict; core aggregates with the §3.5/§5.2 formulas |
 | OQ-5 | Causentra behaviour when `proposals.json` is absent (`ai off`) | Treated as no proposals |
 | OQ-6 | ~~Re-recording the same case gives the same `run_id`~~ | Resolved in 02 §4.1 (2026-10-30): the config hash covers seeds and sampler settings; record refuses to overwrite an existing `run_id` without `--force-record` |

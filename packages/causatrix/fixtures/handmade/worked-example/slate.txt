@@ -1,0 +1,144 @@
+{
+ "all_scores": [
+  {
+   "fused_score": 0.081438392,
+   "service": "checkout"
+  },
+  {
+   "fused_score": 0.081173982,
+   "service": "frontend"
+  },
+  {
+   "fused_score": 0.079365079,
+   "service": "currency"
+  },
+  {
+   "fused_score": 0.078125,
+   "service": "payment"
+  }
+ ],
+ "candidates": [
+  {
+   "component": "checkout-1",
+   "fault_class": "cpu",
+   "fused_score": 0.081438392,
+   "indicator": "cpu",
+   "mode": "resource",
+   "rank": 1,
+   "ranker_ranks": {
+    "baro_rs": 2,
+    "change_prox": null,
+    "cp_sbfl": 1,
+    "graph_walk": 1,
+    "nsigma": 2,
+    "prism_m": 1
+   },
+   "ranker_scores": {
+    "baro_rs": 11.0,
+    "change_prox": null,
+    "cp_sbfl": 0.683,
+    "graph_walk": 0.500381009,
+    "nsigma": 10.5,
+    "prism_m": 16.955477562
+   },
+   "service": "checkout"
+  },
+  {
+   "component": "frontend-1",
+   "fault_class": "delay",
+   "fused_score": 0.081173982,
+   "indicator": "latency",
+   "mode": "network",
+   "rank": 2,
+   "ranker_ranks": {
+    "baro_rs": 1,
+    "change_prox": null,
+    "cp_sbfl": 2,
+    "graph_walk": 2,
+    "nsigma": 1,
+    "prism_m": 2
+   },
+   "ranker_scores": {
+    "baro_rs": 14.0,
+    "change_prox": null,
+    "cp_sbfl": 0.258,
+    "graph_walk": 0.256530322,
+    "nsigma": 16.0,
+    "prism_m": 12.414988758
+   },
+   "service": "frontend"
+  },
+  {
+   "component": "currency-1",
+   "fault_class": "delay",
+   "fused_score": 0.079365079,
+   "indicator": "latency",
+   "mode": "network",
+   "rank": 3,
+   "ranker_ranks": {
+    "baro_rs": 3,
+    "change_prox": null,
+    "cp_sbfl": 3,
+    "graph_walk": 3,
+    "nsigma": 3,
+    "prism_m": 3
+   },
+   "ranker_scores": {
+    "baro_rs": 4.5,
+    "change_prox": null,
+    "cp_sbfl": 0.21,
+    "graph_walk": 0.208490436,
+    "nsigma": 5.0,
+    "prism_m": 4.485096979
+   },
+   "service": "currency"
+  },
+  {
+   "component": "payment-1",
+   "fault_class": "unknown",
+   "fused_score": 0.078125,
+   "indicator": "latency",
+   "mode": "unknown",
+   "rank": 4,
+   "ranker_ranks": {
+    "baro_rs": 4,
+    "change_prox": null,
+    "cp_sbfl": 4,
+    "graph_walk": 4,
+    "nsigma": 4,
+    "prism_m": 4
+   },
+   "ranker_scores": {
+    "baro_rs": 1.0,
+    "change_prox": null,
+    "cp_sbfl": 0.165,
+    "graph_walk": 0.034598234,
+    "nsigma": 1.1,
+    "prism_m": 0.770380583
+   },
+   "service": "payment"
+  }
+ ],
+ "case_id": "a1b2c3d4e5f6",
+ "fusion": {
+  "k": 60,
+  "method": "rrf",
+  "weights": {
+   "baro_rs": 1.0,
+   "change_prox": 1.0,
+   "cp_sbfl": 1.0,
+   "graph_walk": 1.0,
+   "nsigma": 1.0,
+   "prism_m": 1.0
+  }
+ },
+ "k": 5,
+ "rankers_active": [
+  "baro_rs",
+  "cp_sbfl",
+  "graph_walk",
+  "nsigma",
+  "prism_m"
+ ],
+ "schema_version": "0.1.0"
+}
