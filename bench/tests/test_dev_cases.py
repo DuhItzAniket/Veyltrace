@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,6 +12,7 @@ from veyltrace_bench import experiment
 from veyltrace_bench.experiment import Experiment, read_yaml, select_cases
 from veyltrace_core.adapters import adapter_for
 from veyltrace_core.config import data_root
+from veyltrace_core.errors import ConfigError
 from veyltrace_core.ids import is_case_id
 
 REPO = Path(__file__).resolve().parents[2]
@@ -66,6 +68,12 @@ def test_development_cases_are_in_the_re2_index() -> None:
         pytest.skip(f"RE2 not fetched under {data_root()}")
     for part, case in EXPECTED.items():
         assert case in listed[part], (part, case)
+    if dev_only := [part for part in RE2 if listed[part] == {EXPECTED[part]}]:
+        # A root holding only the dev cases (`data fetch ... --cases 1`) leaves those parts empty
+        # after the exclusion, which select_cases refuses before any run.
+        with pytest.raises(ConfigError, match=re.escape(f"dataset parts {dev_only} select no case")):
+            select_cases(_re2_experiment(), REPO)
+        return
     selected = select_cases(_re2_experiment(), REPO)
     for part, (run, excluded) in selected.items():
         assert excluded == [EXPECTED[part]] and EXPECTED[part] not in run
