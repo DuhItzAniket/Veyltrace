@@ -62,9 +62,9 @@ We choose **option 2**: freeze at `1.0` once the open engine stacks are on main,
 **Order (each step after the previous one is on main):**
 
 1. The Causatrix/Causentra v1 stack merges (#164, #171, #200–#207, #290).
-2. The prereg stack merges (#298 dev cases, #299 M2 YAMLs, #300, #302, #303, #305, #304); the lead tags `prereg-v1` on that main commit and pushes it (checklist in #304's PR).
-3. The Causivra stack merges (#174–#178), and any other open PR that writes fixtures.
-4. One `chore(contracts)` PR by the Reason lane: every schema's `$id` to `…/schemas/1.0/…` and version to `1.0.0` (`predicates` included), `uv run python scripts/gen_contracts.py` (generated Python and TypeScript, contracts package version `1.0.0`, then `uv lock` for the lock entry), `ALLOW_OLDER_MINOR = True` in `veyltrace_core.io` (with its tests), `uv run python scripts/check.py --update-golden --cascade` for all producers, 03 §1's examples and status line. No field changes in that PR. Gate: full `check.py` and `--determinism --require-synth --ai-fake` green, `gen_contracts.py --check` clean.
+2. The R-05 baseline stack merges (#292–#295; #294 edits 04 §4 and §9, a frozen file), then the prereg stack #307–#313 and #318 (#318 edits 04 §9 and adds two prereg YAMLs); the lead tags `prereg-v1` on that main commit and pushes it. This is the same list as the tag checklist in #313.
+3. The Causivra stack merges (#174–#178), and any other open PR that writes fixtures. CCR #316 (`bench_summary.cost`) merges as its own `0.x` contract PR here, before step 4, so step 4 stays mechanical. It must be on main before R-11 (step 6): every prereg YAML lists `cost`, and without #316 R-11's `summary.json` has no cost entry (the runner logs `bench.metric_skipped`).
+4. One `chore(contracts)` PR by the Reason lane: every schema's `$id` to `…/schemas/1.0/…` and version to `1.0.0` (`predicates` included), `uv run python scripts/gen_contracts.py` (generated Python and TypeScript, contracts package version `1.0.0`, then `uv lock` for the lock entry), `ALLOW_OLDER_MINOR = True` in `veyltrace_core.io` (with its tests), `uv run python scripts/check.py --update-golden --cascade` for all producers, 03 §1's examples and status line. No field changes in that PR. The regeneration runs on the machine that produced the current goldens (the lead's Windows laptop): Anomara's scores differ in the last digits across platforms (#256), and a regeneration elsewhere would put a numeric diff into a PR that promises a mechanical change. Fixing #256 is not a prerequisite. Gate: full `check.py` and `--determinism --require-synth --ai-fake` green, `gen_contracts.py --check` clean.
 5. The lead tags `contracts-1.0` on that merge commit and pushes it.
 6. R-11 runs from a clean commit at or after `contracts-1.0`.
 
@@ -89,7 +89,7 @@ If step 3 slips so far that R-11 would wait, the lead may take step 4 before it;
 
 - **Positive:** the first released results (R-11) are on frozen contracts; `prereg-v1` is not blocked by the Explain stack; one mechanical PR does the bump.
 - **Negative / costs:** the bump PR regenerates every fixture (excluded from the 400-line limit as fixtures and generated code, AGENTS.md §3.7); M1's freeze lands about two weeks late, which the paper does not need to report (03 is not part of the pre-registration).
-- **Follow-ups:** the step 4 PR (new issue under #17 when step 3 is done); FSE'26 go/no-go, the other R-07 item (04 §13 Q3, 07 O-08), stays at its default "stretch" until someone checks size, format and licence; update 10 §2 and 07 dates when the tags exist.
+- **Follow-ups:** CCR #316 as its own `0.x` PR (step 3); the step 4 PR (new issue under #17 when step 3 is done); FSE'26 go/no-go, the other R-07 item (04 §13 Q3, 07 O-08), stays at its default "stretch" until someone checks size, format and licence; update 10 §2 and 07 dates when the tags exist.
 
 ## Confirmation
 
