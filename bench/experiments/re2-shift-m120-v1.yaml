@@ -3,13 +3,16 @@
 # shifted (core.alert.shift_s).
 # RQ4 H4a: AC@1 drops ≤ 10 points per RE2 system vs the unshifted oracle run.
 # Estimation with CIs per cell, no Holm family.
+# Calibration: reuses the rcaeval-re2 cross-fit files of the unperturbed protocol (re2-oracle-rq3-v1;
+# 04 §5.4 item 4), so coverage drift under the perturbation is visible.
 # Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
 experiment_id: re2-shift-m120-v1
 description: "RQ4: onset shift -120 s on RE2, baselines, rankers alone + rrf and veyltrace:off"
 prereg: true
 rq: [RQ4]
 dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
-split: {family: null, scheme: none}
+split: {family: rcaeval-re2, scheme: crossfit2, cluster: [system, service, fault], stratify: [system, fault],
+        seed: 20261108}
 protocol: {alert: oracle, shift_s: -120, sources_drop: [], decoys: null,
            anonymize_services: false, inject_proposals: null, permute_proposals: null}
 methods:
@@ -25,7 +28,7 @@ methods:
   - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
   - {id: "simplerca", kind: internal_baseline}
 calibration: {fit: false}
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, coverage, set_size, cost]
 statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
              bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
 resources: {workers: 1, timeout_s: 600}

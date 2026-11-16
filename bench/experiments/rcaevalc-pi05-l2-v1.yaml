@@ -1,16 +1,21 @@
 # Pre-registered (04 §1): RCAEval-C × decoy grid, π = 0.5, λ = 2/h (04 §5.2, a priori; generator
 # bench/decoys/, O-13; seed rng(case_id, "rcaeval-c")), 04 §6 M3: naive-change, Causatrix rankers
 # alone + rrf and veyltrace:off on RE2 with synthetic change events.
-# This cell is a true change (H4c: AC@1 rises).
-# RQ4 H4c, estimation with CIs per cell; the decoy metrics (decoy_present, decoy_ranked_first, 04 §7)
-# are per_case.csv columns.
+# At π = 0.5 about half the cases get the true change on the root, plus decoys on
+# non-root services at λ = 2/h
+# (H4c: a true change raises AC@1).
+# RQ4 H4c, estimation with CIs per cell; decoy_ranked_first (04 §9) is the share of cases with a
+# decoy-changed service ranked first.
+# Calibration: reuses the rcaeval-re2 cross-fit files of the unperturbed protocol (re2-oracle-rq3-v1;
+# 04 §5.4 item 4), so coverage drift under the perturbation is visible.
 # Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
 experiment_id: rcaevalc-pi05-l2-v1
 description: "RQ4: RCAEval-C decoy grid pi=0.5, rate=2/h; naive-change, rankers alone + rrf, veyltrace:off"
 prereg: true
 rq: [RQ4]
 dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
-split: {family: null, scheme: none}
+split: {family: rcaeval-re2, scheme: crossfit2, cluster: [system, service, fault], stratify: [system, fault],
+        seed: 20261108}
 protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: {pi: 0.5, rate_per_h: 2, window_s: [-1800, 300]},
            anonymize_services: false, inject_proposals: null, permute_proposals: null}
 methods:
@@ -24,7 +29,7 @@ methods:
   - {id: "causatrix:prism_m", kind: causatrix, overrides: {causatrix.rankers.enabled: [prism_m]}}
   - {id: "naive-change", kind: internal_baseline}
 calibration: {fit: false}
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, decoy_ranked_first, coverage, set_size, cost]
 statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
              bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
 resources: {workers: 1, timeout_s: 600}

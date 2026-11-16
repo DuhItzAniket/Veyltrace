@@ -16,7 +16,7 @@ methods:
     kind: veyltrace
     ai: {mode: record, relentra_mode: investigate, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
 calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}
-metrics: [ac_at_k, retrieval_at_k, coverage, set_size, risk_coverage, no_fault_rates]
+metrics: [ac_at_k, retrieval_at_k, coverage, set_size, risk_coverage, no_fault_rates, cost]
 statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
              bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
 resources: {workers: 1, timeout_s: 600}

@@ -1,7 +1,7 @@
 # Pre-registered (04 §1): RE2 × proposal permutation, 04 §6 (veyltrace:brief M4). The recorded
 # proposals re-ordered with a seeded permutation and Causentra re-run from the cassette (04 §5.2);
-# RQ2 H2c: identical verdict_hash under every permutation (100%), a proportion with an exact
-# binomial CI from per_case.csv's verdict_hash. agent-only:brief has no verifier, so permuting its
+# RQ2 H2c: identical verdict_hash under every permutation (100%), metric permutation_invariance
+# (04 §9) with an exact binomial CI. agent-only:brief has no verifier, so permuting its
 # proposals only re-orders its ranking; it is not run here.
 # Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
 experiment_id: re2-oracle-permute-v1
@@ -17,7 +17,7 @@ methods:
     kind: veyltrace
     ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
 calibration: {fit: false}
-metrics: [ac_at_k]
+metrics: [ac_at_k, permutation_invariance, cost]
 statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
              bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
 resources: {workers: 1, timeout_s: 600}

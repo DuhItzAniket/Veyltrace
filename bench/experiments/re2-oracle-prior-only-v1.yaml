@@ -27,5 +27,5 @@ protocol:
 methods:
   - {id: "prior-only", kind: internal_baseline}
 calibration: {fit: false}
-metrics: [ac_at_k, avg_at_5, mrr, chance, lift]
+metrics: [ac_at_k, avg_at_5, mrr, chance, lift, cost]
 resources: {workers: 1, timeout_s: 600}

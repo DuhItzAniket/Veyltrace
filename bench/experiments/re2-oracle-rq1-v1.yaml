@@ -44,10 +44,9 @@ methods:
   - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
   - {id: "simplerca", kind: internal_baseline}
 calibration: {fit: false}
-# chance is the analytic Chance@k of every group (04 §7), not a method. RQ5 cost is read from the
-# wall_ms and peak_rss_mb columns every per_case.csv row has (04 §6 "cross-cutting"); the `cost`
-# summary metric has no bench_summary field (03 §13.3), so it is not listed.
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+# chance is the analytic Chance@k of every group (04 §7), not a method. cost (RQ5) is listed as
+# 04 §9 does; the runner skips it with a logged note until bench_summary has its entry (CCR #316).
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, cost]
 statistics:
   primary_metric: ac_at_1
   per: system
@@ -57,5 +56,5 @@ statistics:
   permutation: {n: 10000, seed: 2}
   mcnemar: true
 # One worker, as the v0 runner runs; 600 s per case per method, a timeout is a miss (04 §9). The
-# 3 GB of H5 is measured (peak_rss_mb), not enforced: v0 has no outcome for a run over max_rss_mb.
+# 3 GB of H5 is measured (peak_rss_mb), not enforced (04 §9: H5 is descriptive), so no max_rss_mb.
 resources: {workers: 1, timeout_s: 600}

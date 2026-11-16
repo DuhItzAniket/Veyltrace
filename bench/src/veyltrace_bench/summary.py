@@ -94,5 +94,5 @@ def summarize(scores: Iterable[CaseScore], metrics: Collection[str] = ALL_METRIC
     values["onset_error_median_ms"] = statistics.median(onset) if onset else None  # sorts: order-free
     values["onset_error_max_ms"] = max(onset) if onset else None
     values["n_onset"] = len(onset)
-    keep = {key for name in metrics for key in METRIC_KEYS[name]}
+    keep = {key for name in metrics if name in METRIC_KEYS for key in METRIC_KEYS[name]}  # cost: skipped
     return counts | {key: value for key, value in values.items() if key in keep}

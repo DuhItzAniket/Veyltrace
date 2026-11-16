@@ -39,7 +39,7 @@ methods:
   - {id: "simplerca", kind: internal_baseline}
 calibration: {fit: false}
 # As re2-oracle-rq1-v1, plus the onset error of the detected protocol (04 §7).
-metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, onset_error]
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, onset_error, cost]
 statistics:
   primary_metric: ac_at_1
   per: system

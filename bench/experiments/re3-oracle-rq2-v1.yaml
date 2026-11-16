@@ -18,7 +18,7 @@ methods:
     kind: agent_only
     ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
 calibration: {fit: false}
-metrics: [ac_at_k, avg_at_5, mrr, retrieval_at_k, rerank_at_1, chance, lift]
+metrics: [ac_at_k, avg_at_5, mrr, retrieval_at_k, rerank_at_1, chance, lift, cost]
 statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
              bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
 resources: {workers: 1, timeout_s: 600}

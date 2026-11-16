@@ -35,6 +35,8 @@ def test_prereg_experiments_exclude_the_development_cases_on_test_splits() -> No
     for exp in prereg:
         assert exp.dataset.exclude == DEV_CASES, exp.experiment_id  # 04 §1
         assert not set(exp.dataset.parts) & set(NOT_TEST), exp.experiment_id
+        assert "cost" in exp.metrics, exp.experiment_id  # 04 §9 lists cost; RQ5 is cross-cutting (04 §6)
+        assert exp.resources.max_rss_mb is None, exp.experiment_id  # measured, not enforced (04 §9)
 
 
 def test_prereg_ranker_methods_cover_every_configured_ranker() -> None:
@@ -45,3 +47,17 @@ def test_prereg_ranker_methods_cover_every_configured_ranker() -> None:
         if rankers or any(m.id == "causatrix:rrf" for m in exp.methods):  # 04 §6 "rankers alone + rrf"
             assert rankers == configured, exp.experiment_id
             assert any(m.id == "causatrix:rrf" for m in exp.methods), exp.experiment_id
+
+
+def test_perturbed_runs_reuse_their_unperturbed_calibration() -> None:
+    """04 §5.4 item 4: onset-shift, ablation and decoy runs read the folds of the unperturbed RE2
+    protocol (fit there, not here), so coverage drift under the perturbation is visible."""
+    perturbed = [e for e in _prereg() if e.protocol.shift_s or e.protocol.sources_drop or e.protocol.decoys]
+    assert len(perturbed) == 35  # 12 onset shift, 5 ablation, 18 RCAEval-C
+    for exp in perturbed:
+        assert (exp.split.family, exp.split.scheme, exp.calibration.fit) == (
+            "rcaeval-re2",
+            "crossfit2",
+            False,
+        )
+        assert {"coverage", "set_size"} <= set(exp.metrics), exp.experiment_id
