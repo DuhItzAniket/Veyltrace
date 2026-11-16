@@ -1,0 +1,29 @@
+# Baseline settings of `veyltrace bench run` (R-05, #15; methods table: docs/04 §4). Read by
+# veyltrace_bench.baselines only; engines never read bench/. Every value cites its source or says
+# "a priori" (AGENTS.md §5). The hash of a method's section is part of its manifest config hash.
+
+simplerca:
+  # Fang et al., arXiv 2510.04711v2 §3.1.2: per-source rule-based alerts, the service with the most
+  # alerts ranks first. The paper names the rules but not their windows or every threshold; the
+  # values marked "a priori" are ours (04 §11: re-implemented baselines may differ).
+  # Windows: history = alert.json windows.baseline; detection = [t_alert, windows.incident end), so
+  # SimpleRCA sees the same t_alert as Veyltrace (04 §4). Detection from t_alert is a priori.
+  metric:
+    sigma: 3.0          # "the 3-sigma rule" (Fang §3.1.2); population SD of the history (a priori)
+    percentile: 95.0    # "the 95th percentile (P95) of its historical data" (Fang §3.1.2)
+    # One alert per series when its detection-window mean exceeds mean + 3σ OR the P95 of its
+    # history: 04 §4 "at 3-sigma or above the history P95". Reading the paper's "current value" as
+    # the window mean (one-sided, upper) is a priori.
+  trace:
+    percentile: 95.0    # "The P95 latency for each service" (Fang §3.1.2); span end - start
+    factor: 3.0         # "a certain multiple (e.g., 3x) of its normal-period baseline" (Fang §3.1.2)
+  log:
+    # "keyword-matching ... (e.g., ERROR, FAIL, EXCEPTION)" (Fang §3.1.2); substring match on the
+    # lowercased body (a priori). One alert per service when the detection-window rate of matching
+    # lines exceeds `factor` x the history rate and at least `min_count` lines match: the paper's
+    # "predefined threshold" is not stated, so the trace multiple is reused (a priori).
+    keywords: [error, fail, exception]
+    factor: 3.0         # a priori (see above)
+    min_count: 1        # a priori: one matching line is the smallest spike
+  # Ties in alert count: service name A->Z (a priori; the paper does not state a tie-break).
+  # Ranks are service names only (Fang reports service-level accuracy), so fine AC@k scores 0.
