@@ -1,10 +1,11 @@
-"""Golden tests of the Causatrix step on every committed fixture case (07 §7, R-00).
+"""Golden tests of the Causatrix step on every committed fixture case (07 §7).
 
 Each case runs the engine on `fixture_run_dir(case, through="faultloom")` with the variant's
 overrides and AI mode, as `update_golden` would, and compares the slate with
 `packages/causatrix/fixtures/<case>/slate.json`. A case whose upstream fixtures are not committed
 yet (e.g. synth-01@detected before Anomara's alert detector exists) is skipped, as update_golden
-does; a missing slate fixture for a case whose inputs exist fails in assert_golden.
+does; a missing slate fixture for a case whose inputs exist fails in assert_golden. While the synth
+evidence is empty (Anomara is a stub), every ranker abstains and every synth slate is empty.
 
 A second test checks the slate against its upstream fixtures alone (U from the golden
 case_manifest and graph.nodes), so the wiring is pinned even before the slate fixtures are
@@ -19,7 +20,8 @@ import pyarrow as pa
 import pytest
 
 from veyltrace_causatrix import api
-from veyltrace_causatrix.stub import settings_from, universe
+from veyltrace_causatrix.config import config_from
+from veyltrace_causatrix.views import universe
 from veyltrace_contracts import models
 from veyltrace_core import io
 from veyltrace_core.errors import ArtifactMissing
@@ -68,16 +70,16 @@ def test_slate_lists_the_universe_of_its_upstream_fixtures(case: str, tmp_path: 
     assert isinstance(node_table, pa.Table)
     nodes = node_table.to_pylist()
     ctx = make_context("causatrix", run_dir)
-    settings = settings_from(ctx.config, ctx.config.core)
+    settings = config_from(ctx.config, ctx.config.core)
     members = universe(
         manifest.services,
         [(str(n["node"]), str(n["kind"])) for n in nodes],
         include_external=settings.include_external,
     )
     assert slate.case_id == manifest.case_id
-    assert [s.service for s in slate.all_scores] == sorted(members)
+    assert sorted(s.service for s in slate.all_scores) == sorted(members)
     picked = [c.service for c in slate.candidates]
-    assert len(picked) == len(set(picked)) == min(slate.k, len(members))
-    assert set(picked) <= set(members)
-    assert slate.rankers_active == []
-    assert all(c.fused_score == 0.0 for c in slate.candidates)
+    assert len(picked) == len(set(picked)) and set(picked) <= set(members)
+    # 07 §3.1: no ranker voted -> empty slate; otherwise the top min(K, |U|) services.
+    assert len(picked) == (min(slate.k, len(members)) if slate.rankers_active else 0)
+    assert set(slate.rankers_active) <= set(settings.rankers)
