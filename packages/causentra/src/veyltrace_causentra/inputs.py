@@ -45,6 +45,7 @@ class CausentraInputs:
     slate: models.Slate
     ev: EvidenceView
     graph: GraphView
+    graph_nodes: frozenset[str]
     claims: tuple[Claim, ...]
     entry_services: tuple[str, ...]
     tol_ms: float
@@ -109,13 +110,16 @@ def load_inputs(ctx: RunContext, cfg: CausentraConfig) -> CausentraInputs:
     if calibration is None:
         q_hat: float | None = cfg.uncalibrated_q_hat
     else:
-        q_hat = None if calibration.q_hat is None or math.isinf(calibration.q_hat) else calibration.q_hat
+        # Read at 9 decimals: the decision compares the 9-decimal s with it, as the JSON shows (09 §5).
+        raw = calibration.q_hat
+        q_hat = None if raw is None or math.isinf(raw) else round(raw, DECIMALS)
     calibrated_tau = calibration is not None and calibration.no_fault.calibrated
     return CausentraInputs(
         manifest=manifest,
         slate=slate,
         ev=evidence_view(engine_atoms(rows), graph.universe),
         graph=graph,
+        graph_nodes=frozenset(n for n, _ in nodes),
         claims=tuple(claims),
         entry_services=tuple(sorted(set(onsets.entry_services))),
         tol_ms=0.0 if alignment is None else alignment.tolerance_ns / 1e6,
