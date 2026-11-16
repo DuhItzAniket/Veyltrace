@@ -1,0 +1,150 @@
+causal-learn==0.1.4.8
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+certifi==2026.10.23
+    # via requests
+charset-normalizer==3.5.2
+    # via requests
+cloudpickle==3.1.2
+    # via joblib
+colorama==0.4.6
+    # via
+    #   pytest
+    #   tqdm
+contourpy==1.4.0
+    # via matplotlib
+cycler==0.12.1
+    # via matplotlib
+fonttools==4.68.0
+    # via matplotlib
+graphviz==0.21
+    # via causal-learn
+idna==3.20
+    # via requests
+iniconfig==2.3.1
+    # via pytest
+joblib==1.6.0
+    # via
+    #   causal-learn
+    #   scikit-learn
+kiwisolver==1.5.1
+    # via matplotlib
+matplotlib==3.11.2
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+    #   pingouin
+    #   seaborn
+momentchi2==0.1.8
+    # via causal-learn
+narwhals==2.28.0
+    # via scikit-learn
+networkx==3.7
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+numpy==2.5.4
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+    #   contourpy
+    #   matplotlib
+    #   momentchi2
+    #   pandas
+    #   patsy
+    #   pingouin
+    #   scikit-learn
+    #   scikit-network
+    #   scipy
+    #   seaborn
+    #   statsmodels
+    #   tigramite
+    #   xarray
+packaging==26.3
+    # via
+    #   matplotlib
+    #   patsy
+    #   pytest
+    #   statsmodels
+    #   xarray
+pandas==3.1.1
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+    #   pandas-flavor
+    #   pingouin
+    #   seaborn
+    #   statsmodels
+    #   xarray
+pandas-flavor==0.8.1
+    # via pingouin
+patsy==1.0.3
+    # via statsmodels
+pillow==13.0.0
+    # via matplotlib
+pingouin==0.7.0
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+pluggy==1.7.0
+    # via pytest
+pydot==4.0.1
+    # via causal-learn
+pygments==2.21.0
+    # via pytest
+pyparsing==3.3.3
+    # via
+    #   matplotlib
+    #   pydot
+pytest==9.2.0
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+python-dateutil==4.0.0
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   matplotlib
+    #   pandas
+requests==2.34.2
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+scikit-learn==1.9.1
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+    #   pingouin
+scikit-network==0.33.5
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+scipy==1.18.1
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+    #   momentchi2
+    #   pingouin
+    #   scikit-learn
+    #   scikit-network
+    #   statsmodels
+    #   tigramite
+seaborn==0.13.2
+    # via pingouin
+six==1.17.0
+    # via tigramite
+statsmodels==0.14.6
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+    #   pingouin
+tabulate==0.10.0
+    # via pingouin
+threadpoolctl==3.8.0
+    # via scikit-learn
+tigramite==5.2.10.1
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+toml==0.10.2
+    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+tqdm==4.70.1
+    # via
+    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   causal-learn
+tzdata==2026.6
+    # via
+    #   pandas
+    #   python-dateutil
+urllib3==2.8.0
+    # via requests
+xarray==2026.9.0
+    # via pandas-flavor

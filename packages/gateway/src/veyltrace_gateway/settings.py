@@ -23,6 +23,7 @@ SECTION: Final = "gateway"
 #: Host names that always mean this machine (06 §3.6); IP literals are checked with ipaddress.
 LOOPBACK_NAMES: Final = frozenset({"localhost"})
 _MAX_PORT: Final = 65535
+_MAX_POLL_S: Final = 10  # an event stream that polls less often than this looks stuck
 
 
 @dataclass(frozen=True)
@@ -37,6 +38,7 @@ class GatewaySettings:
     page_limit_max: int
     evidence_limit: int
     series_max_points: int
+    events_poll_s: float
 
 
 def _get(body: Mapping[str, Any], dotted: str) -> object:
@@ -79,7 +81,17 @@ def settings_from(body: Mapping[str, Any]) -> GatewaySettings:
         page_limit_max=limit_max,
         evidence_limit=evidence,
         series_max_points=_positive(body, "api.series_max_points"),
+        events_poll_s=_poll(body),
     )
+
+
+def _poll(body: Mapping[str, Any]) -> float:
+    workers, poll = _get(body, "jobs.workers"), _get(body, "api.events_poll_s")
+    if workers != 1:  # one run at a time: RAM and the single LLM slot (06 §2)
+        raise ConfigError(f"gateway.jobs.workers must be 1 in v1, got {workers!r}")
+    if isinstance(poll, bool) or not isinstance(poll, int | float) or not 0 < poll <= _MAX_POLL_S:
+        raise ConfigError(f"gateway.api.events_poll_s must be in (0, {_MAX_POLL_S}], got {poll!r}")
+    return float(poll)
 
 
 def _positive(body: Mapping[str, Any], dotted: str) -> int:

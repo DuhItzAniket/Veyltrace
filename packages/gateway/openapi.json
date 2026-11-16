@@ -1,0 +1,5509 @@
+{
+  "components": {
+    "schemas": {
+      "AgentTrace": {
+        "additionalProperties": false,
+        "description": "`GET /runs/{run_id}/agent-trace`: the trace lines (03 §9.2) and the server-side chain check.",
+        "properties": {
+          "chain_ok": {
+            "title": "Chain Ok",
+            "type": "boolean"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/AgentTraceLine"
+            },
+            "title": "Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "lines",
+          "chain_ok"
+        ],
+        "title": "AgentTrace",
+        "type": "object"
+      },
+      "AgentTraceLine": {
+        "additionalProperties": false,
+        "description": "One line of Relentra's hash-chained agent_trace.jsonl (AI on only): a\nstate-machine transition, an LLM call or a tool call. Lines are flushed one by\none in seq order; the receipt's agent_trace_head is the last line_hash (03 §9.2,\n08 §5.3).",
+        "properties": {
+          "args": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Args"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "line_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Line Hash",
+            "type": "string"
+          },
+          "prev_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Prev Hash",
+            "type": "string"
+          },
+          "request_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Sha256"
+          },
+          "response_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Response Sha256"
+          },
+          "result_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Sha256"
+          },
+          "seq": {
+            "minimum": 0.0,
+            "title": "Seq",
+            "type": "integer"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "start",
+                  "cards_built",
+                  "prompt_built",
+                  "validated",
+                  "validation_failed",
+                  "repair",
+                  "drop_claim",
+                  "drop_proposal",
+                  "pick",
+                  "stop",
+                  "probe",
+                  "emit",
+                  "budget_turns",
+                  "budget_tokens",
+                  "budget_wall",
+                  "budget_context",
+                  "provider_error",
+                  "cassette_miss",
+                  "done",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool"
+          },
+          "type": {
+            "enum": [
+              "state",
+              "llm_call",
+              "tool_call"
+            ],
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seq",
+          "type",
+          "prev_hash",
+          "line_hash",
+          "request_sha256",
+          "response_sha256",
+          "tool",
+          "args",
+          "result_sha256",
+          "summary",
+          "state",
+          "detail"
+        ],
+        "title": "AgentTraceLine",
+        "type": "object"
+      },
+      "Alert": {
+        "additionalProperties": false,
+        "description": "Alert time and analysis windows of one run (03 §2.6): the protocol, t_alert after\nthe onset shift, the half-open baseline and incident windows clamped to the data\nspan, and the detector that fired under the detected protocol. Written by core's\nalert step (pipeline step 1); engines from Signalyth on read it instead of any\ninjection time.",
+        "properties": {
+          "clamped": {
+            "title": "Clamped",
+            "type": "boolean"
+          },
+          "detector": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AlertDetector"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "protocol": {
+            "enum": [
+              "oracle",
+              "detected",
+              "live"
+            ],
+            "title": "Protocol",
+            "type": "string"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "shift_ns": {
+            "multipleOf": 1000000000.0,
+            "title": "Shift Ns",
+            "type": "integer"
+          },
+          "t_alert_ns": {
+            "title": "T Alert Ns",
+            "type": "integer"
+          },
+          "windows": {
+            "$ref": "#/components/schemas/AlertWindows"
+          }
+        },
+        "required": [
+          "schema_version",
+          "protocol",
+          "t_alert_ns",
+          "shift_ns",
+          "detector",
+          "windows",
+          "clamped"
+        ],
+        "title": "Alert",
+        "type": "object"
+      },
+      "AlertDetector": {
+        "additionalProperties": false,
+        "description": "Breach found by the alert detector on the entry service(s).",
+        "properties": {
+          "entry_services": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9.-]*$",
+              "type": "string"
+            },
+            "title": "Entry Services",
+            "type": "array"
+          },
+          "signal": {
+            "title": "Signal",
+            "type": "string"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          }
+        },
+        "required": [
+          "entry_services",
+          "signal",
+          "threshold"
+        ],
+        "title": "AlertDetector",
+        "type": "object"
+      },
+      "AlertWindows": {
+        "additionalProperties": false,
+        "description": "Analysis windows around t_alert_ns from config core.windows, each half-open\n[start_ns, end_ns) and clamped to [data_start_ns, data_end_ns + 1); contiguous\nwindows are allowed.",
+        "properties": {
+          "baseline": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Baseline",
+            "type": "array"
+          },
+          "incident": {
+            "maxItems": 2,
+            "minItems": 2,
+            "prefixItems": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Incident",
+            "type": "array"
+          }
+        },
+        "required": [
+          "baseline",
+          "incident"
+        ],
+        "title": "AlertWindows",
+        "type": "object"
+      },
+      "BudgetUsed": {
+        "additionalProperties": false,
+        "description": "Budget consumed. turns counts LLM calls including repairs; tokens are\nprovider-reported usage stored in the cassette; wall_ms is the sum of recorded\ncall latencies, so a replay reproduces it.",
+        "properties": {
+          "tokens_in": {
+            "minimum": 0.0,
+            "title": "Tokens In",
+            "type": "integer"
+          },
+          "tokens_out": {
+            "minimum": 0.0,
+            "title": "Tokens Out",
+            "type": "integer"
+          },
+          "turns": {
+            "minimum": 0.0,
+            "title": "Turns",
+            "type": "integer"
+          },
+          "wall_ms": {
+            "title": "Wall Ms",
+            "type": "number"
+          }
+        },
+        "required": [
+          "turns",
+          "tokens_in",
+          "tokens_out",
+          "wall_ms"
+        ],
+        "title": "BudgetUsed",
+        "type": "object"
+      },
+      "Card": {
+        "additionalProperties": false,
+        "description": "Human-readable incident card for one sealed verdict: title, copied\nstatus/root/confidence/candidate set, checked summary prose, timeline,\npropagation path, evidence table, why-not, asks and deterministic next steps.\nProduced by Causivra (step 10a, with card.md rendered from it); it never changes\nthe verdict.",
+        "properties": {
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/CardAsks"
+            },
+            "title": "Asks",
+            "type": "array"
+          },
+          "candidate_set": {
+            "items": {
+              "$ref": "#/components/schemas/CardCandidateSet"
+            },
+            "title": "Candidate Set",
+            "type": "array"
+          },
+          "card_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Card Hash",
+            "type": "string"
+          },
+          "case_id": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence"
+          },
+          "evidence_table": {
+            "items": {
+              "$ref": "#/components/schemas/CardEvidenceTable"
+            },
+            "title": "Evidence Table",
+            "type": "array"
+          },
+          "narrator": {
+            "$ref": "#/components/schemas/CardNarrator"
+          },
+          "next_steps": {
+            "items": {
+              "$ref": "#/components/schemas/CardNextSteps"
+            },
+            "title": "Next Steps",
+            "type": "array"
+          },
+          "path": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9.-]*$",
+              "type": "string"
+            },
+            "title": "Path",
+            "type": "array"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Root"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "CONFIRMED",
+              "LIKELY",
+              "INCONCLUSIVE",
+              "NO_FAULT"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "summary": {
+            "items": {
+              "$ref": "#/components/schemas/CardSummary"
+            },
+            "title": "Summary",
+            "type": "array"
+          },
+          "timeline": {
+            "items": {
+              "$ref": "#/components/schemas/CardTimeline"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "verdict_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Verdict Hash",
+            "type": "string"
+          },
+          "why_not": {
+            "items": {
+              "$ref": "#/components/schemas/CardWhyNot"
+            },
+            "title": "Why Not",
+            "type": "array"
+          }
+        },
+        "required": [
+          "schema_version",
+          "case_id",
+          "verdict_hash",
+          "title",
+          "status",
+          "root",
+          "confidence",
+          "candidate_set",
+          "summary",
+          "timeline",
+          "path",
+          "evidence_table",
+          "why_not",
+          "asks",
+          "next_steps",
+          "narrator",
+          "card_hash"
+        ],
+        "title": "Card",
+        "type": "object"
+      },
+      "CardAsks": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/asks/items.",
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "CardAsks",
+        "type": "object"
+      },
+      "CardCandidateSet": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/candidate_set/items.",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "component"
+        ],
+        "title": "CardCandidateSet",
+        "type": "object"
+      },
+      "CardEvidenceTable": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/evidence_table/items.",
+        "properties": {
+          "atom_id": {
+            "pattern": "^E[0-9a-f]{10}$",
+            "title": "Atom Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "atom_id",
+          "label",
+          "value",
+          "unit"
+        ],
+        "title": "CardEvidenceTable",
+        "type": "object"
+      },
+      "CardNarrator": {
+        "additionalProperties": false,
+        "description": "How the summary prose was produced (10 §2.2).",
+        "properties": {
+          "attempts": {
+            "minimum": 0.0,
+            "title": "Attempts",
+            "type": "integer"
+          },
+          "checker_failures": {
+            "minimum": 0.0,
+            "title": "Checker Failures",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "path": {
+            "enum": [
+              "llm",
+              "template"
+            ],
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "model",
+          "attempts",
+          "checker_failures"
+        ],
+        "title": "CardNarrator",
+        "type": "object"
+      },
+      "CardNextSteps": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/next_steps/items.",
+        "properties": {
+          "playbook_id": {
+            "pattern": "^PB-[A-Z]+-[0-9]{2}$",
+            "title": "Playbook Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "playbook_id"
+        ],
+        "title": "CardNextSteps",
+        "type": "object"
+      },
+      "CardSummary": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/summary/items.",
+        "properties": {
+          "cites": {
+            "items": {
+              "pattern": "^E[0-9a-f]{10}$",
+              "type": "string"
+            },
+            "title": "Cites",
+            "type": "array"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "cites"
+        ],
+        "title": "CardSummary",
+        "type": "object"
+      },
+      "CardTimeline": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/timeline/items.",
+        "properties": {
+          "cites": {
+            "items": {
+              "pattern": "^E[0-9a-f]{10}$",
+              "type": "string"
+            },
+            "title": "Cites",
+            "type": "array"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "t_ns": {
+            "title": "T Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "t_ns",
+          "label",
+          "cites"
+        ],
+        "title": "CardTimeline",
+        "type": "object"
+      },
+      "CardWhyNot": {
+        "additionalProperties": false,
+        "description": "`card` #/properties/why_not/items.",
+        "properties": {
+          "cites": {
+            "items": {
+              "pattern": "^E[0-9a-f]{10}$",
+              "type": "string"
+            },
+            "title": "Cites",
+            "type": "array"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "text",
+          "cites"
+        ],
+        "title": "CardWhyNot",
+        "type": "object"
+      },
+      "CaseManifest": {
+        "additionalProperties": false,
+        "description": "Descriptive manifest of one materialised case: opaque id, dataset, data span,\npresent sources, services, raw inputs, adapter and scrub counts (03 §2.1).\nWritten by Infralume at pipeline step 0.",
+        "properties": {
+          "adapter": {
+            "$ref": "#/components/schemas/CaseManifestAdapter"
+          },
+          "case_id": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "data_end_ns": {
+            "title": "Data End Ns",
+            "type": "integer"
+          },
+          "data_start_ns": {
+            "title": "Data Start Ns",
+            "type": "integer"
+          },
+          "dataset": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Dataset",
+            "type": "string"
+          },
+          "hint_source": {
+            "enum": [
+              "oracle",
+              "live",
+              "none"
+            ],
+            "title": "Hint Source",
+            "type": "string"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/CaseManifestInput"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "scrub": {
+            "$ref": "#/components/schemas/CaseManifestScrub"
+          },
+          "services": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9.-]*$",
+              "type": "string"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/Sources"
+          },
+          "system": {
+            "enum": [
+              "ob",
+              "ss",
+              "tt",
+              "otel",
+              "other"
+            ],
+            "title": "System",
+            "type": "string"
+          },
+          "t_alert_hint_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T Alert Hint Ns"
+          }
+        },
+        "required": [
+          "schema_version",
+          "case_id",
+          "dataset",
+          "system",
+          "t_alert_hint_ns",
+          "hint_source",
+          "data_start_ns",
+          "data_end_ns",
+          "sources",
+          "services",
+          "inputs",
+          "adapter",
+          "scrub"
+        ],
+        "title": "CaseManifest",
+        "type": "object"
+      },
+      "CaseManifestAdapter": {
+        "additionalProperties": false,
+        "description": "Adapter that converted the case.",
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "CaseManifestAdapter",
+        "type": "object"
+      },
+      "CaseManifestInput": {
+        "additionalProperties": false,
+        "description": "One raw input file of the case.",
+        "properties": {
+          "bytes": {
+            "minimum": 0.0,
+            "title": "Bytes",
+            "type": "integer"
+          },
+          "name": {
+            "pattern": "^(metrics|logs|traces|events|overlay)/[^/]+$",
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256",
+          "bytes"
+        ],
+        "title": "CaseManifestInput",
+        "type": "object"
+      },
+      "CaseManifestScrub": {
+        "additionalProperties": false,
+        "description": "Leakage-scrub rule version and counts (01 §3.6).",
+        "properties": {
+          "dropped_attributes": {
+            "minimum": 0.0,
+            "title": "Dropped Attributes",
+            "type": "integer"
+          },
+          "dropped_rows": {
+            "minimum": 0.0,
+            "title": "Dropped Rows",
+            "type": "integer"
+          },
+          "rules_version": {
+            "title": "Rules Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rules_version",
+          "dropped_attributes",
+          "dropped_rows"
+        ],
+        "title": "CaseManifestScrub",
+        "type": "object"
+      },
+      "CasePage": {
+        "additionalProperties": false,
+        "description": "`GET /cases`: one page of case summaries, sorted by case id.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CaseSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CasePage",
+        "type": "object"
+      },
+      "CaseSummary": {
+        "additionalProperties": false,
+        "description": "`case_summary` (06 §3.2). `system` and `sources` come from the newest finished run's case\nmanifest and are null before the case's first run; never answer keys or hints.",
+        "properties": {
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "dataset": {
+            "title": "Dataset",
+            "type": "string"
+          },
+          "runs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "sources": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Sources"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "system": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ob",
+                  "ss",
+                  "tt",
+                  "otel",
+                  "other"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "System"
+          }
+        },
+        "required": [
+          "case_id",
+          "dataset",
+          "system",
+          "sources",
+          "runs"
+        ],
+        "title": "CaseSummary",
+        "type": "object"
+      },
+      "ChangesRow": {
+        "additionalProperties": false,
+        "description": "One row of changes.parquet: a change-kind event from telemetry.events on the\nreference clock, with its scope, proximity to the target onset and\nchanged-vs-peer contrast (03 §5.2). Written by Causync.",
+        "properties": {
+          "change_id": {
+            "pattern": "^C[0-9a-f]{10}$",
+            "title": "Change Id",
+            "type": "string"
+          },
+          "delta_to_onset_ms": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta To Onset Ms"
+          },
+          "detail_json": {
+            "title": "Detail Json",
+            "type": "string"
+          },
+          "entity": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Entity",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "deploy",
+              "config",
+              "flag",
+              "scale",
+              "restart",
+              "k8s_event",
+              "commit",
+              "other"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "latest_before_onset": {
+            "title": "Latest Before Onset",
+            "type": "boolean"
+          },
+          "peer_contrast": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Peer Contrast"
+          },
+          "proximity": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Proximity",
+            "type": "number"
+          },
+          "scope": {
+            "enum": [
+              "service",
+              "component",
+              "cluster"
+            ],
+            "title": "Scope",
+            "type": "string"
+          },
+          "t_ns": {
+            "title": "T Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "change_id",
+          "t_ns",
+          "entity",
+          "kind",
+          "scope",
+          "detail_json",
+          "latest_before_onset",
+          "delta_to_onset_ms",
+          "proximity",
+          "peer_contrast"
+        ],
+        "title": "ChangesRow",
+        "type": "object"
+      },
+      "Claim": {
+        "additionalProperties": false,
+        "description": "A library predicate the proposer wants checked. The subject is implied\n(hypothesis.service for T10; every claim-pass pool candidate in FaultLoom's claim\npass).",
+        "properties": {
+          "args": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            },
+            "title": "Args",
+            "type": "object"
+          },
+          "cites": {
+            "items": {
+              "pattern": "^(E[0-9a-f]{10}|tc:[0-9]+)$",
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Cites",
+            "type": "array"
+          },
+          "claim_id": {
+            "pattern": "^P[0-9a-f]{8}-[1-9][0-9]*$",
+            "title": "Claim Id",
+            "type": "string"
+          },
+          "predicate": {
+            "enum": [
+              "zscore_above",
+              "onset_before",
+              "edge_anomalous",
+              "self_time_share_above",
+              "change_before_onset",
+              "template_new_in_incident",
+              "error_rate_above",
+              "silent",
+              "on_critical_path",
+              "peer_gap_above"
+            ],
+            "title": "Predicate",
+            "type": "string"
+          }
+        },
+        "required": [
+          "claim_id",
+          "predicate",
+          "args",
+          "cites"
+        ],
+        "title": "Claim",
+        "type": "object"
+      },
+      "Confidence": {
+        "additionalProperties": false,
+        "description": "Verdict confidence (03 §10, 09 §3.9); computed normally under NO_FAULT with\nset_size 0. Shared with card.confidence.",
+        "properties": {
+          "alpha": {
+            "title": "Alpha",
+            "type": "number"
+          },
+          "level": {
+            "enum": [
+              "high",
+              "medium",
+              "low",
+              "none"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "margin": {
+            "title": "Margin",
+            "type": "number"
+          },
+          "q_hat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q Hat"
+          },
+          "set_size": {
+            "minimum": 0.0,
+            "title": "Set Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "level",
+          "margin",
+          "alpha",
+          "q_hat",
+          "set_size"
+        ],
+        "title": "Confidence",
+        "type": "object"
+      },
+      "DatasetSummary": {
+        "additionalProperties": false,
+        "description": "`GET /datasets` (06 §3.2): a dataset this laptop knows and its case count.",
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "dataset": {
+            "title": "Dataset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "cases"
+        ],
+        "title": "DatasetSummary",
+        "type": "object"
+      },
+      "ErrorBody": {
+        "additionalProperties": false,
+        "description": "Every error response (06 §3.1).",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorBody",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "EvidencePage": {
+        "additionalProperties": false,
+        "description": "`GET /runs/{run_id}/evidence`: one page of evidence rows (03 §7) after the filters.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRow"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "EvidencePage",
+        "type": "object"
+      },
+      "EvidenceRow": {
+        "additionalProperties": false,
+        "description": "One row of evidence: an evidence atom for one candidate service, one kind and one\nset of defining arguments, with its value, window and source references. Produced\nby FaultLoom: engine atoms in the engine pass, claim_check and intervention atoms\nappended in the claim pass (03 §7, 06 §2.2, §3).",
+        "properties": {
+          "args_json": {
+            "title": "Args Json",
+            "type": "string"
+          },
+          "atom_id": {
+            "pattern": "^E[0-9a-f]{10}$",
+            "title": "Atom Id",
+            "type": "string"
+          },
+          "candidate": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Candidate",
+            "type": "string"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "holds": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Holds"
+          },
+          "kind": {
+            "enum": [
+              "internal_anomaly",
+              "external_anomaly",
+              "onset_precedence",
+              "propagation",
+              "change_proximity",
+              "peer_contrast",
+              "spectrum",
+              "critical_path_share",
+              "self_time_share",
+              "log_new_template",
+              "log_error_rate",
+              "silence",
+              "edge_gap",
+              "intervention",
+              "claim_check"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "origin": {
+            "enum": [
+              "engine",
+              "claim_check"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "predicate": {
+            "anyOf": [
+              {
+                "enum": [
+                  "zscore_above",
+                  "onset_before",
+                  "edge_anomalous",
+                  "self_time_share_above",
+                  "change_before_onset",
+                  "template_new_in_incident",
+                  "error_rate_above",
+                  "silent",
+                  "on_critical_path",
+                  "peer_gap_above"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Predicate"
+          },
+          "producer": {
+            "pattern": "^faultloom@\\S+$",
+            "title": "Producer",
+            "type": "string"
+          },
+          "refs": {
+            "items": {
+              "anyOf": [
+                {
+                  "pattern": "^[^|]+\\|[^|]+\\|[^|]+\\|[^|]+$",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^C[0-9a-f]{10}$",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^T[0-9a-f]{8}$",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*#[0-9a-f]{12}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "title": "Refs",
+            "type": "array"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          },
+          "window": {
+            "enum": [
+              "baseline",
+              "incident",
+              "onset"
+            ],
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "atom_id",
+          "candidate",
+          "component",
+          "kind",
+          "predicate",
+          "args_json",
+          "value",
+          "unit",
+          "window",
+          "refs",
+          "origin",
+          "holds",
+          "producer"
+        ],
+        "title": "EvidenceRow",
+        "type": "object"
+      },
+      "GraphEdgesRow": {
+        "additionalProperties": false,
+        "description": "One row of graph.edges: a caller -> callee edge of the dependency graph, merged\nby (src, dst) from traces, topology hints and log mentions, with its call share\nand incident anomaly flag. Produced by Causalith (03 §6.2, 05 §3.4); self-loops\nare dropped.",
+        "properties": {
+          "anomalous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anomalous"
+          },
+          "calls_incident": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calls Incident"
+          },
+          "dst": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Dst",
+            "type": "string"
+          },
+          "provenance": {
+            "items": {
+              "enum": [
+                "traces",
+                "topology",
+                "logs",
+                "metrics"
+              ],
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Provenance",
+            "type": "array"
+          },
+          "src": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Src",
+            "type": "string"
+          },
+          "weight": {
+            "title": "Weight",
+            "type": "number"
+          }
+        },
+        "required": [
+          "src",
+          "dst",
+          "provenance",
+          "calls_incident",
+          "weight",
+          "anomalous"
+        ],
+        "title": "GraphEdgesRow",
+        "type": "object"
+      },
+      "GraphNodesRow": {
+        "additionalProperties": false,
+        "description": "One row of graph.nodes: a node of the service dependency graph with its kind,\nentry flag and evidence sources. Produced by Causalith (03 §6.1, 05 §3.1-§3.3).",
+        "properties": {
+          "is_entry": {
+            "title": "Is Entry",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "service",
+              "db",
+              "cache",
+              "queue",
+              "external",
+              "entry"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "node": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Node",
+            "type": "string"
+          },
+          "provenance": {
+            "items": {
+              "enum": [
+                "traces",
+                "topology",
+                "logs",
+                "metrics"
+              ],
+              "type": "string"
+            },
+            "title": "Provenance",
+            "type": "array"
+          }
+        },
+        "required": [
+          "node",
+          "kind",
+          "is_entry",
+          "provenance"
+        ],
+        "title": "GraphNodesRow",
+        "type": "object"
+      },
+      "GraphPathsRow": {
+        "additionalProperties": false,
+        "description": "One row of graph.paths: one of the k best simple propagation paths from a\ncandidate node to an entry service, against the call direction. Produced by\nCausalith for every node that can reach an entry (03 §6.3, 05 §3.6).",
+        "properties": {
+          "anomalous_fraction": {
+            "title": "Anomalous Fraction",
+            "type": "number"
+          },
+          "candidate": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Candidate",
+            "type": "string"
+          },
+          "nodes": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9.-]*$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Nodes",
+            "type": "array"
+          },
+          "path_rank": {
+            "minimum": 1.0,
+            "title": "Path Rank",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "candidate",
+          "path_rank",
+          "nodes",
+          "anomalous_fraction"
+        ],
+        "title": "GraphPathsRow",
+        "type": "object"
+      },
+      "GraphView": {
+        "additionalProperties": false,
+        "description": "`GET /runs/{run_id}/graph`: the three graph tables (03 §6) as contract rows.",
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEdgesRow"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNodesRow"
+            },
+            "title": "Nodes",
+            "type": "array"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/GraphPathsRow"
+            },
+            "title": "Paths",
+            "type": "array"
+          }
+        },
+        "required": [
+          "nodes",
+          "edges",
+          "paths"
+        ],
+        "title": "GraphView",
+        "type": "object"
+      },
+      "Health": {
+        "additionalProperties": false,
+        "description": "`GET /api/v1/health` (06 §3.2).",
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/HealthAI"
+          },
+          "code_commit": {
+            "title": "Code Commit",
+            "type": "string"
+          },
+          "live": {
+            "$ref": "#/components/schemas/HealthLive"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "code_commit",
+          "ai",
+          "live"
+        ],
+        "title": "Health",
+        "type": "object"
+      },
+      "HealthAI": {
+        "additionalProperties": false,
+        "description": "AI defaults the console shows. `reachable` is null until the provider probe exists (X-04).",
+        "properties": {
+          "default_mode": {
+            "enum": [
+              "off",
+              "record",
+              "replay"
+            ],
+            "title": "Default Mode",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "reachable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reachable"
+          }
+        },
+        "required": [
+          "default_mode",
+          "provider",
+          "model",
+          "reachable"
+        ],
+        "title": "HealthAI",
+        "type": "object"
+      },
+      "HealthLive": {
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "receiving": {
+            "title": "Receiving",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "receiving"
+        ],
+        "title": "HealthLive",
+        "type": "object"
+      },
+      "Hypothesis": {
+        "additionalProperties": false,
+        "description": "Proposed root cause. service must be a graph.nodes.node (checked by Causentra as\nunknown_entity, not by this schema).",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "fault_class": {
+            "enum": [
+              "cpu",
+              "mem",
+              "disk",
+              "socket",
+              "delay",
+              "loss",
+              "error",
+              "exception",
+              "availability",
+              "config",
+              "dependency",
+              "unknown"
+            ],
+            "title": "Fault Class",
+            "type": "string"
+          },
+          "indicator": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cpu",
+                  "mem",
+                  "diskio",
+                  "socket",
+                  "latency",
+                  "error",
+                  "logs",
+                  "workload",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indicator"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "component",
+          "fault_class",
+          "indicator"
+        ],
+        "title": "Hypothesis",
+        "type": "object"
+      },
+      "Onsets": {
+        "additionalProperties": false,
+        "description": "Per-service external and internal onsets and the incident onset t_onset, written\nby Anomara as onsets.json (03 §4.2). Onsets are in source time; consumers add the\nalignment offset of the recorded *_onset_source (and service).",
+        "properties": {
+          "entry_services": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9.-]*$",
+              "type": "string"
+            },
+            "title": "Entry Services",
+            "type": "array"
+          },
+          "method": {
+            "enum": [
+              "second_external",
+              "single_external",
+              "t_alert_fallback"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "per_service": {
+            "items": {
+              "$ref": "#/components/schemas/OnsetsPerService"
+            },
+            "title": "Per Service",
+            "type": "array"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "slo_breach_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slo Breach Ns"
+          },
+          "t_onset_ns": {
+            "title": "T Onset Ns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "t_onset_ns",
+          "method",
+          "slo_breach_ns",
+          "entry_services",
+          "per_service"
+        ],
+        "title": "Onsets",
+        "type": "object"
+      },
+      "OnsetsPerService": {
+        "additionalProperties": false,
+        "description": "Onsets of one service; *_source and its onset are null together (enforced by the\nallOf below).",
+        "properties": {
+          "external_onset_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Onset Ns"
+          },
+          "external_onset_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "metrics",
+                  "logs",
+                  "traces"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Onset Source"
+          },
+          "internal_onset_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Onset Ns"
+          },
+          "internal_onset_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "metrics",
+                  "logs",
+                  "traces"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Internal Onset Source"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          },
+          "silent": {
+            "title": "Silent",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "service",
+          "external_onset_ns",
+          "external_onset_source",
+          "internal_onset_ns",
+          "internal_onset_source",
+          "silent"
+        ],
+        "title": "OnsetsPerService",
+        "type": "object"
+      },
+      "Proposal": {
+        "additionalProperties": false,
+        "description": "One hypothesis with the predicate claims and trials that would test it.\nproposal_id = P + first 8 hex of SHA-256(canonical_json({hypothesis, claims\nwithout claim_id})).",
+        "properties": {
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            },
+            "title": "Claims",
+            "type": "array"
+          },
+          "hypothesis": {
+            "$ref": "#/components/schemas/Hypothesis"
+          },
+          "proposal_id": {
+            "pattern": "^P[0-9a-f]{8}$",
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "rationale": {
+            "maxLength": 280,
+            "title": "Rationale",
+            "type": "string"
+          },
+          "requested_trials": {
+            "items": {
+              "enum": [
+                "T1",
+                "T2",
+                "T3",
+                "T4",
+                "T5",
+                "T6",
+                "T7",
+                "T8",
+                "T9",
+                "T10"
+              ],
+              "type": "string"
+            },
+            "maxItems": 4,
+            "title": "Requested Trials",
+            "type": "array"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "hypothesis",
+          "claims",
+          "requested_trials",
+          "rationale"
+        ],
+        "title": "Proposal",
+        "type": "object"
+      },
+      "ProposalAsk": {
+        "additionalProperties": false,
+        "description": "A request for more telemetry, a trial or context.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "telemetry",
+              "trial",
+              "context"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "target": {
+            "maxLength": 80,
+            "title": "Target",
+            "type": "string"
+          },
+          "why": {
+            "maxLength": 160,
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "why"
+        ],
+        "title": "ProposalAsk",
+        "type": "object"
+      },
+      "Proposals": {
+        "additionalProperties": false,
+        "description": "Hypotheses, predicate claims and trial requests proposed by Relentra (pipeline\nstep 7, AI on only), or submitted externally through the MCP verify_hypothesis\ntool (mode external). Proposals never decide: FaultLoom's claim pass re-evaluates\nevery claim for every claim-pass pool candidate, and Causentra reads the result\n(03 §9.1).",
+        "properties": {
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/ProposalAsk"
+            },
+            "maxItems": 3,
+            "title": "Asks",
+            "type": "array"
+          },
+          "budget_used": {
+            "$ref": "#/components/schemas/BudgetUsed"
+          },
+          "case_id": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "brief",
+              "investigate",
+              "external"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProposalsModel"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/Proposal"
+            },
+            "title": "Proposals",
+            "type": "array"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "complete",
+              "budget_exhausted",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "case_id",
+          "status",
+          "mode",
+          "model",
+          "budget_used",
+          "proposals",
+          "asks"
+        ],
+        "title": "Proposals",
+        "type": "object"
+      },
+      "ProposalsModel": {
+        "additionalProperties": false,
+        "description": "LLM provider, model identity and sampler parameters of the run (config/llm.yaml,\nconfig/relentra.yaml).",
+        "properties": {
+          "gguf_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gguf Sha256"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "params": {
+            "$ref": "#/components/schemas/SamplerParams"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "llamacpp",
+              "openai_compat",
+              "fake"
+            ],
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "name",
+          "gguf_sha256",
+          "params"
+        ],
+        "title": "ProposalsModel",
+        "type": "object"
+      },
+      "Receipt": {
+        "additionalProperties": false,
+        "description": "Verdict receipt (03 §11.2): an in-toto Statement v1 whose subject is verdict.json\nand whose predicate carries the run manifest, verdict_hash, card_hash and the\nagent-trace head, so `veyltrace replay` can re-check the verdict. Written by\nCausivra at step 10b as canonical JSON; it keeps the in-toto shape, so it has no\nschema_version and predicateType carries the version.",
+        "properties": {
+          "_type": {
+            "const": "https://in-toto.io/Statement/v1",
+            "title": "Type",
+            "type": "string"
+          },
+          "predicate": {
+            "$ref": "#/components/schemas/ReceiptPredicate"
+          },
+          "predicateType": {
+            "const": "https://veyltrace.dev/rca-verdict/v1",
+            "title": "Predicatetype",
+            "type": "string"
+          },
+          "subject": {
+            "items": {
+              "$ref": "#/components/schemas/ReceiptSubject"
+            },
+            "maxItems": 1,
+            "minItems": 1,
+            "title": "Subject",
+            "type": "array"
+          }
+        },
+        "required": [
+          "_type",
+          "subject",
+          "predicateType",
+          "predicate"
+        ],
+        "title": "Receipt",
+        "type": "object"
+      },
+      "ReceiptDigest": {
+        "additionalProperties": false,
+        "description": "Digest set of the subject file.",
+        "properties": {
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256"
+        ],
+        "title": "ReceiptDigest",
+        "type": "object"
+      },
+      "ReceiptPredicate": {
+        "additionalProperties": false,
+        "description": "What replay re-checks: the embedded run manifest and the three result hashes.",
+        "properties": {
+          "agent_trace_head": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent Trace Head"
+          },
+          "card_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Card Hash",
+            "type": "string"
+          },
+          "run_manifest": {
+            "$ref": "#/components/schemas/RunManifest"
+          },
+          "verdict_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Verdict Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_manifest",
+          "verdict_hash",
+          "card_hash",
+          "agent_trace_head"
+        ],
+        "title": "ReceiptPredicate",
+        "type": "object"
+      },
+      "ReceiptSubject": {
+        "additionalProperties": false,
+        "description": "The verdict file this receipt attests.",
+        "properties": {
+          "digest": {
+            "$ref": "#/components/schemas/ReceiptDigest"
+          },
+          "name": {
+            "const": "verdict.json",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "digest"
+        ],
+        "title": "ReceiptSubject",
+        "type": "object"
+      },
+      "ReplayReport": {
+        "additionalProperties": false,
+        "description": "`replay_report` (06 §3.2; 10 §3.9): the replay's state and exit code with its meaning\n(`veyltrace_core.errors.ReplayExit`, e.g. 0 ok, 2 hash_mismatch, 6 narrative_mismatch).",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "meaning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meaning"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "state",
+          "exit_code",
+          "meaning",
+          "error"
+        ],
+        "title": "ReplayReport",
+        "type": "object"
+      },
+      "Root": {
+        "additionalProperties": false,
+        "description": "Classification of the leader: copied from the slate entry for slate candidates,\nfrom Causatrix classify() for proposal-origin candidates (09 §3.9). Shared with\ncard.root.",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "fault_class": {
+            "enum": [
+              "cpu",
+              "mem",
+              "disk",
+              "socket",
+              "delay",
+              "loss",
+              "error",
+              "exception",
+              "availability",
+              "config",
+              "dependency",
+              "unknown"
+            ],
+            "title": "Fault Class",
+            "type": "string"
+          },
+          "indicator": {
+            "enum": [
+              "cpu",
+              "mem",
+              "diskio",
+              "socket",
+              "latency",
+              "error",
+              "logs",
+              "workload",
+              "unknown"
+            ],
+            "title": "Indicator",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "resource",
+              "network",
+              "code",
+              "change",
+              "dependency",
+              "unknown"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "component",
+          "indicator",
+          "fault_class",
+          "mode"
+        ],
+        "title": "Root",
+        "type": "object"
+      },
+      "RunManifest": {
+        "additionalProperties": false,
+        "description": "Provenance manifest of one finished run (03 §12): ids, code commit, environment,\nconfig/uv.lock/calibration hashes, input and output file hashes, AI provenance\nand per-step output hashes, with no timestamps or timings (P3). Written by core\nat the manifest step, after Causivra's card (10a) and before the receipt (10b),\nwhich embeds it.",
+        "properties": {
+          "ai": {
+            "$ref": "#/components/schemas/RunManifestAI"
+          },
+          "calibration_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Calibration Sha256",
+            "type": "string"
+          },
+          "case_id": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/RunManifestCode"
+          },
+          "config_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Config Sha256",
+            "type": "string"
+          },
+          "dataset": {
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+            "title": "Dataset",
+            "type": "string"
+          },
+          "env": {
+            "$ref": "#/components/schemas/RunManifestEnv"
+          },
+          "inputs": {
+            "items": {
+              "$ref": "#/components/schemas/RunManifestInput"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/RunManifestFile"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "run_id": {
+            "pattern": "^[0-9a-f]{16}(-x[0-9a-f]{12})?$",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RunManifestStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "uv_lock_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Uv Lock Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "run_id",
+          "case_id",
+          "dataset",
+          "code",
+          "env",
+          "config_sha256",
+          "uv_lock_sha256",
+          "calibration_sha256",
+          "inputs",
+          "outputs",
+          "ai",
+          "steps"
+        ],
+        "title": "RunManifest",
+        "type": "object"
+      },
+      "RunManifestAI": {
+        "additionalProperties": false,
+        "description": "AI provenance, merged by core from the ai_manifest of every engine that called an\nLLM (Relentra, Causivra). With mode off every other field is null (enforced by\nthe if/then below).",
+        "properties": {
+          "cassette_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cassette Sha256"
+          },
+          "gguf_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gguf Sha256"
+          },
+          "mode": {
+            "enum": [
+              "off",
+              "record",
+              "replay"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "prompt_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Sha256"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "schema_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schema Sha256"
+          }
+        },
+        "required": [
+          "mode",
+          "provider",
+          "model",
+          "gguf_sha256",
+          "prompt_sha256",
+          "schema_sha256",
+          "cassette_sha256"
+        ],
+        "title": "RunManifestAI",
+        "type": "object"
+      },
+      "RunManifestCode": {
+        "additionalProperties": false,
+        "description": "Code version the run executed.",
+        "properties": {
+          "commit": {
+            "title": "Commit",
+            "type": "string"
+          },
+          "dirty": {
+            "title": "Dirty",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "commit",
+          "dirty"
+        ],
+        "title": "RunManifestCode",
+        "type": "object"
+      },
+      "RunManifestEnv": {
+        "additionalProperties": false,
+        "description": "Runtime environment. Replay exit 5 compares Python major.minor and libs (with\nuv_lock_sha256); os is reported, never compared, so a Windows-recorded receipt\nreplays on Linux CI.",
+        "properties": {
+          "libs": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Libs",
+            "type": "object"
+          },
+          "os": {
+            "title": "Os",
+            "type": "string"
+          },
+          "python": {
+            "title": "Python",
+            "type": "string"
+          }
+        },
+        "required": [
+          "python",
+          "os",
+          "libs"
+        ],
+        "title": "RunManifestEnv",
+        "type": "object"
+      },
+      "RunManifestFile": {
+        "additionalProperties": false,
+        "description": "One file and the SHA-256 of its bytes.",
+        "properties": {
+          "name": {
+            "pattern": "^[^/\\\\]+(/[^/\\\\]+)*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "RunManifestFile",
+        "type": "object"
+      },
+      "RunManifestInput": {
+        "additionalProperties": false,
+        "description": "One raw case input copied from case_manifest.inputs: its name and the SHA-256 of\nits bytes.",
+        "properties": {
+          "name": {
+            "pattern": "^(metrics|logs|traces|events|overlay)/[^/]+$",
+            "title": "Name",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "RunManifestInput",
+        "type": "object"
+      },
+      "RunManifestStep": {
+        "additionalProperties": false,
+        "description": "One pipeline sub-step and the files it wrote.",
+        "properties": {
+          "name": {
+            "enum": [
+              "infralume",
+              "alert",
+              "signalyth",
+              "anomara",
+              "causync",
+              "causalith",
+              "faultloom",
+              "causatrix",
+              "relentra",
+              "faultloom.claim_pass",
+              "causentra",
+              "causivra.card",
+              "manifest",
+              "causivra.receipt"
+            ],
+            "title": "Name",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/RunManifestFile"
+            },
+            "title": "Outputs",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded",
+              "skipped",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "status",
+          "outputs"
+        ],
+        "title": "RunManifestStep",
+        "type": "object"
+      },
+      "RunRequest": {
+        "additionalProperties": false,
+        "description": "`POST /runs` body (06 §3.2).",
+        "properties": {
+          "ai_mode": {
+            "enum": [
+              "off",
+              "record",
+              "replay"
+            ],
+            "title": "Ai Mode",
+            "type": "string"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "dataset": {
+            "title": "Dataset",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataset",
+          "case_id",
+          "ai_mode"
+        ],
+        "title": "RunRequest",
+        "type": "object"
+      },
+      "RunStatus": {
+        "additionalProperties": false,
+        "description": "`run_status` (06 §3.2). `step` is core's step index (0-13), `step_name` its name.",
+        "properties": {
+          "ai_mode": {
+            "enum": [
+              "off",
+              "record",
+              "replay"
+            ],
+            "title": "Ai Mode",
+            "type": "string"
+          },
+          "case_id": {
+            "title": "Case Id",
+            "type": "string"
+          },
+          "dataset": {
+            "title": "Dataset",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "run_id": {
+            "title": "Run Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "step_name": {
+            "title": "Step Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "run_id",
+          "dataset",
+          "case_id",
+          "ai_mode",
+          "state",
+          "step",
+          "step_name",
+          "error"
+        ],
+        "title": "RunStatus",
+        "type": "object"
+      },
+      "SamplerParams": {
+        "additionalProperties": false,
+        "description": "Sampler parameters actually sent to the provider.",
+        "properties": {
+          "max_tokens": {
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "presence_penalty": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Penalty"
+          },
+          "seed": {
+            "exclusiveMaximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "temperature": {
+            "title": "Temperature",
+            "type": "number"
+          },
+          "thinking": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thinking"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K"
+          },
+          "top_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top P"
+          }
+        },
+        "required": [
+          "temperature",
+          "seed",
+          "top_k",
+          "top_p",
+          "presence_penalty",
+          "thinking",
+          "max_tokens"
+        ],
+        "title": "SamplerParams",
+        "type": "object"
+      },
+      "SignalCubeSeriesRow": {
+        "additionalProperties": false,
+        "description": "One point of a typed signal series (metric, trace or log derived), tagged with\nfamily and klass (03 §3.1). Written by Signalyth over the whole data range,\nindependent of alert windows.",
+        "properties": {
+          "component": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Component",
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "cpu",
+              "mem",
+              "disk",
+              "net",
+              "latency",
+              "errors",
+              "traffic",
+              "logs",
+              "self_time",
+              "other"
+            ],
+            "title": "Family",
+            "type": "string"
+          },
+          "klass": {
+            "enum": [
+              "internal",
+              "external",
+              "context"
+            ],
+            "title": "Klass",
+            "type": "string"
+          },
+          "series_id": {
+            "pattern": "^[^|]+\\|[^|]+\\|[^|]+\\|[^|]+$",
+            "title": "Series Id",
+            "type": "string"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          },
+          "signal": {
+            "pattern": "^[^|]+$",
+            "title": "Signal",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "metrics",
+              "logs",
+              "traces"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "t_ns": {
+            "title": "T Ns",
+            "type": "integer"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "value": {
+            "title": "Value",
+            "type": "number"
+          }
+        },
+        "required": [
+          "series_id",
+          "service",
+          "component",
+          "signal",
+          "family",
+          "klass",
+          "source",
+          "unit",
+          "t_ns",
+          "value"
+        ],
+        "title": "SignalCubeSeriesRow",
+        "type": "object"
+      },
+      "Slate": {
+        "additionalProperties": false,
+        "description": "Hypothesis slate written by Causatrix (pipeline step 6): the top-K root-cause\ncandidates from gated rank fusion of the active rankers, plus a fused score for\nevery service in the universe U. Read by Relentra and Causentra (03 §8).",
+        "properties": {
+          "all_scores": {
+            "items": {
+              "$ref": "#/components/schemas/SlateScore"
+            },
+            "title": "All Scores",
+            "type": "array"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/SlateCandidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
+          "case_id": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "fusion": {
+            "$ref": "#/components/schemas/SlateFusion"
+          },
+          "k": {
+            "title": "K",
+            "type": "integer"
+          },
+          "rankers_active": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Rankers Active",
+            "type": "array"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "case_id",
+          "k",
+          "rankers_active",
+          "fusion",
+          "candidates",
+          "all_scores"
+        ],
+        "title": "Slate",
+        "type": "object"
+      },
+      "SlateCandidate": {
+        "additionalProperties": false,
+        "description": "One top-K candidate with its classification (07 §3.5-§3.6) and per-ranker votes.",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "fault_class": {
+            "enum": [
+              "cpu",
+              "mem",
+              "disk",
+              "socket",
+              "delay",
+              "loss",
+              "error",
+              "exception",
+              "availability",
+              "config",
+              "dependency",
+              "unknown"
+            ],
+            "title": "Fault Class",
+            "type": "string"
+          },
+          "fused_score": {
+            "title": "Fused Score",
+            "type": "number"
+          },
+          "indicator": {
+            "enum": [
+              "cpu",
+              "mem",
+              "diskio",
+              "socket",
+              "latency",
+              "error",
+              "logs",
+              "workload",
+              "unknown"
+            ],
+            "title": "Indicator",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "resource",
+              "network",
+              "code",
+              "change",
+              "dependency",
+              "unknown"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "rank": {
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "ranker_ranks": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Ranker Ranks",
+            "type": "object"
+          },
+          "ranker_scores": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Ranker Scores",
+            "type": "object"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rank",
+          "service",
+          "component",
+          "indicator",
+          "mode",
+          "fault_class",
+          "fused_score",
+          "ranker_ranks",
+          "ranker_scores"
+        ],
+        "title": "SlateCandidate",
+        "type": "object"
+      },
+      "SlateFusion": {
+        "additionalProperties": false,
+        "description": "Fusion rule and its parameters. method rrf is the default; combsum_minmax and\nborda are ablations (07 §9).",
+        "properties": {
+          "k": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K"
+          },
+          "method": {
+            "enum": [
+              "rrf",
+              "combsum_minmax",
+              "borda"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "weights": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Weights",
+            "type": "object"
+          }
+        },
+        "required": [
+          "method",
+          "k",
+          "weights"
+        ],
+        "title": "SlateFusion",
+        "type": "object"
+      },
+      "SlateScore": {
+        "additionalProperties": false,
+        "description": "Fused score of one service in U.",
+        "properties": {
+          "fused_score": {
+            "title": "Fused Score",
+            "type": "number"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "fused_score"
+        ],
+        "title": "SlateScore",
+        "type": "object"
+      },
+      "Sources": {
+        "additionalProperties": false,
+        "description": "Per-source presence switches; shared by case_manifest.sources and Causatrix's\nSources type (contract_changes B).",
+        "properties": {
+          "events": {
+            "title": "Events",
+            "type": "boolean"
+          },
+          "logs": {
+            "title": "Logs",
+            "type": "boolean"
+          },
+          "metrics": {
+            "title": "Metrics",
+            "type": "boolean"
+          },
+          "traces": {
+            "title": "Traces",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "metrics",
+          "logs",
+          "traces",
+          "events"
+        ],
+        "title": "Sources",
+        "type": "object"
+      },
+      "Verdict": {
+        "additionalProperties": false,
+        "description": "The sealed RCA decision for one run: status, root, conformal candidate set, every\ndecision-pool candidate with its trial results, confidence, asks and proposal\noutcomes. Produced by Causentra (pipeline step 9); the only artifact that sets\nthe verdict.",
+        "properties": {
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictAsks"
+            },
+            "title": "Asks",
+            "type": "array"
+          },
+          "calibration": {
+            "$ref": "#/components/schemas/VerdictCalibration"
+          },
+          "candidate_set": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictCandidateSet"
+            },
+            "title": "Candidate Set",
+            "type": "array"
+          },
+          "case_id": {
+            "pattern": "^[0-9a-f]{12}$",
+            "title": "Case Id",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/Confidence"
+          },
+          "params_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Params Sha256",
+            "type": "string"
+          },
+          "proposals_accepted": {
+            "items": {
+              "pattern": "^P[0-9a-f]{8}$",
+              "type": "string"
+            },
+            "title": "Proposals Accepted",
+            "type": "array"
+          },
+          "proposals_rejected": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictProposalsRejected"
+            },
+            "title": "Proposals Rejected",
+            "type": "array"
+          },
+          "ranked": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictRanked"
+            },
+            "title": "Ranked",
+            "type": "array"
+          },
+          "ranks_rcaeval": {
+            "items": {
+              "pattern": "^[a-z0-9][a-z0-9.-]*_(cpu|mem|diskio|socket|latency|error|logs|workload|unknown)$",
+              "type": "string"
+            },
+            "title": "Ranks Rcaeval",
+            "type": "array"
+          },
+          "root": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Root"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "pattern": "^[0-9a-f]{16}(-x[0-9a-f]{12})?$",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "schema_version": {
+            "pattern": "^0\\.1\\.[0-9]+$",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "CONFIRMED",
+              "LIKELY",
+              "INCONCLUSIVE",
+              "NO_FAULT"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "verdict_hash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Verdict Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema_version",
+          "case_id",
+          "run_id",
+          "status",
+          "root",
+          "candidate_set",
+          "ranked",
+          "confidence",
+          "asks",
+          "ranks_rcaeval",
+          "proposals_accepted",
+          "proposals_rejected",
+          "calibration",
+          "params_sha256",
+          "verdict_hash"
+        ],
+        "title": "Verdict",
+        "type": "object"
+      },
+      "VerdictAsks": {
+        "additionalProperties": false,
+        "description": "`verdict` #/properties/asks/items.",
+        "properties": {
+          "kind": {
+            "enum": [
+              "telemetry",
+              "trial",
+              "context"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "target": {
+            "title": "Target",
+            "type": "string"
+          },
+          "why": {
+            "title": "Why",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "target",
+          "why"
+        ],
+        "title": "VerdictAsks",
+        "type": "object"
+      },
+      "VerdictCalibration": {
+        "additionalProperties": false,
+        "description": "The calibration used: its family id and the SHA-256 of the calibration file bytes\n(the same value as run_manifest.calibration_sha256), or family \"uncalibrated\"\nwith sha256 = sha256_json({\"family\": \"uncalibrated\"}) (09 §3.7, contract_changes\nB).",
+        "properties": {
+          "family": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9]+(-[a-z0-9]+)*\\.(off|brief|investigate|external)\\.(oracle|detected|live)\\.[A-Za-z0-9]+(-[A-Za-z0-9]+)*$",
+                "type": "string"
+              },
+              {
+                "const": "uncalibrated",
+                "type": "string"
+              }
+            ],
+            "title": "Family"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "family",
+          "sha256"
+        ],
+        "title": "VerdictCalibration",
+        "type": "object"
+      },
+      "VerdictCandidateSet": {
+        "additionalProperties": false,
+        "description": "`verdict` #/properties/candidate_set/items.",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "nonconformity": {
+            "title": "Nonconformity",
+            "type": "number"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          },
+          "v": {
+            "title": "V",
+            "type": "number"
+          }
+        },
+        "required": [
+          "service",
+          "component",
+          "v",
+          "nonconformity"
+        ],
+        "title": "VerdictCandidateSet",
+        "type": "object"
+      },
+      "VerdictProposalsRejected": {
+        "additionalProperties": false,
+        "description": "`verdict` #/properties/proposals_rejected/items.",
+        "properties": {
+          "proposal_id": {
+            "pattern": "^P[0-9a-f]{8}$",
+            "title": "Proposal Id",
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "unknown_entity",
+              "unknown_predicate",
+              "bad_args",
+              "claim_false",
+              "trial_failed",
+              "budget"
+            ],
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposal_id",
+          "reason"
+        ],
+        "title": "VerdictProposalsRejected",
+        "type": "object"
+      },
+      "VerdictRanked": {
+        "additionalProperties": false,
+        "description": "`verdict` #/properties/ranked/items.",
+        "properties": {
+          "component": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9.-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "fault_class": {
+            "enum": [
+              "cpu",
+              "mem",
+              "disk",
+              "socket",
+              "delay",
+              "loss",
+              "error",
+              "exception",
+              "availability",
+              "config",
+              "dependency",
+              "unknown"
+            ],
+            "title": "Fault Class",
+            "type": "string"
+          },
+          "fused_score": {
+            "title": "Fused Score",
+            "type": "number"
+          },
+          "indicator": {
+            "enum": [
+              "cpu",
+              "mem",
+              "diskio",
+              "socket",
+              "latency",
+              "error",
+              "logs",
+              "workload",
+              "unknown"
+            ],
+            "title": "Indicator",
+            "type": "string"
+          },
+          "nonconformity": {
+            "title": "Nonconformity",
+            "type": "number"
+          },
+          "origin": {
+            "enum": [
+              "slate",
+              "proposal"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "rank": {
+            "minimum": 1.0,
+            "title": "Rank",
+            "type": "integer"
+          },
+          "service": {
+            "pattern": "^[a-z0-9][a-z0-9.-]*$",
+            "title": "Service",
+            "type": "string"
+          },
+          "trials": {
+            "items": {
+              "$ref": "#/components/schemas/VerdictRankedTrials"
+            },
+            "title": "Trials",
+            "type": "array"
+          },
+          "v": {
+            "title": "V",
+            "type": "number"
+          }
+        },
+        "required": [
+          "rank",
+          "service",
+          "component",
+          "indicator",
+          "fault_class",
+          "v",
+          "nonconformity",
+          "fused_score",
+          "origin",
+          "trials"
+        ],
+        "title": "VerdictRanked",
+        "type": "object"
+      },
+      "VerdictRankedTrials": {
+        "additionalProperties": false,
+        "description": "`verdict` #/properties/ranked/items/properties/trials/items.",
+        "properties": {
+          "atoms": {
+            "items": {
+              "pattern": "^E[0-9a-f]{10}$",
+              "type": "string"
+            },
+            "title": "Atoms",
+            "type": "array"
+          },
+          "id": {
+            "enum": [
+              "T1",
+              "T2",
+              "T3",
+              "T4",
+              "T5",
+              "T6",
+              "T7",
+              "T8",
+              "T9",
+              "T10"
+            ],
+            "title": "Id",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z_]+(:[A-Za-z0-9_.,-]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "result": {
+            "enum": [
+              "pass",
+              "fail",
+              "untestable"
+            ],
+            "title": "Result",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "result",
+          "reason",
+          "atoms"
+        ],
+        "title": "VerdictRankedTrials",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "Veyltrace gateway",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/cases": {
+      "get": {
+        "operationId": "list_cases_api_v1_cases_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dataset",
+            "required": true,
+            "schema": {
+              "title": "Dataset",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 1000,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CasePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Cases"
+      }
+    },
+    "/api/v1/cases/{dataset}/{case_id}": {
+      "get": {
+        "operationId": "get_case_api_v1_cases__dataset___case_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dataset",
+            "required": true,
+            "schema": {
+              "title": "Dataset",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "case_id",
+            "required": true,
+            "schema": {
+              "title": "Case Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Case"
+      }
+    },
+    "/api/v1/datasets": {
+      "get": {
+        "operationId": "list_datasets_api_v1_datasets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DatasetSummary"
+                  },
+                  "title": "Response List Datasets Api V1 Datasets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Datasets"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "operationId": "get_health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Health"
+      }
+    },
+    "/api/v1/runs": {
+      "get": {
+        "operationId": "list_runs_api_v1_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dataset",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dataset"
+            }
+          },
+          {
+            "in": "query",
+            "name": "case_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Case Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/RunStatus"
+                  },
+                  "title": "Response List Runs Api V1 Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Runs"
+      },
+      "post": {
+        "operationId": "post_run_api_v1_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "the run already exists"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Post Run"
+      }
+    },
+    "/api/v1/runs/{run_id}": {
+      "get": {
+        "operationId": "get_run_api_v1_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Run"
+      }
+    },
+    "/api/v1/runs/{run_id}/agent-trace": {
+      "get": {
+        "operationId": "get_agent_trace_api_v1_runs__run_id__agent_trace_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentTrace"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Agent Trace"
+      }
+    },
+    "/api/v1/runs/{run_id}/alert": {
+      "get": {
+        "operationId": "get_alert_api_v1_runs__run_id__alert_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Alert"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Alert"
+      }
+    },
+    "/api/v1/runs/{run_id}/card": {
+      "get": {
+        "operationId": "get_card_api_v1_runs__run_id__card_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Card"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Card"
+      }
+    },
+    "/api/v1/runs/{run_id}/card.md": {
+      "get": {
+        "operationId": "get_card_md_api_v1_runs__run_id__card_md_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/markdown": {}
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Card Md"
+      }
+    },
+    "/api/v1/runs/{run_id}/changes": {
+      "get": {
+        "operationId": "get_changes_api_v1_runs__run_id__changes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ChangesRow"
+                  },
+                  "title": "Response Get Changes Api V1 Runs  Run Id  Changes Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Changes"
+      }
+    },
+    "/api/v1/runs/{run_id}/events": {
+      "get": {
+        "operationId": "run_events_api_v1_runs__run_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Run Events"
+      }
+    },
+    "/api/v1/runs/{run_id}/evidence": {
+      "get": {
+        "operationId": "get_evidence_api_v1_runs__run_id__evidence_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "candidate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Candidate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "origin",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Origin"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidencePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Evidence"
+      }
+    },
+    "/api/v1/runs/{run_id}/evidence/{atom_id}": {
+      "get": {
+        "operationId": "get_atom_api_v1_runs__run_id__evidence__atom_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "atom_id",
+            "required": true,
+            "schema": {
+              "title": "Atom Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceRow"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Atom"
+      }
+    },
+    "/api/v1/runs/{run_id}/graph": {
+      "get": {
+        "operationId": "get_graph_api_v1_runs__run_id__graph_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphView"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Graph"
+      }
+    },
+    "/api/v1/runs/{run_id}/onsets": {
+      "get": {
+        "operationId": "get_onsets_api_v1_runs__run_id__onsets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Onsets"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Onsets"
+      }
+    },
+    "/api/v1/runs/{run_id}/proposals": {
+      "get": {
+        "operationId": "get_proposals_api_v1_runs__run_id__proposals_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Proposals"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Proposals"
+      }
+    },
+    "/api/v1/runs/{run_id}/receipt": {
+      "get": {
+        "operationId": "get_receipt_api_v1_runs__run_id__receipt_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Receipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Receipt"
+      }
+    },
+    "/api/v1/runs/{run_id}/replay": {
+      "get": {
+        "operationId": "get_replay_api_v1_runs__run_id__replay_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Replay"
+      },
+      "post": {
+        "operationId": "post_replay_api_v1_runs__run_id__replay_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReplayReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Post Replay"
+      }
+    },
+    "/api/v1/runs/{run_id}/run-manifest": {
+      "get": {
+        "operationId": "get_run_manifest_api_v1_runs__run_id__run_manifest_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Run Manifest"
+      }
+    },
+    "/api/v1/runs/{run_id}/series": {
+      "get": {
+        "operationId": "get_series_api_v1_runs__run_id__series_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "service",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Service"
+            }
+          },
+          {
+            "in": "query",
+            "name": "signal",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Signal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SignalCubeSeriesRow"
+                  },
+                  "title": "Response Get Series Api V1 Runs  Run Id  Series Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Series"
+      }
+    },
+    "/api/v1/runs/{run_id}/slate": {
+      "get": {
+        "operationId": "get_slate_api_v1_runs__run_id__slate_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Slate"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Slate"
+      }
+    },
+    "/api/v1/runs/{run_id}/verdict": {
+      "get": {
+        "operationId": "get_verdict_api_v1_runs__run_id__verdict_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Verdict"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Verdict"
+      }
+    }
+  }
+}
