@@ -70,6 +70,9 @@ def test_synth_alignment_reports_no_skew() -> None:
         assert alignment.reference == "traces"
         assert all(o.offset_ns == 0 for o in alignment.offsets)  # the generator plants none
         assert alignment.tolerance_ns > 0
+        logged = sorted(o.service for o in alignment.offsets if o.source == "logs" and o.service)
+        assert logged  # synth log lines carry span ids: one log_span_join row per logging service
+        assert all(o.method == "log_span_join" for o in alignment.offsets if o.source == "logs")
         keys = [(o.source, o.service is not None, o.service or "") for o in alignment.offsets]
         assert keys == sorted(keys)  # (source, service) with the source-level row first
 

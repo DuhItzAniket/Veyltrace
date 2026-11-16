@@ -34,6 +34,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--data-root", type=Path, default=None, help="default: $VEYLTRACE_DATA")
     args = ap.parse_args(argv)
     root = args.data_root.resolve() if args.data_root else data_root()
+    if any((p / ".git").exists() for p in (root, *root.parents)):  # as data_root() refuses (#225)
+        print(f"package: {root} is inside a git work tree; packaged data may not go there", file=sys.stderr)
+        return 2
     pins = load_pins()
     replacements = host_replacements()
     rows: list[AnswerKeyRow] = []
