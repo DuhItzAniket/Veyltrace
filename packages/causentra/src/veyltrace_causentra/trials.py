@@ -2,7 +2,8 @@
 
 Each trial returns `pass`, `fail` or `untestable` with a 09 §3.4 reason and the atom ids it used;
 T1–T4 apply to every candidate. They are declared under the entry-point
-group `veyltrace.trials` (09 §5). Until R-12 evaluates T5–T10, `pending()` writes only the
+group `veyltrace.trials` (09 §5). T10 is `decision.claim_check` (proposal origin only). Until
+R-12 evaluates T5–T9, `pending()` writes only the
 `untestable` results an existence fact fixes (as the R-00 stub did); those are supporting trials,
 whose untestable factor is 1.0, so they never move V.
 """

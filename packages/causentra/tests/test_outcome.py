@@ -14,7 +14,7 @@ from hypothesis import strategies as st
 
 from veyltrace_causatrix.views import Atom, evidence_view, graph_view
 from veyltrace_causentra.config import config_from
-from veyltrace_causentra.decision import Candidate, Decision, decide
+from veyltrace_causentra.decision import Candidate, Decision, claim_key, decide
 from veyltrace_causentra.inputs import CausentraInputs, Claim, load_inputs
 from veyltrace_causentra.outcome import (
     NO_EVIDENCE_WHY,
@@ -176,7 +176,11 @@ def _decisions(draw: st.DrawFn) -> Decision:
         trials = tuple(TrialResult(t, *draw(_RESULTS), ()) for t in ("T1", "T2", "T3", "T4"))
         if draw(st.booleans()):
             trials += (TrialResult("T6", "untestable", "no_events", ()),)
-        ranked.append(_c(s, draw(st.sampled_from([0.0, 0.5, 1.0])), trials))
+        origin = draw(st.sampled_from(["slate", "proposal"]))
+        t10 = draw(st.sampled_from([None, ("pass", None), ("fail", "claim_false:P00000001-1")]))
+        if origin == "proposal" and t10 is not None:  # T10 is written for proposal origin only
+            trials += (TrialResult("T10", *t10, ()),)
+        ranked.append(replace(_c(s, draw(st.sampled_from([0.0, 0.5, 1.0])), trials), origin=origin))
     ranked.sort(key=lambda c: -c.v)
     leader = bool(ranked) and ranked[0].v > 0
     members = draw(st.integers(1 if leader else 0, len(ranked)))
@@ -187,12 +191,12 @@ def _true(ask: dict[str, str], d: Decision, inp: CausentraInputs, status: str) -
     """The 09 §3.11 row whose template produced `ask` really holds for d and inp."""
     k, t, w, top = ask["kind"], ask["target"], ask["why"], d.leader
     trials = {(x.id, x.result, x.reason) for x in top.trials} if top else set()
-    if m := re.fullmatch(r"mandatory trial (T\d) (failed|untestable): (\w+)", w):
+    if m := re.fullmatch(r"mandatory trial (T\d+) (failed|untestable): (\S+)", w):
         res = "fail" if m[2] == "failed" else "untestable"
         return (
             top is not None and (k, t) == ("trial", f"{m[1]}:{top.service}") and (m[1], res, m[3]) in trials
         )
-    if m := re.fullmatch(r"(T\d) untestable without (\w+)", w):
+    if m := re.fullmatch(r"(T\d+) untestable without (\w+)", w):
         return (k, t) == ("telemetry", m[2]) and any(
             (i, r) == (m[1], "untestable") and SOURCE_OF_REASON.get(why or "") == m[2] for i, r, why in trials
         )
@@ -333,3 +337,63 @@ def test_a_claim_validate_rejects_is_bad_args(base: CausentraInputs) -> None:
     ):
         case = replace(inp, proposals=proposals)
         assert proposal_outcomes(decide(case, CFG), case, CFG) == outcome
+
+
+def test_t10_is_mandatory_for_proposal_origin_only(base: CausentraInputs) -> None:
+    # 09 §3.4 (#226): with T1–T4 passed and no T10 pass, a proposal-origin leader is not
+    # confirmable; a slate leader with the same trials is (ranker origin never needs T10).
+    b, t10 = _c("b", 0.6), TrialResult("T10", "pass", None, ())
+    proposed = replace(_c("a", 1.0), origin="proposal")
+    false = replace(proposed, trials=(*OK4, TrialResult("T10", "fail", "claim_false:P00000001-1", ())))
+    assert status_of(_d([_c("a", 1.0), b], 1, 0.4), False, CFG) == ("CONFIRMED", "high")
+    assert status_of(_d([proposed, b], 1, 0.4), False, CFG) == ("INCONCLUSIVE", "low")
+    assert status_of(_d([replace(proposed, trials=(*OK4, t10)), b], 1, 0.4), False, CFG)[0] == "CONFIRMED"
+    assert status_of(_d([false, b], 1, 0.4), False, CFG) == ("INCONCLUSIVE", "low")
+    assert asks(_d([false, b], 1, 0.4), "INCONCLUSIVE", base, CFG)[0]["target"] == "T10:a"  # priority 1
+    assert status_of(_d([proposed, b], 1, 0.4), False, replace(CFG, disabled=("T10",)))[0] == "CONFIRMED"
+
+
+def test_t10_outcomes_through_decide(base: CausentraInputs) -> None:
+    # c enters the pool on its holding `silent` claim; a second claim decides T10 and the outcome
+    # (09 §3.4, §3.10 rows 4–6). Proposal P2 names slate member a: a never gets a T10 (02 §6.9 step 3).
+    atoms = [_z(s, "internal_anomaly", z) for s, z in (("a", 9.0), ("b", 1.0), ("c", 5.0))]
+    inp = replace(
+        _with(base, atoms, slate=_slate({"a": 0.05, "b": 0.04, "c": 0.01}, 1)),
+        graph_nodes=frozenset({"a", "b", "c"}),
+    )
+    plain = _proposals("complete", ("P00000001", "c"), ("P00000002", "a"))
+    zscore = (
+        plain.proposals[0]
+        .claims[0]
+        .model_copy(
+            update={"claim_id": "P00000001-2", "predicate": "zscore_above", "args": {"k": 4, "signal": "cpu"}}
+        )
+    )
+    zkey = claim_key(zscore, inp.domain)
+    assert zkey is not None
+    invalid = zscore.model_copy(update={"args": {"k": 4, "signal": "cpu", "subject": "c"}})
+    silent = (
+        Claim("E00000000a2", "c", "silent", "{}", True),
+        Claim("E00000000a3", "a", "silent", "{}", False),
+    )
+    for second, z_holds, t10, outcome in (
+        (None, None, ("pass", None), "accepted"),
+        (zscore, True, ("pass", None), "accepted"),
+        (zscore, None, ("untestable", "claim_unevaluable"), "accepted"),
+        (zscore, False, ("fail", "claim_false:P00000001-2"), "trial_failed"),
+        (invalid, None, ("fail", "claim_invalid:P00000001-2"), "trial_failed"),
+    ):
+        first = plain.proposals[0]
+        claims = [*first.claims, *([second] if second else [])]
+        props = plain.model_copy(
+            update={"proposals": [first.model_copy(update={"claims": claims}), plain.proposals[1]]}
+        )
+        found = () if z_holds is None else (Claim("E00000000a4", "c", "zscore_above", zkey, z_holds),)
+        case = replace(inp, proposals=props, claims=(*silent, *found))
+        d = decide(case, CFG)
+        by = {c.service: c for c in d.ranked}
+        assert (by["c"].origin, [t.id for t in by["a"].trials if t.id == "T10"]) == ("proposal", [])
+        assert (by["c"].trials[-1].id, by["c"].trials[-1].result, by["c"].trials[-1].reason) == ("T10", *t10)
+        accepted, rejected = proposal_outcomes(d, case, CFG)
+        assert "P00000002" not in accepted  # its claim on a is false and a is a slate candidate
+        assert ("accepted" if accepted == ["P00000001"] else rejected[0]["reason"]) == outcome

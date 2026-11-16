@@ -50,6 +50,10 @@ def test_09_3_14_arithmetic() -> None:
     assert round(1 - b / verified(1.0, passes, 0.0, CFG), 9) == 0.1375  # the same case with AI off
     assert trial_factor([_tr("T1", "fail")], CFG) == 0.25
     assert trial_factor([_tr("T1", "fail")], replace(CFG, disabled=("T1",))) == 1.0
+    # T10 is mandatory for proposal origin only (09 §3.4, #226); slate candidates never write it.
+    t10 = [_tr("T10", "fail")], [_tr("T10", "untestable")]
+    assert [trial_factor(t, CFG, "proposal") for t in t10] == [0.25, 0.85]
+    assert [trial_factor(t, CFG, "slate") for t in t10] == [0.9, 1.0]
 
 
 def _claim(cand: str, predicate: str, holds: bool | None, args: str = "{}") -> Claim:
