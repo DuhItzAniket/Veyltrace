@@ -76,10 +76,22 @@ def test_fake_variant_matches_golden(tmp_path: Path) -> None:
 
 
 def test_slate_with_candidates_reports_brief_mode_missing(tmp_path: Path) -> None:
+    # Builds its own one-candidate slate: the synth fixture slate is empty once #164 lands (R4, #227).
     run_dir = _fake_dir(tmp_path)
     slate = io.read_model("slate", run_dir, models.Slate)
-    if not slate.candidates:  # pragma: no cover - synth-01 has a non-empty universe
-        pytest.skip("slate fixture has no candidates")
+    candidate = models.SlateCandidate(
+        rank=1,
+        service="payment",
+        component=None,
+        indicator="cpu",
+        mode="resource",
+        fault_class="cpu",
+        fused_score=1.0,
+        ranker_ranks={},
+        ranker_scores={},
+    )
+    io.write("slate", slate.model_copy(update={"candidates": [candidate]}), run_dir)
+    assert io.read_model("slate", run_dir, models.Slate).candidates
     assert REASON_NOT_BUILT in api.run(_fake_ctx(run_dir)).notes
 
 

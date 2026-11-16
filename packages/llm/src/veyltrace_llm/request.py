@@ -23,6 +23,7 @@ from veyltrace_core.hashing import is_sha256, sha256_bytes
 
 __all__ = [
     "ERROR_KINDS",
+    "NULLABLE_PARAMS",
     "PARAM_NAMES",
     "PROVIDERS",
     "REQUEST_VERSION",
@@ -43,12 +44,14 @@ REQUEST_VERSION: Final = 1
 PROVIDERS: Final = ("ollama", "llamacpp", "openai_compat", "fake")
 Role = Literal["system", "user", "assistant"]
 ROLES: Final[tuple[str, ...]] = get_args(Role)
-#: Sampler parameters a request may carry (08 §5.2 canonical request; 03 §9.1 model.params).
+#: Sampler parameters of every request (08 §5.2 canonical request; 03 §9.1 model.params). In 03,
+#: `?` means required and nullable: all seven keys are always present, and the key covers all seven.
 PARAM_NAMES: Final = frozenset(
     {"temperature", "top_p", "top_k", "presence_penalty", "seed", "max_tokens", "thinking"}
 )
-#: The ones 03 §9.1 requires in proposals.model.params, so every request carries them.
-REQUIRED_PARAMS: Final = frozenset({"temperature", "seed", "max_tokens"})
+REQUIRED_PARAMS: Final = PARAM_NAMES
+#: The `?` params of 03 §9.1 SamplerParams: null means "not sent", so the runtime's default applies.
+NULLABLE_PARAMS: Final = frozenset({"top_p", "top_k", "presence_penalty", "thinking"})
 _INT_PARAMS: Final = frozenset({"top_k", "seed", "max_tokens"})
 #: 03 §9.1: seed is an integer in [0, 2^31 - 1).
 SEED_LIMIT: Final = 2**31 - 1
@@ -62,9 +65,32 @@ ErrorKind = Literal["connection", "timeout", "http", "bad_response", "unscripted
 ERROR_KINDS: Final[tuple[str, ...]] = get_args(ErrorKind)
 
 
+#: Any run of CRs before a LF is one line break (D1 (a) on #227). Idempotent, so normalising
+#: twice keeps the key: "a\r\r\nb" becomes "a\nb", not "a\r\nb".
+_CRLF_RE: Final = re.compile(r"\r+\n")
+
+
 def _lf(text: str) -> str:
-    """CRLF → LF, so a Windows checkout hashes prompts identically (08 §3.5)."""
-    return text.replace("\r\n", "\n")
+    """CR…CRLF → LF, so a Windows checkout hashes prompts identically (08 §3.5)."""
+    return _CRLF_RE.sub("\n", text)
+
+
+def _freeze(value: Any) -> Any:
+    """A read-only view of plain JSON: mappings become MappingProxyType, lists tuples, at every depth."""
+    if isinstance(value, dict):
+        return MappingProxyType({k: _freeze(v) for k, v in cast(dict[str, Any], value).items()})
+    if isinstance(value, list):
+        return tuple(_freeze(v) for v in cast(list[Any], value))
+    return value
+
+
+def _thaw(value: Any) -> Any:
+    """The inverse of _freeze: a fresh plain-JSON copy the caller may change."""
+    if isinstance(value, MappingProxyType):
+        return {k: _thaw(v) for k, v in cast(Mapping[str, Any], value).items()}
+    if isinstance(value, tuple):
+        return [_thaw(v) for v in cast(tuple[Any, ...], value)]
+    return value
 
 
 @dataclass(frozen=True)
@@ -113,12 +139,14 @@ def _check_params(params: Mapping[str, Any]) -> dict[str, Any]:
         raise ValueError(msg)
     missing = sorted(REQUIRED_PARAMS - set(params))
     if missing:
-        msg = f"sampler params {missing} are required (03 §9.1 model.params)"
+        msg = f"sampler params {missing} are required, null where 03 §9.1 allows it (model.params)"
         raise ValueError(msg)
     out: dict[str, Any] = {}
     for name in sorted(params):
         value: object = params[name]
-        if name == "thinking":
+        if value is None:
+            ok = name in NULLABLE_PARAMS
+        elif name == "thinking":
             ok = isinstance(value, bool)
         elif name in _INT_PARAMS:
             ok = isinstance(value, int) and not isinstance(value, bool) and value >= 0
@@ -156,9 +184,13 @@ class LLMRequest:
         object.__setattr__(self, "messages", messages)
         object.__setattr__(self, "params", MappingProxyType(_check_params(self.params)))
         if self.schema is not None:
-            # A plain-JSON private copy: rejects non-JSON values early; later edits cannot move the key.
-            frozen = cast(dict[str, Any], normalize(dict(self.schema)))
-            object.__setattr__(self, "schema", MappingProxyType(frozen))
+            # A deep read-only copy of the plain JSON: rejects non-JSON values early, and no edit of
+            # the caller's dict, or of this view at any depth, can move the key.
+            object.__setattr__(self, "schema", _freeze(normalize(dict(self.schema))))
+
+    def schema_json(self) -> dict[str, Any] | None:
+        """A fresh plain-dict copy of the schema, for a provider body (editing it changes nothing)."""
+        return None if self.schema is None else cast(dict[str, Any], _thaw(self.schema))
 
     def canonical(self) -> dict[str, Any]:
         """The JSON object whose canonical bytes are hashed into the key."""
@@ -167,7 +199,7 @@ class LLMRequest:
             "purpose": self.purpose,
             "model": self.model.as_json(),
             "messages": [m.as_json() for m in self.messages],
-            "schema": None if self.schema is None else dict(self.schema),
+            "schema": self.schema_json(),
             "params": dict(self.params),
         }
 
@@ -232,7 +264,9 @@ class Completion:
     """One provider outcome: exactly one of `content` and `error` is set.
 
     `latency_ms` is measured by the provider (FakeProvider reports a fixed value) and stored in the
-    cassette before the completion is returned, so budgets replay exactly (08 §5.1 rule 1).
+    cassette before the completion is returned, so budgets replay exactly (08 §5.1 rule 1). It is
+    rounded here with canonical JSON's float rule (9 decimals), so the completion record mode
+    returns equals the one replay reads back from the cassette.
     """
 
     content: str | None
@@ -252,7 +286,7 @@ class Completion:
         if not math.isfinite(latency) or latency < 0:
             msg = f"latency_ms must be finite and >= 0, got {latency!r}"
             raise ValueError(msg)
-        object.__setattr__(self, "latency_ms", float(latency))
+        object.__setattr__(self, "latency_ms", cast(float, normalize(float(latency))))
 
     @property
     def ok(self) -> bool:
