@@ -5,6 +5,7 @@ from __future__ import annotations
 import http.client
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -21,7 +22,15 @@ from veyltrace_llm.request import LLMRequest, Message, ModelId, Usage
 from veyltrace_llm.settings import LLMSettings, settings_from
 from veyltrace_llm.transport import HttpResponse, HttpTransport, TransportError
 
-PARAMS = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5, "seed": 5, "max_tokens": 99}
+PARAMS = {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "presence_penalty": 1.5,
+    "seed": 5,
+    "max_tokens": 99,
+    "thinking": None,
+}
 SCHEMA = {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}
 
 
@@ -43,6 +52,8 @@ class FakeTransport:
     def __init__(self, *answers: HttpResponse | TransportError) -> None:
         self.answers = list(answers)
         self.sent: list[tuple[str, str, Any, Mapping[str, str]]] = []
+        self.timeouts: list[tuple[float, float]] = []
+        self.version_answers: list[HttpResponse | TransportError] = []
 
     def request(
         self,
@@ -55,7 +66,13 @@ class FakeTransport:
         timeout_s: float,
     ) -> HttpResponse:
         self.sent.append((method, route, None if body is None else json.loads(body), dict(headers)))
+        self.timeouts.append((connect_timeout_s, timeout_s))
         if route == "/api/version":
+            if self.version_answers:
+                version = self.version_answers.pop(0)
+                if isinstance(version, TransportError):
+                    raise version
+                return version
             return HttpResponse(200, b'{"version": "0.12.3"}')
         answer = self.answers.pop(0)
         if isinstance(answer, TransportError):
@@ -103,6 +120,17 @@ def test_payload_maps_the_canonical_request() -> None:
     }
 
 
+def test_null_params_are_not_sent() -> None:
+    # 03 §9.1 nullable params: null means the runtime's default, so the option is left out.
+    transport = FakeTransport(_ok())
+    OllamaProvider(_settings(), transport).complete(
+        _request(top_p=None, top_k=None, presence_penalty=None, thinking=None)
+    )
+    body = transport.sent[0][2]
+    assert "think" not in body
+    assert sorted(body["options"]) == ["num_ctx", "num_predict", "seed", "temperature"]
+
+
 def test_response_maps_to_a_completion_without_server_timestamps() -> None:
     completion = OllamaProvider(_settings(), FakeTransport(_ok())).complete(_request())
     assert completion.ok and completion.content == '{"x": 1}'
@@ -134,6 +162,31 @@ def test_failures_are_outcomes_not_exceptions(answer: HttpResponse | TransportEr
     completion = OllamaProvider(_settings(), FakeTransport(answer)).complete(_request())
     assert completion.error is not None and completion.error.kind == kind
     assert completion.content is None and completion.usage == Usage(0, 0)
+
+
+def test_configured_timeouts_reach_the_transport() -> None:
+    transport = FakeTransport(_ok())
+    settings = replace(_settings(), connect_timeout_s=3.0, timeout_s=77.0)
+    OllamaProvider(settings, transport).complete(_request())
+    assert transport.timeouts and set(transport.timeouts) == {(3.0, 77.0)}  # chat and version GET
+
+
+def test_version_is_asked_again_after_a_transport_error_or_5xx() -> None:
+    transport = FakeTransport(_ok(), _ok(), _ok(), _ok())
+    transport.version_answers = [TransportError("connection", "starting"), HttpResponse(503, b"")]
+    provider = OllamaProvider(_settings(), transport)
+    versions = [provider.complete(_request()).runtime.version for _ in range(4)]
+    assert versions == [None, None, "0.12.3", "0.12.3"]  # latched after the 2xx
+    assert [s[1] for s in transport.sent].count("/api/version") == 3
+
+
+def test_version_is_latched_after_a_4xx() -> None:
+    transport = FakeTransport(_ok(), _ok(), _ok())
+    transport.version_answers = [HttpResponse(404, b"")]  # no such route: asking again cannot help
+    provider = OllamaProvider(_settings(), transport)
+    versions = [provider.complete(_request()).runtime.version for _ in range(3)]
+    assert versions == [None, None, None]
+    assert [s[1] for s in transport.sent].count("/api/version") == 1
 
 
 def test_no_retry_after_a_failure() -> None:

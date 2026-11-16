@@ -19,7 +19,15 @@ from veyltrace_llm.request import LLMRequest, Message, ModelId, Usage
 from veyltrace_llm.settings import LLMSettings, settings_from
 from veyltrace_llm.transport import HttpResponse
 
-PARAMS = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5, "seed": 5, "max_tokens": 99}
+PARAMS = {
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "presence_penalty": 1.5,
+    "seed": 5,
+    "max_tokens": 99,
+    "thinking": None,
+}
 SCHEMA = {"type": "object", "properties": {"x": {"type": "integer"}}, "required": ["x"]}
 OK = {
     "choices": [{"message": {"role": "assistant", "content": '{"x": 2}'}}],
@@ -101,6 +109,19 @@ def test_openai_compat_payload_sends_only_standard_fields() -> None:
         "json_schema": {"name": "causivra_narrate", "schema": SCHEMA, "strict": True},
     }
     assert "Authorization" not in headers
+
+
+@pytest.mark.parametrize("kind", ["llamacpp", "openai_compat"])
+def test_null_params_are_not_sent(kind: str) -> None:
+    transport = Recorder()
+    cls = LlamaCppProvider if kind == "llamacpp" else OpenAICompatProvider
+    cls(_settings(kind), transport).complete(
+        _request(top_p=None, top_k=None, presence_penalty=None, thinking=None)
+    )
+    body = next(s for s in transport.sent if s[0] == "POST")[2]
+    sampler = {"temperature", "top_p", "top_k", "presence_penalty", "seed", "max_tokens"}
+    assert sorted(sampler & set(body)) == ["max_tokens", "seed", "temperature"]
+    assert "chat_template_kwargs" not in body
 
 
 def test_api_key_comes_from_the_environment_and_is_never_recorded(tmp_path: Path) -> None:

@@ -63,6 +63,16 @@ def test_bad_values_are_config_errors(dotted: str, value: object) -> None:
         settings_from(section, env={})
 
 
+@pytest.mark.parametrize("provider", ["llamacpp", "openai_compat"])
+def test_chat_completions_base_url_must_not_end_in_v1(provider: str) -> None:
+    # The route is /v1/chat/completions, so .../v1 would call /v1/v1/... (#150).
+    for url in ("http://127.0.0.1:8080/v1", "http://127.0.0.1:8080/v1/"):
+        with pytest.raises(ConfigError, match="/v1"):
+            settings_from({**_section(), "provider": provider, "base_url": url}, env={})
+    assert settings_from({**_section(), "provider": provider, "base_url": "http://127.0.0.1:8080"}, env={})
+    assert settings_from({**_section(), "base_url": "http://127.0.0.1:11434/v1"}, env={})  # ollama: /api/chat
+
+
 def test_missing_key_is_a_config_error() -> None:
     section = _section()
     del section["request"]["timeout_s"]
@@ -97,6 +107,12 @@ def test_loopback_urls_pass(url: str) -> None:
         "http://127.0.0.1/?q=1",
         "127.0.0.1:11434",
         "http://127.0.0.1:99999",
+        # Bypasses Lakshanaa tried on #146; all must stay refused.
+        "http://127.0.0.1@evil.com",  # the "loopback" part is a user name
+        "http://localhost.:11434",  # trailing dot: a different name, not resolved
+        "http://127.0.0.1.:11434",
+        "http://[::ffff:127.0.0.1]:11434",  # IPv4-mapped IPv6 is not one of the three hosts
+        "http://127.0.0.1:11434/#frag",
     ],
 )
 def test_remote_or_malformed_urls_are_refused(url: str) -> None:
