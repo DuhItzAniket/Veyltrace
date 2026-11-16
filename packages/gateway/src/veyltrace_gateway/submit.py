@@ -1,5 +1,6 @@
-"""`POST /runs` and the run event stream (06 §3.2). The run id is known first (02 §4.1): a finished
-run is 200, a queued or running one 202; replay without a record run's cassette is 409."""
+"""`POST /runs` and the run event stream (06 §3.2). The run id is known first (02 §4.1): a queued or
+running job is 202 (the same job for a repeated request), a finished run 200; replay without a
+finished record run's cassette is 409. "Finished" means the run has its receipt (`finished_run`)."""
 
 # No `from __future__ import annotations`: FastAPI reads the route annotations at creation.
 import asyncio
@@ -13,12 +14,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from veyltrace_core.config import data_root
 from veyltrace_core.ids import is_case_id, is_run_id
-from veyltrace_core.pipeline import CASSETTE_DIR, find_run, run_dir_for
+from veyltrace_core.pipeline import CASSETTE_DIR, is_finished, run_dir_for
 from veyltrace_gateway.api_models import RunRequest
 from veyltrace_gateway.cases import check_dataset
 from veyltrace_gateway.errors import ApiError
 from veyltrace_gateway.jobs import Job, JobRunner
-from veyltrace_gateway.runs import finished_status, job_status
+from veyltrace_gateway.runs import finished_run, finished_status, job_status
 from veyltrace_gateway.settings import GatewaySettings
 
 __all__ = ["submit_router"]
@@ -39,13 +40,16 @@ def submit_router(settings: GatewaySettings, runs_root: Path, runner: JobRunner)
         if not is_case_id(request.case_id):
             raise ApiError(404, "case_not_found", f"{request.case_id!r} is not a case id")
         rid = runner.plan_run_id(request.case_id, request.ai_mode, request.dataset)
-        found = find_run(rid, runs_root)
+        pending = runner.get(rid)
+        if pending is not None and pending.state in ("queued", "running"):
+            return JSONResponse(job_status(pending).model_dump(mode="json"), status_code=202)
+        found = finished_run(runs_root, rid)
         if found is not None:
             return JSONResponse(finished_status(found).model_dump(mode="json"), status_code=200)
         if request.ai_mode == "replay":
             record = runner.plan_run_id(request.case_id, "record", request.dataset)
-            cassette = run_dir_for(runs_root, request.dataset, request.case_id, record) / CASSETTE_DIR
-            if not cassette.is_dir():
+            record_dir = run_dir_for(runs_root, request.dataset, request.case_id, record)
+            if not (is_finished(record_dir) and (record_dir / CASSETTE_DIR).is_dir()):
                 raise ApiError(409, "no_cassette", "replay needs a finished record run of this case")
         job = runner.submit(request.dataset, request.case_id, request.ai_mode, rid)
         return JSONResponse(job_status(job).model_dump(mode="json"), status_code=202)
@@ -53,7 +57,7 @@ def submit_router(settings: GatewaySettings, runs_root: Path, runner: JobRunner)
     @router.get("/runs/{run_id}/events", response_class=StreamingResponse)
     async def run_events(run_id: str) -> StreamingResponse:
         job = runner.get(run_id) if is_run_id(run_id) else None
-        if job is None and find_run(run_id, runs_root) is None:
+        if job is None and finished_run(runs_root, run_id) is None:
             raise ApiError(404, "run_not_found", f"no run {run_id!r}")
         return StreamingResponse(_events(job, settings.events_poll_s), media_type="text/event-stream")
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -120,6 +121,48 @@ def test_a_failing_run_is_reported_and_can_be_queued_again(
     assert runner.submit("synth", CASE, "off", rid) is not job  # a failed job may be queued again
     status, body = _call(app, "GET", "/api/v1/runs/0123456789abcdef/events")
     assert (status, json.loads(body)["error"]["code"]) == (404, "run_not_found")
+
+
+def test_a_repeated_post_while_running_returns_the_same_job(
+    setup: tuple[Any, JobRunner, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """06 §3.2: a repeated request gets the same job (#281 review). The run directory exists from
+    the run's first step, long before its receipt, so it must not be taken for a finished run."""
+    app, runner, root = setup
+    started, release = threading.Event(), threading.Event()
+    request = {"dataset": "synth", "case_id": CASE, "ai_mode": "off"}
+    rid = runner.plan_run_id(CASE, "off", "synth")
+
+    def slow(dataset: str, case_id: str, *args: object, **kwargs: object) -> None:
+        (root / dataset / case_id / rid).mkdir(parents=True)  # what run_case writes first
+        started.set()
+        release.wait(WAIT_S)
+        raise RuntimeError("stopped by the test")
+
+    monkeypatch.setattr(jobs, "run_case", slow)
+    status, body = _call(app, "POST", "/api/v1/runs", request)
+    assert (status, json.loads(body)["run_id"]) == (202, rid) and started.wait(WAIT_S)
+    try:
+        status, body = _call(app, "POST", "/api/v1/runs", request)
+        assert (status, json.loads(body)["run_id"], json.loads(body)["state"]) == (202, rid, "running")
+        assert json.loads(_call(app, "GET", f"/api/v1/runs/{rid}")[1])["state"] == "running"
+        assert len(runner.jobs()) == 1  # no second job was queued
+    finally:
+        release.set()
+    job = runner.get(rid)
+    assert job is not None and job.finished.wait(WAIT_S)
+
+
+def test_a_run_dir_without_a_receipt_is_not_a_finished_run(setup: tuple[Any, JobRunner, Path]) -> None:
+    """A crashed run, or one another process is still writing, leaves `<run_id>/` without
+    `receipt.json`: no route may report it as done or serve its files (06 §3.1)."""
+    app, _, root = setup
+    rid = "0123456789abcdef"
+    (root / "synth" / CASE / rid).mkdir(parents=True)
+    for url in (f"/api/v1/runs/{rid}", f"/api/v1/runs/{rid}/verdict", f"/api/v1/runs/{rid}/events"):
+        status, body = _call(app, "GET", url)
+        assert (status, json.loads(body)["error"]["code"]) == (404, "run_not_found"), url
+    assert json.loads(_call(app, "GET", "/api/v1/runs")[1]) == []
 
 
 @pytest.mark.parametrize(

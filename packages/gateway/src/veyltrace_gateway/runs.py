@@ -6,8 +6,11 @@ after `veyltrace_core.io` has checked the contract version, so a response can ne
 file a receipt hashes (06 §3.1: contract objects unchanged). Table artifacts come back as rows of
 the generated contract models; the gateway adds only envelopes (pages, chain check).
 
-A run is found by `veyltrace_core.pipeline.find_run`, which validates the 16-hex run id before it
-touches the filesystem and never returns a partial run (06 §3.1; gateway rule 5).
+A run is found by `finished_run`: `veyltrace_core.pipeline.find_run` validates the 16-hex run id
+before it touches the filesystem and skips `~` partial runs (06 §3.1; gateway rule 5), and
+`is_finished` then requires the receipt, the last file a run writes. A full run's directory exists
+from its first step, so without the receipt check a run still being written, or one that crashed,
+would be served as finished.
 """
 
 # No `from __future__ import annotations`: FastAPI resolves the `limit` annotation, which uses the
@@ -43,7 +46,7 @@ from veyltrace_gateway.errors import ApiError
 from veyltrace_gateway.jobs import Job, JobRunner
 from veyltrace_gateway.settings import GatewaySettings
 
-__all__ = ["CARD_MD", "JSON_ARTIFACTS", "finished_status", "job_status", "run_router"]
+__all__ = ["CARD_MD", "JSON_ARTIFACTS", "finished_run", "finished_status", "job_status", "run_router"]
 
 #: JSON artifact routes of 06 §3.2: path segment -> contract name.
 JSON_ARTIFACTS: Final[Mapping[str, str]] = {
@@ -61,8 +64,14 @@ CARD_MD: Final = "card.md"
 _JSON: Final = "application/json"
 
 
-def _run_dir(root: Path, run_id: str) -> Path:
+def finished_run(root: Path, run_id: str) -> Path | None:
+    """The directory of the finished run `run_id` (it has its receipt), else None."""
     found = find_run(run_id, root)
+    return found if found is not None and is_finished(found) else None
+
+
+def _run_dir(root: Path, run_id: str) -> Path:
+    found = finished_run(root, run_id)
     if found is None:
         raise ApiError(404, "run_not_found", f"no finished run {run_id!r}")
     return found
