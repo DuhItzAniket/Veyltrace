@@ -123,6 +123,70 @@ def test_next_steps_fill_the_root(
     assert all("{" not in s["text"] for s in steps)
 
 
+_TELEMETRY = "Collect the telemetry named in the asks."
+_TRIAL = "Check the trials named in the asks (failed or untestable)."
+_CONTEXT = "Inspect the named service, or the ranked slate, around the incident onset."
+_INCONC_TAIL = [
+    "Inspect each member of the candidate set.",
+    "Run the diagnosis again once the asks are answered.",
+]
+
+
+def _inconclusive_steps(
+    make_verdict: MakeVerdict,
+    scenario: SimpleNamespace,
+    settings: CardSettings,
+    asks: list[tuple[models.AskKind, str]],
+) -> list[str]:
+    verdict = make_verdict("INCONCLUSIVE", False).model_copy(
+        update={"asks": [models.VerdictAsks(kind=k, target=t, why="why") for k, t in asks]}
+    )
+    steps = next_steps(verdict, _ctx(verdict, scenario, settings), load_playbooks())
+    assert {s["playbook_id"] for s in steps} == {"PB-INCONC-01"}
+    return [s["text"] for s in steps]
+
+
+def test_inconclusive_first_steps_follow_each_ask_kind_in_ask_order(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    # 10 §3.6: one line per ask kind present, in first-occurrence order; a repeated kind adds none.
+    asks: list[tuple[models.AskKind, str]] = [
+        ("context", "slate"),
+        ("telemetry", "events"),
+        ("trial", "T6"),
+        ("telemetry", "logs"),
+    ]
+    texts = _inconclusive_steps(make_verdict, scenario, card_settings, asks)
+    assert texts == [_CONTEXT, _TELEMETRY, _TRIAL, *_INCONC_TAIL]
+
+
+def test_a_context_only_inconclusive_shows_only_the_context_step(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    # Asks rows 6b and 7 (09 §3.11, #204) are context asks: no telemetry or trial advice.
+    texts = _inconclusive_steps(make_verdict, scenario, card_settings, [("context", "slate")])
+    assert texts == [_CONTEXT, *_INCONC_TAIL]
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        [{"ask_kind": "logs", "text": "Collect the logs."}],
+        [{"ask_kind": "trial"}],
+        [{"ask_kind": "trial", "text": "Check the trials.", "extra": "x"}],
+        [{"ask_kind": "trial", "text": "Check the trials."}, {"ask_kind": "trial", "text": "Again."}],
+    ],
+)
+def test_a_bad_ask_tied_step_is_a_config_error(tmp_path: Path, steps: list[object]) -> None:
+    path = tmp_path / "playbooks.yaml"
+    path.write_text(
+        json.dumps({"playbooks": [{"id": "PB-INCONC-01", "fault_classes": [], "steps": steps}]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match=r"ask.kind"):
+        load_playbooks(path)
+
+
 def _kinds(scenario: SimpleNamespace) -> dict[str, str]:
     return {r["atom_id"]: r["kind"] for r in scenario.evidence}
 

@@ -49,7 +49,7 @@ cart → checkout → frontend
 
 ## Next steps
 
-- Collect the telemetry named in the asks. (PB-INCONC-01)
+- Check the trials named in the asks (failed or untestable). (PB-INCONC-01)
 - Inspect each member of the candidate set. (PB-INCONC-01)
 - Run the diagnosis again once the asks are answered. (PB-INCONC-01)
 
@@ -58,5 +58,5 @@ prose: template
 ---
 
 verdict_hash: `b473724165dc132daf6e02bef0f015efb7c21790bf5d21bc4b4fef220c81d8c6`  
-card_hash: `bc29707d1a5482f907aee0031f3d8dd26a66798aea1674588ee06472f8f74173`  
+card_hash: `cef383c8c34dfd7dc9eccdea6c68407bf306a7c40ff38c472b0c77e0fdc900ff`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

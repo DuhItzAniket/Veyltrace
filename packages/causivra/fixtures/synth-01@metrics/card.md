@@ -52,6 +52,7 @@ none
 ## Next steps
 
 - Collect the telemetry named in the asks. (PB-INCONC-01)
+- Check the trials named in the asks (failed or untestable). (PB-INCONC-01)
 - Inspect each member of the candidate set. (PB-INCONC-01)
 - Run the diagnosis again once the asks are answered. (PB-INCONC-01)
 
@@ -60,5 +61,5 @@ prose: template
 ---
 
 verdict_hash: `c3d176860d0c82287a1a5ebaa6abcd636756401e45548d9fa28bf331d57e8887`  
-card_hash: `a4cfddba55a2a941fed1c734bfe521059ad857c976810147c6e82e4996c9c173`  
+card_hash: `0a602b7d20d64b596977ebc668eb76941cf0b70813ffd1f96ccddf717a2ecb92`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

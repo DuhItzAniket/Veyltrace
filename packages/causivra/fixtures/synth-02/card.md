@@ -52,7 +52,8 @@ recommend → frontend
 
 ## Next steps
 
-- Collect the telemetry named in the asks. (PB-INCONC-01)
+- Check the trials named in the asks (failed or untestable). (PB-INCONC-01)
+- Inspect the named service, or the ranked slate, around the incident onset. (PB-INCONC-01)
 - Inspect each member of the candidate set. (PB-INCONC-01)
 - Run the diagnosis again once the asks are answered. (PB-INCONC-01)
 
@@ -61,5 +62,5 @@ prose: template
 ---
 
 verdict_hash: `1a3a258dcf72ee41945fbd4456d4f103f84df74b573c748e1ce5b22a7cccded1`  
-card_hash: `d71e77d238e8c20d55b78b4baa050e455e3f0f0404478d97994205da01adc47e`  
+card_hash: `43e9411d01073c8d8ce739d0888933952b3ffef5d3024c895f9b4851d5f90f07`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
