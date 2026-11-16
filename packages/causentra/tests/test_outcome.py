@@ -176,7 +176,11 @@ def _decisions(draw: st.DrawFn) -> Decision:
         trials = tuple(TrialResult(t, *draw(_RESULTS), ()) for t in ("T1", "T2", "T3", "T4"))
         if draw(st.booleans()):
             trials += (TrialResult("T6", "untestable", "no_events", ()),)
-        ranked.append(_c(s, draw(st.sampled_from([0.0, 0.5, 1.0])), trials))
+        origin = draw(st.sampled_from(["slate", "proposal"]))
+        t10 = draw(st.sampled_from([None, ("pass", None), ("fail", "claim_false:P00000001-1")]))
+        if origin == "proposal" and t10 is not None:  # T10 is written for proposal origin only
+            trials += (TrialResult("T10", *t10, ()),)
+        ranked.append(replace(_c(s, draw(st.sampled_from([0.0, 0.5, 1.0])), trials), origin=origin))
     ranked.sort(key=lambda c: -c.v)
     leader = bool(ranked) and ranked[0].v > 0
     members = draw(st.integers(1 if leader else 0, len(ranked)))
@@ -187,12 +191,12 @@ def _true(ask: dict[str, str], d: Decision, inp: CausentraInputs, status: str) -
     """The 09 §3.11 row whose template produced `ask` really holds for d and inp."""
     k, t, w, top = ask["kind"], ask["target"], ask["why"], d.leader
     trials = {(x.id, x.result, x.reason) for x in top.trials} if top else set()
-    if m := re.fullmatch(r"mandatory trial (T\d) (failed|untestable): (\w+)", w):
+    if m := re.fullmatch(r"mandatory trial (T\d+) (failed|untestable): (\S+)", w):
         res = "fail" if m[2] == "failed" else "untestable"
         return (
             top is not None and (k, t) == ("trial", f"{m[1]}:{top.service}") and (m[1], res, m[3]) in trials
         )
-    if m := re.fullmatch(r"(T\d) untestable without (\w+)", w):
+    if m := re.fullmatch(r"(T\d+) untestable without (\w+)", w):
         return (k, t) == ("telemetry", m[2]) and any(
             (i, r) == (m[1], "untestable") and SOURCE_OF_REASON.get(why or "") == m[2] for i, r, why in trials
         )
