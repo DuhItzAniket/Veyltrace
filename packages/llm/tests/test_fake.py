@@ -8,7 +8,15 @@ from veyltrace_llm.errors import ProviderError, ProviderTimeout, ProviderUnavail
 from veyltrace_llm.fake import DEFAULT_LATENCY_MS, DEFAULT_USAGE, FakeProvider, FakeReply
 from veyltrace_llm.request import ErrorKind, LLMRequest, Message, ModelId, Usage
 
-PARAMS = {"temperature": 0.7, "seed": 7, "max_tokens": 32}
+PARAMS = {
+    "temperature": 0.7,
+    "seed": 7,
+    "max_tokens": 32,
+    "top_p": None,
+    "top_k": None,
+    "presence_penalty": None,
+    "thinking": None,
+}
 
 
 def _req(purpose: str = "relentra.brief", text: str = "q") -> LLMRequest:
@@ -32,7 +40,8 @@ def test_by_key_wins_over_purpose_and_counts_per_key() -> None:
     # The purpose counter advanced too, so the next plain call gets the second purpose reply.
     assert fake.complete(_req()).content == "p2"
     # The key script is used up; the purpose script is too: unscripted.
-    assert fake.complete(special).error is not None
+    leftover = fake.complete(special).error
+    assert leftover is not None and leftover.kind == "unscripted"
 
 
 def test_default_reply_and_responder() -> None:

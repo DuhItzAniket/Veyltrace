@@ -94,6 +94,7 @@ __all__ = [
     "execute",
     "find_run",
     "is_finished",
+    "plan_run_id",
     "run_case",
     "run_dir_for",
     "runs_root",
@@ -853,6 +854,32 @@ def _prepare(run: _Run) -> None:
     run.prior = _prior_records(source, run_dir, earlier, plan.ai_mode)
 
 
+def _run_id_of(plan: RunPlan, case_id: str, config_sha256: str, commit: str) -> str:
+    """The run id rule of 02 §4.1, in one place: the plan's fixed id (replay of a receipt, D-4), else
+    `ids.run_id` over (case, config lock hash, code commit, AI mode), derived once more for a run
+    with external proposals (an MCP `verify_hypothesis` run)."""
+    if plan.run_id:
+        return plan.run_id
+    rid = make_run_id(case_id, config_sha256, commit, plan.ai_mode)
+    if plan.external_proposals is not None:
+        rid = derived_run_id(rid, plan.external_proposals)
+    return rid
+
+
+def plan_run_id(
+    dataset: str, case: str, ai_mode: AIMode = "off", overrides: Mapping[str, Any] | None = None, **plan: Any
+) -> str:
+    """The run id `run_case` with the same arguments will use, without running or writing anything.
+
+    Why: callers that queue runs (the gateway's `POST /runs`, 06 §3.2) need the id first to stay
+    idempotent, and must not copy the rule. Raises what `execute` raises before any step (UsageError,
+    ConfigError) for a bad plan; resolving a case name reads the dataset index, as `execute` does.
+    """
+    p = RunPlan(dataset=dataset, case=case, ai_mode=ai_mode, overrides=overrides or {}, **plan)
+    commit, _ = _code(p)
+    return _run_id_of(p, _case_id(p), sha256_bytes(_resolve(p).lock_bytes()), commit)
+
+
 def execute(plan: RunPlan, *, progress: Callable[[StepEvent], None] | None = None) -> RunSummary:
     """Run `plan` and return its summary (see the module docstring for the run-dir rules).
 
@@ -866,9 +893,7 @@ def execute(plan: RunPlan, *, progress: Callable[[StepEvent], None] | None = Non
     commit, dirty = _code(plan)
     config_bytes = resolved.lock_bytes()
     config_sha = sha256_bytes(config_bytes)
-    rid = plan.run_id or make_run_id(case_id, config_sha, commit, plan.ai_mode)
-    if plan.external_proposals is not None and plan.run_id is None:
-        rid = derived_run_id(rid, plan.external_proposals)
+    rid = _run_id_of(plan, case_id, config_sha, commit)
     root = plan.runs_root
     if root is None and (plan.out_dir is None or (plan.ai_mode == "replay" and plan.cassette_dir is None)):
         root = runs_root(resolved)

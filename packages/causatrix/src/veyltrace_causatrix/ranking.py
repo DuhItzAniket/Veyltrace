@@ -5,8 +5,9 @@ scores are not constant over U (`abstain_on_constant`: a constant vote carries n
 Ranks are competition ranks on `round(x, 12)`: tied services share a rank, no name leaks in.
 
 Rankers are declared under the entry-point group `veyltrace.rankers` (bench enumerates them).
-Engines may not import importlib.metadata (02 §9), so the engine resolves a name to
-`veyltrace_causatrix.rankers.<name>.RANKER`; a test pins each entry point to exactly that object.
+Engines may not import importlib.metadata (`AST_EXTRA_BANNED` in tests/test_isolation.py), so the
+engine resolves a name to `veyltrace_causatrix.rankers.<name>.RANKER`; a test pins each entry point
+to exactly that object.
 """
 
 from __future__ import annotations
@@ -77,6 +78,9 @@ def load_ranker(name: str) -> Ranker:
         msg = f"ranker name {name!r} is not lower snake case"
         raise ConfigError(msg)
     try:
+        # A computed name, so the AST isolation scan (string-literal imports only) cannot follow it.
+        # _RANKER_NAME above limits it to a module under veyltrace_causatrix.rankers, which the scan
+        # covers as part of this package.
         module = importlib.import_module(module_name)
     except ModuleNotFoundError as exc:
         if exc.name != module_name:
