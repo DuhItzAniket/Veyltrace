@@ -286,6 +286,14 @@ Query rules: exactly one statement (checked with DuckDB's statement extraction);
 | seed | derived | derived | derived | first integer in [0, 2³¹−1) from `veyltrace_core.rng(case_id, "relentra.seed/<seed_index>")` |
 | max_tokens | 1,024 | 384 per turn | 256 | |
 
+**Provider differences.** Every request carries all seven sampler params, and the cassette key
+and `proposals.model.params` record them as configured. A null param is not sent to any
+provider. The `openai_compat` provider also never sends `top_k` or `thinking`, because the
+OpenAI chat-completions API has neither, so on that provider the record names two settings the
+server did not receive. Use `ollama` or `llamacpp` for scored runs. `base_url` is the server
+root for every provider; one ending in `/v1` is refused for `llamacpp` and `openai_compat`, whose
+route already starts with `/v1`.
+
 Bench varies `sampler.seed_index` (0…4) through config, so each seed gets its own `config_sha256` and therefore its own `run_id`.
 
 ### 3.9 Agent-only baseline (evaluation only)
