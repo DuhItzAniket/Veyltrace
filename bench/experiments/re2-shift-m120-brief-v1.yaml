@@ -1,0 +1,21 @@
+# Pre-registered (04 §1): RE2 × onset shift -120 s for veyltrace:brief (04 §6 M4 "subset") on the
+# 90-case subset (bench/re2_investigate_cases.yaml, the only subset 04 §6 defines); compared with
+# re2-oracle-rq2-v1's brief rows of the same case ids and seeds. RQ4, estimation only.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: re2-shift-m120-brief-v1
+description: "RQ4: onset shift -120 s for veyltrace:brief on the RE2 subset"
+prereg: true
+rq: [RQ4]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: bench/re2_investigate_cases.yaml, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: -120, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}

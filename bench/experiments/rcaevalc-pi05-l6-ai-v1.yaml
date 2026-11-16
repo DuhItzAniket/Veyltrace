@@ -1,0 +1,24 @@
+# Pre-registered (04 §1): RCAEval-C × decoy grid, π = 0.5, λ = 6/h, AI arms of 04 §6 (M4):
+# veyltrace:brief and agent-only:brief, 3 seeds; the deterministic arms of this cell are in
+# rcaevalc-pi05-l6-v1. RQ4 H4c for the AI arms, estimation only.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: rcaevalc-pi05-l6-ai-v1
+description: "RQ4: RCAEval-C decoy grid pi=0.5, rate=6/h; veyltrace:brief and agent-only:brief"
+prereg: true
+rq: [RQ4]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: {pi: 0.5, rate_per_h: 6, window_s: [-1800, 300]},
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+  - id: "agent-only:brief"
+    kind: agent_only
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
