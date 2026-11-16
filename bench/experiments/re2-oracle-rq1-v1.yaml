@@ -1,0 +1,61 @@
+# Pre-registered (04 §1; frozen at tag prereg-v1): the 04 §6 cell RE2 × oracle for the M2 columns,
+# i.e. the reproduced simple baselines (04 §4), each Causatrix ranker alone and the fused slate
+# (`causatrix:rrf`, 07 §9), and the AI-off pipeline. RQ1 confirmatory analysis (04 §2): H1a
+# non-inferiority of veyltrace:off vs the best simple baseline per RE2 system (unadjusted 95% CI),
+# H1b pooled superiority and SC-3(c) per-system superiority (Holm family rq1), H1c Retrieval@5 per
+# system. The baselines run here again, on the same evaluation cases (development cases excluded),
+# because 04 §2 picks the best simple baseline on these cases; R-05's all-case run is not reused.
+# Omitted fields take the defaults cited in veyltrace_bench/experiment.py. Changes only via 04 §12.
+experiment_id: re2-oracle-rq1-v1
+description: "RQ1: veyltrace:off, Causatrix rankers alone + rrf, and simple baselines on RE2, oracle alert"
+prereg: true
+rq: [RQ1]
+dataset:
+  parts: [re2-ob, re2-ss, re2-tt]
+  cases: all
+  exclude: bench/dev_cases.yaml   # 04 §1: development cases are in no test table
+  normal_windows: none            # normal windows are the RQ3 experiment's (04 §5.4)
+split:
+  # No folds: AC@k reads verdict.ranks_rcaeval, which no calibration changes (04 §7 "AC@k ignores
+  # status"), so the RQ1 accuracy cells need no cross-fit. prior-only, which does, has its own file
+  # (re2-oracle-prior-only-v1).
+  scheme: none
+protocol:
+  alert: oracle                   # 04 §5.1: the default for every table
+  shift_s: 0
+  sources_drop: []
+  decoys: null
+  anonymize_services: false
+  inject_proposals: null
+  permute_proposals: null
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  # 04 §4, 07 §9: the fused slate without the verifier, then every ranker of config/causatrix.yaml
+  # rankers.enabled alone (sorted by name).
+  - {id: "causatrix:rrf", kind: causatrix}
+  - {id: "causatrix:baro_rs", kind: causatrix, overrides: {causatrix.rankers.enabled: [baro_rs]}}
+  - {id: "causatrix:change_prox", kind: causatrix, overrides: {causatrix.rankers.enabled: [change_prox]}}
+  - {id: "causatrix:cp_sbfl", kind: causatrix, overrides: {causatrix.rankers.enabled: [cp_sbfl]}}
+  - {id: "causatrix:graph_walk", kind: causatrix, overrides: {causatrix.rankers.enabled: [graph_walk]}}
+  - {id: "causatrix:nsigma", kind: causatrix, overrides: {causatrix.rankers.enabled: [nsigma]}}
+  - {id: "causatrix:prism_m", kind: causatrix, overrides: {causatrix.rankers.enabled: [prism_m]}}
+  # The simple baselines of H1a/H1b (04 §2); length 20 is RCAEval main.py's default (R-05).
+  - {id: "rcaeval:baro", kind: rcaeval, rcaeval: {method: baro, length: 20}}
+  - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
+  - {id: "simplerca", kind: internal_baseline}
+calibration: {fit: false}
+# chance is the analytic Chance@k of every group (04 §7), not a method. RQ5 cost is read from the
+# wall_ms and peak_rss_mb columns every per_case.csv row has (04 §6 "cross-cutting"); the `cost`
+# summary metric has no bench_summary field (03 §13.3), so it is not listed.
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift]
+statistics:
+  primary_metric: ac_at_1
+  per: system
+  noninferiority: {vs: best_simple_baseline, baselines: ["rcaeval:nsigma", "rcaeval:baro", "simplerca"]}
+  holm_family: rq1
+  bootstrap: {resamples: 2000, seed: 1}
+  permutation: {n: 10000, seed: 2}
+  mcnemar: true
+# One worker, as the v0 runner runs; 600 s per case per method, a timeout is a miss (04 §9). The
+# 3 GB of H5 is measured (peak_rss_mb), not enforced: v0 has no outcome for a run over max_rss_mb.
+resources: {workers: 1, timeout_s: 600}
