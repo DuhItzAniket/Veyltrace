@@ -22,6 +22,8 @@ from types import ModuleType
 
 import pytest
 
+from veyltrace_contracts.registry import CONTRACTS
+
 ROOT = Path(__file__).resolve().parents[1]
 GEN_CONTRACTS = ROOT / "scripts" / "gen_contracts.py"
 #: Seconds for a full regenerate-and-compare; about 2 s locally (a priori margin for CI).
@@ -92,8 +94,8 @@ def test_a_02_contract_references_the_01_common_by_absolute_id(
     assert code == EXIT_OK, out
     registry = (tmp_path / "generated" / "python" / "veyltrace_contracts" / "registry.py").read_text("utf-8")
     versions = dict(re.findall(r'name="([^"]+)",\s+kind="[a-z]+",\s+version="([^"]+)"', registry))
-    assert versions["alert"] == "0.2.0"
-    assert {v for name, v in versions.items() if name != "alert"} == {"0.1.0"}  # the others stay
+    committed = {name: info.version for name, info in CONTRACTS.items()}
+    assert versions == committed | {"alert": "0.2.0"}  # only alert moved; the others keep their own series
 
 
 def test_the_id_folder_must_be_the_contracts_own_series(
