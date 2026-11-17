@@ -2,16 +2,18 @@
 
 Pipeline step 0: resolve the case through its dataset adapter, convert it (through the cache when
 the adapter allows), then materialise it into the run directory: drop the sources named in
-`sources.drop` (dropped and absent sources look the same: zero rows, `false`), blank the hint under
-the detected protocol, and write `case_manifest` and the four telemetry tables over the full
-available span. Core's alert step reads the hint and chooses the windows; Infralume never reads
-`alert.shift_s`. Never imports the fetcher (the network exemption is `veyltrace_infralume.fetch`).
+`sources.drop` (dropped and absent sources look the same: zero rows, `false`), merge the events
+overlay named by `events.overlay_path`, blank the hint under the detected protocol, and write
+`case_manifest` and the four telemetry tables over the full available span. Core's alert step
+reads the hint and chooses the windows; Infralume never reads `alert.shift_s`. Never imports the
+fetcher (the network exemption is `veyltrace_infralume.fetch`).
 """
 
 from __future__ import annotations
 
 from typing import Any, Final, cast
 
+import pyarrow as pa
 import pyarrow.compute as pc
 
 from veyltrace_contracts.registry import CONTRACTS
@@ -21,6 +23,9 @@ from veyltrace_core.context import EngineResult, RunContext
 from veyltrace_core.errors import CaseRejected, ConfigError, ContractValidationError
 from veyltrace_core.log import get_logger
 from veyltrace_infralume.cache import convert_cached, full_table
+from veyltrace_infralume.names import NameRules
+from veyltrace_infralume.overlay import load_overlay
+from veyltrace_infralume.scrub import Scrubber, ScrubRules, folder_tokens
 
 __all__ = ["run"]
 
@@ -46,12 +51,26 @@ def _dropped(ctx: RunContext) -> frozenset[str]:
     return drop
 
 
-def _materialise(ctx: RunContext, case: CanonicalCase) -> tuple[list[tuple[str, str]], dict[str, int]]:
-    """Write the manifest and the tables (dropped sources as zero rows); returns the outputs and
-    the row count of each table as written, so a dropped source reports 0 rows."""
+def _materialise(
+    ctx: RunContext, case: CanonicalCase, tokens: tuple[str, ...]
+) -> tuple[list[tuple[str, str]], dict[str, int]]:
+    """Write the manifest and the tables (dropped sources as zero rows, overlay events merged);
+    returns the outputs and the row count of each table as written, so a dropped source reports
+    0 rows. `tokens` are the case's folder tokens, scrubbed from overlay details."""
     drop = _dropped(ctx)
     tables = {s: t if SOURCE_OF[s] not in drop else t.slice(0, 0) for s, t in case.tables.items()}
     present = {s: bool(case.sources_present[s]) and s not in drop for s in SOURCE_NAMES}
+    inputs, scrubbed = list(case.inputs), case.scrub
+    overlay = ctx.config["events"]["overlay_path"]
+    if overlay is not None and "events" not in drop:  # dropping events drops the overlay with them
+        scrub = Scrubber(ScrubRules.from_config(ctx.config), tokens)
+        extra, entry = load_overlay(str(overlay), NameRules.from_config(ctx.config, case.system), scrub)
+        tables["events"] = pa.concat_tables(
+            [full_table(TELEMETRY_CONTRACTS["events"], tables["events"]), extra]
+        )
+        present["events"] = present["events"] or extra.num_rows > 0
+        inputs = sorted([*inputs, entry])
+        scrubbed = (scrubbed[0], scrubbed[1] + scrub.dropped_attributes, scrubbed[2] + scrub.dropped_rows)
     bounds: list[tuple[int, int]] = []
     for source, table in tables.items():
         if table.num_rows:
@@ -76,9 +95,9 @@ def _materialise(ctx: RunContext, case: CanonicalCase) -> tuple[list[tuple[str, 
         "data_start_ns": start, "data_end_ns": end, "sources": present,
         "services": sorted(services),  # str order is code-point order, which is UTF-8 byte order
         "inputs": [{"name": n, "sha256": d, "bytes": b}
-                   for n, d, b in case.inputs if n.split("/")[0] not in drop],
+                   for n, d, b in inputs if n.split("/")[0] not in drop],
         "adapter": {"name": case.adapter_name, "version": case.adapter_version},
-        "scrub": dict(zip(("rules_version", "dropped_attributes", "dropped_rows"), case.scrub, strict=True)),
+        "scrub": dict(zip(("rules_version", "dropped_attributes", "dropped_rows"), scrubbed, strict=True)),
     }  # fmt: skip
     out = [("case_manifest", ctx.write("case_manifest", manifest))]
     for source, table in tables.items():
@@ -101,5 +120,9 @@ def run(ctx: RunContext) -> EngineResult:
         if adapter.cacheable
         else adapter.convert(ref, ctx.config)
     )
-    outputs, rows = _materialise(ctx, case)
+    rel = ""
+    if ref.location is not None:
+        inside = ref.location.is_relative_to(root)
+        rel = ref.location.relative_to(root).as_posix() if inside else ref.location.name
+    outputs, rows = _materialise(ctx, case, folder_tokens(ref.canonical_key, rel))
     return EngineResult(engine="infralume", status="ok", outputs=tuple(sorted(outputs)), metrics=rows)

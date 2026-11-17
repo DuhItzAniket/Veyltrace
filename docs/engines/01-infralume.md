@@ -205,6 +205,14 @@ The name encoding stays even with `attrs_json?`, because the 03 key (`service, c
 
 All three come from config, so they change the config hash and therefore `run_id`.
 
+**Built (O-09).** `sources.drop` and `alert.shift_s` were already in place (O-00/O-01 and core's alert step); O-09 adds the overlay. Where the text above left a choice:
+
+- *Path.* `events.overlay_path` is a relative POSIX path resolved under `${VEYLTRACE_DATA}` (core rejects absolute paths, `~`, `$` and `..` in every `*_path` key), e.g. `overlays/<experiment_id>/<case_id>/events.parquet`. A missing file, or one that is not a valid `telemetry.events` table, is a config error (exit 1), not a rejected case.
+- *Untrusted rows.* Each overlay row goes through the case's name rules (aliases, suffix folding; the component name is kept as `entity`) and through the scrubber: deny-listed detail keys are removed, flag keys hashed, folder tokens replaced. Rows on a dropped container or a fault-tool service, and rows whose detail names a chaos object, are dropped. Both counts are added to `scrub.dropped_attributes` and `scrub.dropped_rows`.
+- *Merge.* Overlay rows are appended to the case's own events (which are not changed) and the writer sorts the table. `data_start_ns`/`data_end_ns` include overlay rows; `services` does not, as for any event entity (§3.8).
+- *With `sources.drop: [events]`* the overlay is dropped with the case's events: no rows, no `overlay/events.parquet` input.
+- *Inputs.* `overlay/events.parquet` is listed whenever an overlay is read, even one with zero rows, so the manifest always records which file a run used.
+
 ### 3.11 Dataset fetcher
 
 `veyltrace data fetch <dataset> [--suite re2-ob] [--source hf|zenodo] [--cases N]` downloads into `${VEYLTRACE_DATA}` (default `~/veyltrace-data`; the fetcher refuses a target inside the git work tree, so data cannot be committed and nothing lands under `bench/` or `lab/`) and writes `${VEYLTRACE_DATA}/index/<dataset>.json` plus a `fetch.lock.json` with the SHA-256 and size of every file. Built (O-01b2): Hugging Face cases land in `rcaeval/hf/<case>/` (allow-listed files and `inject_time.txt` only; `root_cause.txt` is not fetched), the lock is `rcaeval/fetch.lock.json`, each file is checked against the tree API's size and LFS SHA-256 (git blob id for plain files); `--source zenodo` is a usage error until a follow-up adds it.
