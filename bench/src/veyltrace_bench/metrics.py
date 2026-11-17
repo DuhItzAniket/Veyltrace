@@ -125,6 +125,11 @@ class CaseScore:
     in_universe: bool | None
     slate_k: int | None
     onset_error_ms: float | None = None
+    # The run's cost columns (03 §13.2), set by the runner; they feed only the cost metric (#316).
+    wall_ms: float | None = None
+    peak_rss_mb: float | None = None
+    tokens_in: int | None = None
+    tokens_out: int | None = None
 
     def hit_at(self, k: int) -> bool | None:
         """1[r_i ∈ R_i[:k]]; None without a truth."""

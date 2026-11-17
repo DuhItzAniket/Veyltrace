@@ -566,14 +566,14 @@ The same directory holds `summary.json` (§13.3) and `manifest.json` (§13.4).
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version` | str | `0.1.x` |
+| `schema_version` | str | `0.2.x` (0.2.0 added `cost`, CCR #316; 0.1 files read with `cost` null) |
 | `producer` | str | `bench@<ALGO_VERSION>`: the bench code that scored the runs |
 | `experiment_id` | str | names the results directory |
 | `groups` | [group] | one per (dataset, system, method), sorted by those three |
 | `excluded` | {dataset: [case_id]} | the experiment's excluded case ids per dataset part, sorted |
 | `statistics` | str | "not run: …" until `bench/stats` (O-14) adds bootstrap CIs and tests (then an object, a minor bump) |
 
-A group holds `dataset`, `system`, `method`; the counts `n_rows`, `n_fault` (fault cases F, every rate's denominator), `n_no_truth`, `n_unranked`, `n_fine`, `n_chance`, `n_outside_services` (fault cases whose root is not among the case's `case_manifest.services`, i.e. n_i of [04 §7](04-evaluation-protocol.md), not the universe U); `outcomes` (rows per `run_outcome`, all five present, 0 when none); and `metrics`, one entry per [04 §9](04-evaluation-protocol.md) metric name bench computes (`ac_at_k`, `avg_at_5`, `mrr`, `fine_ac_at_k`, `retrieval_at_k`, `rerank_at_1`, `chance`, `lift`, `onset_error`). An entry the experiment's `metrics` does not list is null; a listed one is an object with exactly that metric's keys (`ac_at_1`…`ac_at_5`, `retrieval_at_k` + `retrieval_k` + `pool_retrieval`, `onset_error_median_ms` + `onset_error_max_ms` + `n_onset`, …), each null when undefined (e.g. no fault case). So null inside an entry never means "not requested". Definitions: [04 §7](04-evaluation-protocol.md).
+A group holds `dataset`, `system`, `method`; the counts `n_rows`, `n_fault` (fault cases F, every rate's denominator), `n_no_truth`, `n_unranked`, `n_fine`, `n_chance`, `n_outside_services` (fault cases whose root is not among the case's `case_manifest.services`, i.e. n_i of [04 §7](04-evaluation-protocol.md), not the universe U); `outcomes` (rows per `run_outcome`, all five present, 0 when none); and `metrics`, one entry per [04 §9](04-evaluation-protocol.md) metric name bench computes (`ac_at_k`, `avg_at_5`, `mrr`, `fine_ac_at_k`, `retrieval_at_k`, `rerank_at_1`, `chance`, `lift`, `onset_error`, `cost`). An entry the experiment's `metrics` does not list is null; a listed one is an object with exactly that metric's keys (`ac_at_1`…`ac_at_5`, `retrieval_at_k` + `retrieval_k` + `pool_retrieval`, `onset_error_median_ms` + `onset_error_max_ms` + `n_onset`, …), each null when undefined (e.g. no fault case). So null inside an entry never means "not requested". Definitions: [04 §7](04-evaluation-protocol.md). `cost` holds `wall_ms_p50`, `wall_ms_p95`, `peak_rss_mb_p50`, `peak_rss_mb_p95`, `tokens_in_p50`, `tokens_in_p95`, `tokens_out_p50`, `tokens_out_p95` (each over the group's rows that have that `per_case.csv` value, null when none) and `n_cost` (rows with a `wall_ms`). Percentiles are nearest-rank: the p-th percentile of n sorted values is the ⌈p·n/100⌉-th smallest, so it is one of the values and never depends on row order.
 
 ### 13.4 `bench_manifest`
 

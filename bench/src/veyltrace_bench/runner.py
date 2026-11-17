@@ -38,7 +38,6 @@ from veyltrace_bench.child import after_run
 from veyltrace_bench.experiment import (
     PROTOCOL_KEYS,
     RANKERS_KEY,
-    SKIPPED_METRICS,
     Experiment,
     MethodSpec,
     code_state,
@@ -302,6 +301,7 @@ def _record(
         out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
     score = score_case(Truth.from_answer_key(key), out, universe=universe)
+    score = replace(score, wall_ms=wall_ms, peak_rss_mb=peak)  # the cost metric; no tokens while AI is off
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
     # Every column starts null; the ones v0 leaves null are listed in run_experiment's docstring.
@@ -449,8 +449,6 @@ def run_experiment(
     exp = load_experiment(path)
     if todo := unsupported(exp):
         raise ConfigError(f"{Path(path).as_posix()}: not supported by the v0 runner yet: {'; '.join(todo)}")
-    for name in sorted(set(exp.metrics) & set(SKIPPED_METRICS)):  # listed, but no summary entry yet
-        _log.info("bench.metric_skipped", metric=name, reason=SKIPPED_METRICS[name])
     repo = find_config_dir().parent
     check_baselines(exp, repo)  # settings and the RCAEval venv, before any data is read
     code = code_state(repo)
