@@ -1,0 +1,51 @@
+# Pre-registered (04 §1; frozen at tag prereg-v1): the 04 §6 cell RE2 × detected for the M2 columns,
+# i.e. the same methods as re2-oracle-rq1-v1 under the detected alert protocol (04 §5.1: Anomara's
+# first sustained SLO breach on the entry services). Reported next to the oracle table (M2 exit
+# criterion, 04 §5.1). The confirmatory RQ1 tests are on the oracle protocol (04 §5.1 "default for
+# every table unless stated"), so every comparison here is exploratory: no Holm family, no
+# non-inferiority decision. A fault case with no detected breach is a miss with run_outcome
+# no_alert (04 §5.1, 03 §13.2); baselines get the same detected t_alert from alert.json (04 §4).
+# Omitted fields take the defaults cited in veyltrace_bench/experiment.py. Changes only via 04 §12.
+experiment_id: re2-detected-rq1-v1
+description: "RQ1 (exploratory): veyltrace:off, Causatrix rankers alone + rrf, and simple baselines on RE2, detected alert"
+prereg: true
+rq: [RQ1]
+dataset:
+  parts: [re2-ob, re2-ss, re2-tt]
+  cases: all
+  exclude: bench/dev_cases.yaml   # 04 §1: development cases are in no test table
+  normal_windows: none
+split:
+  scheme: none                    # as re2-oracle-rq1-v1: accuracy needs no folds
+protocol:
+  alert: detected
+  shift_s: 0
+  sources_drop: []
+  decoys: null
+  anonymize_services: false
+  inject_proposals: null
+  permute_proposals: null
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - {id: "causatrix:rrf", kind: causatrix}
+  - {id: "causatrix:baro_rs", kind: causatrix, overrides: {causatrix.rankers.enabled: [baro_rs]}}
+  - {id: "causatrix:change_prox", kind: causatrix, overrides: {causatrix.rankers.enabled: [change_prox]}}
+  - {id: "causatrix:cp_sbfl", kind: causatrix, overrides: {causatrix.rankers.enabled: [cp_sbfl]}}
+  - {id: "causatrix:graph_walk", kind: causatrix, overrides: {causatrix.rankers.enabled: [graph_walk]}}
+  - {id: "causatrix:nsigma", kind: causatrix, overrides: {causatrix.rankers.enabled: [nsigma]}}
+  - {id: "causatrix:prism_m", kind: causatrix, overrides: {causatrix.rankers.enabled: [prism_m]}}
+  - {id: "rcaeval:baro", kind: rcaeval, rcaeval: {method: baro, length: 20}}
+  - {id: "rcaeval:nsigma", kind: rcaeval, rcaeval: {method: nsigma, length: 20}}
+  - {id: "simplerca", kind: internal_baseline}
+calibration: {fit: false}
+# As re2-oracle-rq1-v1, plus the onset error of the detected protocol (04 §7).
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, onset_error, cost]
+statistics:
+  primary_metric: ac_at_1
+  per: system
+  noninferiority: null            # exploratory (see header)
+  holm_family: null
+  bootstrap: {resamples: 2000, seed: 1}
+  permutation: {n: 10000, seed: 2}
+  mcnemar: true
+resources: {workers: 1, timeout_s: 600}

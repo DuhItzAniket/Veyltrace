@@ -1,0 +1,27 @@
+# Pre-registered (04 §1): RE2 × oracle, AI arms of 04 §6 (veyltrace:brief M3, agent-only:brief M3),
+# paired with veyltrace:off on the same cases. RQ2 confirmatory (04 §2): H2a proposer lift
+# AC@1(brief) − AC@1(off), CI not entirely below 0 per RE2 system and pooled (Holm family rq2);
+# verifier vs agent-only is exploratory. 3 seeds (04 §8, §13 Q6); paired tests use the per-case
+# mean hit over seeds.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: re2-oracle-rq2-v1
+description: "RQ2: veyltrace:brief and agent-only:brief vs veyltrace:off on RE2, oracle alert"
+prereg: true
+rq: [RQ2]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: none}
+split: {family: null, scheme: none}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+  - id: "agent-only:brief"
+    kind: agent_only
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, cost]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: {vs: "veyltrace:off"}, holm_family: rq2,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
