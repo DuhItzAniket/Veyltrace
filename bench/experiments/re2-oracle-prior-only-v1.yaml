@@ -1,0 +1,31 @@
+# Pre-registered (04 §1; frozen at tag prereg-v1): the prior-only floor of the RE2 accuracy tables
+# (04 §4, §10 rule 3). prior-only ranks services by how often they are the root in the calibration
+# fold and reads no telemetry, so it needs the cross-fit folds of 04 §5.4 (each case is ranked by
+# the counts of the fold that excludes its cluster) and gives the same ranks under every alert
+# protocol: this one file serves the oracle and the detected tables. It is a separate experiment so
+# that re2-oracle-rq1-v1 needs no folds. No conformal fit: prior-only writes no calibration file.
+# Omitted fields take the defaults cited in veyltrace_bench/experiment.py. Changes only via 04 §12.
+experiment_id: re2-oracle-prior-only-v1
+description: "Floor: prior-only on RE2, cross-fit folds of 04 §5.4, oracle alert"
+prereg: true
+rq: [RQ1]
+dataset:
+  parts: [re2-ob, re2-ss, re2-tt]
+  cases: all
+  exclude: bench/dev_cases.yaml
+  normal_windows: none
+split:
+  family: rcaeval-re2
+  scheme: crossfit2               # 04 §5.4 items 1-3
+  cluster: [system, service, fault]
+  stratify: [system, fault]
+  seed: 20261108
+protocol:
+  alert: oracle
+  shift_s: 0
+  sources_drop: []
+methods:
+  - {id: "prior-only", kind: internal_baseline}
+calibration: {fit: false}
+metrics: [ac_at_k, avg_at_5, mrr, chance, lift, cost]
+resources: {workers: 1, timeout_s: 600}
