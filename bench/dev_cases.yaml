@@ -1,0 +1,13 @@
+# Development cases (04 §1): the only RE2 cases a Veyltrace arm may run on before the prereg-v1
+# tag, one per RE2 system. Every prereg experiment excludes them (`dataset.exclude`, 04 §9), so they
+# appear in no test table; summary.json lists them as excluded and they are reported separately.
+#
+# Format (04 §9): a YAML list of 12-hex case ids; ids are unique across datasets, so this one list
+# serves every dataset part.
+#
+# Selection (lead decision, 16 Nov 2026): the cases the Observe lane's real-case smoke tests ran on
+# 15 Nov, i.e. the first case of each suite in the RCAEval fetcher's order (sorted by the published
+# case folder name, not by case id). The choice used no results of any method.
+- 97bf1c72d29f  # re2-ob
+- bc159c2c3cde  # re2-ss
+- 3cfc8cf70d39  # re2-tt

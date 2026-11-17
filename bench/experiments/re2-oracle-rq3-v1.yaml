@@ -1,0 +1,25 @@
+# Pre-registered (04 §1): RE2 × calibration (cross-fit) and normal windows, 04 §6 (veyltrace:off
+# M3, veyltrace:brief M3). Conformal q̂ and NO_FAULT τ_nf are fitted on one fold and tested on the
+# other (04 §5.4), per arm. RQ3 (04 §2): H3a coverage ≥ 0.85 at α = 0.10, H3b set size ≤ 3, H3c
+# AURC(V) < AURC(F), NO_FAULT on held-out normal windows (rcaeval_pre_injection, 04 §5.4 item 6);
+# estimation with cluster-bootstrap CIs, no significance test.
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: re2-oracle-rq3-v1
+description: "RQ3: conformal coverage, set size, risk-coverage and NO_FAULT on RE2 cross-fit folds, off and brief"
+prereg: true
+rq: [RQ3]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: rcaeval_pre_injection}
+split: {family: rcaeval-re2, scheme: crossfit2, cluster: [system, service, fault], stratify: [system, fault],
+        seed: 20261108}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}
+metrics: [ac_at_k, retrieval_at_k, coverage, set_size, risk_coverage, no_fault_rates, cost]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
