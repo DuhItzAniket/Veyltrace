@@ -29,6 +29,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cache
 from typing import Any, Final, Literal, cast
+from urllib.parse import urljoin
 
 import numpy as np
 import numpy.typing as npt
@@ -113,13 +114,21 @@ type Doc = str
 _SCHEMA_FILE_SUFFIX: Final = ".schema.json"
 
 
+@cache
+def _names_by_id() -> dict[str, str]:
+    """Each packaged schema's name by its `$id`."""
+    return {str(contract_schema(n)["$id"]): n for n in SCHEMA_NAMES}
+
+
 def _lookup(ref: str, doc: Doc) -> tuple[object, Doc]:
     """Resolve a `$ref` the way the schemas use them (CONVENTIONS §1): `#/<pointer>` inside the
-    current document or `<name>.schema.json#/<pointer>` in a sibling. Never fetches anything."""
+    current document, or `<name>.schema.json#/<pointer>` resolved against the current document's
+    `$id` (a sibling of the same series, or an absolute `$id` of another series, e.g. a 0.2
+    contract's reference to the 0.1 `common`). Never fetches anything."""
     target, _, fragment = ref.partition("#")
     if target:
-        name = target.removesuffix(_SCHEMA_FILE_SUFFIX)
-        if not target.endswith(_SCHEMA_FILE_SUFFIX) or name not in SCHEMA_NAMES:
+        name = _names_by_id().get(urljoin(str(contract_schema(doc)["$id"]), target))
+        if not target.endswith(_SCHEMA_FILE_SUFFIX) or name is None:
             raise ContractValidationError(doc, f"unresolvable $ref {ref!r}")
         doc = name
     node: object = contract_schema(doc)

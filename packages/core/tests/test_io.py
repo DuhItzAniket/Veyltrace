@@ -70,13 +70,17 @@ def test_empty_table_and_arrow_schema() -> None:
         io.arrow_schema("verdict")
 
 
-def test_version_rule_before_m1() -> None:
+def test_version_rule(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert io.ALLOW_OLDER_MINOR  # on since #319: committed 0.1 summaries read under bench_summary 0.2
     assert io.version_compatible("0.1.0", "0.1.0")
     assert io.version_compatible("0.1.7", "0.1.0")  # patch may differ
-    assert not io.version_compatible("0.2.0", "0.1.0")
-    assert not io.version_compatible("0.0.9", "0.1.0")  # older minor: only after M1
+    assert io.version_compatible("0.1.0", "0.2.0")  # an older minor of the same major
+    assert not io.version_compatible("0.2.0", "0.1.0")  # a newer minor never
     assert not io.version_compatible("1.1.0", "0.1.0")
+    assert not io.version_compatible("0.1.0", "1.0.0")  # another major never
     assert not io.version_compatible("0.1", "0.1.0")
+    monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", False)  # the pre-#319 rule: the exact minor only
+    assert not io.version_compatible("0.0.9", "0.1.0")
 
 
 # --------------------------------------------------------------------------------------------
@@ -516,8 +520,9 @@ def test_older_minor_parquet_reads_absent_nullable_columns_as_null(
     io.write("changes", _table("changes"), tmp_path)
     path = io.path_of("changes", tmp_path)
     _restamp_parquet(path, "0.0.0", "delta_to_onset_ms")
+    monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", False)
     with pytest.raises(ContractValidationError, match="schema version"):
-        io.read("changes", tmp_path)  # before M1: exact minor only
+        io.read("changes", tmp_path)  # the pre-#319 rule: exact minor only
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", True)
     table = io.read_table("changes", tmp_path)
     assert table.schema.equals(io.arrow_schema("changes"), check_metadata=False)
@@ -550,8 +555,9 @@ def test_older_minor_json_reads_absent_nullable_fields_as_null(
     older = {k: v for k, v in doc.items() if k != "model"}
     older["schema_version"] = "0.0.0"
     textio.write_bytes(io.path_of("proposals", tmp_path), canonical_json(older) + b"\n")
+    monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", False)
     with pytest.raises(ContractValidationError, match="schema version"):
-        io.read("proposals", tmp_path)
+        io.read("proposals", tmp_path)  # the pre-#319 rule: exact minor only
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", True)
     for validate in (False, True):
         model = io.read_model("proposals", tmp_path, models.Proposals, validate=validate)
