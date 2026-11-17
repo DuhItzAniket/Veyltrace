@@ -1,0 +1,31 @@
+# Pre-registered (04 §1): VeylLab × oracle incl. no-fault, AI arms of 04 §6 (veyltrace:brief M4,
+# agent-only:brief M4; investigate is "opt" and not pre-registered), paired with veyltrace:off;
+# 3 seeds; RQ2 exploratory.
+# Lab data (05): real deploy/config/flag events and ≈ 10% no-fault captures, which are the normal
+# windows of 04 §5.4 (normal_windows: veyllab); conformal and NO_FAULT files are cross-fitted on the
+# 04 §5.4 folds of family veyllab (calibration fold ≠ test fold). RQ1 change-aware accuracy, RQ3
+# coverage and NO_FAULT rates, estimation with CIs. veyllab-otel needs the OTel Demo profile (cut
+# item 5 of 07 §1.1).
+# Omitted defaults: veyltrace_bench/experiment.py. Frozen at prereg-v1; changes only via 04 §12.
+experiment_id: veyllab-oracle-rq2-v1
+description: "RQ2/RQ3: VeylLab incl. no-fault, veyltrace:brief and agent-only:brief vs veyltrace:off"
+prereg: true
+rq: [RQ2, RQ3]
+dataset: {parts: [veyllab-ob, veyllab-otel], cases: all, exclude: bench/dev_cases.yaml, normal_windows: veyllab}
+split: {family: veyllab, scheme: crossfit2, cluster: [system, service, fault], stratify: [system, fault],
+        seed: 20261108}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+  - id: "veyltrace:brief"
+    kind: veyltrace
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+  - id: "agent-only:brief"
+    kind: agent_only
+    ai: {mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1, 2, 3]}
+calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}
+metrics: [ac_at_k, avg_at_5, mrr, fine_ac_at_k, retrieval_at_k, rerank_at_1, chance, lift, coverage, set_size, risk_coverage, no_fault_rates, cost]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}
