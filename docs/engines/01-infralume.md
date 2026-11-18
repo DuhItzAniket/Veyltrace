@@ -167,7 +167,7 @@ Core then adds `alert.shift_s` (recorded as `alert.shift_ns`) and computes the c
 
 ### 3.8 Manifest fields
 
-- `data_start_ns`, `data_end_ns`: min/max timestamp over all non-dropped sources (span `start_ns`/`end_ns` included).
+- `data_start_ns`, `data_end_ns`: min/max timestamp over the case's own non-dropped sources (span `start_ns`/`end_ns` included). Overlay events (§3.10) are merged into `events` but never extend the span.
 - `services`: sorted union of normalised services in metrics, logs and spans (events entities that are not telemetry services are excluded).
 - `inputs`: one entry per raw file that contributed to a non-empty emitted table, named `<source>/<basename>` (e.g. `traces/traces.parquet`), never containing a folder name; plus `overlay/events.parquet` when an overlay is used.
 - `system`: from the adapter (`ob | ss | tt | otel | other`).
@@ -204,6 +204,14 @@ The name encoding stays even with `attrs_json?`, because the 03 key (`service, c
 | `events.overlay_path` | merges an events file (03 §2.5 shape) produced by the RCAEval-C generator in `bench/decoys/` (O-13). The generator writes overlays to `${VEYLTRACE_DATA}/overlays/<experiment_id>/<case_id>/events.parquet`, never under `bench/` or `lab/`, because Infralume may not read there. Every overlay row gets `source_system = synthetic` and `actor = null`, so no column separates true changes from decoys; entities are normalised and scrubbed; the file is listed in `inputs` as `overlay/events.parquet`; `sources.events = true` if any row survives |
 
 All three come from config, so they change the config hash and therefore `run_id`.
+
+**Built (O-09).** `sources.drop` and `alert.shift_s` were already in place (O-00/O-01 and core's alert step); O-09 adds the overlay. Where the text above left a choice:
+
+- *Path.* `events.overlay_path` is a relative POSIX path resolved under `${VEYLTRACE_DATA}` (core rejects absolute paths, `~`, `$` and `..` in every `*_path` key), e.g. `overlays/<experiment_id>/<case_id>/events.parquet`. A missing file, or one that is not a valid `telemetry.events` table, is a config error (exit 1), not a rejected case.
+- *Untrusted rows.* Each overlay row goes through the case's name rules (aliases, suffix folding; the component name is kept as `entity`) and through the scrubber: deny-listed detail keys are removed, flag keys hashed, folder tokens replaced. Rows on a dropped container or a fault-tool service, and rows whose detail names a chaos object, are dropped. Both counts are added to `scrub.dropped_attributes` and `scrub.dropped_rows`.
+- *Merge.* Overlay rows are appended to the case's own events (which are not changed) and the writer sorts the table. Every overlay row is kept, including rows before `data_start_ns` or after `data_end_ns`, but the span stays that of the case's own telemetry (lead decision, #323): RE2 has 12 min of data before the injection and RCAEval-C decoys start 30 min before it, so a stretched span would move the clamped baseline window and Signalyth's series grid in the cells with decoys. `services` is unchanged too, as for any event entity (§3.8).
+- *With `sources.drop: [events]`* the overlay is dropped with the case's events: no rows, no `overlay/events.parquet` input.
+- *Inputs.* `overlay/events.parquet` is listed whenever an overlay is read, even one with zero rows, so the manifest always records which file a run used.
 
 ### 3.11 Dataset fetcher
 
