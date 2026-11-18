@@ -17,7 +17,7 @@ from veyltrace_relentra.settings import brief_settings
 SETTINGS = brief_settings(
     {
         "brief": {"max_proposals": 3},
-        "budget": {"max_claims_per_proposal": 4},
+        "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5},
         "schema": {"max_signal_enum": 64, "max_bytes": 16384, "exclude_fault_classes": ["unknown"]},
     }
 )
