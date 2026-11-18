@@ -176,7 +176,7 @@ C6 forces every entity through `{SVC:…}`/`{ROOT}`, so "entity outside the enum
 
 ### 3.5 Template prose (fallback, and `ai.mode = off`)
 
-Same grammar, same filler. The atom chosen for `{E*}` below is the first atom of the named kind on the root in `evidence_table` order; if none exists the sentence is skipped.
+Same grammar, same filler. The atom chosen for `{E*}` below is the root's strongest atom of the named kind: highest `value`, ties by `atom_id`, the same rule as FaultLoom's best atom ([06 §3.7](06-faultloom.md)). A root can carry several `internal_anomaly` atoms (one per family, detector and source), so table order alone could name a weaker one. If none exists the sentence is skipped.
 
 | Status | Sentences |
 |---|---|
@@ -185,26 +185,28 @@ Same grammar, same filler. The atom chosen for `{E*}` below is the first atom of
 | `INCONCLUSIVE` | "No single root cause could be established; the candidate set has {CONF.set_size} services." · "The leading candidate is {ROOT}." (root present) · "The asks below list the telemetry or trials that would settle it." |
 | `NO_FAULT` | "No anomaly above threshold was found at the entry service or inside any service." · "The candidate set is empty and no root cause is named." |
 
-Template sentences may have empty `cites` only when no citable atom exists (for example a `NO_FAULT` case with no atoms); LLM sentences never may.
+Template sentences may have empty `cites` only when no citable atom exists, or for `NO_FAULT`: its two sentences state no number and name no candidate, so they cite nothing even when the table has atoms (every number in a card still links to an atom). LLM sentences never may have empty `cites`.
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
 | `PB-CPU-01` | `cpu` | compare CPU use with the limit and check throttling on {ROOT}; compare replicas; look for a deploy, config or traffic change; consider scaling out or raising the limit after review |
 | `PB-MEM-01` | `mem` | compare memory with the limit; check restarts and OOM-kill events; look for steady growth (leak); consider restart or rollback after review |
 | `PB-DISK-01` | `disk` | check I/O latency and volume usage on {ROOT.component}; check node disk pressure; look for noisy neighbours |
+| `PB-SOCK-01` | `socket` | compare open connections and sockets on {ROOT.component} with its limits; check connection pool use and waits in callers; look for connections opened but never closed (leak); consider raising connection limits or a restart after review |
 | `PB-DELAY-01` | `delay` | compare caller-observed and callee-side latency on edges of {ROOT} (edge gap); check network policy and node networking; check DNS |
 | `PB-LOSS-01` | `loss` | check connection errors, resets and retries on {ROOT}; check CNI and node interface health; review retry and timeout settings |
 | `PB-ERROR-01` | `error` | inspect error-level log templates new in the incident on {ROOT}; break errors down by operation and status code; check restarts and readiness |
 | `PB-EXC-01` | `exception` | inspect exception records and stack traces on {ROOT}; map them to the code path; check the latest code deploy |
+| `PB-AVAIL-01` | `availability` | check pod restarts, terminations and exit reasons of {ROOT}; check readiness and liveness probes; check scheduling and eviction events on the node of {ROOT.component}; check whether callers retried or failed over |
 | `PB-CONFIG-01` | `config` | diff the latest config or flag change on {ROOT} against the previous version; consider reverting after review |
 | `PB-DEP-01` | `dependency` | check the datastore or cache used by {ROOT}: latency, connections, locks; compare callers of the dependency |
 | `PB-UNK-01` | `unknown` | review the evidence table; collect the telemetry listed under asks |
 | `PB-CHANGE-01` | change mode or T6 pass | identify the change that preceded onset on the timeline; compare with peers or the previous version; consider rollback after review |
-| `PB-INCONC-01` | `INCONCLUSIVE` | collect the telemetry named in asks; inspect each candidate-set member; re-run the diagnosis |
+| `PB-INCONC-01` | `INCONCLUSIVE` | per ask kind present, in ask order: `telemetry` collect the telemetry named in the asks, `trial` check the trials named in the asks (failed or untestable), `context` inspect the named service or the ranked slate around the incident onset; then inspect each candidate-set member; re-run the diagnosis |
 | `PB-NOFAULT-01` | `NO_FAULT` | confirm with the alert source whether the alert was spurious; check SLO thresholds; check for silent services or telemetry gaps |
 
 The full step texts live in `playbooks.yaml`; they contain no digits and use only `{ROOT}`/`{ROOT.component}`.
