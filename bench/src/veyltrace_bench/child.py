@@ -5,7 +5,7 @@ run's peak resident set size (03 §13.2 `peak_rss_mb`, 04 §6 "Cost").
 `python -m veyltrace_bench.child REQUEST RESULT`. REQUEST is a JSON object {dataset, case_id,
 ai_mode, overrides, runs_root} and, for a baseline (R-05), {to_step, baseline, export}: the run
 stops after `to_step` (the alert step: Infralume's tables and alert.json), then `baseline`
-(`simplerca`) ranks the case or `export` names the directory for RCAEval's input. The child
+(`simplerca`, `naive-change`) ranks the case or `export` names the directory for RCAEval's input. The child
 resolves the config from it exactly as the in-process runner does (`resolve_config(overrides,
 dataset, ai_mode)`), so the run id, and every output, are those of an in-process run. RESULT gets
 {"summary": pipeline.summary_dict, "wall_ms", "peak_rss_mb", "ranks"} ("ranks": a baseline's, else
@@ -23,7 +23,7 @@ import traceback
 from pathlib import Path
 from typing import Any, cast
 
-from veyltrace_bench import baselines, rcaeval, simplerca
+from veyltrace_bench import baselines, naive_change, rcaeval, simplerca
 from veyltrace_core import textio
 from veyltrace_core.config import resolve_config
 from veyltrace_core.ids import AIMode
@@ -73,13 +73,15 @@ def peak_rss_mb() -> float:
 
 
 def after_run(request: dict[str, Any], summary: RunSummary) -> list[str] | None:
-    """A baseline's work on an `ok` run: SimpleRCA's ranks, or the RCAEval export (no ranks)."""
+    """A baseline's work on an `ok` run: SimpleRCA's or naive-change's ranks, or the RCAEval export."""
     if summary.outcome != "ok":
         return None
     if (export := request.get("export")) is not None:
         rcaeval.export_case(summary.run_dir, Path(export))
     if request.get("baseline") == "simplerca":
         return list(simplerca.run(summary.run_dir, baselines.load("simplerca", simplerca.SimpleRcaConfig)))
+    if request.get("baseline") == naive_change.METHOD:
+        return list(naive_change.run(summary.run_dir))
     return None
 
 

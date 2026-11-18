@@ -27,11 +27,18 @@ from veyltrace_core.ids import is_case_id
 from veyltrace_core.pipeline import code_commit
 
 #: Config keys the protocol block sets (04 §9: "each value maps to a pipeline hook"; §5.1, §5.2).
-PROTOCOL_KEYS = ("core.alert.protocol", "core.alert.shift_s", "infralume.sources.drop")
+#: The overlay key is set per case, to the file bench writes for `protocol.decoys` (01 §3.10, #326).
+PROTOCOL_KEYS = (
+    "core.alert.protocol",
+    "core.alert.shift_s",
+    "infralume.sources.drop",
+    "infralume.events.overlay_path",
+)
+OVERLAY_KEY = PROTOCOL_KEYS[3]
 RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method runs alone (04 §3, §9)
 CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
 #: internal_baseline ids v0 runs (04 §4); `chance` is the `chance` metric of every group (04 §7).
-INTERNAL_BASELINES = frozenset({"simplerca"})
+INTERNAL_BASELINES = frozenset({"simplerca", "naive-change"})
 FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
@@ -46,7 +53,7 @@ METRIC_TASKS = {
     "no_fault_rates": "R-13 normal windows",
     "selective_accuracy": "R-12 statuses (04 §7 Selective accuracy, H4b)",
     "decoy_top1_change": "RQ2 planted decoy proposals (H2b, M4)",
-    "decoy_ranked_first": "O-13 RCAEval-C decoys (H4c, M3)",
+    "decoy_ranked_first": "a bench_summary entry (per_case.csv has the columns since #326; H4c, M3)",
     "permutation_invariance": "RQ2 proposal permutations (H2c, M4)",
 }
 
@@ -227,7 +234,6 @@ def unsupported(exp: Experiment) -> list[str]:
         (exp.dataset.normal_windows != "none", "dataset.normal_windows (R-13)"),
         (exp.split.scheme != "none", f"split.scheme {exp.split.scheme} (R-13)"),
         (exp.calibration.fit, "calibration.fit (R-13)"),
-        (p.decoys is not None, "protocol.decoys (O-13)"),
         (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),

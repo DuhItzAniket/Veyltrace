@@ -16,7 +16,9 @@ RCAEval's main.py once per dataset in its own venv, and its report goes to `rcae
 summary.json (bench_summary, 03 §13.3: the requested metrics per (dataset, system, method)) and
 manifest.json (bench_manifest, 03 §13.4: experiment, code, uv.lock, answer-key, telemetry-input and
 config hashes, run ids; 04 §9, §10.2), both written through core io (validated canonical JSON) and
-byte-identical across invocations; only per_case.csv's wall_ms and peak_rss_mb differ.
+byte-identical across invocations; only per_case.csv's wall_ms and peak_rss_mb differ. Under
+`protocol.decoys` (RCAEval-C, #326) each case first gets its events overlay (`decoy_runs`), which
+every method's run of it names.
 """
 
 from __future__ import annotations
@@ -32,10 +34,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
-from veyltrace_bench import ALGO_VERSION, baselines, rcaeval, simplerca
+from veyltrace_bench import ALGO_VERSION, baselines, decoy_runs, naive_change, rcaeval, simplerca
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.child import after_run
 from veyltrace_bench.experiment import (
+    OVERLAY_KEY,
     PROTOCOL_KEYS,
     RANKERS_KEY,
     Experiment,
@@ -50,7 +53,7 @@ from veyltrace_bench.summary import METRIC_KEYS, summarize
 from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
 from veyltrace_core import io, textio
 from veyltrace_core.cli import THREAD_ENV
-from veyltrace_core.config import ResolvedConfig, config_sha256, find_config_dir, resolve_config
+from veyltrace_core.config import ResolvedConfig, config_sha256, data_root, find_config_dir, resolve_config
 from veyltrace_core.errors import (
     ArtifactMissing,
     ConfigError,
@@ -73,6 +76,8 @@ BASELINE_RUNS = "baselines"  # <bench runs>/baselines/<method>/: each baseline's
 RCAEVAL_WORK = "rcaeval"  # <bench runs>/rcaeval/<method>/<dataset>/: main.py's working directory
 RCAEVAL_REPORTS = "rcaeval"  # <results>/<experiment>/rcaeval/<dataset>.<method>.txt: main.py stdout
 INPUT_STEP = "alert"  # baselines read Infralume's tables and alert.json (03 §2), nothing later
+DECOY_RUNS = "decoys"  # <bench runs>/decoys/: Infralume-only runs giving each case's services (#326)
+SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws decoy entities from
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 STATISTICS_NOT_RUN = "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
@@ -121,6 +126,8 @@ def _execute(
     `baseline` ({to_step, baseline?, export?}) stops the run early for a baseline (child.py)."""
     extra = baseline or {}
     if IN_PROCESS:
+        if OVERLAY_KEY in overrides:  # the case's own overlay, resolved as the child resolves it
+            cfg = resolve_config(overrides, dataset=key.dataset, ai_mode=method.ai.mode)
         start = time.perf_counter()
         step = cast("str", extra.get("to_step", LAST_STEP))
         s = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root, to_step=step)
@@ -171,11 +178,17 @@ def _execute(
     )
 
 
-def overrides_for(exp: Experiment, method: MethodSpec) -> dict[str, object]:
-    """The run's config overrides: the protocol hooks, then the method's own keys."""
+def protocol_overrides(exp: Experiment, overlay: str | None = None) -> dict[str, object]:
+    """The protocol hooks as config overrides, with the case's events overlay if it has one."""
     p = exp.protocol
-    hooks = dict(zip(PROTOCOL_KEYS, (p.alert, p.shift_s, list(p.sources_drop)), strict=True))
-    return {**hooks, **method.overrides}
+    alert, shift, drop, _ = PROTOCOL_KEYS
+    hooks: dict[str, object] = {alert: p.alert, shift: p.shift_s, drop: list(p.sources_drop)}
+    return hooks | ({OVERLAY_KEY: overlay} if overlay is not None else {})
+
+
+def overrides_for(exp: Experiment, method: MethodSpec, overlay: str | None = None) -> dict[str, object]:
+    """The run's config overrides: the protocol hooks, then the method's own keys."""
+    return {**protocol_overrides(exp, overlay), **method.overrides}
 
 
 def run_outcome(outcome: str, wall_ms: float, timeout_s: int) -> str:
@@ -257,9 +270,10 @@ def _run_one(
     runs_root: Path,
     timed: Timed,
     baseline: dict[str, Any] | None = None,
+    overlay: str | None = None,
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Diagnose one case with one method and score it: (per_case row, score, manifest run entry)."""
-    over = overrides_for(exp, method)
+    over = overrides_for(exp, method, overlay)
     done = _execute(key, method, cfg, over, runs_root, exp.resources.timeout_s, baseline)
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
     kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
@@ -321,6 +335,7 @@ def _record(
         "wall_ms": wall_ms,
         "peak_rss_mb": peak,
         **score.columns(),
+        **decoy_runs.decoy_columns(key, score.ranks),
     }
     inputs = manifest_hash((i.name, i.sha256) for i in case.inputs) if case is not None else None
     run: dict[str, object] = {"case_id": key.case_id, "dataset": key.dataset, "method": method.id}
@@ -338,18 +353,19 @@ def _run_method(
     bench_runs: Path,
     timed: Timed,
     reports: dict[tuple[str, str], str],
+    overlays: dict[str, str],
 ) -> list[Scored]:
     """Every case of one dataset with one method. A baseline gets its own runs directory, so its
     alert-step runs are executed and timed, never reused from another method."""
     if method.kind == "rcaeval":
-        return _run_rcaeval(exp, method, cfg, cases, bench_runs, reports)
+        return _run_rcaeval(exp, method, cfg, cases, bench_runs, reports, overlays)
     root, extra = bench_runs, None
     if method.kind == "internal_baseline":
         root, extra = (
             bench_runs / BASELINE_RUNS / slug(method.id),
             {"to_step": INPUT_STEP, "baseline": method.id},
         )
-    return [_run_one(exp, method, cfg, key, root, timed, extra) for key in cases]
+    return [_run_one(exp, method, cfg, key, root, timed, extra, overlays.get(key.case_id)) for key in cases]
 
 
 def _run_rcaeval(
@@ -359,6 +375,7 @@ def _run_rcaeval(
     cases: list[AnswerKeyRow],
     bench_runs: Path,
     reports: dict[tuple[str, str], str],
+    overlays: dict[str, str],
 ) -> list[Scored]:
     """Export every case (alert-step run, in a child), then one main.py run over the exported ones
     with a budget of `timeout_s` per case; its wall time is shared equally among them."""
@@ -367,14 +384,11 @@ def _run_rcaeval(
     args = rcaeval.method_args(method.rcaeval, settings, method.id)
     mapping = settings.datasets[cases[0].dataset]
     work = bench_runs / RCAEVAL_WORK / slug(method.id) / cases[0].dataset
-    root, over, timeout_s = (
-        bench_runs / BASELINE_RUNS / slug(method.id),
-        overrides_for(exp, method),
-        exp.resources.timeout_s,
-    )
+    root, timeout_s = bench_runs / BASELINE_RUNS / slug(method.id), exp.resources.timeout_s
     done: dict[str, Executed] = {}
     for key in cases:
         extra = {"to_step": INPUT_STEP, "export": str(rcaeval.case_dir(work, mapping, key))}
+        over = overrides_for(exp, method, overlays.get(key.case_id))
         done[key.case_id] = _execute(key, method, cfg, over, root, timeout_s, extra)
     exported = [c for c, d in done.items() if run_outcome(d.outcome, d.wall_ms, timeout_s) == "ok"]
     if exported:
@@ -391,7 +405,7 @@ def _run_rcaeval(
 def check_baselines(exp: Experiment, repo: Path) -> None:
     """Baseline settings, RCAEval method blocks, dataset mappings and the RCAEval environment are
     valid before the first case (a missing venv names the setup script)."""
-    if any(m.kind == "internal_baseline" for m in exp.methods):
+    if any(m.kind == "internal_baseline" and m.id == "simplerca" for m in exp.methods):
         baselines.load("simplerca", simplerca.SimpleRcaConfig, repo)
     wrapped = [m for m in exp.methods if m.kind == "rcaeval"]
     if not wrapped:
@@ -406,10 +420,38 @@ def check_baselines(exp: Experiment, repo: Path) -> None:
 
 def method_config_sha256(method: MethodSpec, cfg: ResolvedConfig) -> str:
     """03 §13.4 configs[].config_sha256: the pipeline config, plus a baseline's own section."""
-    if method.kind not in BASELINE_KINDS:
-        return config_sha256(cfg)
+    if method.kind not in BASELINE_KINDS or method.id == naive_change.METHOD:
+        return config_sha256(cfg)  # naive-change has no settings of its own
     name = "rcaeval" if method.kind == "rcaeval" else "simplerca"
     return baselines.config_sha256(config_sha256(cfg), name)
+
+
+def case_services(key: AnswerKeyRow, cfg: ResolvedConfig, runs_root: Path) -> list[str] | None:
+    """The case's `case_manifest.services` from an Infralume-only run; None if it was rejected."""
+    s = run_case(key.dataset, key.case_id, "off", config=cfg, runs_root=runs_root, to_step=SERVICES_STEP)
+    case = _read("case_manifest", s.run_dir if s.outcome == "ok" else None, CaseManifest)
+    return list(case.services) if case is not None else None
+
+
+def _prepare_decoys(
+    exp: Experiment,
+    spec: decoy_runs.DecoySpec,
+    keys: dict[str, dict[str, AnswerKeyRow]],
+    selected: dict[str, tuple[list[str], list[str]]],
+    runs_root: Path,
+) -> dict[str, str]:
+    """Write every selected case's overlay and put `decoy_changes_json` into its row of `keys`;
+    case_id -> overlay path. A case Infralume rejects gets none, so its runs are rejected as
+    they would be without decoys."""
+    overlays: dict[str, str] = {}
+    for dataset, (cases, _) in selected.items():
+        cfg = resolve_config(protocol_overrides(exp), dataset=dataset, ai_mode="off")
+        for c in cases:
+            if (services := case_services(keys[dataset][c], cfg, runs_root)) is None:
+                continue
+            got = decoy_runs.prepare_case(exp.experiment_id, keys[dataset][c], spec, services, data_root())
+            keys[dataset][c], overlays[c] = got.key, got.overlay
+    return overlays
 
 
 def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...]) -> dict[str, object]:
@@ -442,13 +484,14 @@ def run_experiment(
     `table` and needs an explicit `out_root` outside the repository.
 
     per_case.csv columns v0 leaves null: seed and variant (no AI arms, no perturbed variants),
-    fold (split none), decoy_present and decoy_ranked_first (not evaluated yet), peak_rss_mb of a
+    fold (split none), decoy_present and decoy_ranked_first (no protocol.decoys), peak_rss_mb of a
     run killed at the timeout (never reported) and tokens_in/out (AI off); onset_error_ms is filled
     under the detected protocol only (04 §7).
     """
     exp = load_experiment(path)
     if todo := unsupported(exp):
         raise ConfigError(f"{Path(path).as_posix()}: not supported by the v0 runner yet: {'; '.join(todo)}")
+    spec = decoy_runs.decoy_spec(exp.protocol.decoys)  # a bad block fails before any case
     repo = find_config_dir().parent
     check_baselines(exp, repo)  # settings and the RCAEval venv, before any data is read
     code = code_state(repo)
@@ -468,6 +511,7 @@ def run_experiment(
     bench_runs = (runs_root or default_runs_root()) / BENCH_RUNS / exp.experiment_id
     if bench_runs.exists():  # bench's own directory: stale runs would be reused untimed
         shutil.rmtree(bench_runs)
+    overlays = _prepare_decoys(exp, spec, keys, selected, bench_runs / DECOY_RUNS) if spec else {}
     rows: list[dict[str, object]] = []
     runs: list[dict[str, object]] = []
     configs: list[dict[str, object]] = []
@@ -481,7 +525,8 @@ def run_experiment(
                 {"dataset": dataset, "method": method.id, "config_sha256": method_config_sha256(method, cfg)}
             )
             rows_keys = [keys[dataset][c] for c in cases]
-            for row, score, run in _run_method(exp, method, cfg, rows_keys, bench_runs, timed, reports):
+            scored = _run_method(exp, method, cfg, rows_keys, bench_runs, timed, reports, overlays)
+            for row, score, run in scored:
                 rows.append(row)
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
