@@ -86,6 +86,7 @@ def test_root_is_a_virtual_workspace_with_all_members() -> None:
 # 09 §2.1 and §5 (allowed imports): Causentra imports Causatrix's rank(), classify() and views, and
 # FaultLoom's predicate library, validate() and atom_sources(); beside the #98 table above.
 SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix", "veyltrace-faultloom")
+WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys"]}  # Observe's RCAEval-C generator, run by bench (#326)
 
 
 @pytest.mark.parametrize("name", [*PACKAGES, "bench"])
@@ -104,7 +105,8 @@ def test_package_metadata(name: str) -> None:
     sources = meta["tool"]["uv"]["sources"]
     assert all(sources[d] == {"workspace": True} for d in deps)
     module = _package_dir(name) / "src" / f"veyltrace_{name}"
-    assert meta["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"] == [f"src/veyltrace_{name}"]
+    wheel = meta["tool"]["hatch"]["build"]["targets"]["wheel"]["packages"]
+    assert wheel == [f"src/veyltrace_{name}", *WHEEL_EXTRA.get(name, [])]
     assert (module / "py.typed").is_file()
 
 
