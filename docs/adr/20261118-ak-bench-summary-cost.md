@@ -1,6 +1,6 @@
 # bench_summary gets the cost metric as an additive 0.2, before the contracts-1.0 bump
 
-- **Status:** Proposed
+- **Status:** Accepted (lead, on #316, 2026-11-18)
 - **Date:** 2026-11-18
 - **Author:** Aniket Kumar (AK)
 - **Deciders:** the lead (decision relayed by the manager session, 18 Nov 2026)
