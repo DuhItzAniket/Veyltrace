@@ -119,6 +119,7 @@ __all__ = [
     "SummaryMetricAcAtK",
     "SummaryMetricAvgAt5",
     "SummaryMetricChance",
+    "SummaryMetricCost",
     "SummaryMetricFineAcAtK",
     "SummaryMetricLift",
     "SummaryMetricMrr",
@@ -1539,6 +1540,25 @@ class SummaryMetricChance(BaseModel):
     chance_at_5: float | None
 
 
+class SummaryMetricCost(BaseModel):
+    """Nearest-rank p50 and p95 per case of wall time (ms), peak RSS (MiB) and LLM
+    tokens in and out over the group's rows that have the value (04 §7 Cost, RQ5),
+    each null when no row has it; n_cost = rows with a wall_ms.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    wall_ms_p50: Annotated[float, Field(ge=0)] | None
+    wall_ms_p95: Annotated[float, Field(ge=0)] | None
+    peak_rss_mb_p50: Annotated[float, Field(ge=0)] | None
+    peak_rss_mb_p95: Annotated[float, Field(ge=0)] | None
+    tokens_in_p50: Annotated[float, Field(ge=0)] | None
+    tokens_in_p95: Annotated[float, Field(ge=0)] | None
+    tokens_out_p50: Annotated[float, Field(ge=0)] | None
+    tokens_out_p95: Annotated[float, Field(ge=0)] | None
+    n_cost: Annotated[int, Field(ge=0)]
+
+
 class SummaryMetricFineAcAtK(BaseModel):
     """Indicator-level AC@1..5 over the fault cases with an indicator (04 §7)."""
 
@@ -1625,6 +1645,7 @@ class SummaryGroupMetrics(BaseModel):
     chance: SummaryMetricChance | None
     lift: SummaryMetricLift | None
     onset_error: SummaryMetricOnsetError | None
+    cost: SummaryMetricCost | None
 
 
 class SummaryOutcomes(BaseModel):
@@ -1667,7 +1688,7 @@ class BenchSummary(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.2\.[0-9]+$")]
     producer: Annotated[str, StringConstraints(min_length=1)]
     experiment_id: Annotated[
         str,

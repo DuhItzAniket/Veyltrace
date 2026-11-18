@@ -48,11 +48,7 @@ METRIC_TASKS = {
     "decoy_top1_change": "RQ2 planted decoy proposals (H2b, M4)",
     "decoy_ranked_first": "O-13 RCAEval-C decoys (H4c, M3)",
     "permutation_invariance": "RQ2 proposal permutations (H2c, M4)",
-    "cost": "p50/p95 of wall time, peak RSS and tokens in summary.json (CCR #316)",
 }
-#: Listed metrics the runner skips with a logged note instead of refusing the experiment, because
-#: their summary.json entry needs a contract change first (04 §9, lead decision #314).
-SKIPPED_METRICS = {"cost": "bench_summary has no cost entry until CCR #316 (the contracts-1.0 bump)"}
 
 
 class _Strict(BaseModel):
@@ -237,11 +233,7 @@ def unsupported(exp: Experiment) -> list[str]:
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
     )
     todo = [what for bad, what in checks if bad]
-    todo += [
-        f"metrics {m} ({METRIC_TASKS[m]})"
-        for m in exp.metrics
-        if m not in METRIC_KEYS and m not in SKIPPED_METRICS
-    ]
+    todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
     for m in exp.methods:
         if m.kind == "agent_only":
             todo.append(f"methods {m.id}: kind agent_only (RQ2 arms)")

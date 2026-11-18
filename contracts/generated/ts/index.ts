@@ -867,6 +867,19 @@ export interface SummaryMetricChance {
   chance_at_5: number | null;
 }
 
+/** Nearest-rank p50 and p95 per case of wall time (ms), peak RSS (MiB) and LLM tokens in and out over the group's rows that have the value (04 §7 Cost, RQ5), each null when no row has it; n_cost = rows with a wall_ms. */
+export interface SummaryMetricCost {
+  wall_ms_p50: number | null;
+  wall_ms_p95: number | null;
+  peak_rss_mb_p50: number | null;
+  peak_rss_mb_p95: number | null;
+  tokens_in_p50: number | null;
+  tokens_in_p95: number | null;
+  tokens_out_p50: number | null;
+  tokens_out_p95: number | null;
+  n_cost: number;
+}
+
 /** Indicator-level AC@1..5 over the fault cases with an indicator (04 §7). */
 export interface SummaryMetricFineAcAtK {
   fine_ac_at_1: number | null;
@@ -925,6 +938,7 @@ export interface SummaryGroupMetrics {
   chance: SummaryMetricChance | null;
   lift: SummaryMetricLift | null;
   onset_error: SummaryMetricOnsetError | null;
+  cost: SummaryMetricCost | null;
 }
 
 /** Rows per bench_result.run_outcome; every outcome is present, 0 when none. */

@@ -8,7 +8,6 @@ import pytest
 
 from veyltrace_bench.experiment import (
     METRIC_TASKS,
-    SKIPPED_METRICS,
     Experiment,
     ProposalDraw,
     load_experiment,
@@ -47,10 +46,10 @@ def test_proposal_perturbations_are_seeded_draws(tmp_path: Path) -> None:
             _load(tmp_path, BASE + f"metrics: [mrr]\nprotocol: {{inject_proposals: {bad}}}\n")
 
 
-def test_new_metric_ids_are_tasks_and_cost_is_skipped_not_refused(tmp_path: Path) -> None:
+def test_new_metric_ids_are_tasks_and_cost_is_computed(tmp_path: Path) -> None:
     ids = ["selective_accuracy", "decoy_top1_change", "decoy_ranked_first", "permutation_invariance"]
     exp = _load(tmp_path, BASE + f"metrics: [mrr, cost, {', '.join(ids)}]\n")
     todo = " | ".join(unsupported(exp))
     assert all(f"metrics {m} ({METRIC_TASKS[m]})" in todo for m in ids)
-    assert "cost" not in todo and "cost" in SKIPPED_METRICS and "cost" not in METRIC_KEYS
-    assert set(summarize([], ["mrr", "cost"])) >= {"mrr"}  # summary drops a skipped metric, no KeyError
+    assert "cost" not in todo and "cost" in METRIC_KEYS and "cost" not in METRIC_TASKS  # #316
+    assert set(summarize([], ["mrr", "cost"])) >= {"mrr", "n_cost", "wall_ms_p95"}
