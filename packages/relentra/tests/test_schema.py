@@ -21,8 +21,10 @@ from veyltrace_relentra.settings import BriefSettings, brief_settings
 
 CONFIG: dict[str, Any] = {  # the defaults of 08 §4
     "brief": {"max_proposals": 3},
-    "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5},
+    "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5, "max_prompt_tokens": 12288},
     "schema": {"max_signal_enum": 64, "max_bytes": 16384, "exclude_fault_classes": ["unknown"]},
+    "cards": {"k": 6, "k_min": 3, "pool_context_n": 10},
+    "prompt": {"chars_per_token": 3.5, "include_brief": True, "permute_slate": False},
 }
 NODES = ["cart", "checkout", "frontend"]
 SIGNALS = ["cpu", "latency_p99", "tmpl:abc", "error_rate"]
@@ -132,6 +134,10 @@ def test_schema_and_hash_do_not_depend_on_input_order(
         ("schema.max_bytes", "big"),
         ("schema.exclude_fault_classes", ["not_a_class"]),
         ("schema.exclude_fault_classes", "unknown"),
+        ("cards.k_min", 7),  # above cards.k
+        ("cards.pool_context_n", -1),
+        ("prompt.chars_per_token", 0),
+        ("prompt.include_brief", "yes"),
     ],
 )
 def test_bad_settings_are_config_errors(dotted: str, value: object) -> None:

@@ -20,7 +20,7 @@ _FAULT_CLASSES: Final[tuple[str, ...]] = get_args(models.FaultClass)
 
 @dataclass(frozen=True)
 class BriefSettings:
-    """The keys of 08 §4 that shape and limit the output of `brief` mode."""
+    """The keys of 08 §4 that shape the prompt and the output of `brief` mode."""
 
     max_proposals: int
     max_hypotheses: int
@@ -28,6 +28,13 @@ class BriefSettings:
     max_signal_enum: int
     schema_max_bytes: int
     exclude_fault_classes: tuple[str, ...]
+    cards_k: int
+    cards_k_min: int
+    pool_context_n: int
+    max_prompt_tokens: int
+    chars_per_token: float
+    include_brief: bool
+    permute_slate: bool
 
 
 def _get(config: Mapping[str, Any], dotted: str) -> object:
@@ -39,10 +46,17 @@ def _get(config: Mapping[str, Any], dotted: str) -> object:
     return node
 
 
-def _count(config: Mapping[str, Any], dotted: str) -> int:
+def _count(config: Mapping[str, Any], dotted: str, minimum: int = 1) -> int:
     value = _get(config, dotted)
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise ConfigError(f"relentra.{dotted} must be an int >= 1, got {value!r}")
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        raise ConfigError(f"relentra.{dotted} must be an int >= {minimum}, got {value!r}")
+    return value
+
+
+def _flag(config: Mapping[str, Any], dotted: str) -> bool:
+    value = _get(config, dotted)
+    if not isinstance(value, bool):
+        raise ConfigError(f"relentra.{dotted} must be a bool, got {value!r}")
     return value
 
 
@@ -54,11 +68,24 @@ def brief_settings(config: Mapping[str, Any]) -> BriefSettings:
     classes = [str(c) for c in cast("list[object] | tuple[object, ...]", excluded)]
     if not set(classes) <= set(_FAULT_CLASSES):
         raise ConfigError(f"relentra.schema.exclude_fault_classes has unknown classes: {classes!r}")
-    return BriefSettings(
+    per_token = _get(config, "prompt.chars_per_token")
+    if isinstance(per_token, bool) or not isinstance(per_token, int | float) or per_token <= 0:
+        raise ConfigError(f"relentra.prompt.chars_per_token must be > 0, got {per_token!r}")
+    settings = BriefSettings(
         max_proposals=_count(config, "brief.max_proposals"),
         max_hypotheses=_count(config, "budget.max_hypotheses"),
         max_claims_per_proposal=_count(config, "budget.max_claims_per_proposal"),
         max_signal_enum=_count(config, "schema.max_signal_enum"),
         schema_max_bytes=_count(config, "schema.max_bytes"),
         exclude_fault_classes=tuple(sorted(classes)),
+        cards_k=_count(config, "cards.k"),
+        cards_k_min=_count(config, "cards.k_min"),
+        pool_context_n=_count(config, "cards.pool_context_n", 0),
+        max_prompt_tokens=_count(config, "budget.max_prompt_tokens"),
+        chars_per_token=float(per_token),
+        include_brief=_flag(config, "prompt.include_brief"),
+        permute_slate=_flag(config, "prompt.permute_slate"),
     )
+    if settings.cards_k_min > settings.cards_k:
+        raise ConfigError(f"relentra.cards.k_min {settings.cards_k_min} exceeds cards.k {settings.cards_k}")
+    return settings

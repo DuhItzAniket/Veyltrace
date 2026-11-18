@@ -17,8 +17,10 @@ from veyltrace_relentra.settings import brief_settings
 SETTINGS = brief_settings(
     {
         "brief": {"max_proposals": 3},
-        "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5},
+        "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5, "max_prompt_tokens": 12288},
         "schema": {"max_signal_enum": 64, "max_bytes": 16384, "exclude_fault_classes": ["unknown"]},
+        "cards": {"k": 6, "k_min": 3, "pool_context_n": 10},
+        "prompt": {"chars_per_token": 3.5, "include_brief": True, "permute_slate": False},
     }
 )
 NODES = ["cart", "checkout", "frontend"]
