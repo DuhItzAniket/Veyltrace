@@ -60,7 +60,7 @@ def load_prompt_files(
 ) -> PromptFiles:
     """Read the templates and the brief for `system`. With `prompt.include_brief` off the brief is
     empty and no brief file is read (the ablation of 08 §9)."""
-    names = list(_TEMPLATES)
+    names: list[str] = list(_TEMPLATES)
     brief = ""
     if settings.include_brief:
         stem = GENERATED_BRIEF if dataset == LIVE_DATASET else system
