@@ -99,9 +99,9 @@ def _rows[M: BaseModel](name: str, run_dir: Path, model: type[M]) -> list[M]:
 
 
 def finished_status(run_dir: Path) -> RunStatus:
-    """A finished run's status. The job runner (X-04, next) adds queued, running and failed runs."""
+    """A finished run's status; `job_status` reports queued, running and failed runs."""
     manifest = cast(RunManifest, _read("run_manifest", run_dir))
-    last = STEPS[-1]  # 06 §3.2 says step 0-10; core counts its 14 sub-steps, so its index is served
+    last = STEPS[-1]  # `step` is core's sub-step index, 0-13 (06 §3.2)
     return RunStatus(
         run_id=manifest.run_id, dataset=manifest.dataset, case_id=manifest.case_id, ai_mode=manifest.ai.mode,
         state="done", step=last.index, step_name=last.name, error=None,
@@ -121,13 +121,21 @@ def _finished_runs(root: Path, dataset: str | None, case_id: str | None) -> list
     )  # fmt: skip
 
 
-def _thin(rows: list[SignalCubeSeriesRow], max_points: int) -> list[SignalCubeSeriesRow]:
-    """At most `max_points` per series: every n-th point, n fixed by the series length (06 §3.2;
-    display only, never analysis)."""
-    by_series: dict[str, list[SignalCubeSeriesRow]] = {}
-    for row in rows:
-        by_series.setdefault(row.series_id, []).append(row)
-    return [r for s in by_series.values() for r in s[:: -(-len(s) // max_points)]]
+def _series(run_dir: Path, service: str | None, signal: str | None, max_points: int) -> list[Any]:
+    """Rows of `signal_cube.series` after the filters, at most `max_points` per series: every n-th
+    point, n fixed by the series length (06 §3.2; display only).
+
+    Why rows are chosen from three columns first: a real case has about a million rows, and only
+    the rows returned are worth converting and validating.
+    """
+    table = _read("signal_cube.series", run_dir)
+    keys = zip(*(table.column(c).to_pylist() for c in ("series_id", "service", "signal")), strict=True)
+    by_series: dict[str, list[int]] = {}
+    for index, (series_id, row_service, row_signal) in enumerate(keys):
+        if service in (None, row_service) and signal in (None, row_signal):
+            by_series.setdefault(series_id, []).append(index)
+    keep = [i for points in by_series.values() for i in points[:: -(-len(points) // max_points)]]
+    return table.take(keep).to_pylist() if keep else []
 
 
 def job_status(job: Job) -> RunStatus:
@@ -217,12 +225,8 @@ def run_router(settings: GatewaySettings, runs_root: Path, runner: JobRunner | N
     def get_series(
         run_id: str, service: str | None = None, signal: str | None = None
     ) -> list[SignalCubeSeriesRow]:
-        rows = [
-            r
-            for r in _rows("signal_cube.series", _run_dir(runs_root, run_id), SignalCubeSeriesRow)
-            if (service is None or r.service == service) and (signal is None or r.signal == signal)
-        ]
-        return _thin(rows, settings.series_max_points)
+        rows = _series(_run_dir(runs_root, run_id), service, signal, settings.series_max_points)
+        return [SignalCubeSeriesRow.model_validate(row) for row in rows]
 
     @router.get("/runs/{run_id}", response_model=RunStatus)
     def get_run(run_id: str) -> RunStatus:
