@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/case_manifest.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/case_manifest.schema.json",
   "title": "CaseManifest",
   "description": "Descriptive manifest of one materialised case: opaque id, dataset, data span, present sources, services, raw inputs, adapter and scrub counts (03 §2.1). Written by Infralume at pipeline step 0.",
   "x-veyltrace": {
     "name": "case_manifest",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "infralume",
     "path": "case_manifest.json"
@@ -30,7 +30,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "case_id": {
       "description": "Opaque case id: first 12 hex of SHA-256 of the adapter's canonical case key (01 §3.2).",
@@ -56,11 +56,11 @@
       "$ref": "common.schema.json#/$defs/hint_source"
     },
     "data_start_ns": {
-      "description": "Minimum timestamp in ns over all non-dropped sources, span start_ns/end_ns and overlay events included (01 §3.8). data_start_ns <= data_end_ns is a writer cross-field check.",
+      "description": "Start of the span of the case's own non-dropped telemetry; overlay events are merged into `events` but never extend it (01 §3.10): the minimum timestamp in ns, span start_ns/end_ns included (01 §3.8). data_start_ns <= data_end_ns is a writer cross-field check.",
       "type": "integer"
     },
     "data_end_ns": {
-      "description": "Maximum timestamp in ns over all non-dropped sources, span start_ns/end_ns and overlay events included (01 §3.8).",
+      "description": "End of the span of the case's own non-dropped telemetry; overlay events are merged into `events` but never extend it (01 §3.10): the maximum timestamp in ns, span start_ns/end_ns included (01 §3.8).",
       "type": "integer"
     },
     "sources": {

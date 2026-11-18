@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/changes.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/changes.schema.json",
   "title": "ChangesRow",
   "description": "One row of changes.parquet: a change-kind event from telemetry.events on the reference clock, with its scope, proximity to the target onset and changed-vs-peer contrast (03 §5.2). Written by Causync.",
   "x-veyltrace": {
     "name": "changes",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "causync",
     "path": "changes.parquet",

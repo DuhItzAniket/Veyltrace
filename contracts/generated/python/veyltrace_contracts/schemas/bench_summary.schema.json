@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.2/bench_summary.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/bench_summary.schema.json",
   "title": "BenchSummary",
   "description": "bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only.",
   "x-veyltrace": {
     "name": "bench_summary",
-    "version": "0.2.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "bench",
     "path": "bench/results/<experiment_id>/summary.json"
@@ -23,7 +23,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.2\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "producer": {
       "description": "bench@<ALGO_VERSION>: the bench code that scored the runs.",
@@ -62,7 +62,7 @@
         "description": "Excluded case ids of one dataset part, sorted.",
         "type": "array",
         "items": {
-          "$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#/$defs/case_id"
+          "$ref": "common.schema.json#/$defs/case_id"
         },
         "x-sort": [
           {
@@ -98,10 +98,10 @@
       ],
       "properties": {
         "dataset": {
-          "$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#/$defs/dataset"
+          "$ref": "common.schema.json#/$defs/dataset"
         },
         "system": {
-          "$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#/$defs/system"
+          "$ref": "common.schema.json#/$defs/system"
         },
         "method": {
           "description": "Method id from the experiment YAML (04 §4), as bench_result.method.",

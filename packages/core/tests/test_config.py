@@ -92,7 +92,7 @@ def test_lock_shape_and_bytes(cfg_dir: Path) -> None:
     obj = json.loads(data)
     ConfigLock.model_validate(obj)
     assert canonical_json(obj) + b"\n" == data
-    assert obj["schema_version"] == "0.1.0"
+    assert obj["schema_version"] == "1.0.0"
     assert obj["calibration"] is None
     assert config_sha256(resolved) == sha256_bytes(data)
     assert section_sha256(resolved, "core") == sha256_json(obj["sections"]["core"])
@@ -461,7 +461,7 @@ def test_from_lock_rejects_non_canonical_and_invalid_locks(cfg_dir: Path) -> Non
     with pytest.raises(ConfigError, match="canonical"):
         ResolvedConfig.from_lock_bytes(data.replace(b"\n", b"\r\n"))
     with pytest.raises(ConfigError, match="duplicate key"):
-        ResolvedConfig.from_lock_bytes(b'{"schema_version":"0.1.0","schema_version":"0.1.0"}\n')
+        ResolvedConfig.from_lock_bytes(b'{"schema_version":"1.0.0","schema_version":"1.0.0"}\n')
     missing = dict(obj, sections={k: v for k, v in obj["sections"].items() if k != "llm"})
     with pytest.raises(ConfigError, match="exactly"):
         ResolvedConfig.from_lock_bytes(canonical_json(missing) + b"\n")

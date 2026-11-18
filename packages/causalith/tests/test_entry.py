@@ -115,7 +115,7 @@ def _alert(entry: list[str] | None) -> Alert:
     detector = None if entry is None else {"entry_services": entry, "signal": "latency_p99", "threshold": 3.0}
     return Alert.model_validate(
         {
-            "schema_version": "0.1.0",
+            "schema_version": "1.0.0",
             "protocol": "oracle" if entry is None else "detected",
             "t_alert_ns": 10,
             "shift_ns": 0,

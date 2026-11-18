@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/evidence.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/evidence.schema.json",
   "title": "EvidenceRow",
   "description": "One row of evidence: an evidence atom for one candidate service, one kind and one set of defining arguments, with its value, window and source references. Produced by FaultLoom: engine atoms in the engine pass, claim_check and intervention atoms appended in the claim pass (03 §7, 06 §2.2, §3).",
   "x-veyltrace": {
     "name": "evidence",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "faultloom",
     "path": "evidence.parquet",

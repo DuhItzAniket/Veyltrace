@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/common.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/common.schema.json",
   "title": "Common",
-  "description": "Shared closed vocabularies, identifier and hash formats, and reusable sub-schemas for Veyltrace contracts v0.1. Not an artifact; contract schemas reference it as common.schema.json#/$defs/<def>.",
+  "description": "Shared closed vocabularies, identifier and hash formats, and reusable sub-schemas for Veyltrace contracts v1.0. Not an artifact; contract schemas reference it as common.schema.json#/$defs/<def>.",
   "$defs": {
     "family": {
       "description": "Signal family of a series (03 §1); used by signal_cube.series and anomalies.",
@@ -183,7 +183,7 @@
       ]
     },
     "predicate": {
-      "description": "Claim-check predicate library v0.1 (03 §7); used by evidence and proposals.",
+      "description": "Claim-check predicate library v1.0 (03 §7); used by evidence and proposals.",
       "type": "string",
       "enum": [
         "zscore_above",
@@ -368,10 +368,10 @@
       "type": "string",
       "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
     },
-    "semver_0_1": {
-      "description": "Contract version string for v0.1, as carried in schema_version (CONVENTIONS §3.6).",
+    "semver_1_0": {
+      "description": "Contract version string for v1.0, as carried in schema_version (CONVENTIONS §3.6).",
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "Sources": {
       "description": "Per-source presence switches; shared by case_manifest.sources and Causatrix's Sources type (contract_changes B).",

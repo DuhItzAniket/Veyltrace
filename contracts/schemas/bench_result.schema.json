@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/bench_result.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/bench_result.schema.json",
   "title": "BenchResultRow",
   "description": "One row of bench/results/<experiment_id>/per_case.csv: the outcome of one method on one case (per seed and variant) in one experiment. Written by bench, committed to git and released with the paper; evaluation-only.",
   "x-veyltrace": {
     "name": "bench_result",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "csv",
     "producer": "bench",
     "path": "bench/results/<experiment_id>/per_case.csv",

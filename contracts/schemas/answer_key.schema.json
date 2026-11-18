@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/answer_key.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/answer_key.schema.json",
   "title": "AnswerKeyRow",
   "description": "One row of an evaluation-only answer key: the ground truth of one case, keyed by case_id. Written by bench (RCAEval labels), lab (VeylLab orchestrator) and core.synth; read only by bench and lab, never by engines.",
   "x-veyltrace": {
     "name": "answer_key",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "bench",
     "path": "${VEYLTRACE_DATA}/answer_keys/<dataset>.parquet",
@@ -183,17 +183,17 @@
             "type": "object"
           },
           "severity": {
-            "description": "Severity level of the injection (e.g. L1, L2); value type not fixed in v0.1."
+            "description": "Severity level of the injection (e.g. L1, L2); value type not fixed in v1.0."
           },
           "seed": {
-            "description": "Seed of the injector or plan; value type not fixed in v0.1."
+            "description": "Seed of the injector or plan; value type not fixed in v1.0."
           }
         }
       },
       "x-arrow": "string"
     },
     "extra_roots_json": {
-      "description": "Canonical JSON describing the additional roots of a multi-fault case (VeylLab F15); shape not fixed in v0.1; null for single-root cases.",
+      "description": "Canonical JSON describing the additional roots of a multi-fault case (VeylLab F15); shape not fixed in v1.0; null for single-root cases.",
       "type": [
         "string",
         "null"
@@ -250,7 +250,7 @@
       "x-arrow": "bool"
     },
     "sli_impact_json": {
-      "description": "Lab cases: canonical JSON of the measured entry-service SLI change; shape not fixed in v0.1; null outside the lab.",
+      "description": "Lab cases: canonical JSON of the measured entry-service SLI change; shape not fixed in v1.0; null outside the lab.",
       "type": [
         "string",
         "null"

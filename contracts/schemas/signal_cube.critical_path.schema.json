@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.critical_path.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/signal_cube.critical_path.schema.json",
   "title": "SignalCubeCriticalPathRow",
   "description": "Per-window critical-path statistics of one service over CP-eligible traces, including the slow-trace spectrum used by Causatrix's cp_sbfl (03 §3.4). Written by Signalyth; depends on alert windows.",
   "x-veyltrace": {
     "name": "signal_cube.critical_path",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "signalyth",
     "path": "signal_cube/critical_path.parquet",

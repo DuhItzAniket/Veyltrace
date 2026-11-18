@@ -5,8 +5,9 @@ from __future__ import annotations
 import copy
 import json
 import math
+from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -16,7 +17,7 @@ from hypothesis import strategies as st
 
 from veyltrace_contracts import models
 from veyltrace_contracts.registry import CONTRACTS
-from veyltrace_core import io, textio
+from veyltrace_core import io, schemacheck, textio
 from veyltrace_core.canonical import canonical_json
 from veyltrace_core.errors import ArtifactMissing, ChainBroken, ContractValidationError
 from veyltrace_core.hashing import GENESIS_HASH, self_hash, sha256_file, verify_chain
@@ -65,7 +66,8 @@ def test_path_of_follows_the_registry(tmp_path: Path) -> None:
 def test_empty_table_and_arrow_schema() -> None:
     table = io.empty_table("telemetry.spans")
     assert table.num_rows == 0
-    assert table.schema.metadata == {b"veyltrace.schema": b"telemetry.spans/0.1.0"}
+    stamp = f"telemetry.spans/{CONTRACTS['telemetry.spans'].version}".encode()
+    assert table.schema.metadata == {b"veyltrace.schema": stamp}
     with pytest.raises(ContractValidationError, match="not a table contract"):
         io.arrow_schema("verdict")
 
@@ -162,7 +164,7 @@ def test_json_reader_checks_version_and_strict_json(tmp_path: Path) -> None:
     textio.write_bytes(path, canonical_json({**alert, "schema_version": "0.2.0"}))
     with pytest.raises(ContractValidationError, match="schema version"):
         io.read("alert", tmp_path)
-    textio.write_bytes(path, b'{"schema_version": "0.1.0", "schema_version": "0.1.0"}')
+    textio.write_bytes(path, b'{"schema_version": "1.0.0", "schema_version": "1.0.0"}')
     with pytest.raises(ContractValidationError, match="duplicate key"):
         io.read("alert", tmp_path)
     textio.write_bytes(path, b'{"x": NaN}')
@@ -220,7 +222,8 @@ def test_parquet_round_trip(name: str, tmp_path: Path) -> None:
     back = io.read(name, tmp_path, validate=True)
     assert isinstance(back, pa.Table)
     assert back.schema.equals(io.arrow_schema(name), check_metadata=True)
-    assert (pq.read_metadata(path).metadata or {})[b"veyltrace.schema"] == f"{name}/0.1.0".encode()
+    stamp = f"{name}/{CONTRACTS[name].version}".encode()
+    assert (pq.read_metadata(path).metadata or {})[b"veyltrace.schema"] == stamp
     assert sorted(map(canonical_json, back.to_pylist())) == sorted(
         map(canonical_json, _table(name).to_pylist())
     )
@@ -503,7 +506,34 @@ def test_writer_options_are_frozen() -> None:
 
 
 # --------------------------------------------------------------------------------------------
-# older-minor files (the post-M1 version rule, critic gap "version rule")
+# older-minor files (the post-M1 version rule, critic gap "version rule"). 1.0 is the first minor
+# of its major, so these tests read 1.0.0 files with a reader that reports 1.1.0 (#332).
+
+
+def _reader_at(
+    monkeypatch: pytest.MonkeyPatch, name: str, version: str, model: type[Any] | None = None
+) -> None:
+    """Make the reader of contract `name` report `version` (and its `model`, whose schema_version
+    pattern is that minor's), so a current file is an older minor."""
+    real, real_schema = io.contract_info, schemacheck.validate_json_schema
+    current = real(name).version
+    extra = {"model": model} if model is not None else {}
+
+    def schema_at(n: str, instance: object, *, where: str = "") -> None:  # that minor's pattern
+        if n == name and isinstance(instance, dict) and "schema_version" in instance:
+            instance = {**cast("dict[str, object]", instance), "schema_version": current}
+        real_schema(n, instance, where=where)
+
+    monkeypatch.setattr(schemacheck, "validate_json_schema", schema_at)
+    monkeypatch.setattr(
+        io, "contract_info", lambda n: replace(real(n), version=version, **extra) if n == name else real(n)
+    )
+
+
+class _Proposals11(models.Proposals):
+    """`proposals` as a 1.1 reader would model it: its schema_version pattern is that minor's."""
+
+    schema_version: str
 
 
 def _restamp_parquet(path: Path, version: str, drop: str) -> None:
@@ -519,7 +549,8 @@ def test_older_minor_parquet_reads_absent_nullable_columns_as_null(
 ) -> None:
     io.write("changes", _table("changes"), tmp_path)
     path = io.path_of("changes", tmp_path)
-    _restamp_parquet(path, "0.0.0", "delta_to_onset_ms")
+    _restamp_parquet(path, "1.0.0", "delta_to_onset_ms")
+    _reader_at(monkeypatch, "changes", "1.1.0")
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", False)
     with pytest.raises(ContractValidationError, match="schema version"):
         io.read("changes", tmp_path)  # the pre-#319 rule: exact minor only
@@ -537,11 +568,13 @@ def test_older_minor_parquet_still_rejects_missing_required_columns(
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", True)
     io.write("changes", _table("changes"), tmp_path)
     path = io.path_of("changes", tmp_path)
-    _restamp_parquet(path, "0.0.0", "entity")
-    with pytest.raises(ContractValidationError, match="non-null columns"):
-        io.read("changes", tmp_path)
+    _restamp_parquet(path, "1.0.0", "entity")
+    with monkeypatch.context() as m:
+        _reader_at(m, "changes", "1.1.0")
+        with pytest.raises(ContractValidationError, match="non-null columns"):
+            io.read("changes", tmp_path)
     io.write("changes", _table("changes"), tmp_path)
-    _restamp_parquet(path, "0.1.0", "delta_to_onset_ms")  # same minor: the schema must match exactly
+    _restamp_parquet(path, "1.0.0", "delta_to_onset_ms")  # same minor: the schema must match exactly
     with pytest.raises(ContractValidationError, match="columns"):
         io.read("changes", tmp_path)
 
@@ -553,12 +586,12 @@ def test_older_minor_json_reads_absent_nullable_fields_as_null(
     doc["mode"], doc["model"] = "external", None
     io.write("proposals", doc, tmp_path)
     older = {k: v for k, v in doc.items() if k != "model"}
-    older["schema_version"] = "0.0.0"
-    textio.write_bytes(io.path_of("proposals", tmp_path), canonical_json(older) + b"\n")
+    textio.write_bytes(io.path_of("proposals", tmp_path), canonical_json(older) + b"\n")  # a 1.0.0 file
+    _reader_at(monkeypatch, "proposals", "1.1.0", _Proposals11)
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", False)
     with pytest.raises(ContractValidationError, match="schema version"):
         io.read("proposals", tmp_path)  # the pre-#319 rule: exact minor only
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", True)
     for validate in (False, True):
-        model = io.read_model("proposals", tmp_path, models.Proposals, validate=validate)
+        model = io.read_model("proposals", tmp_path, _Proposals11, validate=validate)
         assert model.model is None

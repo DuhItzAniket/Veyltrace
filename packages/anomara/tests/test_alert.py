@@ -35,7 +35,7 @@ def _config(**overrides: Any) -> EngineConfig:
 def _manifest(services: list[str], system: str = "other") -> CaseManifest:
     return CaseManifest.model_validate(
         {
-            "schema_version": "0.1.0",
+            "schema_version": "1.0.0",
             "case_id": "b0b0b0b0b0b0",
             "dataset": "handmade",
             "system": system,

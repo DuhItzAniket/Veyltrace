@@ -117,7 +117,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "agent_trace": ContractInfo(
             name="agent_trace",
             kind="jsonl",
-            version="0.1.0",
+            version="1.0.0",
             path="agent_trace.jsonl",
             key=(),
             unique=False,
@@ -128,7 +128,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "alert": ContractInfo(
             name="alert",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="alert.json",
             key=(),
             unique=False,
@@ -139,7 +139,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "alignment": ContractInfo(
             name="alignment",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="alignment.json",
             key=(),
             unique=False,
@@ -150,7 +150,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "anomalies": ContractInfo(
             name="anomalies",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="anomalies.parquet",
             key=("series_id", "detector"),
             unique=True,
@@ -161,7 +161,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "answer_key": ContractInfo(
             name="answer_key",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="${VEYLTRACE_DATA}/answer_keys/<dataset>.parquet",
             key=("case_id",),
             unique=True,
@@ -172,7 +172,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "bench_manifest": ContractInfo(
             name="bench_manifest",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="bench/results/<experiment_id>/manifest.json",
             key=(),
             unique=False,
@@ -183,7 +183,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "bench_result": ContractInfo(
             name="bench_result",
             kind="csv",
-            version="0.1.0",
+            version="1.0.0",
             path="bench/results/<experiment_id>/per_case.csv",
             key=("case_id", "method", "seed", "variant"),
             unique=True,
@@ -194,7 +194,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "bench_summary": ContractInfo(
             name="bench_summary",
             kind="json",
-            version="0.2.0",
+            version="1.0.0",
             path="bench/results/<experiment_id>/summary.json",
             key=(),
             unique=False,
@@ -205,7 +205,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "calibration": ContractInfo(
             name="calibration",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="config/calibration/<family_id>.json",
             key=(),
             unique=False,
@@ -216,7 +216,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "card": ContractInfo(
             name="card",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="card.json",
             key=(),
             unique=False,
@@ -227,7 +227,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "case_manifest": ContractInfo(
             name="case_manifest",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="case_manifest.json",
             key=(),
             unique=False,
@@ -238,7 +238,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "changes": ContractInfo(
             name="changes",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="changes.parquet",
             key=("t_ns", "entity", "change_id"),
             unique=True,
@@ -249,7 +249,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "config_lock": ContractInfo(
             name="config_lock",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="config.lock.json",
             key=(),
             unique=False,
@@ -260,7 +260,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "evidence": ContractInfo(
             name="evidence",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="evidence.parquet",
             key=("candidate", "kind", "atom_id"),
             unique=True,
@@ -271,7 +271,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "graph.edges": ContractInfo(
             name="graph.edges",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="graph/edges.parquet",
             key=("src", "dst"),
             unique=True,
@@ -282,7 +282,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "graph.nodes": ContractInfo(
             name="graph.nodes",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="graph/nodes.parquet",
             key=("node",),
             unique=True,
@@ -293,7 +293,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "graph.paths": ContractInfo(
             name="graph.paths",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="graph/paths.parquet",
             key=("candidate", "path_rank"),
             unique=True,
@@ -304,7 +304,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "onsets": ContractInfo(
             name="onsets",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="onsets.json",
             key=(),
             unique=False,
@@ -315,7 +315,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "predicates": ContractInfo(
             name="predicates",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="contracts/predicates.json",
             key=(),
             unique=False,
@@ -326,7 +326,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "proposals": ContractInfo(
             name="proposals",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="proposals.json",
             key=(),
             unique=False,
@@ -337,7 +337,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "receipt": ContractInfo(
             name="receipt",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="receipt.json",
             key=(),
             unique=False,
@@ -348,7 +348,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "run_manifest": ContractInfo(
             name="run_manifest",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="run_manifest.json",
             key=(),
             unique=False,
@@ -359,7 +359,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "signal_cube.critical_path": ContractInfo(
             name="signal_cube.critical_path",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="signal_cube/critical_path.parquet",
             key=("window", "service"),
             unique=True,
@@ -370,7 +370,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "signal_cube.edges": ContractInfo(
             name="signal_cube.edges",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="signal_cube/edges.parquet",
             key=("caller", "callee", "window"),
             unique=True,
@@ -381,7 +381,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "signal_cube.series": ContractInfo(
             name="signal_cube.series",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="signal_cube/series.parquet",
             key=("series_id", "t_ns"),
             unique=True,
@@ -392,7 +392,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "signal_cube.templates": ContractInfo(
             name="signal_cube.templates",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="signal_cube/templates.parquet",
             key=("service", "template_id"),
             unique=True,
@@ -403,7 +403,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "slate": ContractInfo(
             name="slate",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="slate.json",
             key=(),
             unique=False,
@@ -414,7 +414,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "telemetry.events": ContractInfo(
             name="telemetry.events",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="telemetry/events.parquet",
             key=("t_ns", "entity", "kind"),
             unique=False,
@@ -425,7 +425,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "telemetry.logs": ContractInfo(
             name="telemetry.logs",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="telemetry/logs.parquet",
             key=("service", "t_ns", "body"),
             unique=False,
@@ -436,7 +436,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "telemetry.metrics": ContractInfo(
             name="telemetry.metrics",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="telemetry/metrics.parquet",
             key=("service", "component", "name", "t_ns"),
             unique=True,
@@ -447,7 +447,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "telemetry.spans": ContractInfo(
             name="telemetry.spans",
             kind="parquet",
-            version="0.1.0",
+            version="1.0.0",
             path="telemetry/spans.parquet",
             key=("trace_id", "start_ns", "span_id"),
             unique=True,
@@ -458,7 +458,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "verdict": ContractInfo(
             name="verdict",
             kind="json",
-            version="0.1.0",
+            version="1.0.0",
             path="verdict.json",
             key=(),
             unique=False,

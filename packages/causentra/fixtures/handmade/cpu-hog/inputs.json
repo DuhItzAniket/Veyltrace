@@ -6,7 +6,7 @@
   "resource/cpu/cpu. The slate comes from Causatrix on these inputs. Hand-made, not real data, no answer key."
  ],
  "case_manifest": {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "case_id": "c0ffee000001",
   "dataset": "handmade",
   "system": "other",
@@ -381,7 +381,7 @@
   }
  ],
  "onsets": {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "t_onset_ns": 1767227220000000000,
   "method": "second_external",
   "slo_breach_ns": null,
@@ -408,7 +408,7 @@
   ]
  },
  "alignment": {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "reference": "traces",
   "offsets": [
    {

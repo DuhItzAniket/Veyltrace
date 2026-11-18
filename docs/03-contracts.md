@@ -1,6 +1,6 @@
 # 03 · Data contracts
 
-> **Status:** v0.1-draft (frozen as v1.0 at milestone M1) · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-14 (#69: `bench_summary` and `bench_manifest`, §13.3–13.4)
+> **Status:** v1.0 (frozen at tag `contracts-1.0`, [ADR](adr/20261116-ak-contracts-1-0-freeze.md); changes only as in §1 "After M1") · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-18 (#332: contracts 1.0)
 > Master spec: [02-architecture](02-architecture.md). This doc is the field-level truth for every artifact that crosses a package boundary. If a field is not here, no engine may rely on it.
 
 ## 1. How contracts work
@@ -9,7 +9,7 @@
 |---|---|
 | Source of truth | `contracts/schemas/<name>.schema.json` (JSON Schema 2020-12), where `<name>` is the contract name exactly as written here, dots kept (`case_manifest.schema.json`, `telemetry.metrics.schema.json`, `graph.edges.schema.json`). This doc and the schemas must match; the schemas are written from this doc in task `R-01` (see [07-roadmap](07-roadmap.md)). The mechanical schema rules (file names, `$id`, how `?` is encoded, Arrow column types, key and sort annotations, shared `$defs` in `common.schema.json`) are in [contracts/schemas/CONVENTIONS.md](../contracts/schemas/CONVENTIONS.md). Every contract has one valid example instance, `contracts/examples/<name>.example.json`, validated by the generator's `--check`. |
 | Generated code | `contracts/generated/python/veyltrace_contracts/` (Pydantic v2: `models.py`, `arrow.py`, `registry.py`, `predicates.py`, a copy of the schemas) and `contracts/generated/ts/index.ts` (TypeScript). Regenerate with `uv run scripts/gen_contracts.py`; `uv run scripts/gen_contracts.py --check` validates schemas and examples and fails on any diff. Never edit by hand. CI fails if regeneration produces a diff. |
-| Versioning | Every schema has `$id: https://veyltrace.dev/schemas/<major>.<minor>/<name>.schema.json` (v0.1: `https://veyltrace.dev/schemas/0.1/telemetry.metrics.schema.json`); the URL is an identifier and is never fetched. Each contract has its own series, so one contract can take a minor bump alone (#319); readers accept the same major with a minor no newer than theirs, and an older-minor file's absent nullable fields read as null. JSON artifacts carry `"schema_version": "<major>.<minor>.<patch>"`. Parquet files carry the key `veyltrace.schema` = `<name>/<major>.<minor>.<patch>` in file metadata (e.g. `evidence/0.1.0`). |
+| Versioning | Every schema has `$id: https://veyltrace.dev/schemas/<major>.<minor>/<name>.schema.json` (v1.0: `https://veyltrace.dev/schemas/1.0/telemetry.metrics.schema.json`); the URL is an identifier and is never fetched. Each contract has its own series, so one contract can take a minor bump alone (#319); readers accept the same major with a minor no newer than theirs, and an older-minor file's absent nullable fields read as null. JSON artifacts carry `"schema_version": "<major>.<minor>.<patch>"`. Parquet files carry the key `veyltrace.schema` = `<name>/<major>.<minor>.<patch>` in file metadata (e.g. `evidence/1.0.0`). |
 | Before M1 | `0.x`: the lead may change fields after posting in the team channel and the CCR issue. From #319 on, readers accept a file with an older minor, so a minor bump only adds optional fields; changing a field's meaning or type, or removing it, takes a major bump. |
 | After M1 (`1.0`) | Additive optional fields only (minor bump), via a Contract Change Request (CCR) issue + ADR + lead approval. Removing or renaming a field needs all three lanes' approval and a major bump. |
 | Golden fixtures | Producer ships outputs for `synth-01` … `synth-05` in `packages/<producer>/fixtures/<case>/`. Consumers load them via `veyltrace_core.testing.golden("<contract>", "<case>")`. |
@@ -78,13 +78,13 @@ Closed vocabularies used below:
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version` | str | `"0.1.0"` |
+| `schema_version` | str | `"1.0.0"` |
 | `case_id` | str | 12 hex (§1) |
 | `dataset` | str | e.g. `synth`, `re1-ob`, `re2-ob`, `re2-ss`, `re2-tt`, `re3-ob`, `nezha-ob`, `fse26-tt`, `veyllab-ob`, `veyllab-otel`, `live`; pattern `^[a-z0-9]+(-[a-z0-9]+)*$` (§1), not an enum |
 | `system` | str | `ob \| ss \| tt \| otel \| other` (`live` is a dataset, not a system) |
 | `t_alert_hint_ns`? | int | set only when the run's `alert.protocol` is `oracle` (the dataset's published injection time) or `live` (trigger time); null under `detected`, so the injection time never reaches engines in detected runs. Only core's alert step reads it ([02 §5.1](02-architecture.md)). The schema does not check that the hint lies inside the data span (core's alert step does). |
 | `hint_source` | str | `oracle \| live \| none`; `none` if and only if `t_alert_hint_ns` is null (including every detected-protocol run); the schema enforces this pairing |
-| `data_start_ns`, `data_end_ns` | int | span of available data, including overlay events; `data_start_ns ≤ data_end_ns` (writer check) |
+| `data_start_ns`, `data_end_ns` | int | span of the case's own non-dropped telemetry; overlay events are merged into `events` but never extend it (01 §3.10); `data_start_ns ≤ data_end_ns` (writer check) |
 | `sources` | object | `{metrics: bool, logs: bool, traces: bool, events: bool}`; the key is `traces` (not `spans`). One shared definition, also used as Causatrix's `Sources` type; config `sources.drop` lists values of the `source` vocabulary |
 | `services` | [str] | sorted by UTF-8 bytes; may be empty (e.g. an events-only case) |
 | `inputs` | [{`name`, `sha256`, `bytes`}] | sorted by `name`; may be empty; `name` is relative, matches `^(metrics\|logs\|traces\|events\|overlay)/[^/]+$` and never contains the original folder name |
@@ -352,7 +352,7 @@ Defining arguments `A` per kind (keys of `args_json` for engine atoms; [engines/
 | `intervention` | `parents_hash`, `series_id`, `window` |
 | `claim_check` | `A = {"args", "predicate"}` as above; `args_json` holds only the predicate args |
 
-Predicate library (v0.1; extended only through CCR). The first argument is always the **subject** service; in the claim pass FaultLoom substitutes every pool candidate for it (symmetric evaluation, [02 §2 P2](02-architecture.md)) and writes one `claim_check` atom per (predicate, canonical args, candidate) with `holds` set. Polarity and default weight are fixed here; weights live in `config/causentra.yaml` under `predicates.<name>.weight`.
+Predicate library (v1.0; extended only through CCR). The first argument is always the **subject** service; in the claim pass FaultLoom substitutes every pool candidate for it (symmetric evaluation, [02 §2 P2](02-architecture.md)) and writes one `claim_check` atom per (predicate, canonical args, candidate) with `holds` set. Polarity and default weight are fixed here; weights live in `config/causentra.yaml` under `predicates.<name>.weight`.
 
 The machine-readable copy is `contracts/predicates.json`: per predicate only its name, parameter names and types, polarity and window. The generator turns it into `veyltrace_contracts.predicates`. Parameter ranges stay in `config/faultloom.yaml` (so they enter the config lock), and weights stay in `config/causentra.yaml`. A test checks that `predicates.json`, this table and the polarity in FaultLoom's code agree.
 
@@ -375,7 +375,7 @@ Parameter types follow FaultLoom's `Param` ([engines/06 §3.5](engines/06-faultl
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version` | str | `"0.1.0"` |
+| `schema_version` | str | `"1.0.0"` |
 | `predicates` | list | one entry per predicate of the table above, sorted by `name` |
 | `predicates[].name` | str | library predicate name |
 | `predicates[].params` | list | the arguments after the subject in call order, each `{name, type}` with `type` ∈ `float \| int \| service \| signal`; empty for `silent` |
@@ -388,7 +388,7 @@ Parameter types follow FaultLoom's `Param` ([engines/06 §3.5](engines/06-faultl
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version`, `case_id` | str | `schema_version` `"0.1.0"` |
+| `schema_version`, `case_id` | str | `schema_version` `"1.0.0"` |
 | `k` | int | default 5 |
 | `rankers_active` | [str] | sorted; rankers that abstained are absent; ranker names are free strings (rankers are plugins) |
 | `fusion` | {`method`, `k`: int?, `weights`: {ranker: float}} | `method` ∈ `rrf \| combsum_minmax \| borda` (default `rrf`; the others are ablations); `k` is the RRF constant (default 60), null for methods without one; ranker keys are free strings |
@@ -527,7 +527,7 @@ The fully resolved configuration of the run, so replay never depends on the repo
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version` | str | `"0.1.0"` |
+| `schema_version` | str | `"1.0.0"` |
 | `sections` | {section: object} | one entry per config file, keyed by file stem (`core`, the ten engines, `llm`), each the section body after overrides. Every `paths` and `fetch` subtree is left out, and `config/gateway.yaml` never enters the lock. `ai.mode` is a run parameter, not a config key, so it is not in the lock. Path-valued keys are stored unexpanded, as POSIX paths relative to a named root (never absolute, never with backslashes) |
 | `calibration`? | {`family_id`, `sha256`, `content`} | the calibration file selected for this run: its `family_id` (§12.1), its SHA-256 (the same value as `run_manifest.calibration_sha256`) and its content (a `calibration` object, §12.1); null when the run is uncalibrated |
 
@@ -566,7 +566,7 @@ The same directory holds `summary.json` (§13.3) and `manifest.json` (§13.4).
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version` | str | `0.2.x` (0.2.0 added `cost`, CCR #316; 0.1 files read with `cost` null) |
+| `schema_version` | str | `1.0.x` (`cost` was added in 0.2.0, CCR #316) |
 | `producer` | str | `bench@<ALGO_VERSION>`: the bench code that scored the runs |
 | `experiment_id` | str | names the results directory |
 | `groups` | [group] | one per (dataset, system, method), sorted by those three |
@@ -581,7 +581,7 @@ A group holds `dataset`, `system`, `method`; the counts `n_rows`, `n_fault` (fau
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version` | str | `0.1.x` |
+| `schema_version` | str | `1.0.x` |
 | `producer` | str | `bench@<ALGO_VERSION>` |
 | `experiment_id` | str | |
 | `experiment_sha256` | sha256 | `sha256_text_lf` of the experiment YAML |

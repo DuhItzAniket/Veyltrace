@@ -51,7 +51,7 @@ def test_settings_reject_bad_values(config: dict[str, object]) -> None:
 def test_skip_reason_order() -> None:
     empty = models.Slate.model_validate(
         {
-            "schema_version": "0.1.0",
+            "schema_version": "1.0.0",
             "case_id": "59e0d31bcc42",
             "k": 5,
             "rankers_active": [],

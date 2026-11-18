@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/slate.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/slate.schema.json",
   "title": "Slate",
   "description": "Hypothesis slate written by Causatrix (pipeline step 6): the top-K root-cause candidates from gated rank fusion of the active rankers, plus a fused score for every service in the universe U. Read by Relentra and Causentra (03 §8).",
   "x-veyltrace": {
     "name": "slate",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "causatrix",
     "path": "slate.json"
@@ -24,7 +24,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "case_id": {
       "$ref": "common.schema.json#/$defs/case_id"

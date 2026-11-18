@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/alert.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/alert.schema.json",
   "title": "Alert",
   "description": "Alert time and analysis windows of one run (03 §2.6): the protocol, t_alert after the onset shift, the half-open baseline and incident windows clamped to the data span, and the detector that fired under the detected protocol. Written by core's alert step (pipeline step 1); engines from Signalyth on read it instead of any injection time.",
   "x-veyltrace": {
     "name": "alert",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "core",
     "path": "alert.json"
@@ -24,7 +24,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "protocol": {
       "description": "Alert protocol of the run (config core.alert.protocol): oracle and live take case_manifest.t_alert_hint_ns, detected calls the alert detector on telemetry.",

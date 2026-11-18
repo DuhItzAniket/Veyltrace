@@ -210,7 +210,7 @@
   "checkout_latency"
  ],
  "root": null,
- "schema_version": "0.1.0",
+ "schema_version": "1.0.0",
  "status": "NO_FAULT",
- "verdict_hash": "dd50d4f4a11cf4c395625e3f8908f8ea80d9fae6a59b4eae02377ea7df3859c6"
+ "verdict_hash": "f1500e72dcbfb99ade9ea6231a87fbf7793df2634a26fda90db527684367a7af"
 }

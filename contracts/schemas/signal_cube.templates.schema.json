@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.templates.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/signal_cube.templates.schema.json",
   "title": "SignalCubeTemplatesRow",
   "description": "One Drain3 log template of one service, with per-window line counts and an error-level flag (03 §3.3). Written by Signalyth; template text and id cover the whole data range, only the count_* columns depend on alert windows.",
   "x-veyltrace": {
     "name": "signal_cube.templates",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "signalyth",
     "path": "signal_cube/templates.parquet",

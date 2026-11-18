@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/telemetry.events.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/telemetry.events.schema.json",
   "title": "TelemetryEventsRow",
-  "description": "One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, overlay events included (03 §2.5). Written by Infralume; the key is not unique.",
+  "description": "One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, plus the events overlay (01 §3.10), whose rows may lie outside the case's data span (03 §2.1, §2.5). Written by Infralume; the key is not unique.",
   "x-veyltrace": {
     "name": "telemetry.events",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "infralume",
     "path": "telemetry/events.parquet",

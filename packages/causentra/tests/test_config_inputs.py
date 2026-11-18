@@ -110,7 +110,7 @@ def test_absent_optional_inputs_read_as_empty(synth01_dir: Path) -> None:
 
 
 def test_schema_invalid_proposals_count_as_none(synth01_dir: Path) -> None:
-    io.path_of("proposals", synth01_dir).write_text('{"schema_version": "0.1.0"}\n', encoding="utf-8")
+    io.path_of("proposals", synth01_dir).write_text('{"schema_version": "1.0.0"}\n', encoding="utf-8")
     got = _inputs(synth01_dir)
     assert got.proposals is None and got.degraded and "schema-invalid" in got.notes[0]
 

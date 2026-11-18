@@ -11,7 +11,7 @@ field direction: string not null
 field onset_ns: int64 null
 field threshold: double not null
 field above_threshold: bool not null
-metadata veyltrace.schema: anomalies/0.1.0
+metadata veyltrace.schema: anomalies/1.0.0
 row {"above_threshold":true,"component":"cart","detector":"bocpd","direction":"down","family":"traffic","klass":"context","onset_ns":1767226980000000000,"score":0.996838034,"score_norm":0.691564947,"series_id":"cart|cart|rps|traces","service":"cart","source":"traces","threshold":0.5}
 row {"above_threshold":true,"component":"cart","detector":"nsigma","direction":"down","family":"traffic","klass":"context","onset_ns":1767226980000000000,"score":14.142135624,"score_norm":2.397895273,"series_id":"cart|cart|rps|traces","service":"cart","source":"traces","threshold":3.0}
 row {"above_threshold":true,"component":"cart","detector":"robust_z","direction":"down","family":"traffic","klass":"context","onset_ns":1767226980000000000,"score":10.0,"score_norm":2.397895273,"series_id":"cart|cart|rps|traces","service":"cart","source":"traces","threshold":3.0}

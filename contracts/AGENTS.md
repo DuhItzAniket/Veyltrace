@@ -8,7 +8,7 @@ Adds to the root [AGENTS.md](../AGENTS.md); never overrides it.
 The only shared surface between lanes: JSON Schemas for every artefact that crosses a package boundary, the predicate library, plus generated Pydantic, Arrow and TypeScript code.
 
 ## Layout
-- `schemas/<name>.schema.json` — JSON Schema 2020-12, **source of truth**; `<name>` is the 03 contract name with dots kept (`telemetry.metrics.schema.json`); `$id: https://veyltrace.dev/schemas/<major>.<minor>/<name>.schema.json` (v0.1: `https://veyltrace.dev/schemas/0.1/…`; an identifier, never fetched).
+- `schemas/<name>.schema.json` — JSON Schema 2020-12, **source of truth**; `<name>` is the 03 contract name with dots kept (`telemetry.metrics.schema.json`); `$id: https://veyltrace.dev/schemas/<major>.<minor>/<name>.schema.json` (v1.0: `https://veyltrace.dev/schemas/1.0/…`; an identifier, never fetched).
 - `schemas/common.schema.json` — shared vocabularies, identifier and hash formats under `$defs`; other schemas `$ref` it.
 - `schemas/CONVENTIONS.md` — the binding rules for writing schemas (`x-veyltrace` block, nullability, Arrow types, sort annotations, examples, generated layout).
 - `examples/<name>.example.json` — one valid instance per contract (a JSON object, or a JSON array of 2–3 rows for table kinds and JSONL), using the synth toy system's service names; validated by `--check`.

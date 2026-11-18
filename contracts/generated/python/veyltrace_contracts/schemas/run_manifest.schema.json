@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/run_manifest.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/run_manifest.schema.json",
   "title": "RunManifest",
   "description": "Provenance manifest of one finished run (03 §12): ids, code commit, environment, config/uv.lock/calibration hashes, input and output file hashes, AI provenance and per-step output hashes, with no timestamps or timings (P3). Written by core at the manifest step, after Causivra's card (10a) and before the receipt (10b), which embeds it.",
   "x-veyltrace": {
     "name": "run_manifest",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "core",
     "path": "run_manifest.json"
@@ -30,7 +30,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "run_id": {
       "description": "Run id: first 16 hex of SHA-256 over (case_id, config_sha256, code.commit, ai.mode), plus -x<12 hex> for a derived verify_hypothesis run.",

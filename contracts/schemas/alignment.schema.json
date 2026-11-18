@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/alignment.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/alignment.schema.json",
   "title": "Alignment",
   "description": "Per-source and per-service clock offsets onto the reference clock, plus the tolerance for onset comparisons, written by Causync as alignment.json (03 §5.1). Telemetry is never rewritten; consumers add the offsets.",
   "x-veyltrace": {
     "name": "alignment",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "causync",
     "path": "alignment.json"
@@ -21,7 +21,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "reference": {
       "description": "Reference clock: traces if present, else metrics (also when neither traces nor metrics exist).",

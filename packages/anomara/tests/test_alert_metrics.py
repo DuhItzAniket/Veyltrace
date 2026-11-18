@@ -28,7 +28,7 @@ def _config() -> EngineConfig:
 def _manifest() -> CaseManifest:
     return CaseManifest.model_validate(
         {
-            "schema_version": "0.1.0",
+            "schema_version": "1.0.0",
             "case_id": "c0c0c0c0c0c0",
             "dataset": "handmade",
             "system": "ss",

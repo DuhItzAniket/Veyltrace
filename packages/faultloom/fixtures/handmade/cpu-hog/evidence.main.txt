@@ -11,7 +11,7 @@ field refs: list<string not null> not null
 field origin: string not null
 field holds: bool null
 field producer: string not null
-metadata veyltrace.schema: evidence/0.1.0
+metadata veyltrace.schema: evidence/1.0.0
 row {"args_json":"{\"change_id\":\"Cb5ed83c522\",\"event_kind\":\"deploy\",\"window\":\"onset\"}","atom_id":"Ee0748f3e62","candidate":"checkout","component":null,"holds":null,"kind":"change_proximity","origin":"engine","predicate":null,"producer":"faultloom@1","refs":["Cb5ed83c522"],"unit":null,"value":0.8,"window":"onset"}
 row {"args_json":"{\"window\":\"incident\"}","atom_id":"E2674b7f697","candidate":"checkout","component":null,"holds":null,"kind":"critical_path_share","origin":"engine","predicate":null,"producer":"faultloom@1","refs":["signal_cube.critical_path#5e9120866e29"],"unit":null,"value":0.7,"window":"incident"}
 row {"args_json":"{\"window\":\"baseline\"}","atom_id":"E9860795770","candidate":"checkout","component":null,"holds":null,"kind":"critical_path_share","origin":"engine","predicate":null,"producer":"faultloom@1","refs":["signal_cube.critical_path#b2f3eb5dc2a6"],"unit":null,"value":0.5,"window":"baseline"}

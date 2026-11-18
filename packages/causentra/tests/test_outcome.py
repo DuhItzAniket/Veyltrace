@@ -259,7 +259,7 @@ def _slate(scores: dict[str, float], k: int) -> models.Slate:
     fusion = {"method": "rrf", "k": 60, "weights": {"prism_m": 1.0}}
     all_scores = [{"service": s, "fused_score": scores[s]} for s in order]
     return models.Slate.model_validate(
-        {"schema_version": "0.1.0", "case_id": CASE, "k": k, "rankers_active": ["prism_m"], "fusion": fusion}
+        {"schema_version": "1.0.0", "case_id": CASE, "k": k, "rankers_active": ["prism_m"], "fusion": fusion}
         | {"candidates": cands, "all_scores": all_scores}
     )
 
@@ -277,7 +277,7 @@ def _proposals(status: str, *specs: tuple[str, str]) -> models.Proposals:
     ]
     budget = {"turns": 1, "tokens_in": 1, "tokens_out": 1, "wall_ms": 1.0}
     return models.Proposals.model_validate(
-        {"schema_version": "0.1.0", "case_id": CASE, "status": status, "mode": "external", "model": None}
+        {"schema_version": "1.0.0", "case_id": CASE, "status": status, "mode": "external", "model": None}
         | {"budget_used": budget, "proposals": items, "asks": []}
     )
 
