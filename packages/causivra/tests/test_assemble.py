@@ -50,7 +50,7 @@ def test_table_takes_trial_atoms_then_holding_claims_then_why_not_atoms(
     labels = {r["atom_id"]: r["label"] for r in table}
     assert labels[scenario.a_int] == "payment cpu anomaly (incident)"  # family, not signal (#62 note)
     assert labels[scenario.a_onset] == "payment onset precedence over self (onset)"
-    assert labels[scenario.a_claim] == "claim: payment zscore_above k=4.00, signal=cpu (incident)"
+    assert labels[scenario.a_claim] == "claim: payment zscore_above k=4, signal=cpu (incident)"
     assert scenario.a_false not in labels  # holds = false is not shown as evidence
     assert next(r for r in table if r["atom_id"] == scenario.a_int)["value"] == 9.42
 

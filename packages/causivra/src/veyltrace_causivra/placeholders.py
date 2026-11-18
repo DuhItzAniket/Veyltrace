@@ -8,7 +8,9 @@ sentences (X-03) and LLM sentences (X-09) go through this same filler.
 Rules applied here: C1 syntax (balanced braces, a known placeholder), C2 resolvable (the placeholder
 is valid for this card, e.g. `{ROOT}` needs a root), C3 citation (every cite is in the evidence
 table, and every atom placeholder's atom is cited). C4–C8 inspect the text outside placeholders and
-belong to the claim checker (X-09).
+belong to the claim checker (X-09). So does C3's "cites empty" clause: it is enforced on the LLM
+path (X-09), not here, because a template sentence may have empty cites when no citable atom
+exists (10 §3.5).
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Literal, cast
 
-from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc
+from veyltrace_causivra.fmt import format_margin, format_time_utc, format_value
 
 __all__ = ["FillContext", "PlaceholderError", "RunnerUp", "TableAtom", "check_cites", "fill", "placeholders"]
 
@@ -133,7 +135,7 @@ def _value(ref: _Ref, ctx: FillContext) -> str:
         atom = ctx.table[m["atom"]]
         field = m["field"]
         if field == "value":
-            return format_number(atom.value, ctx.sig_digits)
+            return format_value(atom.value, atom.unit, ctx.sig_digits)
         if field == "unit":
             return atom.unit or ""
         return {"label": atom.label, "candidate": atom.candidate, "window": atom.window}[field]
