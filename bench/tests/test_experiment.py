@@ -87,7 +87,7 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
         "coverage (R-13",
     ):
         assert task in todo
-    assert len(unsupported(exp)) == 6 and "cost" not in todo  # cost: skipped with a note (#314)
+    assert len(unsupported(exp)) == 6 and "cost" not in todo  # cost is computed (#316)
     assert sorted([*METRIC_KEYS, *METRIC_TASKS]) == sorted(get_args(MetricName))  # each: computed or a task
 
 

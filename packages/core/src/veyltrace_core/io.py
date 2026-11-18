@@ -25,7 +25,7 @@ file (packages/core/AGENTS.md Never 5):
 - Every write is atomic (`textio.write_bytes`: `<path>.tmp-<pid>`, fsync, os.replace), so a
   reader in another process sees the old file or the new one, never a torn one.
 
-Readers check the contract version (same major; before M1 the exact minor, `ALLOW_OLDER_MINOR`)
+Readers check the contract version (same major, a minor no newer than the reader's; `ALLOW_OLDER_MINOR`)
 and the Arrow schema, return typed objects (a Pydantic model for JSON, `pa.Table` for Parquet and
 CSV, a list of line models for JSONL), and run the full writer checks only with `validate=True`.
 
@@ -138,11 +138,13 @@ PARQUET_OPTIONS: Final[Mapping[str, Any]] = MappingProxyType(
         "write_page_checksum": False,
     }
 )
-#: Reader version rule (core_api_spec §6, critic gap "version rule"). Before M1 a file must have
-#: the reader's exact major.minor; from M1 on the lead flips this to accept an older minor of the
-#: same major. Readers already handle that case: absent nullable Parquet columns and JSON fields
-#: of an older-minor file read as null, absent non-null ones are refused (tests flip this flag).
-ALLOW_OLDER_MINOR: Final = False
+#: Reader version rule (core_api_spec §6, critic gap "version rule"): a file must have the reader's
+#: major and a minor no newer than the reader's. An older-minor file's absent nullable Parquet
+#: columns and JSON fields read as null; absent non-null ones are refused. On since #319 (lead
+#: decision, 18 Nov 2026), when contracts got per-contract series and bench_summary moved to 0.2,
+#: so the 0.1 summaries already committed under bench/results stay readable (ADR
+#: contracts-1-0-freeze, step 4, planned the flip for the 1.0 bump).
+ALLOW_OLDER_MINOR: Final = True
 #: CSV encoding of list columns and booleans (03 §13.2: lists `;`-joined, booleans 0/1, missing
 #: values empty).
 CSV_LIST_SEPARATOR: Final = ";"
