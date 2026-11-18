@@ -38,7 +38,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | `onsets.json`, `changes.parquet`, `graph.paths`, `graph.nodes` | [03 §4.2, §5.2, §6](../03-contracts.md) | timeline, path, `{ONSET}`, entity enum (03 lists Causivra as their consumer; OQ-1 resolved) |
 | Narration cassette entries | `cassette/` | `ai.mode = replay` |
 | Config | `config/causivra.yaml`, `config/llm.yaml` | §4 |
-| Playbooks | `packages/causivra/playbooks/playbooks.yaml` | next steps |
+| Playbooks | `packages/causivra/src/veyltrace_causivra/playbooks.yaml` (package data, so an installed wheel ships it) | next steps |
 | Prompts | `packages/causivra/prompts/{system,narrate,repair}.md` | narration; hashes join `run_manifest.ai.prompt_sha256` ([08 §3.5](08-relentra.md#35-prompts-and-system-briefs)) |
 
 ### 2.2 Outputs
@@ -54,7 +54,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | `summary` | `[{text, cites}]`: filled LLM sentences or template sentences (§3.2, §3.5) |
 | `timeline` | `[{t_ns, label, cites}]` sorted by (`t_ns`, `label`) |
 | `path` | `graph.paths.nodes` of the root at `path_rank = 1`; `[]` when `root` is null |
-| `evidence_table` | `[{atom_id, label, value, unit?}]` sorted by (`candidate`, `kind`, `atom_id`) |
+| `evidence_table` | `[{atom_id, label, value?, unit?}]` sorted by (`candidate`, `kind`, `atom_id`); `value` is the raw float or null |
 | `why_not` | `[{service, text, cites}]` for `ranked[1 … why_not.max]` |
 | `asks` | `[{text}]` from `verdict.asks` |
 | `next_steps` | `[{text, playbook_id}]` (§3.6) |
@@ -79,10 +79,26 @@ Run-dir sequencing ([02 §6.10](../02-architecture.md#610-causivra--explanation-
    | `NO_FAULT` | `NO_FAULT · no fault detected in the incident window` |
 
 2. Copy `status`, `root`, `confidence`, `candidate_set`.
-3. **Evidence table.** Atom set A = atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null) ∪ `claim_check` atoms on that candidate with `holds = true`; capped at `card.evidence_max`, keeping atoms referenced by trials first. `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<signal>` anomaly (`<window>`)").
+3. **Evidence table.** Atom set A, in this order: atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null); `claim_check` atoms on those candidates with `holds = true`; then the atoms of the first failing trial of each runner-up listed under why-not (step 6), so its line can cite them under C3. Capped at `card.evidence_max` keeping that order, then sorted by (`candidate`, `kind`, `atom_id`). `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<family>` anomaly (`<window>`)": anomaly atoms carry `family`, not `signal`, in `args_json`, 03 §7).
 4. **Timeline.** Entries: alert (`alert.t_alert_ns`, label `alert (<protocol>)`), incident onset (`onsets.t_onset_ns`), the root's internal and external onsets (`onsets.per_service`), every change in `changes` on a decision-pool candidate (`verdict.ranked`) with `t_ns` inside `alert.windows` (decoys included: the card shows them, the verdict weighs them). `cites` = atoms of kind `onset_precedence` or `change_proximity` whose `args_json` names that entry; may be empty for the alert line.
 5. **Path** as in §2.2.
-6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up, the first failing trial in ID order picks the template (e.g. `T2` → "{SVC:x} started after its dependents (failed T2, precedence)."); if no trial failed: "{SVC:x} passed the mandatory trials but its verified score was lower." `cites` = that trial's atoms, else the runner-up's first atom in the table.
+6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up in `ranked[1 … why_not.max]`, the first failing trial in ID order (T1 < T2 < … < T10) picks the text; if no trial failed, the text says whether every mandatory trial (`causentra.mandatory`, plus T10 for a proposal-origin candidate) passed or one was untestable. `{SVC:x}` is the runner-up. `cites` = that failing trial's atoms (in the table by step 3 unless the cap dropped them), else the runner-up's first atom in the table, else empty.
+
+   | Case | Text |
+   |---|---|
+   | T1 failed | {SVC:x} showed no internal anomaly that its callees do not explain (failed T1, origin). |
+   | T2 failed | {SVC:x} started after its dependents (failed T2, precedence). |
+   | T3 failed | No anomalous path leads from {SVC:x} to the entry services (failed T3, propagation). |
+   | T4 failed | A service that {SVC:x} calls went silent, so {SVC:x} may be its victim (failed T4, silence check). |
+   | T5 failed | {SVC:x} self-time explains too little of the entry latency increase (failed T5, latency accounting). |
+   | T6 failed | No change on {SVC:x} preceded the onset closely enough (failed T6, change alignment). |
+   | T7 failed | {SVC:x} behaves like its peers (failed T7, peer contrast). |
+   | T8 failed | The parents of {SVC:x} explain its anomaly (failed T8, intervention). |
+   | T9 failed | {SVC:x} leaves the top candidates when one telemetry source is dropped (failed T9, source ablation). |
+   | T10 failed | A proposed claim about {SVC:x} did not hold (failed T10, claim checks). |
+   | no trial failed, every mandatory trial passed | {SVC:x} passed the mandatory trials but its verified score did not exceed the leader's. |
+   | no trial failed, a mandatory trial untestable | {SVC:x} failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's. |
+
 7. **Asks.** `verdict.asks` rendered by `asks.<kind>` templates: "`<kind>`: `<target>` — `<why>`".
 8. **Next steps** (§3.6). 9. **Summary** (§3.2 or §3.5). 10. `narrator`. 11. `card_hash`. 12. `card.md`.
 
@@ -137,13 +153,13 @@ svc_ref     = "SVC:" , node ;                               (* node: exact graph
 | `{CONF.level}` / `{CONF.set_size}` / `{CONF.margin}` | `confidence.level` / integer / margin, 2 decimals | always |
 | `{STATUS}` | `verdict.status` | always |
 | `{ONSET}` | `onsets.t_onset_ns` as `HH:MM:SS UTC` | `onsets.json` present |
-| `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` |
+| `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` ∪ `case_manifest.services` (the entity lexicon of §2.1, so a card stays writable while the graph is empty) |
 
 Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): 3 significant figures; plain notation for 0.001 ≤ |x| < 10⁶, otherwise `.3g`; integers below 10⁶ unchanged; `null`/NaN → `n/a`. Units are printed exactly as stored.
 
 ### 3.4 Claim checker
 
-Applied to the raw LLM sentence (before filling) in this order; the first failing rule is reported. Rules C4–C6 consider only text **outside** placeholders.
+Applied to the raw LLM sentence (before filling) in this order, each rule over the whole sentence before the next (C1 on every placeholder, then C2 on every placeholder, then C3); the first failing rule is reported, at its first offending token. Rules C4–C6 consider only text **outside** placeholders.
 
 | Rule | Rejects when | Config |
 |---|---|---|
@@ -160,7 +176,7 @@ C6 forces every entity through `{SVC:…}`/`{ROOT}`, so "entity outside the enum
 
 ### 3.5 Template prose (fallback, and `ai.mode = off`)
 
-Same grammar, same filler. The atom chosen for `{E*}` below is the first atom of the named kind on the root in `evidence_table` order; if none exists the sentence is skipped.
+Same grammar, same filler. The atom chosen for `{E*}` below is the root's strongest atom of the named kind: highest `value`, ties by `atom_id`, the same rule as FaultLoom's best atom ([06 §3.7](06-faultloom.md)). A root can carry several `internal_anomaly` atoms (one per family, detector and source), so table order alone could name a weaker one. If none exists the sentence is skipped.
 
 | Status | Sentences |
 |---|---|
@@ -169,26 +185,28 @@ Same grammar, same filler. The atom chosen for `{E*}` below is the first atom of
 | `INCONCLUSIVE` | "No single root cause could be established; the candidate set has {CONF.set_size} services." · "The leading candidate is {ROOT}." (root present) · "The asks below list the telemetry or trials that would settle it." |
 | `NO_FAULT` | "No anomaly above threshold was found at the entry service or inside any service." · "The candidate set is empty and no root cause is named." |
 
-Template sentences may have empty `cites` only when no citable atom exists (for example a `NO_FAULT` case with no atoms); LLM sentences never may.
+Template sentences may have empty `cites` only when no citable atom exists, or for `NO_FAULT`: its two sentences state no number and name no candidate, so they cite nothing even when the table has atoms (every number in a card still links to an atom). LLM sentences never may have empty `cites`.
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
 | `PB-CPU-01` | `cpu` | compare CPU use with the limit and check throttling on {ROOT}; compare replicas; look for a deploy, config or traffic change; consider scaling out or raising the limit after review |
 | `PB-MEM-01` | `mem` | compare memory with the limit; check restarts and OOM-kill events; look for steady growth (leak); consider restart or rollback after review |
 | `PB-DISK-01` | `disk` | check I/O latency and volume usage on {ROOT.component}; check node disk pressure; look for noisy neighbours |
+| `PB-SOCK-01` | `socket` | compare open connections and sockets on {ROOT.component} with its limits; check connection pool use and waits in callers; look for connections opened but never closed (leak); consider raising connection limits or a restart after review |
 | `PB-DELAY-01` | `delay` | compare caller-observed and callee-side latency on edges of {ROOT} (edge gap); check network policy and node networking; check DNS |
 | `PB-LOSS-01` | `loss` | check connection errors, resets and retries on {ROOT}; check CNI and node interface health; review retry and timeout settings |
 | `PB-ERROR-01` | `error` | inspect error-level log templates new in the incident on {ROOT}; break errors down by operation and status code; check restarts and readiness |
 | `PB-EXC-01` | `exception` | inspect exception records and stack traces on {ROOT}; map them to the code path; check the latest code deploy |
+| `PB-AVAIL-01` | `availability` | check pod restarts, terminations and exit reasons of {ROOT}; check readiness and liveness probes; check scheduling and eviction events on the node of {ROOT.component}; check whether callers retried or failed over |
 | `PB-CONFIG-01` | `config` | diff the latest config or flag change on {ROOT} against the previous version; consider reverting after review |
 | `PB-DEP-01` | `dependency` | check the datastore or cache used by {ROOT}: latency, connections, locks; compare callers of the dependency |
 | `PB-UNK-01` | `unknown` | review the evidence table; collect the telemetry listed under asks |
 | `PB-CHANGE-01` | change mode or T6 pass | identify the change that preceded onset on the timeline; compare with peers or the previous version; consider rollback after review |
-| `PB-INCONC-01` | `INCONCLUSIVE` | collect the telemetry named in asks; inspect each candidate-set member; re-run the diagnosis |
+| `PB-INCONC-01` | `INCONCLUSIVE` | per ask kind present, in ask order: `telemetry` collect the telemetry named in the asks, `trial` check the trials named in the asks (failed or untestable), `context` inspect the named service or the ranked slate around the incident onset; then inspect each candidate-set member; re-run the diagnosis |
 | `PB-NOFAULT-01` | `NO_FAULT` | confirm with the alert source whether the alert was spurious; check SLO thresholds; check for silent services or telemetry gaps |
 
 The full step texts live in `playbooks.yaml`; they contain no digits and use only `{ROOT}`/`{ROOT.component}`.
@@ -201,7 +219,7 @@ Rendered from `card.json` only: title; status banner with `confidence.level`, se
 
 1. Read `run_manifest.json` (written by core after 10a) and check it lists `verdict.json`, `card.json`, `card.md`, and `agent_trace.jsonl` when the run has one, in `outputs`, with the hashes those files have now.
 2. `subject[0]` = `{name: "verdict.json", digest: {sha256: SHA-256(file bytes of verdict.json)}}`. Note this differs from `verdict_hash` (canonical JSON without the hash field); both are checked on replay.
-3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when there is no trace (`ai off`, or `status = skipped`).
+3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when `agent_trace.jsonl` is absent or has no lines (`ai off`, or `status = skipped`).
 4. `predicate` = `{run_manifest, verdict_hash, card_hash, agent_trace_head}`; Statement `_type` and `predicateType` exactly as 03 §11.2.
 5. Write `receipt.json` as `canonical_json` bytes.
 6. Optional signing (`signing.enabled`): sign the `receipt.json` bytes with a minisign-compatible Ed25519 key whose secret-key path comes from the environment variable `VEYLTRACE_MINISIGN_SECRET_KEY` (never from the repo); write `receipt.json.minisig`. The signature file is outside every hash. Tool or library choice is an ADR at X-09.

@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/bench_summary.schema.json",
+  "$id": "https://veyltrace.dev/schemas/0.2/bench_summary.schema.json",
   "title": "BenchSummary",
   "description": "bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only.",
   "x-veyltrace": {
     "name": "bench_summary",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "kind": "json",
     "producer": "bench",
     "path": "bench/results/<experiment_id>/summary.json"
@@ -23,7 +23,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^0\\.2\\.[0-9]+$"
     },
     "producer": {
       "description": "bench@<ALGO_VERSION>: the bench code that scored the runs.",
@@ -62,7 +62,7 @@
         "description": "Excluded case ids of one dataset part, sorted.",
         "type": "array",
         "items": {
-          "$ref": "common.schema.json#/$defs/case_id"
+          "$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#/$defs/case_id"
         },
         "x-sort": [
           {
@@ -98,10 +98,10 @@
       ],
       "properties": {
         "dataset": {
-          "$ref": "common.schema.json#/$defs/dataset"
+          "$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#/$defs/dataset"
         },
         "system": {
-          "$ref": "common.schema.json#/$defs/system"
+          "$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#/$defs/system"
         },
         "method": {
           "description": "Method id from the experiment YAML (04 §4), as bench_result.method.",
@@ -154,6 +154,7 @@
             "ac_at_k",
             "avg_at_5",
             "chance",
+            "cost",
             "fine_ac_at_k",
             "lift",
             "mrr",
@@ -255,6 +256,17 @@
               "anyOf": [
                 {
                   "$ref": "#/$defs/summary_metric_onset_error"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "cost": {
+              "description": "The 04 §9 metric `cost`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_cost"
                 },
                 {
                   "type": "null"
@@ -628,6 +640,84 @@
           "minimum": 0
         },
         "n_onset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_cost": {
+      "description": "Nearest-rank p50 and p95 per case of wall time (ms), peak RSS (MiB) and LLM tokens in and out over the group's rows that have the value (04 §7 Cost, RQ5), each null when no row has it; n_cost = rows with a wall_ms.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_cost",
+        "peak_rss_mb_p50",
+        "peak_rss_mb_p95",
+        "tokens_in_p50",
+        "tokens_in_p95",
+        "tokens_out_p50",
+        "tokens_out_p95",
+        "wall_ms_p50",
+        "wall_ms_p95"
+      ],
+      "properties": {
+        "wall_ms_p50": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "wall_ms_p95": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "peak_rss_mb_p50": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "peak_rss_mb_p95": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tokens_in_p50": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tokens_in_p95": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tokens_out_p50": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "tokens_out_p95": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "n_cost": {
           "type": "integer",
           "minimum": 0
         }

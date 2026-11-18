@@ -4,7 +4,8 @@ A group is one (dataset, system, method); its rows are `metrics.CaseScore`s. Rat
 group's fault cases F, so failed and unranked runs stay in every denominator (04 §7 "Failed runs";
 "Unranked runs", added by #14) and no-fault rows stay out of all of them (and of n_unranked). Means
 use math.fsum, so a summary never depends on row order. Onset error is not a rate: its median and
-max are over the rows that have one (detected-protocol ``ok`` runs of injected cases, #215).
+max are over the rows that have one (detected-protocol ``ok`` runs of injected cases, #215). Cost is
+the nearest-rank p50 and p95 of each cost column over the rows that have it (03 §13.3, #316).
 """
 
 from __future__ import annotations
@@ -16,6 +17,10 @@ from collections.abc import Collection, Iterable, Mapping, Sequence
 from types import MappingProxyType
 
 from veyltrace_bench.metrics import AC_KS, CaseScore, chance_at
+
+#: per_case.csv cost columns summarised by the cost metric, and its percentiles (03 §13.3, #316).
+COST_COLUMNS = ("wall_ms", "peak_rss_mb", "tokens_in", "tokens_out")
+COST_PERCENTILES = (50, 95)  # 04 §2 H5 and 02 §9 budgets are p95s; p50 is the typical case
 
 
 def _at_ks(*names: str) -> tuple[str, ...]:
@@ -34,6 +39,7 @@ METRIC_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "chance": _at_ks("chance"),
         "lift": _at_ks("lift", "chance_diff"),  # Lift@k = AC@k / Chance@k, also AC@k − Chance@k
         "onset_error": ("onset_error_median_ms", "onset_error_max_ms", "n_onset"),  # 04 §7, #215
+        "cost": ("n_cost", *(f"{c}_p{p}" for c in COST_COLUMNS for p in COST_PERCENTILES)),  # #316
     }
 )
 ALL_METRICS = tuple(METRIC_KEYS)
@@ -42,6 +48,15 @@ ALL_METRICS = tuple(METRIC_KEYS)
 def _mean(values: Sequence[float]) -> float | None:
     """Mean via math.fsum (exactly rounded), so the result never depends on row order."""
     return math.fsum(values) / len(values) if values else None
+
+
+def nearest_rank(values: Sequence[float], p: int) -> float | None:
+    """The p-th percentile by nearest rank: the ceil(p*n/100)-th smallest of n values (03 §13.3), so
+    it is one of the values and order-free; None for no values."""
+    if not values:
+        return None
+    rank = max(1, -(-p * len(values) // 100))  # ceil(p*n/100) in integers, at least the smallest
+    return sorted(values)[rank - 1]
 
 
 def _rate(hits: Sequence[bool | None], channel: bool = False) -> float | None:
@@ -94,5 +109,10 @@ def summarize(scores: Iterable[CaseScore], metrics: Collection[str] = ALL_METRIC
     values["onset_error_median_ms"] = statistics.median(onset) if onset else None  # sorts: order-free
     values["onset_error_max_ms"] = max(onset) if onset else None
     values["n_onset"] = len(onset)
-    keep = {key for name in metrics if name in METRIC_KEYS for key in METRIC_KEYS[name]}  # cost: skipped
+    for column in COST_COLUMNS:
+        have = [float(v) for s in rows if (v := getattr(s, column)) is not None]
+        for p in COST_PERCENTILES:
+            values[f"{column}_p{p}"] = nearest_rank(have, p)
+    values["n_cost"] = sum(s.wall_ms is not None for s in rows)
+    keep = {key for name in metrics if name in METRIC_KEYS for key in METRIC_KEYS[name]}
     return counts | {key: value for key, value in values.items() if key in keep}
