@@ -33,7 +33,7 @@ MAX_ASKS: Final = 3
 MAX_RATIONALE: Final = 280
 MAX_ASK_TARGET: Final = 80
 MAX_ASK_WHY: Final = 160
-_ASK_KINDS: Final[tuple[str, ...]] = get_args(models.AskKind)
+ASK_KINDS: Final[tuple[str, ...]] = get_args(models.AskKind)
 _TRIALS: Final[tuple[str, ...]] = get_args(models.TrialId)  # T1 ... T10, numeric order
 _INDICATORS: Final[tuple[str, ...]] = get_args(models.Indicator)
 _FAULT_CLASSES: Final[tuple[str, ...]] = get_args(models.FaultClass)
@@ -116,7 +116,7 @@ def build_schema(enums: CaseEnums, settings: BriefSettings) -> dict[str, Any]:
     )
     ask = _closed(
         ["kind", "target", "why"],
-        {"kind": {"enum": list(_ASK_KINDS)}, "target": _text(MAX_ASK_TARGET), "why": _text(MAX_ASK_WHY)},
+        {"kind": {"enum": list(ASK_KINDS)}, "target": _text(MAX_ASK_TARGET), "why": _text(MAX_ASK_WHY)},
     )
     schema = _closed(
         ["proposals", "asks"],
