@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc
+from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc, format_value
 from veyltrace_causivra.placeholders import (
     FillContext,
     PlaceholderError,
@@ -36,7 +36,8 @@ OTHER = "E18da98df6a"
         (999_999, "999999"),
         (1_234_567, "1.23e+06"),
         (9.42, "9.42"),
-        (1.0, "1.00"),
+        (1.0, "1"),  # trailing zeros stripped, like %g (#330 c)
+        (1.2, "1.2"),
         (0.274390244, "0.274"),
         (1234.5, "1230"),
         (0.0012345, "0.00123"),
@@ -44,17 +45,40 @@ OTHER = "E18da98df6a"
         (2.675, "2.68"),  # 2.675 is 2.67499999… in binary; repr() is "2.675", rounded half-even on decimals
         (-3.14159, "-3.14"),
         (1_200_000.0, "1.2e+06"),
+        # The notation follows the rounded value (#330 b), at both thresholds.
+        (999_500.0, "1e+06"),
+        (999_499.0, "999000"),
+        (-999_999.9, "-1e+06"),
+        (0.0009995, "0.001"),
+        (0.0009994, "0.000999"),
+        (9.995, "10"),
+        (100.0, "100"),
+        (1.5e-05, "1.5e-05"),
+        (5e-324, "5e-324"),  # decimal, so no binary detour (a float would print 4.94e-324)
     ],
 )
 def test_format_number_table(value: Any, text: str) -> None:
     assert format_number(value, 3) == text
 
 
-@given(st.floats(min_value=0.001, max_value=999_999, allow_nan=False))
-def test_plain_range_never_uses_scientific_notation(x: float) -> None:
+@given(st.floats(min_value=0.001, max_value=999_499, allow_nan=False))
+def test_values_that_round_into_the_plain_range_are_plain(x: float) -> None:
     out = format_number(x, 3)
     assert "e" not in out and out == format_number(x, 3)
     assert math.isclose(float(out), x, rel_tol=5e-3)
+
+
+@given(st.floats(min_value=999_500, max_value=1e300, allow_nan=False))
+def test_values_that_round_to_a_million_or_more_are_scientific(x: float) -> None:
+    out = format_number(x, 3)
+    assert "e+" in out and math.isclose(float(out), x, rel_tol=5e-3)  # #330 b
+
+
+@given(st.floats(allow_nan=False, allow_infinity=False).filter(lambda x: x != 0))
+def test_one_precision_rule_without_trailing_zeros(x: float) -> None:
+    mantissa = format_number(x, 3).split("e")[0]
+    assert not ("." in mantissa and mantissa.endswith("0")) and not mantissa.endswith(".")  # #330 c
+    assert len(mantissa.lstrip("-0.").replace(".", "").rstrip("0")) <= 3
 
 
 @given(st.floats(allow_nan=True, allow_infinity=True))
@@ -216,3 +240,28 @@ def test_filled_numbers_come_only_from_placeholders() -> None:
     out = fill(text, [ATOM], _ctx())
     assert re.findall(r"\d+(?:\.\d+)?", re.sub(r"\{[^}]*\}", "", text)) == []
     assert "9.42" in out and "0.27" in out
+
+
+@pytest.mark.parametrize(
+    ("value", "unit", "text"),
+    [
+        (12.0, "count", "12"),  # #330 d: by the unit, not by the float
+        (1234.0, "count", "1234"),  # a count keeps every digit
+        (2.5, "count", "2"),  # half-even
+        (12.0, "z", "12"),
+        (1234.0, "ms", "1230"),
+        (None, "count", "n/a"),
+        (float("nan"), "count", "n/a"),
+    ],
+)
+def test_format_value_prints_counts_as_integers(value: float | None, unit: str, text: str) -> None:
+    assert format_value(value, unit, 3) == text
+
+
+def test_c3_does_not_require_cites_in_the_template_filler() -> None:
+    # #330 a: "cites empty" is enforced on the LLM path (X-09); a template sentence without an atom
+    # placeholder may have empty cites (10 §3.5), and the module says where the rule lives.
+    import veyltrace_causivra.placeholders as module
+
+    assert fill("The leading candidate is {ROOT}.", [], _ctx()) == "The leading candidate is payment."
+    assert module.__doc__ is not None and "cites empty" in module.__doc__ and "X-09" in module.__doc__

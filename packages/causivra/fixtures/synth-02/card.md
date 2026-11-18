@@ -23,10 +23,10 @@
 | E58335ef082 | frontend mem anomaly (incident) | 0.534 | z |
 | E2a9591ce1a | frontend silence (incident) | 0 |  |
 | E106e938451 | recommend self_time anomaly (incident) | 0.811 | z |
-| E064e599e66 | recommend onset precedence over dependents (onset) | 1.00 |  |
+| E064e599e66 | recommend onset precedence over dependents (onset) | 1 |  |
 | Ec8c7dbc9ee | recommend onset precedence over self (onset) | 0 | ms |
-| E0ac060be5f | recommend propagation to entry (incident) | 1.00 |  |
-| Eb6f68006b9 | recommend propagation to path (incident) | 1.00 |  |
+| E0ac060be5f | recommend propagation to entry (incident) | 1 |  |
+| Eb6f68006b9 | recommend propagation to path (incident) | 1 |  |
 | Efd34e2ffcd | recommend silence (incident) | 0 |  |
 
 ## Timeline

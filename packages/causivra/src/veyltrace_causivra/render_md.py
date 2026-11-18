@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
-from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc
+from veyltrace_causivra.fmt import format_margin, format_time_utc, format_value
 
 __all__ = ["render_card"]
 
@@ -62,7 +62,7 @@ def render_card(card: Mapping[str, Any], sig_digits: int) -> str:
     if card["evidence_table"]:
         lines += ["| Atom | Evidence | Value | Unit |", "|---|---|---|---|"]
         lines += [
-            f"| {r['atom_id']} | {_cell(r['label'])} | {format_number(r['value'], sig_digits)} "
+            f"| {r['atom_id']} | {_cell(r['label'])} | {format_value(r['value'], r['unit'], sig_digits)} "
             f"| {_cell(r['unit'] or '')} |"
             for r in card["evidence_table"]
         ]
