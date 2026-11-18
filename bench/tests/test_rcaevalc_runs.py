@@ -18,7 +18,7 @@ from veyltrace_bench import answer_keys, decoy_runs, naive_change, runner
 from veyltrace_bench.experiment import OVERLAY_KEY, load_experiment, unsupported
 from veyltrace_contracts.models import AnswerKeyRow
 from veyltrace_core import cli, io, textio
-from veyltrace_core.config import data_root, find_config_dir, resolve_config
+from veyltrace_core.config import data_root, resolve_config
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.ids import case_id
 from veyltrace_core.pipeline import RunSummary
@@ -29,7 +29,6 @@ NO_FAULT = case_id("synth-05")  # RCAEval-C plants changes around an injection: 
 DECOYS = "  sources_drop: []\n  decoys: {pi: 1.0, rate_per_h: 60, window_s: [-1800, 300]}\n"
 NAIVE = '  - {id: "naive-change", kind: internal_baseline}\n'
 OFF = '  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}\n'
-OVERLAY_READY = "overlay_path" in textio.read_text(find_config_dir() / "infralume.yaml")  # O-09, PR #323
 
 
 def _events(rows: list[tuple[int, str]]) -> pa.Table:
@@ -119,9 +118,9 @@ def test_every_run_of_a_case_names_that_cases_overlay(
     named: list[str | None] = []
     real = resolve_config
 
-    def resolve(overrides: dict[str, object], **kw: Any) -> Any:  # until O-09 (#323) has the key
+    def resolve(overrides: dict[str, object], **kw: Any) -> Any:  # records each run's overlay
         named.append(cast("str | None", overrides.get(OVERLAY_KEY)))
-        return real({k: v for k, v in overrides.items() if k != OVERLAY_KEY}, **kw)
+        return real(overrides, **kw)
 
     def fake_run_case(dataset: str, case: str, ai_mode: str, **_: object) -> RunSummary:
         return RunSummary(dataset, case, "0" * 16, tmp_path, "failed", "x", None, (), (), {})
@@ -142,7 +141,6 @@ def test_every_run_of_a_case_names_that_cases_overlay(
     assert all((r["decoy_present"], r["decoy_ranked_first"]) == (True, False) for r in rows.values())
 
 
-@pytest.mark.skipif(not OVERLAY_READY, reason="needs infralume.events.overlay_path (O-09, PR #323)")
 def test_rcaeval_c_runs_end_to_end_on_synth(tmp_path: Path) -> None:
     assert cli.main(["data", "fetch", "synth"]) == 0
     exp = _decoy_experiment(tmp_path, naive=True)
