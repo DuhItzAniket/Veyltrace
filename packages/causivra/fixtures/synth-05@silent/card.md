@@ -16,9 +16,9 @@
 
 | Atom | Evidence | Value | Unit |
 |---|---|---|---|
-| Efeb591839a | cart logs anomaly (incident) | 4.00 | z |
+| Efeb591839a | cart logs anomaly (incident) | 4 | z |
 | E2e0bd9e9a2 | cart onset precedence over self (onset) | 0 | ms |
-| E9609f44d49 | cart silence (incident) | 1.00 |  |
+| E9609f44d49 | cart silence (incident) | 1 |  |
 | E847fffbec6 | catalog self_time anomaly (incident) | 1.05 | z |
 | E7b0771b7a9 | catalog silence (incident) | 0 |  |
 | Ec3ee13da9f | checkout self_time anomaly (incident) | 1.03 | z |

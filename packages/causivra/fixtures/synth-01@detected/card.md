@@ -19,9 +19,9 @@
 | Eb2a1231709 | cart mem anomaly (incident) | 0.844 | z |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
-| E8aa8de679c | checkout onset precedence over dependents (onset) | 1.00 |  |
-| E586a046788 | checkout propagation to entry (incident) | 1.00 |  |
-| Ee33689c27e | checkout propagation to path (incident) | 1.00 |  |
+| E8aa8de679c | checkout onset precedence over dependents (onset) | 1 |  |
+| E586a046788 | checkout propagation to entry (incident) | 1 |  |
+| Ee33689c27e | checkout propagation to path (incident) | 1 |  |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
 | E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
 | E2a9591ce1a | frontend silence (incident) | 0 |  |

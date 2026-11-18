@@ -18,13 +18,13 @@
 |---|---|---|---|
 | Ea219385f6e | catalog mem anomaly (incident) | 82.1 | z |
 | E09d7fef8c9 | catalog onset precedence over self (onset) | 0 | ms |
-| Ec7e15656c4 | catalog onset precedence over dependents (onset) | 1.00 |  |
-| E9d37c91c2d | catalog propagation to entry (incident) | 1.00 |  |
-| Eb7b0de766f | catalog propagation to path (incident) | 1.00 |  |
+| Ec7e15656c4 | catalog onset precedence over dependents (onset) | 1 |  |
+| E9d37c91c2d | catalog propagation to entry (incident) | 1 |  |
+| Eb7b0de766f | catalog propagation to path (incident) | 1 |  |
 | E7b0771b7a9 | catalog silence (incident) | 0 |  |
 | E035e845d05 | checkout mem anomaly (incident) | 0.826 | z |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
-| E58335ef082 | frontend mem anomaly (incident) | 0.560 | z |
+| E58335ef082 | frontend mem anomaly (incident) | 0.56 | z |
 | E2a9591ce1a | frontend silence (incident) | 0 |  |
 | E3fa4c27025 | recommend mem anomaly (incident) | 0.528 | z |
 | Efd34e2ffcd | recommend silence (incident) | 0 |  |

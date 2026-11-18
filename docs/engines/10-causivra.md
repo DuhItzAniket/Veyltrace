@@ -155,7 +155,7 @@ svc_ref     = "SVC:" , node ;                               (* node: exact graph
 | `{ONSET}` | `onsets.t_onset_ns` as `HH:MM:SS UTC` | `onsets.json` present |
 | `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` ∪ `case_manifest.services` (the entity lexicon of §2.1, so a card stays writable while the graph is empty) |
 
-Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): 3 significant figures; plain notation for 0.001 ≤ |x| < 10⁶, otherwise `.3g`; integers below 10⁶ unchanged; `null`/NaN → `n/a`. Units are printed exactly as stored.
+Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): round to 3 significant figures first, then strip trailing zeros as `%g` does (1.0 → "1", 1.20 → "1.2"). The notation is chosen from the **rounded** value: plain for 0.001 ≤ |rounded| < 10⁶, otherwise the `%g` form (`<mantissa>e±XX`, e.g. 1.2e+06; `%g` writes exponent −4 plainly, 0.000123), so 999500 → "1e+06" and 0.0009995 → "0.001". Integers below 10⁶ unchanged; a value whose `unit` is a count unit (`count`, 03 §7) prints as an integer, rounded half-even, decided by the unit and never by testing the float (12.0 → "12", 1234.0 → "1234"); `null`/NaN/±inf → `n/a`. Units are printed exactly as stored.
 
 ### 3.4 Claim checker
 
