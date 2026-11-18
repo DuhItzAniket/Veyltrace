@@ -99,7 +99,7 @@ Run-dir sequencing ([02 §6.10](../02-architecture.md#610-causivra--explanation-
    | no trial failed, every mandatory trial passed | {SVC:x} passed the mandatory trials but its verified score did not exceed the leader's. |
    | no trial failed, a mandatory trial untestable | {SVC:x} failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's. |
 
-7. **Asks.** `verdict.asks` rendered by `asks.<kind>` templates: "`<kind>`: `<target>` — `<why>`".
+7. **Asks.** `verdict.asks` rendered by `asks.<kind>` templates: "`<kind>`: `<target>` — `<why>`". Numbers in `why` go through the card formatter (§3.3): a number after "margin " reads as `{CONF.margin}` (2 decimals), any other non-integer as `format.sig_digits` significant figures, so "runner-up within margin 0.015249896" reads "… margin 0.02". Integers and digits inside identifiers (`T1`, `synth-01`) are kept.
 8. **Next steps** (§3.6). 9. **Summary** (§3.2 or §3.5). 10. `narrator`. 11. `card_hash`. 12. `card.md`.
 
 All template strings in steps 1–8 are trusted code text, filled by the same filler as LLM prose (§3.3).
@@ -150,7 +150,7 @@ svc_ref     = "SVC:" , node ;                               (* node: exact graph
 | `{E….label}` / `.candidate` / `.window` | table label / atom candidate / atom window | same |
 | `{ROOT}`, `{ROOT.<field>}` | `verdict.root.service` / field (`component` falls back to service) | `root` not null |
 | `{RUNNER_UP}`, `{RUNNER_UP.<field>}` | `verdict.ranked[1]` | `len(ranked) ≥ 2` |
-| `{CONF.level}` / `{CONF.set_size}` / `{CONF.margin}` | `confidence.level` / integer / margin, 2 decimals | always |
+| `{CONF.level}` / `{CONF.set_size}` / `{CONF.margin}` | `confidence.level` / the set size with its counted noun, "1 service", "3 services" (one helper, `format_count`, agrees every counted noun with its number) / margin, 2 decimals | always |
 | `{STATUS}` | `verdict.status` | always |
 | `{ONSET}` | `onsets.t_onset_ns` as `HH:MM:SS UTC` | `onsets.json` present |
 | `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` ∪ `case_manifest.services` (the entity lexicon of §2.1, so a card stays writable while the graph is empty) |
@@ -181,15 +181,17 @@ Same grammar, same filler. The atom chosen for `{E*}` below is the root's strong
 | Status | Sentences |
 |---|---|
 | `CONFIRMED` | "{ROOT} is the only member of the candidate set and passed every mandatory trial." (cites: root trial atoms) · "Its strongest internal signal was {E*.label} at {E*.value} {E*.unit}." (`internal_anomaly`) · "Confidence is {CONF.level}; its verified score leads {RUNNER_UP} by a relative margin of {CONF.margin}." |
-| `LIKELY` | "{ROOT} is the most likely root cause; the candidate set has {CONF.set_size} services." · strongest-signal sentence · margin sentence |
-| `INCONCLUSIVE` | "No single root cause could be established; the candidate set has {CONF.set_size} services." · "The leading candidate is {ROOT}." (root present) · "The asks below list the telemetry or trials that would settle it." |
+| `LIKELY` | "{ROOT} is the most likely root cause; the candidate set has {CONF.set_size}." · strongest-signal sentence · margin sentence |
+| `INCONCLUSIVE` | "No single root cause could be established; the candidate set has {CONF.set_size}." · "The leading candidate is {ROOT}." (root present) · "The asks below list what would settle it: <phrases>." (asks present) |
 | `NO_FAULT` | "No anomaly above threshold was found at the entry service or inside any service." · "The candidate set is empty and no root cause is named." |
+
+`<phrases>` names only the ask kinds present in `verdict.asks`, each once in the order it first appears, by its `ask_phrases.<kind>` words, joined as "a", "a and b", "a, b and c" ("… settle it: trials to check and context to inspect."). A verdict with only `context` asks never mentions telemetry or trials; without asks the sentence is skipped.
 
 Template sentences may have empty `cites` only when no citable atom exists, or for `NO_FAULT`: its two sentences state no number and name no candidate, so they cite nothing even when the table has atoms (every number in a card still links to an atom). LLM sentences never may have empty `cites`.
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. A step written as `{when: candidate_set, text}` is shown only when the candidate set is non-empty; for an empty set it is dropped, with no placeholder line ("inspect each member" of an empty set is no advice). Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
@@ -206,7 +208,7 @@ Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `C
 | `PB-DEP-01` | `dependency` | check the datastore or cache used by {ROOT}: latency, connections, locks; compare callers of the dependency |
 | `PB-UNK-01` | `unknown` | review the evidence table; collect the telemetry listed under asks |
 | `PB-CHANGE-01` | change mode or T6 pass | identify the change that preceded onset on the timeline; compare with peers or the previous version; consider rollback after review |
-| `PB-INCONC-01` | `INCONCLUSIVE` | per ask kind present, in ask order: `telemetry` collect the telemetry named in the asks, `trial` check the trials named in the asks (failed or untestable), `context` inspect the named service or the ranked slate around the incident onset; then inspect each candidate-set member; re-run the diagnosis |
+| `PB-INCONC-01` | `INCONCLUSIVE` | per ask kind present, in ask order: `telemetry` collect the telemetry named in the asks, `trial` check the trials named in the asks (failed or untestable), `context` inspect the named service or the ranked slate around the incident onset; then inspect each candidate-set member (non-empty set only); re-run the diagnosis |
 | `PB-NOFAULT-01` | `NO_FAULT` | confirm with the alert source whether the alert was spurious; check SLO thresholds; check for silent services or telemetry gaps |
 
 The full step texts live in `playbooks.yaml`; they contain no digits and use only `{ROOT}`/`{ROOT.component}`.
@@ -310,6 +312,7 @@ Computed by code from cards; no judge ([verified_agents §Q8][va-q8]).
 | `checker.certainty_words` | §3.4 | list | a priori |
 | `labels.<kind>` | one template per evidence kind | text | display |
 | `asks.<kind>` | one template per ask kind | text | display |
+| `ask_phrases.<kind>` | what each ask kind would settle, for the INCONCLUSIVE summary (§3.5); no digit or brace | text | display |
 | `format.sig_digits` | 3 | digits | a priori |
 | `signing.enabled` | `false` | bool | demo only |
 | `signing.public_key_path` | `null` | path | public key may be committed; secret key never |

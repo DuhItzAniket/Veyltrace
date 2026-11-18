@@ -18,7 +18,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final, Literal, cast
 
-from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc
+from veyltrace_causivra.fmt import format_count, format_margin, format_number, format_time_utc
 
 __all__ = ["FillContext", "PlaceholderError", "RunnerUp", "TableAtom", "check_cites", "fill", "placeholders"]
 
@@ -33,6 +33,8 @@ _ROLE: Final = re.compile(
 )
 _SVC: Final = re.compile(r"SVC:(?P<node>[^{}]+)")
 _BRACED: Final = re.compile(r"\{([^{}]*)\}")
+#: The counted noun of {CONF.set_size}: it fills as "1 service" or "3 services" (10 §3.3).
+SET_NOUN: Final = "service"
 
 
 class PlaceholderError(ValueError):
@@ -148,7 +150,7 @@ def _value(ref: _Ref, ctx: FillContext) -> str:
     if m["conf"] == "level":
         return ctx.conf_level
     if m["conf"] == "set_size":
-        return str(ctx.conf_set_size)
+        return format_count(ctx.conf_set_size, SET_NOUN)
     if m["conf"] == "margin":
         return format_margin(ctx.conf_margin)
     if m["status"]:

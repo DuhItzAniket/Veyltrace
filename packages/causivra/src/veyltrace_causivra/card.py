@@ -66,7 +66,7 @@ def build_card(
         "root": v["root"],
         "confidence": v["confidence"],
         "candidate_set": [{"service": c["service"], "component": c["component"]} for c in v["candidate_set"]],
-        "summary": summary(verdict, ctx, kinds),
+        "summary": summary(verdict, ctx, kinds, settings.ask_phrases),
         "timeline": sections.timeline(verdict, alert, onsets, changes, evidence),
         "path": sections.path(verdict, paths),
         "evidence_table": table,

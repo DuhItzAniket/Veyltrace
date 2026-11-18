@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_causivra.fmt import format_margin, format_number, format_time_utc
+from veyltrace_causivra.fmt import (
+    format_count,
+    format_margin,
+    format_number,
+    format_numbers_in,
+    format_time_utc,
+)
 from veyltrace_causivra.placeholders import (
     FillContext,
     PlaceholderError,
@@ -129,7 +135,7 @@ def _ctx(**changes: Any) -> FillContext:
             "payment-1 / cpu / cpu / resource",
         ),
         ("{RUNNER_UP} {RUNNER_UP.fault_class} {RUNNER_UP.indicator}", [], "cart cpu latency"),
-        ("{CONF.level} {CONF.set_size} {CONF.margin} {STATUS}", [], "medium 2 0.27 LIKELY"),
+        ("{CONF.level} {CONF.set_size} {CONF.margin} {STATUS}", [], "medium 2 services 0.27 LIKELY"),
         ("onset at {ONSET}", [], "onset at 00:20:30 UTC"),
         ("{SVC:checkout}", [], "checkout"),
         (
@@ -216,3 +222,47 @@ def test_filled_numbers_come_only_from_placeholders() -> None:
     out = fill(text, [ATOM], _ctx())
     assert re.findall(r"\d+(?:\.\d+)?", re.sub(r"\{[^}]*\}", "", text)) == []
     assert "9.42" in out and "0.27" in out
+
+
+@pytest.mark.parametrize(
+    ("count", "text"),
+    [(0, "0 services"), (1, "1 service"), (2, "2 services"), (12, "12 services")],
+)
+def test_format_count_agrees_with_the_number(count: int, text: str) -> None:
+    assert format_count(count, "service") == text
+
+
+def test_format_count_takes_an_irregular_plural_and_rejects_a_non_int() -> None:
+    assert (format_count(1, "body", "bodies"), format_count(3, "body", "bodies")) == ("1 body", "3 bodies")
+    with pytest.raises(TypeError):
+        format_count(True, "service")
+    with pytest.raises(TypeError):
+        format_count(cast(Any, 2.0), "service")  # the runtime check is under test
+
+
+def test_set_size_placeholder_carries_its_counted_noun() -> None:
+    one = _ctx(conf_set_size=1)
+    assert fill("The set has {CONF.set_size}.", [], one) == "The set has 1 service."
+    assert fill("The set has {CONF.set_size}.", [], _ctx()) == "The set has 2 services."
+
+
+@pytest.mark.parametrize(
+    ("why", "text"),
+    [
+        # Causentra's ask texts (09 §3.11): margins read as {CONF.margin}, other numbers at 3 sig. digits.
+        ("runner-up within margin 0.015249896", "runner-up within margin 0.02"),
+        (
+            "no status rule met at set size 2 and margin 0.03",
+            "no status rule met at set size 2 and margin 0.03",
+        ),
+        ("margin -0.004", "margin 0.00"),
+        ("score 0.123456 and 2e-05", "score 0.123 and 2e-05"),
+        # Integers and digits inside identifiers stay as they are.
+        ("mandatory trial T1 failed: no_internal_anomaly", "mandatory trial T1 failed: no_internal_anomaly"),
+        ("candidate set has 5 members", "candidate set has 5 members"),
+        ("synth-01 v2.0.1 x1.5", "synth-01 v2.0.1 x1.5"),
+        ("premargin 0.5", "premargin 0.500"),
+    ],
+)
+def test_format_numbers_in_upstream_text(why: str, text: str) -> None:
+    assert format_numbers_in(why, 3) == text
