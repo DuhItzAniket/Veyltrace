@@ -1,9 +1,10 @@
 """Real-case smoke (01 §7): one fetched case per RCAEval suite, skipped without `${VEYLTRACE_DATA}`.
 
 Per case: the tables fit their contracts, `sources` match the suite (Sock Shop has no traces, RE1
-has metrics only), no folder token, deny-listed key or fault-tool row survives (01 §3.6 a–c, the
-real directory names as tokens), conversion takes ≤ 10 s (O-01), and two conversions encode to
-identical bytes. Fetch first: `uv run veyltrace data fetch rcaeval --suite <suite> --cases 1`.
+has metrics only, one RE2-TT case has no logs), no folder token, deny-listed key or fault-tool row
+survives (01 §3.6 a–c, the real directory names as tokens), conversion takes ≤ 10 s (O-01), and
+two conversions encode to identical bytes. Fetch first:
+`uv run veyltrace data fetch rcaeval --suite <suite> --cases 1`.
 """
 
 from __future__ import annotations
@@ -28,6 +29,9 @@ SUITES = {
     "re1-ob": {"metrics"}, "re2-ob": {"metrics", "logs", "traces"}, "re2-ss": {"metrics", "logs"},
     "re2-tt": {"metrics", "logs", "traces"}, "re3-ob": {"metrics", "logs", "traces"},
 }  # fmt: skip
+#: Sources a case of a suite may lack: one RE2-TT case has no logs (04 §3), and it may be the
+#: fetched one. Every other source of the suite must be present, and none outside it (#324).
+MAY_LACK = {"re2-tt": {"logs"}}
 CONVERT_BUDGET_S = 10.0  # O-01 acceptance: ≤ 10 s per case
 
 
@@ -48,7 +52,10 @@ def test_real_case(suite: str, infralume_cfg: EngineConfig) -> None:
     elapsed = time.perf_counter() - started
     assert elapsed <= CONVERT_BUDGET_S, f"{suite} {case_id}: convert took {elapsed:.1f} s"
     encoded = _encode(case)  # raises if a table breaks its contract
-    assert {s for s, on in case.sources_present.items() if on} == SUITES[suite]
+    present = {s for s, on in case.sources_present.items() if on}
+    assert present <= SUITES[suite] and SUITES[suite] - present <= MAY_LACK.get(suite, set()), present
+    rows = {"traces" if s == "spans" else s for s, table in case.tables.items() if table.num_rows}
+    assert rows == present  # a source is present exactly when its table has rows
     rules, tokens = ScrubRules.from_config(infralume_cfg), folder_tokens(ref.canonical_key, rel)
     for source, table in case.tables.items():
         for name in table.column_names:
