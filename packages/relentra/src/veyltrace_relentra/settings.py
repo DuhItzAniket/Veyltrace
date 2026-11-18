@@ -20,9 +20,10 @@ _FAULT_CLASSES: Final[tuple[str, ...]] = get_args(models.FaultClass)
 
 @dataclass(frozen=True)
 class BriefSettings:
-    """The keys of 08 §4 that shape the output schema of `brief` mode."""
+    """The keys of 08 §4 that shape and limit the output of `brief` mode."""
 
     max_proposals: int
+    max_hypotheses: int
     max_claims_per_proposal: int
     max_signal_enum: int
     schema_max_bytes: int
@@ -55,6 +56,7 @@ def brief_settings(config: Mapping[str, Any]) -> BriefSettings:
         raise ConfigError(f"relentra.schema.exclude_fault_classes has unknown classes: {classes!r}")
     return BriefSettings(
         max_proposals=_count(config, "brief.max_proposals"),
+        max_hypotheses=_count(config, "budget.max_hypotheses"),
         max_claims_per_proposal=_count(config, "budget.max_claims_per_proposal"),
         max_signal_enum=_count(config, "schema.max_signal_enum"),
         schema_max_bytes=_count(config, "schema.max_bytes"),

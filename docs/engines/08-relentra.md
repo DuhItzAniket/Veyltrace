@@ -244,9 +244,9 @@ Relentra adds no numbers of its own to the prompt beyond fused scores in the poo
 ### 3.6 Normalisation (both modes)
 
 1. Map slots to named arguments and prune with FaultLoom `validate()` (§3.4); `args` never contains the subject. An empty `indicator` becomes `null`.
-2. Merge proposals with the same (`service`, `fault_class`): union of claims, union of trials, first rationale in model order.
+2. Merge proposals with the same (`service`, `fault_class`): union of claims, union of trials. The rationale and the first non-null indicator come from canonical order (the canonical JSON of each proposal), so reordering the reply changes nothing.
 3. Deduplicate claims by (`predicate`, canonical `args`); union their cites.
-4. Cap: proposals ≤ `budget.max_hypotheses`, claims ≤ `budget.max_claims_per_proposal` (keep model order, then cut).
+4. Cap: proposals ≤ `budget.max_hypotheses` (by `service`, `fault_class`), claims ≤ `budget.max_claims_per_proposal` (by `predicate`, canonical `args`), cites ≤ 3 and trials ≤ 4 (the contract's limits). A reply over the schema's own limits is cut in model order when it is checked, and counts as a validation problem.
 5. Sort claims by (`predicate`, canonical `args`); assign ids; sort proposals by (`service`, `fault_class`, `proposal_id`). The output therefore depends on the *set* the model proposed, not its order.
 
 ### 3.7 `sql` tool and DuckDB views

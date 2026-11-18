@@ -21,7 +21,7 @@ from veyltrace_relentra.settings import BriefSettings, brief_settings
 
 CONFIG: dict[str, Any] = {  # the defaults of 08 §4
     "brief": {"max_proposals": 3},
-    "budget": {"max_claims_per_proposal": 4},
+    "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5},
     "schema": {"max_signal_enum": 64, "max_bytes": 16384, "exclude_fault_classes": ["unknown"]},
 }
 NODES = ["cart", "checkout", "frontend"]
