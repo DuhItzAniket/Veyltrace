@@ -86,6 +86,8 @@ def test_root_is_a_virtual_workspace_with_all_members() -> None:
 # 09 §2.1 and §5 (allowed imports): Causentra imports Causatrix's rank(), classify() and views, and
 # FaultLoom's predicate library, validate() and atom_sources(); beside the #98 table above.
 SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix", "veyltrace-faultloom")
+# 08 §2.1, §5.4: Relentra uses FaultLoom's cards, predicate library and validate(), and the LLM client.
+SPEC_ENGINE_DEPS["relentra"] = ("veyltrace-faultloom", "veyltrace-llm")
 WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys"]}  # Observe's RCAEval-C generator, run by bench (#326)
 
 
