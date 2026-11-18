@@ -6,7 +6,7 @@
   "Hand-made, not real data, no answer key."
  ],
  "case_manifest": {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "case_id": "0f1e2d3c4b5a",
   "dataset": "handmade",
   "system": "other",

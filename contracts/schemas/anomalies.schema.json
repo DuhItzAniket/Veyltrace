@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/anomalies.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/anomalies.schema.json",
   "title": "AnomaliesRow",
   "description": "One row of anomalies.parquet: one signal_cube series scored by one enabled detector (03 §4.1). Written by Anomara for every series and every enabled detector, even below threshold, so evidence can be recomputed.",
   "x-veyltrace": {
     "name": "anomalies",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "anomara",
     "path": "anomalies.parquet",

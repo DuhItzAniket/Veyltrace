@@ -61,7 +61,7 @@ export type Klass = "internal" | "external" | "context";
 /** Fault mode of a candidate (03 §1); used by slate, verdict and answer_key. */
 export type Mode = "resource" | "network" | "code" | "change" | "dependency" | "unknown";
 
-/** Claim-check predicate library v0.1 (03 §7); used by evidence and proposals. */
+/** Claim-check predicate library v1.0 (03 §7); used by evidence and proposals. */
 export type Predicate = "zscore_above" | "onset_before" | "edge_anomalous" | "self_time_share_above" | "change_before_onset" | "template_new_in_incident" | "error_rate_above" | "silent" | "on_critical_path" | "peer_gap_above";
 
 /** Proposal id: P + 8 hex (contract_changes B proposals); used by proposals and verdict. */
@@ -79,8 +79,8 @@ export type RowRef = string;
 /** Run id: first 16 hex of SHA-256(case_id, config_sha256, code_commit, ai.mode), plus -x<12 hex> for a derived verify_hypothesis run (02 §4.1, contract_changes A6). */
 export type RunId = string;
 
-/** Contract version string for v0.1, as carried in schema_version (CONVENTIONS §3.6). */
-export type Semver01 = string;
+/** Contract version string for v1.0, as carried in schema_version (CONVENTIONS §3.6). */
+export type Semver10 = string;
 
 /** Series id {service}|{component}|{signal}|{source}; each part is non-empty and contains no | (03 §3.1, contract_changes B). */
 export type SeriesId = string;
@@ -559,7 +559,7 @@ export interface PredicateSpec {
   window: Window;
 }
 
-/** The claim-check predicate library v0.1 as data: name, parameters after the subject (names and Param types), polarity and window of every predicate (03 §7, 06 §3.5). Maintained by the lead in contracts/predicates.json; parameter ranges stay in config/faultloom.yaml and weights in config/causentra.yaml (lead decisions §2.6). */
+/** The claim-check predicate library v1.0 as data: name, parameters after the subject (names and Param types), polarity and window of every predicate (03 §7, 06 §3.5). Maintained by the lead in contracts/predicates.json; parameter ranges stay in config/faultloom.yaml and weights in config/causentra.yaml (lead decisions §2.6). */
 export interface Predicates {
   schema_version: string;
   predicates: PredicateSpec[];
@@ -976,7 +976,7 @@ export interface BenchSummary {
   statistics: string;
 }
 
-/** One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, overlay events included (03 §2.5). Written by Infralume; the key is not unique. */
+/** One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, plus the events overlay (01 §3.10), whose rows may lie outside the case's data span (03 §2.1, §2.5). Written by Infralume; the key is not unique. */
 export interface TelemetryEventsRow {
   t_ns: number;
   entity: ServiceName;

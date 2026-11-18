@@ -1,5 +1,5 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "case_id": "4320347d0fe6",
   "run_id": "95bf5dea088414ac",
   "status": "LIKELY",
@@ -295,5 +295,5 @@
     "sha256": "d13b1cbb8ae6c8f66415831933fe98388dd8e0fc38690052a1f8c1006389eea7"
   },
   "params_sha256": "4337d077348deb12f5f32020c3f483c972af5de07152f3c6e0805540253fbc07",
-  "verdict_hash": "e373e6544d97ef1b6c2bc6ff57b9f3497e66712da8b822cdeefc8379f29318fa"
+  "verdict_hash": "78ba485886527ade4c2ec3cca2acdc3a243fd134f8948378c6ffb6ba360cce18"
 }

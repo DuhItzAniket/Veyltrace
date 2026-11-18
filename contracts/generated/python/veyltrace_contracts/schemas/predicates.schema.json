@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/predicates.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/predicates.schema.json",
   "title": "Predicates",
-  "description": "The claim-check predicate library v0.1 as data: name, parameters after the subject (names and Param types), polarity and window of every predicate (03 §7, 06 §3.5). Maintained by the lead in contracts/predicates.json; parameter ranges stay in config/faultloom.yaml and weights in config/causentra.yaml (lead decisions §2.6).",
+  "description": "The claim-check predicate library v1.0 as data: name, parameters after the subject (names and Param types), polarity and window of every predicate (03 §7, 06 §3.5). Maintained by the lead in contracts/predicates.json; parameter ranges stay in config/faultloom.yaml and weights in config/causentra.yaml (lead decisions §2.6).",
   "x-veyltrace": {
     "name": "predicates",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "lead",
     "path": "contracts/predicates.json"
@@ -19,7 +19,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "predicates": {
       "description": "Every library predicate, sorted by name.",

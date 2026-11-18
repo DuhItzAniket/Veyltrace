@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/receipt.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/receipt.schema.json",
   "title": "Receipt",
   "description": "Verdict receipt (03 §11.2): an in-toto Statement v1 whose subject is verdict.json and whose predicate carries the run manifest, verdict_hash, card_hash and the agent-trace head, so `veyltrace replay` can re-check the verdict. Written by Causivra at step 10b as canonical JSON; it keeps the in-toto shape, so it has no schema_version and predicateType carries the version.",
   "x-veyltrace": {
     "name": "receipt",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "causivra",
     "path": "receipt.json"

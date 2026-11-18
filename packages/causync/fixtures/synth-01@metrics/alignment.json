@@ -1,1 +1,1 @@
-{"offsets":[{"confidence":1.0,"method":"reference","offset_ns":0,"service":null,"source":"metrics"}],"reference":"metrics","schema_version":"0.1.0","tolerance_ns":15000000000}
+{"offsets":[{"confidence":1.0,"method":"reference","offset_ns":0,"service":null,"source":"metrics"}],"reference":"metrics","schema_version":"1.0.0","tolerance_ns":15000000000}

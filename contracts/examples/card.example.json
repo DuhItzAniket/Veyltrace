@@ -1,7 +1,7 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "1.0.0",
   "case_id": "4320347d0fe6",
-  "verdict_hash": "e373e6544d97ef1b6c2bc6ff57b9f3497e66712da8b822cdeefc8379f29318fa",
+  "verdict_hash": "78ba485886527ade4c2ec3cca2acdc3a243fd134f8948378c6ffb6ba360cce18",
   "title": "LIKELY · payment · cpu",
   "status": "LIKELY",
   "root": {
@@ -190,5 +190,5 @@
     "attempts": 1,
     "checker_failures": 0
   },
-  "card_hash": "68941a1713840d479022cacf75a68537382ccd2854c998b272e7dd02b85d89ef"
+  "card_hash": "5ab41d68b7f614707cceb75c4caa33bbe7f24af1e269ed45831aaf44e3e5127b"
 }

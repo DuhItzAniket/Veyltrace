@@ -1,4 +1,4 @@
-# Schema conventions (contracts v0.1)
+# Schema conventions (contracts v1.0)
 
 > Owner: lead. Every file in `contracts/schemas/` follows these rules; `scripts/gen_contracts.py --check` enforces the mechanical ones. Field-level truth is [docs/03-contracts.md](../../docs/03-contracts.md).
 
@@ -9,7 +9,7 @@
 | File name | `<name>.schema.json`, where `<name>` is the contract name exactly as in 03 (dots kept): `case_manifest`, `alert`, `telemetry.metrics`, `signal_cube.series`, `graph.edges`, `answer_key`, … |
 | Shared definitions | `common.schema.json` holds every closed vocabulary from 03 §1 and the identifier/hash formats under `$defs`. Other schemas reference it as `"$ref": "common.schema.json#/$defs/<def>"`. |
 | `$schema` | `https://json-schema.org/draft/2020-12/schema` |
-| `$id` | `https://veyltrace.dev/schemas/<major>.<minor>/<name>.schema.json`, where `<major>.<minor>` is the schema's own series, from its `x-veyltrace.version` (a support file without one, such as `common`, keeps its folder; #319). A relative `$ref` such as `common.schema.json#…` resolves against the referring `$id`, so it names the sibling of the same series; a reference to another series uses that schema's absolute `$id` (a 0.2 contract → `https://veyltrace.dev/schemas/0.1/common.schema.json#…`). v0.1 → `https://veyltrace.dev/schemas/0.1/…`. Nothing is ever fetched from that URL; it is an identifier. |
+| `$id` | `https://veyltrace.dev/schemas/<major>.<minor>/<name>.schema.json`, where `<major>.<minor>` is the schema's own series, from its `x-veyltrace.version` (a support file without one, such as `common`, keeps its folder; #319). A relative `$ref` such as `common.schema.json#…` resolves against the referring `$id`, so it names the sibling of the same series; a reference to another series uses that schema's absolute `$id` (a 1.1 contract → `https://veyltrace.dev/schemas/1.0/common.schema.json#…`). v1.0 → `https://veyltrace.dev/schemas/1.0/…`. Nothing is ever fetched from that URL; it is an identifier. |
 | `title` | the generated model name, PascalCase: `CaseManifest`, `Alert`, `TelemetryMetricsRow`, `SignalCubeSeriesRow`, `Verdict`, … Table contracts (Parquet, CSV, JSONL) describe **one row** and end in `Row` (`AgentTraceLine` for JSONL). |
 | `description` | one or two sentences: what the artifact is and who produces it. |
 
@@ -18,7 +18,7 @@
 ```json
 "x-veyltrace": {
   "name": "telemetry.metrics",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "kind": "parquet",
   "producer": "infralume",
   "path": "telemetry/metrics.parquet",
@@ -44,7 +44,7 @@
 3. Maps with free keys (`ranker_ranks`, `weights`, `libs`) are `"type": "object"` with `"additionalProperties": {<value schema>}` and no `properties`. Canonical JSON sorts their keys.
 4. Arrays: `"type": "array"`, `"items": {…}`. If 03 states an order, add `"x-sort"` on the array: a list of `{"pointer": "<field or '.' for the item itself>", "order": "asc"|"desc"|"enum", "round": <int, optional>, "nulls": "first"|"last" (default "first")}`, applied left to right. Example (03 §8 `all_scores`): `[{"pointer": "fused_score", "order": "desc", "round": 9}, {"pointer": "service", "order": "asc"}]`. `"order": "enum"` sorts by position in the field's enum, for vocabularies whose order is not byte order (trial ids: T1 < T2 < … < T10). A pointer may be a `/`-separated path into nested objects (`hypothesis/service`). Strings compare by UTF-8 bytes; a pointer to an object-valued field (e.g. `proposals` claim `args`) compares the UTF-8 bytes of its `canonical_json` (08 §3.6: claims sorted by predicate, then canonical args). Writers **validate** the order (they never re-sort a producer's domain order); arrays whose order is semantic but not sortable (e.g. `graph.paths.nodes`) get `"x-order": "semantic"` instead.
 5. Strings that are closed vocabularies use `enum` (inline if used by one contract, else a `common` `$defs` entry). Adding a value is a contract change.
-6. JSON contracts have `"schema_version": {"type": "string", "pattern": "^0\\.1\\.[0-9]+$"}` as their first property, with the schema's own `<major>.<minor>` in the pattern (0.2 → `"^0\\.2\\.[0-9]+$"`).
+6. JSON contracts have `"schema_version": {"type": "string", "pattern": "^1\\.0\\.[0-9]+$"}` as their first property, with the schema's own `<major>.<minor>` in the pattern (1.1 → `"^1\\.1\\.[0-9]+$"`).
 7. Times are integers in nanoseconds (`_ns`); durations in JSON are numbers in milliseconds (`_ms`). Scores are numbers.
 8. Constraints only where 03 states them (`minimum: 0` for counts, patterns for IDs and hashes, `maxLength: 280` for `rationale`). Do not invent ranges.
 

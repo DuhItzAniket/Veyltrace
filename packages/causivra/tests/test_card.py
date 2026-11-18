@@ -27,7 +27,7 @@ T0 = 1_767_225_600_000_000_000
 S = 1_000_000_000
 ALERT = models.Alert.model_validate(
     {
-        "schema_version": "0.1.0",
+        "schema_version": "1.0.0",
         "protocol": "oracle",
         "t_alert_ns": T0 + 1320 * S,
         "shift_ns": 0,

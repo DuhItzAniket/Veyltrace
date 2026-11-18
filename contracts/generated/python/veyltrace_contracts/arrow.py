@@ -22,7 +22,7 @@ ANOMALIES = pa.schema(
         pa.field("threshold", pa.float64(), nullable=False),
         pa.field("above_threshold", pa.bool_(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"anomalies/0.1.0"},
+    metadata={b"veyltrace.schema": b"anomalies/1.0.0"},
 )
 
 ANSWER_KEY = pa.schema(
@@ -45,7 +45,7 @@ ANSWER_KEY = pa.schema(
         pa.field("validated", pa.bool_(), nullable=True),
         pa.field("sli_impact_json", pa.string(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"answer_key/0.1.0"},
+    metadata={b"veyltrace.schema": b"answer_key/1.0.0"},
 )
 
 BENCH_RESULT = pa.schema(
@@ -89,7 +89,7 @@ BENCH_RESULT = pa.schema(
         pa.field("tokens_out", pa.int64(), nullable=True),
         pa.field("verdict_hash", pa.string(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"bench_result/0.1.0"},
+    metadata={b"veyltrace.schema": b"bench_result/1.0.0"},
 )
 
 CHANGES = pa.schema(
@@ -105,7 +105,7 @@ CHANGES = pa.schema(
         pa.field("proximity", pa.float64(), nullable=False),
         pa.field("peer_contrast", pa.float64(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"changes/0.1.0"},
+    metadata={b"veyltrace.schema": b"changes/1.0.0"},
 )
 
 EVIDENCE = pa.schema(
@@ -128,7 +128,7 @@ EVIDENCE = pa.schema(
         pa.field("holds", pa.bool_(), nullable=True),
         pa.field("producer", pa.string(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"evidence/0.1.0"},
+    metadata={b"veyltrace.schema": b"evidence/1.0.0"},
 )
 
 GRAPH_EDGES = pa.schema(
@@ -144,7 +144,7 @@ GRAPH_EDGES = pa.schema(
         pa.field("weight", pa.float64(), nullable=False),
         pa.field("anomalous", pa.bool_(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"graph.edges/0.1.0"},
+    metadata={b"veyltrace.schema": b"graph.edges/1.0.0"},
 )
 
 GRAPH_NODES = pa.schema(
@@ -158,7 +158,7 @@ GRAPH_NODES = pa.schema(
             nullable=False,
         ),
     ],
-    metadata={b"veyltrace.schema": b"graph.nodes/0.1.0"},
+    metadata={b"veyltrace.schema": b"graph.nodes/1.0.0"},
 )
 
 GRAPH_PATHS = pa.schema(
@@ -172,7 +172,7 @@ GRAPH_PATHS = pa.schema(
         ),
         pa.field("anomalous_fraction", pa.float64(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"graph.paths/0.1.0"},
+    metadata={b"veyltrace.schema": b"graph.paths/1.0.0"},
 )
 
 SIGNAL_CUBE_CRITICAL_PATH = pa.schema(
@@ -187,7 +187,7 @@ SIGNAL_CUBE_CRITICAL_PATH = pa.schema(
         pa.field("traces_slow", pa.int64(), nullable=False),
         pa.field("cp_share_sum_slow", pa.float64(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"signal_cube.critical_path/0.1.0"},
+    metadata={b"veyltrace.schema": b"signal_cube.critical_path/1.0.0"},
 )
 
 SIGNAL_CUBE_EDGES = pa.schema(
@@ -204,7 +204,7 @@ SIGNAL_CUBE_EDGES = pa.schema(
         pa.field("p50_gap_ms", pa.float64(), nullable=True),
         pa.field("p99_gap_ms", pa.float64(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"signal_cube.edges/0.1.0"},
+    metadata={b"veyltrace.schema": b"signal_cube.edges/1.0.0"},
 )
 
 SIGNAL_CUBE_SERIES = pa.schema(
@@ -220,7 +220,7 @@ SIGNAL_CUBE_SERIES = pa.schema(
         pa.field("t_ns", pa.int64(), nullable=False),
         pa.field("value", pa.float64(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"signal_cube.series/0.1.0"},
+    metadata={b"veyltrace.schema": b"signal_cube.series/1.0.0"},
 )
 
 SIGNAL_CUBE_TEMPLATES = pa.schema(
@@ -233,7 +233,7 @@ SIGNAL_CUBE_TEMPLATES = pa.schema(
         pa.field("error_level", pa.bool_(), nullable=False),
         pa.field("first_seen_ns", pa.int64(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"signal_cube.templates/0.1.0"},
+    metadata={b"veyltrace.schema": b"signal_cube.templates/1.0.0"},
 )
 
 TELEMETRY_EVENTS = pa.schema(
@@ -245,7 +245,7 @@ TELEMETRY_EVENTS = pa.schema(
         pa.field("detail_json", pa.string(), nullable=False),
         pa.field("actor", pa.string(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"telemetry.events/0.1.0"},
+    metadata={b"veyltrace.schema": b"telemetry.events/1.0.0"},
 )
 
 TELEMETRY_LOGS = pa.schema(
@@ -259,7 +259,7 @@ TELEMETRY_LOGS = pa.schema(
         pa.field("span_id", pa.string(), nullable=True),
         pa.field("attrs_json", pa.string(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"telemetry.logs/0.1.0"},
+    metadata={b"veyltrace.schema": b"telemetry.logs/1.0.0"},
 )
 
 TELEMETRY_METRICS = pa.schema(
@@ -274,7 +274,7 @@ TELEMETRY_METRICS = pa.schema(
         pa.field("unit", pa.string(), nullable=True),
         pa.field("source_system", pa.string(), nullable=False),
     ],
-    metadata={b"veyltrace.schema": b"telemetry.metrics/0.1.0"},
+    metadata={b"veyltrace.schema": b"telemetry.metrics/1.0.0"},
 )
 
 TELEMETRY_SPANS = pa.schema(
@@ -292,7 +292,7 @@ TELEMETRY_SPANS = pa.schema(
         pa.field("status_code", pa.int32(), nullable=True),
         pa.field("attrs_json", pa.string(), nullable=True),
     ],
-    metadata={b"veyltrace.schema": b"telemetry.spans/0.1.0"},
+    metadata={b"veyltrace.schema": b"telemetry.spans/1.0.0"},
 )
 
 SCHEMAS: Mapping[str, pa.Schema] = MappingProxyType(

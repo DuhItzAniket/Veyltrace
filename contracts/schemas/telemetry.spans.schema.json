@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/telemetry.spans.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/telemetry.spans.schema.json",
   "title": "TelemetrySpansRow",
   "description": "One span in the canonical spans table over the full available span (03 §2.4). Written by Infralume, which applies the span error-status rule (01 §3.5).",
   "x-veyltrace": {
     "name": "telemetry.spans",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "infralume",
     "path": "telemetry/spans.parquet",

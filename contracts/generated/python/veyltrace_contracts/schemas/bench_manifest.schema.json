@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/bench_manifest.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/bench_manifest.schema.json",
   "title": "BenchManifest",
   "description": "bench/results/<experiment_id>/manifest.json: what one experiment ran: the validated experiment and its hash, the code state, the uv.lock, answer-key, input and config hashes, and the run ids (04 §9, §10.2). Written last by bench, so its presence marks a whole result. Evaluation-only.",
   "x-veyltrace": {
     "name": "bench_manifest",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "bench",
     "path": "bench/results/<experiment_id>/manifest.json"
@@ -28,7 +28,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "producer": {
       "description": "bench@<ALGO_VERSION>: the bench code that ran the experiment.",

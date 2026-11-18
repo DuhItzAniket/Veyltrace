@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/config_lock.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/config_lock.schema.json",
   "title": "ConfigLock",
   "description": "The fully resolved configuration of one run (config.lock.json): every config section after overrides, plus the selected calibration file. Written by core at the manifest step (after Causivra's card, step 10a); run_manifest.config_sha256 is the SHA-256 of its file bytes, and replay loads it instead of the repo's config/.",
   "x-veyltrace": {
     "name": "config_lock",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "core",
     "path": "config.lock.json"
@@ -20,7 +20,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "sections": {
       "description": "Resolved config sections, one entry per config file keyed by file stem (core, the ten engine names and llm); each value is that YAML file's top-level mapping after overrides, frozen to JSON. Every paths and fetch subtree is left out and config/gateway.yaml never enters the lock; ai.mode is a run parameter, not a key here. Path-valued keys are stored unexpanded as POSIX paths relative to a named root (never absolute, never with backslashes; loader check). Free keys; canonical JSON sorts them.",

@@ -51,9 +51,9 @@ def test_generated_contracts_in_sync() -> None:
 
 # Per-contract series (#319): one contract can move to a new minor alone; references to another
 # series are absolute `$id`s. These run the real generator on a copy of contracts/ in which `alert`
-# is moved to 0.2.
+# is moved to 1.1.
 COMMON_REL = '"$ref": "common.schema.json#'
-COMMON_ABS = '"$ref": "https://veyltrace.dev/schemas/0.1/common.schema.json#'
+COMMON_ABS = '"$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#'
 
 
 def _gen_contracts() -> ModuleType:
@@ -66,18 +66,18 @@ def _gen_contracts() -> ModuleType:
 
 
 def _contracts_copy(tmp_path: Path, *, id_series: str, refs: str) -> Path:
-    """contracts/ copied to tmp_path with `alert` at version 0.2.0, its `$id` in `id_series`."""
+    """contracts/ copied to tmp_path with `alert` at version 1.1.0, its `$id` in `id_series`."""
     shutil.copytree(ROOT / "contracts" / "schemas", tmp_path / "contracts" / "schemas")
     shutil.copytree(ROOT / "contracts" / "examples", tmp_path / "contracts" / "examples")
     shutil.copy(ROOT / "contracts" / "predicates.json", tmp_path / "contracts" / "predicates.json")
     schema = tmp_path / "contracts" / "schemas" / "alert.schema.json"
     text = schema.read_text(encoding="utf-8").replace(COMMON_REL, refs)
-    text = text.replace('"version": "0.1.0"', '"version": "0.2.0"')
-    text = text.replace(r'"^0\\.1\\.', r'"^0\\.2\\.')  # the schema_version pattern, JSON-escaped
-    text = text.replace("/schemas/0.1/alert.schema.json", f"/schemas/{id_series}/alert.schema.json")
+    text = text.replace('"version": "1.0.0"', '"version": "1.1.0"')
+    text = text.replace(r'"^1\\.0\\.', r'"^1\\.1\\.')  # the schema_version pattern, JSON-escaped
+    text = text.replace("/schemas/1.0/alert.schema.json", f"/schemas/{id_series}/alert.schema.json")
     schema.write_text(text, encoding="utf-8", newline="\n")
     example = tmp_path / "contracts" / "examples" / "alert.example.json"
-    text = example.read_text(encoding="utf-8").replace('"0.1.0"', '"0.2.0"')
+    text = example.read_text(encoding="utf-8").replace('"1.0.0"', '"1.1.0"')
     example.write_text(text, encoding="utf-8", newline="\n")
     return tmp_path
 
@@ -87,26 +87,26 @@ def _run(root: Path, capsys: pytest.CaptureFixture[str]) -> tuple[int, str]:
     return code, capsys.readouterr().out
 
 
-def test_a_02_contract_references_the_01_common_by_absolute_id(
+def test_a_1_1_contract_references_the_1_0_common_by_absolute_id(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code, out = _run(_contracts_copy(tmp_path, id_series="0.2", refs=COMMON_ABS), capsys)
+    code, out = _run(_contracts_copy(tmp_path, id_series="1.1", refs=COMMON_ABS), capsys)
     assert code == EXIT_OK, out
     registry = (tmp_path / "generated" / "python" / "veyltrace_contracts" / "registry.py").read_text("utf-8")
     versions = dict(re.findall(r'name="([^"]+)",\s+kind="[a-z]+",\s+version="([^"]+)"', registry))
     committed = {name: info.version for name, info in CONTRACTS.items()}
-    assert versions == committed | {"alert": "0.2.0"}  # only alert moved; the others keep their own series
+    assert versions == committed | {"alert": "1.1.0"}  # only alert moved; the others keep their own series
 
 
 def test_the_id_folder_must_be_the_contracts_own_series(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code, out = _run(_contracts_copy(tmp_path, id_series="0.1", refs=COMMON_ABS), capsys)
+    code, out = _run(_contracts_copy(tmp_path, id_series="1.0", refs=COMMON_ABS), capsys)
     assert code != EXIT_OK and '"$id" must be https://veyltrace.dev/schemas/<major>.<minor>/alert' in out
 
 
 def test_a_sibling_reference_stays_in_the_referring_series(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    code, out = _run(_contracts_copy(tmp_path, id_series="0.2", refs=COMMON_REL), capsys)
-    assert code != EXIT_OK and "no schema has that $id" in out  # 0.2/common.schema.json does not exist
+    code, out = _run(_contracts_copy(tmp_path, id_series="1.1", refs=COMMON_REL), capsys)
+    assert code != EXIT_OK and "no schema has that $id" in out  # 1.1/common.schema.json does not exist

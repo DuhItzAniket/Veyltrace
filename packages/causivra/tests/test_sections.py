@@ -24,7 +24,7 @@ S = 1_000_000_000
 CHANGE_ID = "C1234567890"
 
 ALERT = {
-    "schema_version": "0.1.0",
+    "schema_version": "1.0.0",
     "protocol": "oracle",
     "t_alert_ns": T0 + 1320 * S,
     "shift_ns": 0,
@@ -37,7 +37,7 @@ ALERT = {
 }
 
 ONSETS = {
-    "schema_version": "0.1.0",
+    "schema_version": "1.0.0",
     "t_onset_ns": T0 + 1230 * S,
     "method": "second_external",
     "slo_breach_ns": None,

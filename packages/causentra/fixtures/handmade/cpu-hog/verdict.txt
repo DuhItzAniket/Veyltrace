@@ -229,7 +229,7 @@
   "mode": "resource",
   "service": "checkout"
  },
- "schema_version": "0.1.0",
+ "schema_version": "1.0.0",
  "status": "CONFIRMED",
- "verdict_hash": "a36227b2b02eb5e1359f71cc9ce284e0b8c6ede696a2948f536d98dee9c35d2d"
+ "verdict_hash": "67c7275dbc7c7cd1390cc7c171cf4c1b2bbb9744fe750f6a5ea0f6aa528755da"
 }

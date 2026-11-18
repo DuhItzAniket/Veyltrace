@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/card.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/card.schema.json",
   "title": "Card",
   "description": "Human-readable incident card for one sealed verdict: title, copied status/root/confidence/candidate set, checked summary prose, timeline, propagation path, evidence table, why-not, asks and deterministic next steps. Produced by Causivra (step 10a, with card.md rendered from it); it never changes the verdict.",
   "x-veyltrace": {
     "name": "card",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "causivra",
     "path": "card.json",
@@ -38,7 +38,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "case_id": {
       "$ref": "common.schema.json#/$defs/case_id"

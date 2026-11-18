@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/onsets.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/onsets.schema.json",
   "title": "Onsets",
   "description": "Per-service external and internal onsets and the incident onset t_onset, written by Anomara as onsets.json (03 §4.2). Onsets are in source time; consumers add the alignment offset of the recorded *_onset_source (and service).",
   "x-veyltrace": {
     "name": "onsets",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "anomara",
     "path": "onsets.json"
@@ -23,7 +23,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "t_onset_ns": {
       "description": "Incident onset (02 §6.3): second-earliest non-null external_onset_ns, else the only one, else alert.t_alert_ns; clamped to [t_alert - 60 s, t_alert + 300 s].",

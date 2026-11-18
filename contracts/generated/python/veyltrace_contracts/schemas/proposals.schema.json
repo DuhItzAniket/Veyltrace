@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/proposals.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/proposals.schema.json",
   "title": "Proposals",
   "description": "Hypotheses, predicate claims and trial requests proposed by Relentra (pipeline step 7, AI on only), or submitted externally through the MCP verify_hypothesis tool (mode external). Proposals never decide: FaultLoom's claim pass re-evaluates every claim for every claim-pass pool candidate, and Causentra reads the result (03 §9.1).",
   "x-veyltrace": {
     "name": "proposals",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "relentra",
     "path": "proposals.json"
@@ -25,7 +25,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "case_id": {
       "$ref": "common.schema.json#/$defs/case_id"
@@ -343,7 +343,7 @@
           "$ref": "common.schema.json#/$defs/service_name"
         },
         "component": {
-          "description": "Always null in v0.1 (08 §2.2).",
+          "description": "Always null in v1.0 (08 §2.2).",
           "anyOf": [
             {
               "$ref": "common.schema.json#/$defs/service_name"

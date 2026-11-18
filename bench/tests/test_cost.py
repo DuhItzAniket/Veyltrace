@@ -6,13 +6,14 @@ import random
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
 from veyltrace_bench.metrics import CaseScore, MethodOutput, Truth, score_case
 from veyltrace_bench.summary import METRIC_KEYS, nearest_rank, summarize
-from veyltrace_contracts.models import BenchSummary
 from veyltrace_core import io
+from veyltrace_core.errors import ContractValidationError
 
 REPO = Path(__file__).resolve().parents[2]
 CHECKOUT = Truth("checkout", "cpu", "cpu", "resource")
@@ -67,9 +68,13 @@ def test_cost_never_depends_on_row_order(pairs: list[tuple[float, float | None]]
     assert summarize(rows, ["cost"]) == summarize(shuffled, ["cost"])
 
 
-def test_committed_r05_summary_reads_as_an_older_minor_with_cost_null() -> None:
-    """R-05's summary.json was written at bench_summary 0.1.0; under 0.2 it reads with cost null."""
-    summary = io.read_path("bench_summary", R05_SUMMARY, validate=True)
-    assert isinstance(summary, BenchSummary) and summary.groups
-    assert all(g.metrics.cost is None for g in summary.groups)
-    assert summary.groups[0].metrics.ac_at_k is not None  # the 0.1 entries are kept
+def test_committed_r05_results_are_a_0x_record_that_1_0_refuses() -> None:
+    """R-05's summary.json and manifest.json stay as written (bench_summary/bench_manifest 0.1.0):
+    ADR 20261116-ak-contracts-1-0-freeze, "0.x artifacts are unreadable by 1.0" (another major).
+    No table reads them; R-11's re2-oracle-rq1-v1 re-runs the same baselines under 1.0 (#332)."""
+    for name, path in (
+        ("bench_summary", R05_SUMMARY),
+        ("bench_manifest", R05_SUMMARY.with_name("manifest.json")),
+    ):
+        with pytest.raises(ContractValidationError, match=r"schema version '0\.1\.0' is not readable by"):
+            io.read_path(name, path, validate=True)

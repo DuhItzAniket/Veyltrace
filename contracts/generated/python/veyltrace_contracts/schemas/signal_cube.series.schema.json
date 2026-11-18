@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.series.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/signal_cube.series.schema.json",
   "title": "SignalCubeSeriesRow",
   "description": "One point of a typed signal series (metric, trace or log derived), tagged with family and klass (03 §3.1). Written by Signalyth over the whole data range, independent of alert windows.",
   "x-veyltrace": {
     "name": "signal_cube.series",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "signalyth",
     "path": "signal_cube/series.parquet",

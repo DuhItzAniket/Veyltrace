@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/signal_cube.edges.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/signal_cube.edges.schema.json",
   "title": "SignalCubeEdgesRow",
   "description": "Per-window call statistics of one caller→callee service pair, built from trace span pairs (03 §3.2). Written by Signalyth; depends on alert windows.",
   "x-veyltrace": {
     "name": "signal_cube.edges",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "signalyth",
     "path": "signal_cube/edges.parquet",

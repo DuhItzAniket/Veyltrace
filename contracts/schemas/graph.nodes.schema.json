@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/graph.nodes.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/graph.nodes.schema.json",
   "title": "GraphNodesRow",
   "description": "One row of graph.nodes: a node of the service dependency graph with its kind, entry flag and evidence sources. Produced by Causalith (03 §6.1, 05 §3.1-§3.3).",
   "x-veyltrace": {
     "name": "graph.nodes",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "causalith",
     "path": "graph/nodes.parquet",

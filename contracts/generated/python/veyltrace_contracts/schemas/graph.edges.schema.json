@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/graph.edges.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/graph.edges.schema.json",
   "title": "GraphEdgesRow",
   "description": "One row of graph.edges: a caller -> callee edge of the dependency graph, merged by (src, dst) from traces, topology hints and log mentions, with its call share and incident anomaly flag. Produced by Causalith (03 §6.2, 05 §3.4); self-loops are dropped.",
   "x-veyltrace": {
     "name": "graph.edges",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "causalith",
     "path": "graph/edges.parquet",

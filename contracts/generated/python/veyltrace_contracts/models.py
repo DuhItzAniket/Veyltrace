@@ -96,7 +96,7 @@ __all__ = [
     "RunManifestInput",
     "RunManifestStep",
     "SamplerParams",
-    "Semver01",
+    "Semver10",
     "SeriesId",
     "ServiceName",
     "Severity",
@@ -287,7 +287,7 @@ Klass = Literal["internal", "external", "context"]
 #: Fault mode of a candidate (03 §1); used by slate, verdict and answer_key.
 Mode = Literal["resource", "network", "code", "change", "dependency", "unknown"]
 
-#: Claim-check predicate library v0.1 (03 §7); used by evidence and proposals.
+#: Claim-check predicate library v1.0 (03 §7); used by evidence and proposals.
 Predicate = Literal[
     "zscore_above",
     "onset_before",
@@ -328,8 +328,8 @@ RowRef = Annotated[
 #: -x<12 hex> for a derived verify_hypothesis run (02 §4.1, contract_changes A6).
 RunId = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{16}(-x[0-9a-f]{12})?$")]
 
-#: Contract version string for v0.1, as carried in schema_version (CONVENTIONS §3.6).
-Semver01 = Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+#: Contract version string for v1.0, as carried in schema_version (CONVENTIONS §3.6).
+Semver10 = Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
 
 #: Series id {service}|{component}|{signal}|{source}; each part is non-empty and
 #: contains no | (03 §3.1, contract_changes B).
@@ -475,7 +475,7 @@ class Alert(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     protocol: AlertProtocol
     t_alert_ns: int
     shift_ns: Annotated[int, Field(multiple_of=1000000000)]
@@ -504,7 +504,7 @@ class Alignment(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     reference: Literal["traces", "metrics"]
     offsets: list[AlignmentOffset]
     tolerance_ns: int
@@ -646,7 +646,7 @@ class Calibration(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     family: FamilyId
     ai_arm: AiArm
     alert_protocol: AlertProtocol
@@ -842,7 +842,7 @@ class ConfigLock(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     sections: dict[str, dict[str, JsonValue]]
     calibration: ConfigLockCalibration | None
 
@@ -982,7 +982,7 @@ class BenchManifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     producer: Annotated[str, StringConstraints(min_length=1)]
     experiment_id: Annotated[
         str,
@@ -1021,7 +1021,7 @@ class Onsets(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     t_onset_ns: int
     method: Literal["second_external", "single_external", "t_alert_fallback"]
     slo_breach_ns: int | None
@@ -1052,7 +1052,7 @@ class PredicateSpec(BaseModel):
 
 
 class Predicates(BaseModel):
-    """The claim-check predicate library v0.1 as data: name, parameters after the
+    """The claim-check predicate library v1.0 as data: name, parameters after the
     subject (names and Param types), polarity and window of every predicate (03 §7,
     06 §3.5). Maintained by the lead in contracts/predicates.json; parameter ranges
     stay in config/faultloom.yaml and weights in config/causentra.yaml (lead
@@ -1061,7 +1061,7 @@ class Predicates(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     predicates: list[PredicateSpec]
 
 
@@ -1132,7 +1132,7 @@ class Card(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     case_id: CaseId
     verdict_hash: Sha256
     title: str
@@ -1248,7 +1248,7 @@ class RunManifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     run_id: RunId
     case_id: CaseId
     dataset: Dataset
@@ -1330,7 +1330,7 @@ class Proposals(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     case_id: CaseId
     status: Literal["complete", "budget_exhausted", "failed", "skipped"]
     mode: Literal["brief", "investigate", "external"]
@@ -1461,7 +1461,7 @@ class Slate(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     case_id: CaseId
     k: int
     rankers_active: list[str]
@@ -1491,7 +1491,7 @@ class CaseManifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     case_id: CaseId
     dataset: Dataset
     system: System
@@ -1688,7 +1688,7 @@ class BenchSummary(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.2\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     producer: Annotated[str, StringConstraints(min_length=1)]
     experiment_id: Annotated[
         str,
@@ -1701,8 +1701,9 @@ class BenchSummary(BaseModel):
 
 class TelemetryEventsRow(BaseModel):
     """One change or platform event (deploy, config, flag, scale, restart, k8s event,
-    commit) over the full available span, overlay events included (03 §2.5). Written
-    by Infralume; the key is not unique.
+    commit) over the full available span, plus the events overlay (01 §3.10), whose
+    rows may lie outside the case's data span (03 §2.1, §2.5). Written by Infralume;
+    the key is not unique.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -1858,7 +1859,7 @@ class Verdict(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^0\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
     case_id: CaseId
     run_id: RunId
     status: Status

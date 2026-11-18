@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/graph.paths.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/graph.paths.schema.json",
   "title": "GraphPathsRow",
   "description": "One row of graph.paths: one of the k best simple propagation paths from a candidate node to an entry service, against the call direction. Produced by Causalith for every node that can reach an entry (03 §6.3, 05 §3.6).",
   "x-veyltrace": {
     "name": "graph.paths",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "parquet",
     "producer": "causalith",
     "path": "graph/paths.parquet",

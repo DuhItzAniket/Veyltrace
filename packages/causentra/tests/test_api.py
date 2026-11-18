@@ -175,7 +175,7 @@ def test_calibration_fitted_at_another_alpha_fails_the_step(synth01_dir: Path, t
 
 def test_schema_invalid_proposals_count_as_none_and_degrade(synth01_dir: Path) -> None:
     # The same file FaultLoom's claim pass degrades on (06 §6): Causentra must still decide.
-    textio.write_bytes(io.path_of("proposals", synth01_dir), b'{"schema_version": "0.1.0"}\n')
+    textio.write_bytes(io.path_of("proposals", synth01_dir), b'{"schema_version": "1.0.0"}\n')
     result = api.run(make_context("causentra", synth01_dir, ai_mode="record"))
     assert result.status == "degraded"
     assert any("schema-invalid" in note for note in result.notes)
@@ -201,7 +201,7 @@ def test_optional_inputs_absent_still_give_a_verdict(synth01_dir: Path, name: st
 def stub_calibration(family: str, *, q_hat: float | None) -> dict[str, object]:
     """A calibration file body with too few cases (n = 8 < 9, so q_hat = +inf; 09 §7)."""
     return {
-        "schema_version": "0.1.0",
+        "schema_version": "1.0.0",
         "family": family,
         "ai_arm": "off",
         "alert_protocol": "oracle",

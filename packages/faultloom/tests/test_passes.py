@@ -148,7 +148,7 @@ def test_claim_pass_with_skipped_proposals_is_ok(claim_dir: Path) -> None:
 
 
 def test_schema_invalid_proposals_skip_the_claims_and_degrade(claim_dir: Path) -> None:
-    textio.write_bytes(io.path_of("proposals", claim_dir), b'{"schema_version": "0.1.0"}\n')
+    textio.write_bytes(io.path_of("proposals", claim_dir), b'{"schema_version": "1.0.0"}\n')
     before = sha256_file(io.path_of("evidence", claim_dir))
     result = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
     assert result.status == "degraded"

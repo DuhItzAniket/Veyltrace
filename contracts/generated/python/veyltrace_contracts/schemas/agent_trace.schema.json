@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/agent_trace.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/agent_trace.schema.json",
   "title": "AgentTraceLine",
   "description": "One line of Relentra's hash-chained agent_trace.jsonl (AI on only): a state-machine transition, an LLM call or a tool call. Lines are flushed one by one in seq order; the receipt's agent_trace_head is the last line_hash (03 §9.2, 08 §5.3).",
   "x-veyltrace": {
     "name": "agent_trace",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "jsonl",
     "producer": "relentra",
     "path": "agent_trace.jsonl"

@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/0.1/verdict.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.0/verdict.schema.json",
   "title": "Verdict",
   "description": "The sealed RCA decision for one run: status, root, conformal candidate set, every decision-pool candidate with its trial results, confidence, asks and proposal outcomes. Produced by Causentra (pipeline step 9); the only artifact that sets the verdict.",
   "x-veyltrace": {
     "name": "verdict",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "kind": "json",
     "producer": "causentra",
     "path": "verdict.json",
@@ -38,7 +38,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^0\\.1\\.[0-9]+$"
+      "pattern": "^1\\.0\\.[0-9]+$"
     },
     "case_id": {
       "$ref": "common.schema.json#/$defs/case_id"

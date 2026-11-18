@@ -23,7 +23,7 @@ STEP = 10 * NS
 N_BASE, N_INC = 100, 50
 ALERT = Alert.model_validate(
     {
-        "schema_version": "0.1.0",
+        "schema_version": "1.0.0",
         "protocol": "oracle",
         "t_alert_ns": T0 + N_BASE * STEP,
         "shift_ns": 0,
