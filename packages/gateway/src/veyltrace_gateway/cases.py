@@ -7,9 +7,9 @@ either an adapter's literal name (synth), a dataset folder under the runs root, 
 the adapter reads the index itself).
 
 Cases are the adapter's `list_cases` plus any case that already has a run. A case's `system` and
-`sources` come from a finished run's case manifest (the last by run id; every run of a case has the
-same facts), read through `veyltrace_core.io`, which always redacts the alert hint (D-15), so no
-answer key, injection time or hint is ever served.
+`sources` come from the case manifest of its last finished run by run id (runs with different
+overrides, such as `sources.drop`, can differ), read through `veyltrace_core.io`, which always
+redacts the alert hint (D-15), so no answer key, injection time or hint is ever served.
 """
 
 # No `from __future__ import annotations`: FastAPI resolves the `limit` annotation, which uses the

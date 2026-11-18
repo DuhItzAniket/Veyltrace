@@ -166,7 +166,9 @@ def test_a_run_dir_without_a_receipt_is_not_a_finished_run(setup: tuple[Any, Job
     assert json.loads(_call(app, "GET", "/api/v1/runs")[1]) == []
 
 
-def test_a_crashed_run_is_run_again_over_its_directory(setup: tuple[Any, JobRunner, Path]) -> None:
+def test_a_run_that_lost_its_receipt_is_run_again_over_its_directory(
+    setup: tuple[Any, JobRunner, Path],
+) -> None:
     app, runner, root = setup
     request = {"dataset": "synth", "case_id": CASE, "ai_mode": "off"}
     rid = json.loads(_call(app, "POST", "/api/v1/runs", request)[1])["run_id"]
@@ -174,7 +176,7 @@ def test_a_crashed_run_is_run_again_over_its_directory(setup: tuple[Any, JobRunn
     assert first is not None and first.finished.wait(WAIT_S) and first.state == "done"
     receipt = root / "synth" / CASE / rid / "receipt.json"
     expected = receipt.read_bytes()
-    receipt.unlink()  # what a crash before the last step leaves behind
+    receipt.unlink()  # a done job whose run has since lost its receipt
     status, body = _call(app, "POST", "/api/v1/runs", request)
     assert status == 202 and json.loads(body)["run_id"] == rid
     second = runner.get(rid)
