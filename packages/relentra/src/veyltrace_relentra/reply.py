@@ -91,6 +91,28 @@ class CheckedReply:
     drops: tuple[Drop, ...]
 
 
+def _keys_problem(item: Mapping[str, Any], keys: frozenset[str], path: str) -> Problem | None:
+    if not set(item) ^ keys:
+        return None
+    missing, extra = sorted(keys - set(item)), sorted(map(str, set(item) - keys))
+    return Problem(path, f"missing keys {missing}, unknown keys {extra}")
+
+
+def _members(values: list[Any], allowed: Sequence[str]) -> bool:
+    """Every item of the list is an allowed string; unhashable items are simply not members."""
+    return all(isinstance(v, str) and v in allowed for v in values)
+
+
+def _finite(x: object) -> bool:
+    """A number a float can hold: JSON integers are unbounded, so a huge one is not."""
+    if isinstance(x, bool) or not isinstance(x, int | float):
+        return False
+    try:
+        return math.isfinite(float(x))
+    except OverflowError:
+        return False
+
+
 def _object(
     value: object, keys: frozenset[str], path: str, problems: list[Problem]
 ) -> Mapping[str, Any] | None:
@@ -98,9 +120,9 @@ def _object(
         problems.append(Problem(path, "must be an object"))
         return None
     item = cast("Mapping[str, Any]", value)
-    if set(item) ^ keys:
-        missing, extra = sorted(keys - set(item)), sorted(map(str, set(item) - keys))
-        problems.append(Problem(path, f"missing keys {missing}, unknown keys {extra}"))
+    problem = _keys_problem(item, keys, path)
+    if problem is not None:
+        problems.append(problem)
         return None
     return item
 
@@ -145,11 +167,11 @@ def _claim(
         found = Problem(path, f"unknown signal {item['signal']!r}")
     elif item["other"] not in (*enums.nodes, EMPTY):
         found = Problem(path, f"unknown service {item['other']!r}")
-    elif isinstance(x, bool) or not isinstance(x, int | float) or not math.isfinite(x):
+    elif not _finite(x):
         found = Problem(path, f"x must be a finite number, got {x!r}")
     elif not isinstance(cites, list) or len(cast("list[Any]", cites)) > MAX_CITES:
         found = Problem(path, f"cites must be a list of at most {MAX_CITES} atom ids")
-    elif not set(cast("list[Any]", cites)) <= set(enums.atom_ids):
+    elif not _members(cast("list[Any]", cites), enums.atom_ids):
         found = Problem(path, "cites names an atom that is not on the evidence cards")
     if found is not None:
         problems.append(found)
@@ -175,7 +197,7 @@ def _hypothesis_problem(item: Mapping[str, Any], path: str, enums: CaseEnums) ->
         return Problem(path, f"unknown indicator {item['indicator']!r}")
     if not isinstance(trials, list) or len(cast("list[Any]", trials)) > MAX_TRIALS:
         return Problem(path, f"requested_trials must be a list of at most {MAX_TRIALS} trials")
-    if not set(cast("list[Any]", trials)) <= set(enums.trials):
+    if not _members(cast("list[Any]", trials), enums.trials):
         return Problem(path, "requested_trials names an unknown trial")
     if not isinstance(rationale, str) or len(rationale) > MAX_RATIONALE:
         return Problem(path, f"rationale must be text of at most {MAX_RATIONALE} characters")
@@ -236,19 +258,25 @@ def _ask(value: object, path: str, problems: list[Problem]) -> CheckedAsk | None
 
 
 def check_reply(value: object, enums: CaseEnums, domain: CaseDomain, settings: BriefSettings) -> CheckedReply:
-    """Check parsed JSON `value`. Anything that is not the reply object salvages nothing."""
+    """Check parsed JSON `value`. A value that is not an object salvages nothing; an object with a
+    missing or unknown top-level key is a problem, and the parts it does have are still used."""
     problems: list[Problem] = []
     drops: list[Drop] = []
-    reply = _object(value, _REPLY_KEYS, "reply", problems)
-    if reply is None:
-        return CheckedReply((), (), tuple(problems), ())
+    if not isinstance(value, Mapping):
+        return CheckedReply((), (), (Problem("reply", "must be an object"),), ())
+    reply = cast("Mapping[str, Any]", value)
+    top = _keys_problem(reply, _REPLY_KEYS, "reply")
+    if top is not None:
+        problems.append(top)
     proposals: list[CheckedProposal] = []
-    for i, item in enumerate(_items(reply["proposals"], settings.max_proposals, "proposals", problems)):
+    for i, item in enumerate(
+        _items(reply.get("proposals", []), settings.max_proposals, "proposals", problems)
+    ):
         checked = _proposal(item, f"proposals[{i}]", enums, domain, settings, problems, drops)
         if checked is not None:
             proposals.append(checked)
     asks: list[CheckedAsk] = []
-    for i, item in enumerate(_items(reply["asks"], MAX_ASKS, "asks", problems)):
+    for i, item in enumerate(_items(reply.get("asks", []), MAX_ASKS, "asks", problems)):
         ask = _ask(item, f"asks[{i}]", problems)
         if ask is not None:
             asks.append(ask)

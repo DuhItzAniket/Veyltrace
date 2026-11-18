@@ -87,6 +87,9 @@ def test_every_predicate_maps_its_slots_to_named_arguments(predicate: str) -> No
         ({"x": True}, "finite number"),
         ({"cites": ["Eeeeeeeeeee"]}, "evidence cards"),
         ({"cites": ATOMS}, "at most 3"),
+        ({"cites": [["Eaaaaaaaaaa"]]}, "evidence cards"),  # unhashable items must not raise
+        ({"cites": [{}]}, "evidence cards"),
+        ({"x": 10**400}, "finite number"),  # JSON integers are unbounded
     ],
 )
 def test_a_bad_claim_is_dropped_and_the_good_one_stays(change: dict[str, Any], text: str) -> None:
@@ -110,6 +113,7 @@ def test_an_out_of_range_threshold_is_bad_args() -> None:
         {"fault_class": "unknown"},
         {"indicator": "cpu_usage"},
         {"requested_trials": ["T11"]},
+        {"requested_trials": [["T1"]]},
         {"rationale": "x" * 281},
         {"extra": 1},
     ],
@@ -120,12 +124,22 @@ def test_an_invalid_hypothesis_drops_the_proposal(change: dict[str, Any]) -> Non
     assert [d.kind for d in checked.drops] == ["drop_proposal"]
 
 
-@pytest.mark.parametrize(
-    "value", [None, [], "text", {"proposals": []}, {"proposals": [], "asks": [], "x": 1}]
-)
+@pytest.mark.parametrize("value", [None, [], "text", 3])
 def test_anything_but_the_reply_object_salvages_nothing(value: object) -> None:
     checked = check_reply(value, ENUMS, DOMAIN, SETTINGS)
     assert checked.proposals == () and checked.asks == () and checked.problems
+
+
+@pytest.mark.parametrize("reply", [{}, {"asks": "none"}, {"asks": [], "extra": 1}])
+def test_a_bad_top_level_key_keeps_the_valid_proposals(reply: dict[str, Any]) -> None:
+    checked = check_reply({"proposals": [_proposal()], **reply}, ENUMS, DOMAIN, SETTINGS)
+    assert [p.service for p in checked.proposals] == ["cart"] and checked.problems
+
+
+def test_a_reply_without_proposals_keeps_its_asks() -> None:
+    ask = {"kind": "trial", "target": "T8", "why": "isolate"}
+    checked = check_reply({"asks": [ask]}, ENUMS, DOMAIN, SETTINGS)
+    assert [a.target for a in checked.asks] == ["T8"] and checked.problems[0].path == "reply"
 
 
 def test_lists_over_their_limit_are_problems_and_are_cut() -> None:
