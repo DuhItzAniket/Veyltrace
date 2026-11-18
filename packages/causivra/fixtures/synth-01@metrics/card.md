@@ -4,9 +4,9 @@
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 services. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
+- No single root cause could be established; the candidate set has 1 service. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
 - The leading candidate is checkout. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
-- The asks below list the telemetry or trials that would settle it. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
+- The asks below list what would settle it: telemetry to collect and trials to check. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
 
 ## Candidate set
 
@@ -61,5 +61,5 @@ prose: template
 ---
 
 verdict_hash: `c3d176860d0c82287a1a5ebaa6abcd636756401e45548d9fa28bf331d57e8887`  
-card_hash: `0a602b7d20d64b596977ebc668eb76941cf0b70813ffd1f96ccddf717a2ecb92`  
+card_hash: `27a934037e7a9d3c9cfc1bb047e38dfd331baf6be353531d7cd69debb716e4a4`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

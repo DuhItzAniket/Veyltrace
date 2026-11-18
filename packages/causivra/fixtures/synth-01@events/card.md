@@ -5,7 +5,7 @@
 ## Summary
 
 - No single root cause could be established; the candidate set has 0 services.
-- The asks below list the telemetry or trials that would settle it.
+- The asks below list what would settle it: telemetry to collect.
 
 ## Candidate set
 
@@ -35,7 +35,6 @@ none
 ## Next steps
 
 - Collect the telemetry named in the asks. (PB-INCONC-01)
-- Inspect each member of the candidate set. (PB-INCONC-01)
 - Run the diagnosis again once the asks are answered. (PB-INCONC-01)
 
 prose: template
@@ -43,5 +42,5 @@ prose: template
 ---
 
 verdict_hash: `7c6e53291bd3334f13a99206c539dea99f6ad72d47d6471966daaefa5a6816a0`  
-card_hash: `efbc5581fa044ff2dd8c3fbaea5c91156748ecae75aa9390837e0ef653d1e360`  
+card_hash: `62ef20b60da4a8754b3f33a9ae8bd36e94083fc74b5fe5693655d0804c57608a`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

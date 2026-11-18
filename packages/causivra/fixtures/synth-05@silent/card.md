@@ -4,9 +4,9 @@
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 services. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
+- No single root cause could be established; the candidate set has 1 service. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
 - The leading candidate is cart. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
-- The asks below list the telemetry or trials that would settle it. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
+- The asks below list what would settle it: trials to check. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
 
 ## Candidate set
 
@@ -58,5 +58,5 @@ prose: template
 ---
 
 verdict_hash: `b473724165dc132daf6e02bef0f015efb7c21790bf5d21bc4b4fef220c81d8c6`  
-card_hash: `cef383c8c34dfd7dc9eccdea6c68407bf306a7c40ff38c472b0c77e0fdc900ff`  
+card_hash: `8c5569c6eaf4783c57634e05d0bd01126e19cc95142c8f599edd33d26e027172`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
