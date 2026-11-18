@@ -4,9 +4,9 @@
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 services. (cites: E106e938451, E064e599e66, Ec8c7dbc9ee, E0ac060be5f, Eb6f68006b9, Efd34e2ffcd)
+- No single root cause could be established; the candidate set has 1 service. (cites: E106e938451, E064e599e66, Ec8c7dbc9ee, E0ac060be5f, Eb6f68006b9, Efd34e2ffcd)
 - The leading candidate is recommend. (cites: E106e938451, E064e599e66, Ec8c7dbc9ee, E0ac060be5f, Eb6f68006b9, Efd34e2ffcd)
-- The asks below list the telemetry or trials that would settle it. (cites: E106e938451, E064e599e66, Ec8c7dbc9ee, E0ac060be5f, Eb6f68006b9, Efd34e2ffcd)
+- The asks below list what would settle it: trials to check and context to inspect. (cites: E106e938451, E064e599e66, Ec8c7dbc9ee, E0ac060be5f, Eb6f68006b9, Efd34e2ffcd)
 
 ## Candidate set
 
@@ -48,7 +48,7 @@ recommend → frontend
 ## Asks
 
 - trial: T1:recommend — mandatory trial T1 failed: no_internal_anomaly
-- context: frontend — runner-up within margin 0.015249896
+- context: frontend — runner-up within margin 0.02
 
 ## Next steps
 
@@ -62,5 +62,5 @@ prose: template
 ---
 
 verdict_hash: `1a3a258dcf72ee41945fbd4456d4f103f84df74b573c748e1ce5b22a7cccded1`  
-card_hash: `43e9411d01073c8d8ce739d0888933952b3ffef5d3024c895f9b4851d5f90f07`  
+card_hash: `2307404fa576dc4578b34dd89b276986df693d34fd6c2a5ff13e00bb88c7dc10`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

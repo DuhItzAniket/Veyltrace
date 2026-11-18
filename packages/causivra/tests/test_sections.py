@@ -184,3 +184,20 @@ def test_asks(make_verdict: MakeVerdict, card_settings: CardSettings) -> None:
     assert sections.asks(make_verdict(), card_settings) == [
         {"text": "telemetry: events — T6 untestable without events"}
     ]
+
+
+def test_asks_format_their_numbers_like_the_rest_of_the_card(
+    make_verdict: MakeVerdict, card_settings: CardSettings
+) -> None:
+    verdict = make_verdict("INCONCLUSIVE").model_copy(
+        update={
+            "asks": [
+                models.VerdictAsks(kind="context", target="cart", why="runner-up within margin 0.015249896"),
+                models.VerdictAsks(kind="trial", target="T1:payment", why="mandatory trial T1 failed: x"),
+            ]
+        }
+    )
+    assert [a["text"] for a in sections.asks(verdict, card_settings)] == [
+        "context: cart — runner-up within margin 0.02",
+        "trial: T1:payment — mandatory trial T1 failed: x",
+    ]

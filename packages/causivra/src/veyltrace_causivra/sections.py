@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any, Final
 
 from veyltrace_causivra.assemble import CardSettings, args_of, first_failed, why_not_runners
+from veyltrace_causivra.fmt import format_numbers_in
 from veyltrace_causivra.placeholders import FillContext, fill
 from veyltrace_contracts import models
 
@@ -133,8 +134,16 @@ def why_not(verdict: models.Verdict, ctx: FillContext, settings: CardSettings) -
 
 # --- step 7: asks --------------------------------------------------------------------------------
 def asks(verdict: models.Verdict, settings: CardSettings) -> list[dict[str, str]]:
-    """verdict.asks rendered by the `asks.<kind>` templates, in verdict order."""
+    """verdict.asks rendered by the `asks.<kind>` templates, in verdict order.
+
+    Numbers in `why` go through the card's formatter (`format_numbers_in`), so a margin reads as
+    the banner's does and no raw float reaches the card.
+    """
     return [
-        {"text": settings.asks[a.kind].format_map({"kind": a.kind, "target": a.target, "why": a.why})}
+        {
+            "text": settings.asks[a.kind].format_map(
+                {"kind": a.kind, "target": a.target, "why": format_numbers_in(a.why, settings.sig_digits)}
+            )
+        }
         for a in verdict.asks
     ]

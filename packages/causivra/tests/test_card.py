@@ -13,7 +13,7 @@ from typing import Any, get_args
 import pytest
 
 from veyltrace_causivra import assemble, sections
-from veyltrace_causivra.assemble import CardSettings
+from veyltrace_causivra.assemble import CardSettings, settings_from
 from veyltrace_causivra.card import build_card
 from veyltrace_causivra.playbooks import load_playbooks, next_steps, select
 from veyltrace_causivra.prose import SENTENCES, strongest, summary
@@ -137,10 +137,16 @@ def _inconclusive_steps(
     scenario: SimpleNamespace,
     settings: CardSettings,
     asks: list[tuple[models.AskKind, str]],
+    candidate_set: bool = True,
 ) -> list[str]:
-    verdict = make_verdict("INCONCLUSIVE", False).model_copy(
-        update={"asks": [models.VerdictAsks(kind=k, target=t, why="why") for k, t in asks]}
-    )
+    verdict = make_verdict("INCONCLUSIVE", False)
+    update: dict[str, Any] = {"asks": [models.VerdictAsks(kind=k, target=t, why="why") for k, t in asks]}
+    if not candidate_set:
+        update |= {
+            "candidate_set": [],
+            "confidence": verdict.confidence.model_copy(update={"set_size": 0}),
+        }
+    verdict = verdict.model_copy(update=update)
     steps = next_steps(verdict, _ctx(verdict, scenario, settings), load_playbooks())
     assert {s["playbook_id"] for s in steps} == {"PB-INCONC-01"}
     return [s["text"] for s in steps]
@@ -208,7 +214,7 @@ def _kinds(scenario: SimpleNamespace) -> dict[str, str]:
             False,
             [
                 "No single root cause could be established; the candidate set has 2 services.",
-                "The asks below list the telemetry or trials that would settle it.",
+                "The asks below list what would settle it: telemetry to collect.",
             ],
         ),
         (
@@ -230,7 +236,9 @@ def test_template_summary(
     texts: list[str],
 ) -> None:
     verdict = make_verdict(status, with_root)
-    rows = summary(verdict, _ctx(verdict, scenario, card_settings), _kinds(scenario))
+    rows = summary(
+        verdict, _ctx(verdict, scenario, card_settings), _kinds(scenario), card_settings.ask_phrases
+    )
     assert [r["text"] for r in rows] == texts
     if status == "LIKELY":
         assert rows[1]["cites"] == [scenario.a_int]
@@ -243,7 +251,7 @@ def test_signal_sentence_is_skipped_without_an_internal_atom(
     make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
 ) -> None:
     verdict = make_verdict("CONFIRMED")
-    rows = summary(verdict, _ctx(verdict, scenario, card_settings), {})
+    rows = summary(verdict, _ctx(verdict, scenario, card_settings), {}, card_settings.ask_phrases)
     assert [r["text"][:16] for r in rows] == ["payment is the o", "Confidence is hi"]
 
 
@@ -263,7 +271,7 @@ def test_signal_sentence_names_the_strongest_internal_atom(
     )
     assert next(iter(ctx.table)) == weak  # first in table order, but weaker than A_INT (9.42)
     kinds = {**_kinds(scenario), weak: "internal_anomaly"}
-    rows = summary(verdict, ctx, kinds)
+    rows = summary(verdict, ctx, kinds, card_settings.ask_phrases)
     assert rows[1] == {
         "text": "Its strongest internal signal was payment cpu anomaly (incident) at 9.42 z.",
         "cites": [scenario.a_int],
@@ -331,3 +339,97 @@ def test_card_is_valid_copies_the_verdict_and_hashes_itself(
     assert card == _card(verdict, scenario, card_settings)  # pure function of its inputs
     if status == "NO_FAULT":
         assert card["candidate_set"] == [] and card["why_not"] == []
+
+
+def test_an_empty_candidate_set_drops_the_member_step(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    # synth-01@events: row 6 (no evidence), empty set, so there is no member to inspect (#327 c).
+    texts = _inconclusive_steps(
+        make_verdict, scenario, card_settings, [("telemetry", "all")], candidate_set=False
+    )
+    assert texts == [_TELEMETRY, _INCONC_TAIL[1]]
+    assert all("candidate set" not in t for t in texts)
+
+
+@pytest.mark.parametrize(
+    "step",
+    [{"when": "ranked", "text": "Inspect."}, {"when": "candidate_set"}, {"when": ["x"], "text": "Inspect."}],
+)
+def test_a_bad_when_step_is_a_config_error(tmp_path: Path, step: object) -> None:
+    path = tmp_path / "playbooks.yaml"
+    path.write_text(
+        json.dumps({"playbooks": [{"id": "PB-INCONC-01", "fault_classes": [], "steps": [step]}]}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match=r"when"):
+        load_playbooks(path)
+
+
+def _inconclusive_summary(
+    make_verdict: MakeVerdict,
+    scenario: SimpleNamespace,
+    settings: CardSettings,
+    asks: list[models.AskKind],
+    set_size: int = 2,
+) -> list[str]:
+    verdict = make_verdict("INCONCLUSIVE", False)
+    verdict = verdict.model_copy(
+        update={
+            "asks": [models.VerdictAsks(kind=k, target="cart", why="why") for k in asks],
+            "confidence": verdict.confidence.model_copy(update={"set_size": set_size}),
+        }
+    )
+    rows = summary(verdict, _ctx(verdict, scenario, settings), _kinds(scenario), settings.ask_phrases)
+    return [r["text"] for r in rows]
+
+
+@pytest.mark.parametrize(
+    ("asks", "sentence"),
+    [
+        (["context"], "The asks below list what would settle it: context to inspect."),
+        (
+            ["trial", "context"],
+            "The asks below list what would settle it: trials to check and context to inspect.",
+        ),
+        (
+            ["context", "telemetry", "trial", "context"],
+            "The asks below list what would settle it: context to inspect, telemetry to collect and trials "
+            "to check.",
+        ),
+    ],
+)
+def test_the_asks_sentence_names_only_the_kinds_present(
+    make_verdict: MakeVerdict,
+    scenario: SimpleNamespace,
+    card_settings: CardSettings,
+    asks: list[models.AskKind],
+    sentence: str,
+) -> None:
+    texts = _inconclusive_summary(make_verdict, scenario, card_settings, asks)
+    assert texts[-1] == sentence
+    if asks == ["context"]:
+        assert not any("telemetry" in t or "trial" in t for t in texts)  # #327 b
+
+
+def test_the_asks_sentence_is_skipped_without_asks_and_one_service_is_singular(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, card_settings: CardSettings
+) -> None:
+    texts = _inconclusive_summary(make_verdict, scenario, card_settings, [], set_size=1)
+    assert texts == ["No single root cause could be established; the candidate set has 1 service."]  # #327 a
+
+
+def test_ask_phrases_must_be_plain_words(card_settings: CardSettings) -> None:
+    section: dict[str, Any] = {
+        "card": {"evidence_max": 20},
+        "why_not": {"max": 3},
+        "format": {"sig_digits": 3},
+        "labels": dict(card_settings.labels),
+        "asks": dict(card_settings.asks),
+        "ask_phrases": {**card_settings.ask_phrases, "trial": "{ROOT} trials"},
+    }
+    with pytest.raises(ConfigError, match="trial"):
+        settings_from(section, {"mandatory": ["T1"]})
+    del section["ask_phrases"]["context"]
+    with pytest.raises(ConfigError, match="context"):
+        settings_from(section, {"mandatory": ["T1"]})

@@ -10,6 +10,7 @@ always comes from an artifact. Lists are sorted as 10 §2.2 states.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final, cast, get_args
@@ -45,6 +46,7 @@ class CardSettings:
     sig_digits: int
     labels: Mapping[str, str]
     asks: Mapping[str, str]
+    ask_phrases: Mapping[str, str]
     mandatory: frozenset[str]
 
 
@@ -70,6 +72,15 @@ def _templates(section: Mapping[str, Any], key: str, required: Iterable[str]) ->
     return {k: str(v) for k, v in found.items()}
 
 
+def _phrases(section: Mapping[str, Any], key: str, required: Iterable[str]) -> dict[str, str]:
+    """Plain words that go into summary prose: no placeholder and no digit (10 §3.5)."""
+    found = _templates(section, key, required)
+    bad = sorted(k for k, v in found.items() if re.search(r"[0-9{}]", v))
+    if bad:
+        raise ConfigError(f"causivra.{key}: phrases may hold no digit or brace; check {bad}")
+    return found
+
+
 def settings_from(section: Mapping[str, Any], causentra: Mapping[str, Any]) -> CardSettings:
     """Validate the card keys; `causentra` is that section, read for its `mandatory` list (D-7)."""
     raw: object = causentra.get("mandatory")
@@ -82,6 +93,7 @@ def settings_from(section: Mapping[str, Any], causentra: Mapping[str, Any]) -> C
         sig_digits=_positive(section, "format.sig_digits"),
         labels=_templates(section, "labels", get_args(models.AtomKind)),
         asks=_templates(section, "asks", get_args(models.AskKind)),
+        ask_phrases=_phrases(section, "ask_phrases", get_args(models.AskKind)),
         mandatory=frozenset(str(t) for t in mandatory),
     )
 

@@ -178,6 +178,11 @@ CARD_SECTION: dict[str, Any] = {
         "claim_check": "claim: {candidate} {predicate} {args} ({window})",
     },
     "asks": {kind: "{kind}: {target} — {why}" for kind in get_args(models.AskKind)},
+    "ask_phrases": {
+        "telemetry": "telemetry to collect",
+        "trial": "trials to check",
+        "context": "context to inspect",
+    },
 }
 
 

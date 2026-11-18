@@ -10,6 +10,7 @@ the clock.
 from __future__ import annotations
 
 import math
+import re
 from decimal import ROUND_HALF_EVEN, Context, Decimal
 from typing import Final
 
@@ -17,8 +18,10 @@ __all__ = [
     "COUNT_UNITS",
     "MARGIN_DECIMALS",
     "NOT_AVAILABLE",
+    "format_count",
     "format_margin",
     "format_number",
+    "format_numbers_in",
     "format_time_utc",
     "format_value",
 ]
@@ -42,6 +45,11 @@ MARGIN_DECIMALS: Final = 2
 #: Decimal precision for format_margin: the 309 integer digits of the largest float, plus the
 #: decimals, rounded up (a priori; only keeps quantize total).
 _MARGIN_PREC: Final = 320
+#: A free-standing non-integer number in upstream text (an ask's `why`): not part of an identifier
+#: such as `T1` or `synth-01`. `margin` captures a preceding "margin " (10 §3.1 step 7).
+_TEXT_NUMBER: Final = re.compile(
+    r"(?P<margin>\bmargin )?(?<![\w.\-])(?P<num>-?\d+(?:\.\d+(?:[eE][+-]?\d+)?|[eE][+-]?\d+))(?![\w\-]|\.\d)"
+)
 
 
 def format_number(value: float | int | None, sig_digits: int) -> str:
@@ -97,6 +105,34 @@ def format_margin(margin: float) -> str:
     exact = Context(prec=_MARGIN_PREC).create_decimal(repr(float(margin)))
     rounded = exact.quantize(step, rounding=ROUND_HALF_EVEN, context=Context(prec=_MARGIN_PREC))
     return format(rounded.copy_abs() if rounded.is_zero() else rounded, "f")
+
+
+def format_count(count: int, noun: str, plural: str | None = None) -> str:
+    """`count` with its counted noun in agreement (10 §3.3): "1 service", "0 services", "2 services".
+
+    The one rule for every counted noun on the card, so a count never reads "1 services". `plural`
+    is for a noun whose plural is not `noun + "s"`.
+    """
+    if type(count) is not int:  # a bool is an int subclass, and not a count
+        raise TypeError(f"a count must be an int, got {count!r}")
+    return f"{count} {noun if count == 1 else (plural or noun + 's')}"
+
+
+def format_numbers_in(text: str, sig_digits: int) -> str:
+    """`text` from an upstream artifact with each free-standing non-integer reformatted (10 §3.1
+    step 7): a number after "margin " as {CONF.margin} reads (`format_margin`), any other through
+    `format_number`, so an ask states a number with the same precision as the rest of the card.
+
+    Integers (counts) and digits inside identifiers (`T1`, `synth-01`) are left as they are.
+    """
+
+    def one(m: re.Match[str]) -> str:
+        value = float(m["num"])
+        if m["margin"]:
+            return m["margin"] + format_margin(value)
+        return format_number(value, sig_digits)
+
+    return _TEXT_NUMBER.sub(one, text)
 
 
 def format_time_utc(t_ns: int) -> str:

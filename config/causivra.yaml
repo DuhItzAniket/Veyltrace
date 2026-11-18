@@ -41,3 +41,11 @@ asks:
   telemetry: "{kind}: {target} — {why}"
   trial: "{kind}: {target} — {why}"
   context: "{kind}: {target} — {why}"
+
+# What the asks of each kind would settle, as the INCONCLUSIVE summary names it: "The asks below
+# list what would settle it: <phrases>." Only the kinds present in verdict.asks are named, in the
+# order they first appear (10 §3.5). Plain words: no digit, no placeholder (display only).
+ask_phrases:
+  telemetry: "telemetry to collect"
+  trial: "trials to check"
+  context: "context to inspect"
