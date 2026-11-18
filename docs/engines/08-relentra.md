@@ -57,7 +57,7 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
 | `mode` | `brief` or `investigate` from config. `external` (03 §9.1) is written only for hypotheses submitted through the MCP `verify_hypothesis` tool ([06](../06-gateway-and-console.md)), never by Relentra |
 | `model` | `provider`, `name`, `gguf_sha256?` (from `config/llm.yaml`), `params` = {`temperature`, `seed`, `top_k`, `top_p`, `presence_penalty`, `thinking`, `max_tokens`} always all seven keys; `top_k?`, `top_p?`, `presence_penalty?`, `thinking?` are nullable in 03 §9.1 (`?` = required and nullable, 03 §1), and null means the provider does not send it |
 | `budget_used` | `turns` = LLM calls made (repairs included); `tokens_in`, `tokens_out` = sum of provider-reported usage stored in the cassette; `wall_ms` = sum of recorded `latency_ms` of those calls (so replay reproduces it, as 03 requires) |
-| `proposals[]` | after normalisation (§3.6). `proposal_id` = `P` + first 8 hex of SHA-256(canonical_json({hypothesis, claims without ids})). `claim_id` = `<proposal_id>-<i>`, `i` from 1 in sorted claim order. `hypothesis` = {`service`, `component?` (omitted in v0.1), `fault_class`, `indicator?`}. `claims[]` = {`claim_id`, `predicate`, `args`, `cites`}. `requested_trials` ⊆ `T1…T10`, sorted by number. `rationale` ≤ 280 chars, display only |
+| `proposals[]` | after normalisation (§3.6). `proposal_id` = `P` + first 8 hex of SHA-256(canonical_json({hypothesis, claims without ids})). `claim_id` = `<proposal_id>-<i>`, `i` from 1 in sorted claim order. `hypothesis` = {`service`, `component?` (always `null` in v0.1), `fault_class`, `indicator?`}. `claims[]` = {`claim_id`, `predicate`, `args`, `cites`}. `requested_trials` ⊆ `T1…T10`, sorted by number. `rationale` ≤ 280 chars, display only |
 | `asks[]` | {`kind` ∈ `telemetry \| trial \| context`, `target`, `why`} from the model, sorted by (`kind`, `target`) |
 
 `args` is a JSON object keyed by the predicate's parameter names **after** the subject; it never contains `subject` (a `subject` key is invalid, `bad_args`: [03 §9.1](../03-contracts.md#91-proposalsjson), [06 §3.5](06-faultloom.md#35-predicate-library)). The subject of a claim is implied: `hypothesis.service` for T10, and every candidate of the **claim-pass pool** (slate ∪ all proposed candidates, [02 §4](../02-architecture.md#4-pipeline-and-data-flow)) in the claim pass ([03 §7](../03-contracts.md#7-faultloom-output-evidence--key-candidate-kind-atom_id)).
@@ -84,6 +84,7 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
    - `signals` = distinct `signal_cube.series.signal`, excluding `tmpl:*`, truncated to `schema.max_signal_enum`.
    - `atom_ids` = atoms present in the evidence cards.
    - `trials` = `T1` … `T10`.
+   - `indicators` = the `indicator` vocabulary of 03 (`cpu`, `mem`, `diskio`, `socket`, `latency`, `error`, `logs`, `workload`, `unknown`).
 4. If `slate.candidates` is empty: write `status = skipped`, trace `start → done`, return.
 
 ### 3.2 `brief` mode (default)
@@ -174,7 +175,7 @@ Built per case, flat and enum-heavy, because open engines reach ≈ 0.95 coverag
       "properties": {
         "service":     {"enum": "<nodes>"},
         "fault_class": {"enum": "<fault_classes>"},
-        "indicator":   {"enum": "<signals> + ['']"},
+        "indicator":   {"enum": "<indicators> + ['']"},
         "claims": {"type": "array", "minItems": 1, "maxItems": "<budget.max_claims_per_proposal>", "items": {
           "type": "object", "additionalProperties": false,
           "required": ["predicate", "signal", "other", "x", "cites"],
@@ -242,7 +243,7 @@ Relentra adds no numbers of its own to the prompt beyond fused scores in the poo
 
 ### 3.6 Normalisation (both modes)
 
-1. Map slots to named arguments and prune with FaultLoom `validate()` (§3.4); `args` never contains the subject.
+1. Map slots to named arguments and prune with FaultLoom `validate()` (§3.4); `args` never contains the subject. An empty `indicator` becomes `null`.
 2. Merge proposals with the same (`service`, `fault_class`): union of claims, union of trials, first rationale in model order.
 3. Deduplicate claims by (`predicate`, canonical `args`); union their cites.
 4. Cap: proposals ≤ `budget.max_hypotheses`, claims ≤ `budget.max_claims_per_proposal` (keep model order, then cut).
