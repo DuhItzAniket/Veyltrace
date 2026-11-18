@@ -38,7 +38,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | `onsets.json`, `changes.parquet`, `graph.paths`, `graph.nodes` | [03 §4.2, §5.2, §6](../03-contracts.md) | timeline, path, `{ONSET}`, entity enum (03 lists Causivra as their consumer; OQ-1 resolved) |
 | Narration cassette entries | `cassette/` | `ai.mode = replay` |
 | Config | `config/causivra.yaml`, `config/llm.yaml` | §4 |
-| Playbooks | `packages/causivra/playbooks/playbooks.yaml` | next steps |
+| Playbooks | `packages/causivra/src/veyltrace_causivra/playbooks.yaml` (package data, so an installed wheel ships it) | next steps |
 | Prompts | `packages/causivra/prompts/{system,narrate,repair}.md` | narration; hashes join `run_manifest.ai.prompt_sha256` ([08 §3.5](08-relentra.md#35-prompts-and-system-briefs)) |
 
 ### 2.2 Outputs
@@ -54,7 +54,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | `summary` | `[{text, cites}]`: filled LLM sentences or template sentences (§3.2, §3.5) |
 | `timeline` | `[{t_ns, label, cites}]` sorted by (`t_ns`, `label`) |
 | `path` | `graph.paths.nodes` of the root at `path_rank = 1`; `[]` when `root` is null |
-| `evidence_table` | `[{atom_id, label, value, unit?}]` sorted by (`candidate`, `kind`, `atom_id`) |
+| `evidence_table` | `[{atom_id, label, value?, unit?}]` sorted by (`candidate`, `kind`, `atom_id`); `value` is the raw float or null |
 | `why_not` | `[{service, text, cites}]` for `ranked[1 … why_not.max]` |
 | `asks` | `[{text}]` from `verdict.asks` |
 | `next_steps` | `[{text, playbook_id}]` (§3.6) |
@@ -153,7 +153,7 @@ svc_ref     = "SVC:" , node ;                               (* node: exact graph
 | `{CONF.level}` / `{CONF.set_size}` / `{CONF.margin}` | `confidence.level` / integer / margin, 2 decimals | always |
 | `{STATUS}` | `verdict.status` | always |
 | `{ONSET}` | `onsets.t_onset_ns` as `HH:MM:SS UTC` | `onsets.json` present |
-| `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` |
+| `{SVC:<node>}` | `<node>` | `<node>` ∈ `graph.nodes.node` ∪ `case_manifest.services` (the entity lexicon of §2.1, so a card stays writable while the graph is empty) |
 
 Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): 3 significant figures; plain notation for 0.001 ≤ |x| < 10⁶, otherwise `.3g`; integers below 10⁶ unchanged; `null`/NaN → `n/a`. Units are printed exactly as stored.
 
@@ -189,7 +189,7 @@ Template sentences may have empty `cites` only when no citable atom exists, or f
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class`, then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
@@ -219,7 +219,7 @@ Rendered from `card.json` only: title; status banner with `confidence.level`, se
 
 1. Read `run_manifest.json` (written by core after 10a) and check it lists `verdict.json`, `card.json`, `card.md`, and `agent_trace.jsonl` when the run has one, in `outputs`, with the hashes those files have now.
 2. `subject[0]` = `{name: "verdict.json", digest: {sha256: SHA-256(file bytes of verdict.json)}}`. Note this differs from `verdict_hash` (canonical JSON without the hash field); both are checked on replay.
-3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when there is no trace (`ai off`, or `status = skipped`).
+3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when `agent_trace.jsonl` is absent or has no lines (`ai off`, or `status = skipped`).
 4. `predicate` = `{run_manifest, verdict_hash, card_hash, agent_trace_head}`; Statement `_type` and `predicateType` exactly as 03 §11.2.
 5. Write `receipt.json` as `canonical_json` bytes.
 6. Optional signing (`signing.enabled`): sign the `receipt.json` bytes with a minisign-compatible Ed25519 key whose secret-key path comes from the environment variable `VEYLTRACE_MINISIGN_SECRET_KEY` (never from the repo); write `receipt.json.minisig`. The signature file is outside every hash. Tool or library choice is an ADR at X-09.

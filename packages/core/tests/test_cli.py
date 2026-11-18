@@ -306,12 +306,22 @@ def test_stdout_is_reconfigured_to_utf8() -> None:
     assert result.stdout.strip().splitlines()[-1].lower().replace(b"-", b"") == b"utf8"
 
 
-def test_diagnose_warns_about_stub_outputs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_diagnose_warns_about_stub_outputs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
     from veyltrace_core import stubs
 
+    # Every synth engine is real once Causivra is (#20), so put one stub back to prove the warning.
+    # A string target: core's tests never import an engine package.
+    monkeypatch.setattr("veyltrace_causivra.api.run", lambda ctx: stubs.run_stub(ctx, "causivra"))
     assert stubs.STUB_NOTE.startswith(cli.STUB_MARK)
     assert cli.main(_diagnose(tmp_path)) == DiagnoseExit.OK
     assert "placeholder outputs" in capsys.readouterr().err
+
+
+def test_diagnose_is_quiet_without_stubs(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    assert cli.main(_diagnose(tmp_path)) == DiagnoseExit.OK
+    assert "placeholder outputs" not in capsys.readouterr().err
 
 
 def test_stub_infralume_refuses_real_datasets_without_an_adapter(tmp_path: Path) -> None:
