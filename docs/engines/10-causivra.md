@@ -79,10 +79,26 @@ Run-dir sequencing ([02 §6.10](../02-architecture.md#610-causivra--explanation-
    | `NO_FAULT` | `NO_FAULT · no fault detected in the incident window` |
 
 2. Copy `status`, `root`, `confidence`, `candidate_set`.
-3. **Evidence table.** Atom set A = atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null) ∪ `claim_check` atoms on that candidate with `holds = true`; capped at `card.evidence_max`, keeping atoms referenced by trials first. `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<signal>` anomaly (`<window>`)").
+3. **Evidence table.** Atom set A, in this order: atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null); `claim_check` atoms on those candidates with `holds = true`; then the atoms of the first failing trial of each runner-up listed under why-not (step 6), so its line can cite them under C3. Capped at `card.evidence_max` keeping that order, then sorted by (`candidate`, `kind`, `atom_id`). `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<family>` anomaly (`<window>`)": anomaly atoms carry `family`, not `signal`, in `args_json`, 03 §7).
 4. **Timeline.** Entries: alert (`alert.t_alert_ns`, label `alert (<protocol>)`), incident onset (`onsets.t_onset_ns`), the root's internal and external onsets (`onsets.per_service`), every change in `changes` on a decision-pool candidate (`verdict.ranked`) with `t_ns` inside `alert.windows` (decoys included: the card shows them, the verdict weighs them). `cites` = atoms of kind `onset_precedence` or `change_proximity` whose `args_json` names that entry; may be empty for the alert line.
 5. **Path** as in §2.2.
-6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up, the first failing trial in ID order picks the template (e.g. `T2` → "{SVC:x} started after its dependents (failed T2, precedence)."); if no trial failed: "{SVC:x} passed the mandatory trials but its verified score was lower." `cites` = that trial's atoms, else the runner-up's first atom in the table.
+6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up in `ranked[1 … why_not.max]`, the first failing trial in ID order (T1 < T2 < … < T10) picks the text; if no trial failed, the text says whether every mandatory trial (`causentra.mandatory`, plus T10 for a proposal-origin candidate) passed or one was untestable. `{SVC:x}` is the runner-up. `cites` = that failing trial's atoms (in the table by step 3 unless the cap dropped them), else the runner-up's first atom in the table, else empty.
+
+   | Case | Text |
+   |---|---|
+   | T1 failed | {SVC:x} showed no internal anomaly that its callees do not explain (failed T1, origin). |
+   | T2 failed | {SVC:x} started after its dependents (failed T2, precedence). |
+   | T3 failed | No anomalous path leads from {SVC:x} to the entry services (failed T3, propagation). |
+   | T4 failed | A service that {SVC:x} calls went silent, so {SVC:x} may be its victim (failed T4, silence check). |
+   | T5 failed | {SVC:x} self-time explains too little of the entry latency increase (failed T5, latency accounting). |
+   | T6 failed | No change on {SVC:x} preceded the onset closely enough (failed T6, change alignment). |
+   | T7 failed | {SVC:x} behaves like its peers (failed T7, peer contrast). |
+   | T8 failed | The parents of {SVC:x} explain its anomaly (failed T8, intervention). |
+   | T9 failed | {SVC:x} leaves the top candidates when one telemetry source is dropped (failed T9, source ablation). |
+   | T10 failed | A proposed claim about {SVC:x} did not hold (failed T10, claim checks). |
+   | no trial failed, every mandatory trial passed | {SVC:x} passed the mandatory trials but its verified score did not exceed the leader's. |
+   | no trial failed, a mandatory trial untestable | {SVC:x} failed no trial, but some of its mandatory trials were untestable, and its verified score did not exceed the leader's. |
+
 7. **Asks.** `verdict.asks` rendered by `asks.<kind>` templates: "`<kind>`: `<target>` — `<why>`".
 8. **Next steps** (§3.6). 9. **Summary** (§3.2 or §3.5). 10. `narrator`. 11. `card_hash`. 12. `card.md`.
 
