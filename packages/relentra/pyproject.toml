@@ -9,7 +9,9 @@ description = "Veyltrace engine 8 (Relentra): LLM investigator that proposes can
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+# veyltrace-faultloom: evidence_cards, the predicate library and validate() (08 §2.1, §5.4).
+# veyltrace-llm: the model client, the only way Relentra talks to a model (package rule 1).
+dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-faultloom", "veyltrace-llm"]
 
 # Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
 [project.entry-points."veyltrace.engines"]
@@ -18,6 +20,8 @@ relentra = "veyltrace_relentra.api:run"
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
+veyltrace-faultloom = { workspace = true }
+veyltrace-llm = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/veyltrace_relentra"]
@@ -25,4 +29,5 @@ packages = ["src/veyltrace_relentra"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-allow = []
+# FaultLoom's cards, predicate library and claim validation only (08 §5.4); never its engine code.
+allow = ["veyltrace_faultloom.cards", "veyltrace_faultloom.predicates", "veyltrace_faultloom.validation"]
