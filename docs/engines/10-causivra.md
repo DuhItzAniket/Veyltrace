@@ -143,7 +143,7 @@ Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): 3 significan
 
 ### 3.4 Claim checker
 
-Applied to the raw LLM sentence (before filling) in this order; the first failing rule is reported. Rules C4–C6 consider only text **outside** placeholders.
+Applied to the raw LLM sentence (before filling) in this order, each rule over the whole sentence before the next (C1 on every placeholder, then C2 on every placeholder, then C3); the first failing rule is reported, at its first offending token. Rules C4–C6 consider only text **outside** placeholders.
 
 | Rule | Rejects when | Config |
 |---|---|---|
