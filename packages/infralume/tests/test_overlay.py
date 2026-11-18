@@ -68,12 +68,30 @@ def test_overlay_rows_join_the_case_events_as_synthetic(tmp_path: Path) -> None:
         (late, "cart", "deploy"),
     ]
     assert {(r["source_system"], r["actor"]) for r in extra} == {("synthetic", None)}
-    assert manifest.data_end_ns == late  # 03 §2.1: the span includes overlay events
+    assert manifest.data_end_ns == base.data_end_ns  # 03 §2.1: an overlay row never moves the span
     assert manifest.services == base.services  # event entities are not telemetry services
     entry = next(i for i in manifest.inputs if i.name == "overlay/events.parquet")
     assert (entry.sha256, entry.bytes) == (sha256_file(path), path.stat().st_size)
     assert [i.name for i in manifest.inputs] == sorted(i.name for i in manifest.inputs)
     assert [i for i in manifest.inputs if i != entry] == list(base.inputs)
+
+
+def test_overlay_rows_outside_the_span_are_kept_and_do_not_move_it(tmp_path: Path) -> None:
+    """RCAEval-C decoys start 30 min before the injection, RE2 data 12 min before it: a stretched
+    span would change the alert windows and the series grid of the λ > 0 cells (lead, #323)."""
+    base = _run(tmp_path / "base")
+    early, late = base.data_start_ns - 1_800 * 10**9, base.data_end_ns + 300 * 10**9
+    _write(
+        [
+            (early, "cart", "deploy", "synthetic", "{}", None),
+            (late, "catalog", "config", "synthetic", "{}", None),
+        ]
+    )
+    manifest = _run(tmp_path / "with", **{KEY: REL})
+    assert (manifest.data_start_ns, manifest.data_end_ns) == (base.data_start_ns, base.data_end_ns)
+    assert manifest.services == base.services
+    times = [r["t_ns"] for r in _events(tmp_path / "with")]
+    assert times[0] == early and times[-1] == late and len(times) == len(_events(tmp_path / "base")) + 2
 
 
 def test_same_overlay_gives_the_same_bytes(tmp_path: Path) -> None:

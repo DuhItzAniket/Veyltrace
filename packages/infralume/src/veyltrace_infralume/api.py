@@ -60,6 +60,17 @@ def _materialise(
     drop = _dropped(ctx)
     tables = {s: t if SOURCE_OF[s] not in drop else t.slice(0, 0) for s, t in case.tables.items()}
     present = {s: bool(case.sources_present[s]) and s not in drop for s in SOURCE_NAMES}
+    # The span is the case's own telemetry: overlay rows never move it (03 §2.1; 01 §3.10).
+    bounds: list[tuple[int, int]] = []
+    for source, table in tables.items():
+        if table.num_rows:
+            first, last = _TIME_COLUMNS[source][0], _TIME_COLUMNS[source][-1]
+            bounds.append(
+                (int(_pc.min(table.column(first)).as_py()), int(_pc.max(table.column(last)).as_py()))
+            )
+    if not bounds:
+        raise CaseRejected("no_telemetry", f"case {ctx.case_id} has no rows in any non-dropped source")
+    start, end = min(b[0] for b in bounds), max(b[1] for b in bounds)
     inputs, scrubbed = list(case.inputs), case.scrub
     overlay = ctx.config["events"]["overlay_path"]
     if overlay is not None and "events" not in drop:  # dropping events drops the overlay with them
@@ -71,16 +82,6 @@ def _materialise(
         present["events"] = present["events"] or extra.num_rows > 0
         inputs = sorted([*inputs, entry])
         scrubbed = (scrubbed[0], scrubbed[1] + scrub.dropped_attributes, scrubbed[2] + scrub.dropped_rows)
-    bounds: list[tuple[int, int]] = []
-    for source, table in tables.items():
-        if table.num_rows:
-            first, last = _TIME_COLUMNS[source][0], _TIME_COLUMNS[source][-1]
-            bounds.append(
-                (int(_pc.min(table.column(first)).as_py()), int(_pc.max(table.column(last)).as_py()))
-            )
-    if not bounds:
-        raise CaseRejected("no_telemetry", f"case {ctx.case_id} has no rows in any non-dropped source")
-    start, end = min(b[0] for b in bounds), max(b[1] for b in bounds)
     hint, hint_source = case.t_alert_hint_ns, case.hint_source
     if str(ctx.config.core["alert"]["protocol"]) == "detected":
         hint, hint_source = None, "none"  # 03 §2.1: the injection time never reaches detected runs
