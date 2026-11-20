@@ -1,9 +1,8 @@
 """Engine entry point of Causentra (registered as `veyltrace.engines:causentra`).
 
-Pipeline step 9 (09 §3.1): read the inputs, run trials T1–T4 on every decision-pool candidate,
-compute V, order, set and status, and write `verdict.json` with its `verdict_hash`. R-12 adds
-T5–T10 and the conformal set. The signature `run(ctx: RunContext) -> EngineResult` is fixed
-(AGENTS §5).
+Pipeline step 9 (09 §3.1): read the inputs, run the trials on every decision-pool candidate,
+compute V, order, set and status, and write `verdict.json` with its `verdict_hash`. The signature
+`run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
 """
 
 from __future__ import annotations

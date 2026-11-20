@@ -4,9 +4,9 @@
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 service. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
-- The leading candidate is cart. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
-- The asks below list what would settle it: trials to check. (cites: Efeb591839a, E2e0bd9e9a2, E9609f44d49)
+- No single root cause could be established; the candidate set has 1 service. (cites: Efeb591839a, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
+- The leading candidate is cart. (cites: Efeb591839a, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
+- The asks below list what would settle it: trials to check. (cites: Efeb591839a, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
 
 ## Candidate set
 
@@ -18,6 +18,7 @@
 |---|---|---|---|
 | Efeb591839a | cart logs anomaly (incident) | 4 | z |
 | E2e0bd9e9a2 | cart onset precedence over self (onset) | 0 | ms |
+| Ef09cfdb4dc | cart contrast with peers from anomalies (incident) | 3.28 | z |
 | E9609f44d49 | cart silence (incident) | 1 |  |
 | E847fffbec6 | catalog self_time anomaly (incident) | 1.05 | z |
 | E7b0771b7a9 | catalog silence (incident) | 0 |  |
@@ -57,6 +58,6 @@ prose: template
 
 ---
 
-verdict_hash: `80bf69a328e1b55963b552344d46be13ea2d55700d2e76c39ac1203d4159ca20`  
-card_hash: `c64c036a3ffa26994877da5d9bf87718a5841b96366700ce1bf137648c2834ca`  
+verdict_hash: `f736ff5c467ae625b7ecf09aee7b440c17ce30ef5b22e5bfe28b15685b75ea5f`  
+card_hash: `2cf97181baad4827b2a1f625306de6f9c1f014c9608a8e7fd555b870c0c56ab4`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

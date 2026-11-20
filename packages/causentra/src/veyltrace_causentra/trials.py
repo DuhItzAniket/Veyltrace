@@ -1,11 +1,10 @@
-"""Trials of 09 §3.4: T1–T4 (mandatory) evaluated; T5, T6, T8 only where a fact fixes them.
+"""Trials of 09 §3.4: T1–T4 (mandatory, every candidate) and the supporting trials T5–T8.
 
-Each trial returns `pass`, `fail` or `untestable` with a 09 §3.4 reason and the atom ids it used;
-T1–T4 apply to every candidate. They are declared under the entry-point
-group `veyltrace.trials` (09 §5). T10 is `decision.claim_check` (proposal origin only). Until
-R-12 evaluates T5–T9, `pending()` writes only the
-`untestable` results an existence fact fixes (as the R-00 stub did); those are supporting trials,
-whose untestable factor is 1.0, so they never move V.
+Each trial returns `pass`, `fail` or `untestable` with a 09 §3.4 reason and the atom ids it used.
+A trial whose precondition is false (T5 without traces, T7 without a `peer_contrast` atom) is not
+applicable: it is omitted from `trials[]` and contributes no factor. They are declared under the
+entry-point group `veyltrace.trials` (09 §5). T10 is `decision.claim_check` (proposal origin only).
+Every value is compared at 9 decimals, the precision the verdict shows (09 §5).
 """
 
 from __future__ import annotations
@@ -27,7 +26,7 @@ UNTESTABLE: Final = "untestable"
 
 @dataclass(frozen=True)
 class TrialInputs:
-    """What T1–T4 read: the views, sources, alignment tolerance and the trial thresholds."""
+    """What the trials read: the views, sources, alignment tolerance and the trial thresholds."""
 
     ev: EvidenceView
     graph: GraphView
@@ -36,6 +35,9 @@ class TrialInputs:
     k_anom: float
     t2_min_fraction: float
     t3_min_path_fraction: float
+    t5_min_share: float
+    t6_min_proximity: float
+    t7_min_gap: float
 
 
 @dataclass(frozen=True)
@@ -51,10 +53,17 @@ class TrialResult:
         return {"id": self.id, "result": self.result, "reason": self.reason, "atoms": list(self.atoms)}
 
 
+def _always(_c: str, _t: TrialInputs) -> bool:
+    return True
+
+
 @dataclass(frozen=True)
 class Trial:
+    """A trial: `check` runs it on one candidate when `applies` (09 §3.4 "Applicable") holds."""
+
     id: str
     check: Callable[[str, TrialInputs], TrialResult]
+    applies: Callable[[str, TrialInputs], bool] = _always
 
 
 def trial_inputs(inp: CausentraInputs, cfg: CausentraConfig) -> TrialInputs:
@@ -66,6 +75,9 @@ def trial_inputs(inp: CausentraInputs, cfg: CausentraConfig) -> TrialInputs:
         cfg.k_anom,
         cfg.t2_min_fraction,
         cfg.t3_min_path_fraction,
+        cfg.t5_min_share,
+        cfg.t6_min_proximity,
+        cfg.t7_min_gap,
     )
 
 
@@ -146,26 +158,67 @@ def silence_check(c: str, t: TrialInputs) -> TrialResult:
     return _result("T4", PASS, None, own)
 
 
+def _at_least(atoms: Iterable[Atom], threshold: float) -> bool:
+    """max value ≥ threshold, both at 9 decimals (09 §5); False without atoms."""
+    values = [a.value for a in atoms]
+    return bool(values) and round(max(values), DECIMALS) >= round(threshold, DECIMALS)
+
+
+def latency_accounting(c: str, t: TrialInputs) -> TrialResult:
+    """T5: c's critical-path self-time increase is a large enough share of the entry latency increase."""
+    shares = t.ev.atoms_of(c, "self_time_share")
+    if not shares:  # FaultLoom writes none below self_time.min_total_increase_ms (06 §3.4)
+        return _result("T5", UNTESTABLE, "no_latency_increase", ())
+    ok = _at_least(shares, t.t5_min_share)
+    return _result("T5", PASS if ok else FAIL, None if ok else "share_below_min", shares)
+
+
+def change_alignment(c: str, t: TrialInputs) -> TrialResult:
+    """T6: a change on c came at most about τ_change before its onset (CH(c) ≥ e⁻¹)."""
+    if not t.sources.events:
+        return _result("T6", UNTESTABLE, "no_events", ())
+    changes = t.ev.atoms_of(c, "change_proximity")
+    ok = _at_least(changes, t.t6_min_proximity)
+    return _result("T6", PASS if ok else FAIL, None if ok else "no_recent_change", changes)
+
+
+def peer_contrast(c: str, t: TrialInputs) -> TrialResult:
+    """T7: c's affected component (or changed replica) stands out from its peers."""
+    peers = t.ev.atoms_of(c, "peer_contrast")
+    ok = _at_least(peers, t.t7_min_gap)
+    return _result("T7", PASS if ok else FAIL, None if ok else "peers_alike", peers)
+
+
+def intervention(c: str, t: TrialInputs) -> TrialResult:
+    """T8: c's anomaly persists after regressing out its parents (stat_resid ≥ k_anom)."""
+    tests = t.ev.atoms_of(c, "intervention")
+    if not tests:  # CI test untestable, or c beyond intervention.max_candidates (06 §3.6)
+        return _result("T8", UNTESTABLE, "intervention_unavailable", ())
+    ok = _at_least(tests, t.k_anom)
+    return _result("T8", PASS if ok else FAIL, None if ok else "explained_by_parents", tests)
+
+
+def _has_traces(_c: str, t: TrialInputs) -> bool:
+    return t.sources.traces
+
+
+def _has_peers(c: str, t: TrialInputs) -> bool:
+    return bool(t.ev.atoms_of(c, "peer_contrast"))
+
+
 T1: Final = Trial("T1", origin)
 T2: Final = Trial("T2", precedence)
 T3: Final = Trial("T3", propagation)
 T4: Final = Trial("T4", silence_check)
-#: The trials R-10 evaluates, in numeric order (09 §3.4); R-12 adds T5–T10.
-EVALUATED: Final = (T1, T2, T3, T4)
-
-
-def pending(c: str, t: TrialInputs) -> list[TrialResult]:
-    """T5, T6, T8 results that an existence fact fixes as untestable (09 §3.4); the rest omitted."""
-    out: list[TrialResult] = []
-    if t.sources.traces and not t.ev.atoms_of(c, "self_time_share"):
-        out.append(_result("T5", UNTESTABLE, "no_latency_increase", ()))
-    if not t.sources.events:
-        out.append(_result("T6", UNTESTABLE, "no_events", ()))
-    if not t.ev.atoms_of(c, "intervention"):
-        out.append(_result("T8", UNTESTABLE, "intervention_unavailable", ()))
-    return out
+T5: Final = Trial("T5", latency_accounting, _has_traces)
+T6: Final = Trial("T6", change_alignment)
+T7: Final = Trial("T7", peer_contrast, _has_peers)
+T8: Final = Trial("T8", intervention)
+#: The trials run on every decision-pool candidate, in numeric order (09 §3.4); T10 is
+#: decision.claim_check.
+EVALUATED: Final = (T1, T2, T3, T4, T5, T6, T7, T8)
 
 
 def run_trials(c: str, t: TrialInputs) -> tuple[TrialResult, ...]:
-    """Every written trial of candidate c, in T1…T10 order (03 §10)."""
-    return (*(trial.check(c, t) for trial in EVALUATED), *pending(c, t))
+    """Every applicable trial of candidate c, in T1…T10 order (03 §10)."""
+    return tuple(trial.check(c, t) for trial in EVALUATED if trial.applies(c, t))
