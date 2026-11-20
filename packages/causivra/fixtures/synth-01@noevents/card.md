@@ -45,8 +45,8 @@ checkout → frontend
 ## Why not
 
 - **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
-- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 - **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E106e938451, Efd34e2ffcd)
+- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 
 ## Asks
 
@@ -63,6 +63,6 @@ prose: template
 
 ---
 
-verdict_hash: `85b012cbe36a0d6fb50fc1ae02ba6df767381f0009feab10f596b7fbf8563901`  
-card_hash: `840ebd140ff9c66989af4b51e8a72eb0fa3ff3efaa9b746431216a0aed7bef59`  
+verdict_hash: `bd95787cf988e13be652d921926e766bbf428f1c20d333039cd55c475eb4f4a1`  
+card_hash: `1a658614147caf597062d4143e83ce577ca30810e987668ce2d923207c89e98b`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
