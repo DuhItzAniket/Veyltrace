@@ -50,7 +50,7 @@ A source that is absent or dropped is written as a schema-valid table with zero 
 
 ### 3.1 Two phases
 
-1. **Convert (first time per case).** Adapter reads raw files, builds canonical tables, normalises names, scrubs, and writes them to the cache `${VEYLTRACE_DATA}/cache/<dataset>/<case_id>/`. This phase is excluded from the 30 s budget ([02 §9](../02-architecture.md)); its own target is ≤ 10 s per RE2 case (O-01).
+1. **Convert (first time per case).** Adapter reads raw files, builds canonical tables, normalises names, scrubs, and writes them to the cache `${VEYLTRACE_DATA}/cache/<dataset>/<case_id>/<key>/`. The key hashes the adapter name and version, the convert config sections and the `<major>.<minor>` of the four telemetry contracts, so a contract minor bump is a cache miss (#349). This phase is excluded from the 30 s budget ([02 §9](../02-architecture.md)); its own target is ≤ 10 s per RE2 case (O-01).
 2. **Materialise (every run).** Copy cached tables into the run directory, apply `sources.drop` and the events overlay, read the alert hint (kept only when `alert.protocol` is `oracle` or `live`, §3.7), write `case_manifest.json`. Tables cover the full available span; core's alert step then writes `alert.json`.
 
 Cache entries are keyed by (`case_id`, adapter version, `scrub.rules_version`, config hash of the convert-phase keys). A stale key forces re-conversion.
