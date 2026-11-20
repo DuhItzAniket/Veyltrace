@@ -114,12 +114,16 @@ __all__ = [
     "SpanKind",
     "SpanStatus",
     "Status",
+    "SummaryCaseMetric",
+    "SummaryComparison",
     "SummaryGroup",
     "SummaryGroupMetrics",
+    "SummaryInterval",
     "SummaryMetricAcAtK",
     "SummaryMetricAvgAt5",
     "SummaryMetricChance",
     "SummaryMetricCost",
+    "SummaryMetricDecoyRankedFirst",
     "SummaryMetricFineAcAtK",
     "SummaryMetricLift",
     "SummaryMetricMrr",
@@ -127,6 +131,9 @@ __all__ = [
     "SummaryMetricRerankAt1",
     "SummaryMetricRetrievalAtK",
     "SummaryOutcomes",
+    "SummaryStatistics",
+    "SummaryStatisticsNotRun",
+    "SummaryStatisticsParams",
     "System",
     "TelemetryEventsRow",
     "TelemetryLogsRow",
@@ -360,6 +367,36 @@ SpanKind = Literal[
 
 #: Span status (03 §2.4).
 SpanStatus = Literal["ok", "error", "unset"]
+
+#: A metric that is a mean over cases, so it has a cluster-bootstrap interval (04 §8);
+#: ratios (lift_at_k, rerank_at_1), cost percentiles and onset medians have none.
+SummaryCaseMetric = Literal[
+    "ac_at_1",
+    "ac_at_2",
+    "ac_at_3",
+    "ac_at_4",
+    "ac_at_5",
+    "avg_at_5",
+    "chance_at_1",
+    "chance_at_2",
+    "chance_at_3",
+    "chance_at_4",
+    "chance_at_5",
+    "chance_diff_at_1",
+    "chance_diff_at_2",
+    "chance_diff_at_3",
+    "chance_diff_at_4",
+    "chance_diff_at_5",
+    "decoy_ranked_first",
+    "fine_ac_at_1",
+    "fine_ac_at_2",
+    "fine_ac_at_3",
+    "fine_ac_at_4",
+    "fine_ac_at_5",
+    "mrr",
+    "pool_retrieval",
+    "retrieval_at_k",
+]
 
 #: Benchmark system of a case (03 §2.1); live is a dataset, not a system.
 System = Literal["ob", "ss", "tt", "otel", "other"]
@@ -1506,6 +1543,51 @@ class CaseManifest(BaseModel):
     scrub: CaseManifestScrub
 
 
+class SummaryComparison(BaseModel):
+    """One paired difference A − B on one metric over the cases both methods scored (04
+    §8).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset: Dataset
+    system: System | None
+    metric: SummaryCaseMetric
+    method_a: Annotated[str, StringConstraints(min_length=1)]
+    method_b: Annotated[str, StringConstraints(min_length=1)]
+    kind: Literal["exploratory", "noninferiority", "superiority"]
+    family: Annotated[str, StringConstraints(min_length=1)] | None
+    margin: float | None
+    n_pairs: Annotated[int, Field(ge=0)]
+    n_clusters: Annotated[int, Field(ge=0)]
+    difference: float | None
+    low: float | None
+    high: float | None
+    sign_flip_p: Annotated[float, Field(ge=0, le=1)] | None
+    mcnemar_only_a: Annotated[int, Field(ge=0)] | None
+    mcnemar_only_b: Annotated[int, Field(ge=0)] | None
+    mcnemar_p: Annotated[float, Field(ge=0, le=1)] | None
+    holm_p: Annotated[float, Field(ge=0, le=1)] | None
+
+
+class SummaryInterval(BaseModel):
+    """The 95% percentile cluster-bootstrap interval of one case-mean metric of one
+    group (04 §8).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    dataset: Dataset
+    system: System | None
+    method: Annotated[str, StringConstraints(min_length=1)]
+    metric: SummaryCaseMetric
+    estimate: float
+    low: float
+    high: float
+    n_cases: Annotated[int, Field(ge=1)]
+    n_clusters: Annotated[int, Field(ge=1)]
+
+
 class SummaryMetricAcAtK(BaseModel):
     """AC@1..5 over the fault cases F (04 §7); null with no fault case."""
 
@@ -1557,6 +1639,17 @@ class SummaryMetricCost(BaseModel):
     tokens_out_p50: Annotated[float, Field(ge=0)] | None
     tokens_out_p95: Annotated[float, Field(ge=0)] | None
     n_cost: Annotated[int, Field(ge=0)]
+
+
+class SummaryMetricDecoyRankedFirst(BaseModel):
+    """Share of the group's rows with decoy_present whose top-1 is a decoy-changed
+    service (04 §7 Decoy metrics, RCAEval-C, H4c); null when n_decoy is 0.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    decoy_ranked_first: Annotated[float, Field(ge=0, le=1)] | None
+    n_decoy: Annotated[int, Field(ge=0)]
 
 
 class SummaryMetricFineAcAtK(BaseModel):
@@ -1646,6 +1739,7 @@ class SummaryGroupMetrics(BaseModel):
     lift: SummaryMetricLift | None
     onset_error: SummaryMetricOnsetError | None
     cost: SummaryMetricCost | None
+    decoy_ranked_first: SummaryMetricDecoyRankedFirst | None
 
 
 class SummaryOutcomes(BaseModel):
@@ -1679,6 +1773,41 @@ class SummaryGroup(BaseModel):
     metrics: SummaryGroupMetrics
 
 
+class SummaryStatisticsNotRun(BaseModel):
+    """`bench_summary` #/$defs/summary_statistics/properties/not_run/items."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    scope: Annotated[str, StringConstraints(min_length=1)]
+    reason: Annotated[str, StringConstraints(min_length=1)]
+
+
+class SummaryStatisticsParams(BaseModel):
+    """The experiment's statistics settings (04 §8, §9)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    level: Annotated[float, Field(gt=0, lt=1)]
+    resamples: Annotated[int, Field(ge=1)]
+    bootstrap_seed: Annotated[int, Field(ge=0)]
+    flips: Annotated[int, Field(ge=1)]
+    permutation_seed: Annotated[int, Field(ge=0)]
+    cluster_by: Literal["system/root_service/fault"]
+
+
+class SummaryStatistics(BaseModel):
+    """04 §8 statistics of the experiment: intervals per group, paired comparisons, and
+    what is not run and why.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    params: SummaryStatisticsParams
+    intervals: list[SummaryInterval]
+    comparisons: list[SummaryComparison]
+    not_run: list[SummaryStatisticsNotRun]
+
+
 class BenchSummary(BaseModel):
     """bench/results/<experiment_id>/summary.json: the requested metrics and their
     denominators per (dataset, system, method) of one experiment (04 §7, §9). Written
@@ -1688,7 +1817,7 @@ class BenchSummary(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.1\.[0-9]+$")]
     producer: Annotated[str, StringConstraints(min_length=1)]
     experiment_id: Annotated[
         str,
@@ -1696,7 +1825,9 @@ class BenchSummary(BaseModel):
     ]
     groups: list[SummaryGroup]
     excluded: dict[str, list[CaseId]]
-    statistics: str
+    statistics: (
+        SummaryStatistics | Annotated[str, StringConstraints(pattern=r"^not run: ")]
+    )
 
 
 class TelemetryEventsRow(BaseModel):
