@@ -1,12 +1,12 @@
 # CONFIRMED · checkout · unknown
 
-**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.78
+**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.80
 
 ## Summary
 
-- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec3ee13da9f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
+- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec3ee13da9f, Ed168508cc6, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 - Its strongest internal signal was checkout self_time anomaly (incident) at 16.5 z. (cites: Ec3ee13da9f)
-- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec3ee13da9f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.80. (cites: Ec3ee13da9f, Ed168508cc6, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 
 ## Candidate set
 
@@ -18,6 +18,7 @@
 |---|---|---|---|
 | E005b71362a | cart self_time anomaly (incident) | 0.409 | z |
 | Ec3ee13da9f | checkout self_time anomaly (incident) | 16.5 | z |
+| Ed168508cc6 | checkout anomaly not explained by parents (incident) | 16.5 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E8aa8de679c | checkout onset precedence over dependents (onset) | 1 |  |
 | E586a046788 | checkout propagation to entry (incident) | 1 |  |
@@ -61,6 +62,6 @@ prose: template
 
 ---
 
-verdict_hash: `16fa25393f5a6e8b7ed9c6085b0926192d065699780da8fc1bf4976c32edcb79`  
-card_hash: `272b1758555eb1825c540203d8bc4112961729d11c7353e025b079b7777b7aeb`  
+verdict_hash: `ca10249303cd0ad42e77640b6b80143ae16da99f444a91526260ada0d44a2267`  
+card_hash: `686eb7be15a1b81dd3cbeae574dffc4926533e7d5231efa949cb1c50835a0c30`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

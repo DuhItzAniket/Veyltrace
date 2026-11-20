@@ -4,9 +4,9 @@
 
 ## Summary
 
-- payment is the only member of the candidate set and passed every mandatory trial. (cites: Ed5c1d9ce83, E30ea86ddc2, Eac14b6a0ea, Ee4ddfcab63, Ee881a7d380, E23c811e2ae)
+- payment is the only member of the candidate set and passed every mandatory trial. (cites: Ed5c1d9ce83, E2c4b66bc69, E30ea86ddc2, Eac14b6a0ea, Ee4ddfcab63, Ee881a7d380, E23c811e2ae)
 - Its strongest internal signal was payment logs anomaly (incident) at 8 z. (cites: Ed5c1d9ce83)
-- Confidence is high; its verified score leads checkout by a relative margin of 0.75. (cites: Ed5c1d9ce83, E30ea86ddc2, Eac14b6a0ea, Ee4ddfcab63, Ee881a7d380, E23c811e2ae)
+- Confidence is high; its verified score leads checkout by a relative margin of 0.75. (cites: Ed5c1d9ce83, E2c4b66bc69, E30ea86ddc2, Eac14b6a0ea, Ee4ddfcab63, Ee881a7d380, E23c811e2ae)
 
 ## Candidate set
 
@@ -23,6 +23,7 @@
 | E58335ef082 | frontend mem anomaly (incident) | 0.653 | z |
 | E2a9591ce1a | frontend silence (incident) | 0 |  |
 | Ed5c1d9ce83 | payment logs anomaly (incident) | 8 | z |
+| E2c4b66bc69 | payment anomaly not explained by parents (incident) | 8 | z |
 | E30ea86ddc2 | payment onset precedence over self (onset) | 0 | ms |
 | Eac14b6a0ea | payment onset precedence over dependents (onset) | 1 |  |
 | Ee4ddfcab63 | payment propagation to entry (incident) | 1 |  |
@@ -61,6 +62,6 @@ prose: template
 
 ---
 
-verdict_hash: `a8504e1b96b96afdb5095388600341edfb57e365f74fcf5fcb40caba7f4f5078`  
-card_hash: `9a596a65a54f69966c74d25a9954fa3cbdf0eacd8cc0d0a4d17280bd497cd626`  
+verdict_hash: `cf0e7f2416ee95d6041c6297304072332e18a2311256b987462061f7e927f8e2`  
+card_hash: `29b0c2805020bd7416decce6db6217b2949160045954ce2082823b525940a14f`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

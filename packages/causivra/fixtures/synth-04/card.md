@@ -4,9 +4,9 @@
 
 ## Summary
 
-- catalog is the only member of the candidate set and passed every mandatory trial. (cites: E1a3227d1c7, Ea219385f6e, E09d7fef8c9, Ec7e15656c4, E9d37c91c2d, Eb7b0de766f, Eee2bf9310e, E7b0771b7a9)
+- catalog is the only member of the candidate set and passed every mandatory trial. (cites: E1a3227d1c7, Ea219385f6e, E3f3062151e, E09d7fef8c9, Ec7e15656c4, E9d37c91c2d, Eb7b0de766f, Eee2bf9310e, E7b0771b7a9)
 - Its strongest internal signal was catalog mem anomaly (incident) at 82.1 z. (cites: Ea219385f6e)
-- Confidence is high; its verified score leads frontend by a relative margin of 0.80. (cites: E1a3227d1c7, Ea219385f6e, E09d7fef8c9, Ec7e15656c4, E9d37c91c2d, Eb7b0de766f, Eee2bf9310e, E7b0771b7a9)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.80. (cites: E1a3227d1c7, Ea219385f6e, E3f3062151e, E09d7fef8c9, Ec7e15656c4, E9d37c91c2d, Eb7b0de766f, Eee2bf9310e, E7b0771b7a9)
 
 ## Candidate set
 
@@ -18,6 +18,7 @@
 |---|---|---|---|
 | E1a3227d1c7 | catalog deploy change close to the onset (onset) | 0.819 |  |
 | Ea219385f6e | catalog mem anomaly (incident) | 82.1 | z |
+| E3f3062151e | catalog anomaly not explained by parents (incident) | 82.1 | z |
 | E09d7fef8c9 | catalog onset precedence over self (onset) | 0 | ms |
 | Ec7e15656c4 | catalog onset precedence over dependents (onset) | 1 |  |
 | E9d37c91c2d | catalog propagation to entry (incident) | 1 |  |
@@ -67,6 +68,6 @@ prose: template
 
 ---
 
-verdict_hash: `6db1e66c7c8619a944929cde5558a6e511258f17d64ed38de29a2e40b0fc4481`  
-card_hash: `9737865c36cb046628b76b46774ea7b72f50a0b2484637a34efaf230e2731cb9`  
+verdict_hash: `1dc12e880b8638451204ae015079f1d8201cac68156d56e0206cbcbb30629e6d`  
+card_hash: `2324ad746e1cb292c1b26d03178c288a39c68cfcc850cb3e10ea565ebc96ea45`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

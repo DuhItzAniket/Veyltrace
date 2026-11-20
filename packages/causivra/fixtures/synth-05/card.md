@@ -1,6 +1,6 @@
 # NO_FAULT · no fault detected in the incident window
 
-**NO_FAULT** · confidence: none · candidate set size: 0 · margin: 0.00
+**NO_FAULT** · confidence: none · candidate set size: 0 · margin: 0.07
 
 ## Summary
 
@@ -15,11 +15,13 @@
 
 | Atom | Evidence | Value | Unit |
 |---|---|---|---|
-| E847fffbec6 | catalog self_time anomaly (incident) | 1.05 | z |
-| E7b0771b7a9 | catalog silence (incident) | 0 |  |
 | Ec3ee13da9f | checkout self_time anomaly (incident) | 1.03 | z |
+| E0c9b9b1ec7 | checkout anomaly not explained by parents (incident) | 0.74 | z |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
+| E58335ef082 | frontend mem anomaly (incident) | 0.707 | z |
+| E2a9591ce1a | frontend silence (incident) | 0 |  |
 | E89d6468c5f | payment mem anomaly (incident) | 1.09 | z |
+| Ee3995a0e55 | payment anomaly not explained by parents (incident) | 1.09 | z |
 | E23c811e2ae | payment silence (incident) | 0 |  |
 
 ## Timeline
@@ -49,6 +51,6 @@ prose: template
 
 ---
 
-verdict_hash: `baed38beab2d781c5042656cdd380204c6a5455d425d445d6ea42b27092c346b`  
-card_hash: `ef9bbe9c0bf177f502ba1b82650433a31cdfc42b7cb1585bab41833192c412fe`  
+verdict_hash: `37c10d1b80af0da7bf34bbf560bdc1cbdec358ae980c59320206c750ff813687`  
+card_hash: `7d31b11ec0d1de5e4331483a768e0c36b7389d3e786bda066bab6f10f4c6225e`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
