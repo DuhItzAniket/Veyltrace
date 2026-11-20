@@ -41,5 +41,6 @@ packages = ["src/veyltrace_faultloom"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-# veyltrace_causalith: its pure `ci.intervention_test` only (06 §3.6 step 6, §5).
-allow = ["veyltrace_causalith"]
+# veyltrace_causalith.ci only: its pure `intervention_test` and `CIConfig` (06 §3.6 step 6, §5). The
+# prefix keeps the rest of Causalith (its engine, graph builders) out of FaultLoom's import surface.
+allow = ["veyltrace_causalith.ci"]
