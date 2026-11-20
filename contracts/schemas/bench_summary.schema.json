@@ -817,7 +817,7 @@
           "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/dataset"
         },
         "system": {
-          "description": "The RE2/RE3 system; null for a result pooled over the dataset (system as stratum, 04 §8).",
+          "description": "The system; null for a result pooled over the experiment's dataset parts of one benchmark (system as stratum, 04 §8), whose dataset is then the benchmark: the parts' name before the first '-', e.g. re2 for re2-ob, re2-ss and re2-tt.",
           "anyOf": [
             {
               "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/system"
@@ -884,7 +884,7 @@
           "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/dataset"
         },
         "system": {
-          "description": "The RE2/RE3 system; null for a result pooled over the dataset (system as stratum, 04 §8).",
+          "description": "The system; null for a result pooled over the experiment's dataset parts of one benchmark (system as stratum, 04 §8), whose dataset is then the benchmark: the parts' name before the first '-', e.g. re2 for re2-ob, re2-ss and re2-tt.",
           "anyOf": [
             {
               "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/system"
@@ -947,6 +947,7 @@
           ]
         },
         "low": {
+          "description": "The difference's cluster-bootstrap interval; null when n_pairs is 0 or the interval is not run (not_run says why).",
           "type": [
             "number",
             "null"

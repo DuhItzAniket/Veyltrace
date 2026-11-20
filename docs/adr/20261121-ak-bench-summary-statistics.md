@@ -52,6 +52,7 @@ We choose **option 1**. It is additive: a 1.0 file reads with its string kept an
   - `re2-oracle-rq2-v1`: `holm_family: rq2`, with non-inferiority vs `veyltrace:off`.
   - Every other experiment: `holm_family: null`.
   - No YAML has a margin key. 04 §2 states H1a and H2a as "CI not entirely below 0", so `margin` is 0 for both.
+- **Pooled results** name the benchmark as `dataset` (the parts' name before the first `-`, e.g. `re2`) with `system` null, matching 04 §8's "pooled over RE2", where RE2 is the benchmark and ob, ss, tt its systems. The pooled sign-flip test runs now and joins Holm in `rq1` and `rq2`: each cluster's sign flips independently, conditional on its |d_c|, so pooling all RE2 clusters needs no stratification, and with equal clusters per system the mean of d_c is the system-stratified estimate (lead, 21 Nov). Only the pooled intervals wait for the system-stratified cluster bootstrap; `not_run` names them, and their `low`/`high` are null.
 - **`decoy_ranked_first`** is `{decoy_ranked_first, n_decoy}`: the share of the group's rows with `decoy_present` whose `decoy_ranked_first` is true (04 §7 Decoy metrics), null when there are none.
 - **This PR ships the schema only.** The runner writes `decoy_ranked_first: null` and keeps the "not run" string. An experiment that lists `decoy_ranked_first` is still refused by `unsupported()`. The wiring PR computes both, and adds `stats/veyltrace_stats` to the bench wheel.
 
