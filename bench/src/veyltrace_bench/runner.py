@@ -49,6 +49,7 @@ from veyltrace_bench.experiment import (
     unsupported,
 )
 from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
+from veyltrace_bench.stats_summary import Case, statistics
 from veyltrace_bench.summary import METRIC_KEYS, summarize
 from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
 from veyltrace_core import io, textio
@@ -80,10 +81,6 @@ DECOY_RUNS = "decoys"  # <bench runs>/decoys/: Infralume-only runs giving each c
 SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws decoy entities from
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
-STATISTICS_NOT_RUN = "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
-#: bench_summary 1.1 metric entries v0 writes as null: an experiment listing one is refused by
-#: experiment.unsupported() until the runner computes it (#357).
-UNCOMPUTED_ENTRIES = ("decoy_ranked_first",)
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
 #: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
 IN_PROCESS = False
@@ -318,7 +315,8 @@ def _record(
         out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
     score = score_case(Truth.from_answer_key(key), out, universe=universe)
-    score = replace(score, wall_ms=wall_ms, peak_rss_mb=peak)  # the cost metric; no tokens while AI is off
+    decoy = decoy_runs.decoy_columns(key, score.ranks)
+    score = replace(score, wall_ms=wall_ms, peak_rss_mb=peak, **decoy)  # cost, decoy; no tokens (AI off)
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
     # Every column starts null; the ones v0 leaves null are listed in run_experiment's docstring.
@@ -338,7 +336,7 @@ def _record(
         "wall_ms": wall_ms,
         "peak_rss_mb": peak,
         **score.columns(),
-        **decoy_runs.decoy_columns(key, score.ranks),
+        **decoy,
     }
     inputs = manifest_hash((i.name, i.sha256) for i in case.inputs) if case is not None else None
     run: dict[str, object] = {"case_id": key.case_id, "dataset": key.dataset, "method": method.id}
@@ -465,7 +463,7 @@ def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[st
     entries = {
         name: {k: flat.pop(k) for k in keys} if name in metrics else None
         for name, keys in METRIC_KEYS.items()
-    } | dict.fromkeys(UNCOMPUTED_ENTRIES)
+    }
     dataset, system, method = key
     outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
     return {
@@ -519,6 +517,7 @@ def run_experiment(
     runs: list[dict[str, object]] = []
     configs: list[dict[str, object]] = []
     groups: dict[tuple[str, str, str], list[CaseScore]] = {}
+    cases_scored: list[Case] = []
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
     for dataset, (cases, _) in selected.items():
@@ -533,6 +532,9 @@ def run_experiment(
                 rows.append(row)
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
+                k, k_sys = keys[dataset][str(row["case_id"])], str(row["system"])
+                cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
+                cases_scored.append(Case(k.case_id, dataset, k_sys, method.id, cluster, score))
     summary: dict[str, object] = {
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
@@ -540,7 +542,7 @@ def run_experiment(
             _group(k, scores, exp.metrics) for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
-        "statistics": STATISTICS_NOT_RUN,  # bootstrap CIs and tests once bench/stats exists (O-14)
+        "statistics": statistics(exp, cases_scored),  # 04 §8 (#357)
     }
     out_dir = (out_root if out_root is not None else repo.joinpath(*RESULTS_DIR)) / exp.experiment_id
     io.write_path("bench_result", rows, out_dir / "per_case.csv")

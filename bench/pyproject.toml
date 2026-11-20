@@ -16,7 +16,7 @@ veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/veyltrace_bench", "decoys/veyltrace_decoys"]
+packages = ["src/veyltrace_bench", "decoys/veyltrace_decoys", "stats/veyltrace_stats"]
 
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
