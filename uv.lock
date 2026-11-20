@@ -1335,12 +1335,14 @@ name = "veyltrace-faultloom"
 version = "0.1.0"
 source = { editable = "packages/faultloom" }
 dependencies = [
+    { name = "veyltrace-causalith" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "veyltrace-causalith", editable = "packages/causalith" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
 ]

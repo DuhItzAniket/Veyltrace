@@ -301,7 +301,7 @@ A 3-service trace case: `frontend` (entry) → `checkoutservice` → `paymentser
 - Pure function of declared inputs + config. No wall clock, no `random`, no environment reads; iteration over services, series, edges and templates is always over sorted keys.
 - Sums use `math.fsum` over sorted inputs; no BLAS calls (`@`, `np.dot`) on float arrays that feed outputs, so results do not depend on SIMD or thread count across the three Windows laptops and Ubuntu CI.
 - Medians and maxima are order-independent; ties resolved by name A→Z.
-- Imports allowed: `veyltrace_core`, `veyltrace_contracts`, `numpy`, `pyarrow`, `duckdb`, `networkx`, stdlib. Banned: `veyltrace_llm`, any LLM or HTTP client, `socket`, `torch`, `transformers`, `pandas` (package rule). `tests/test_isolation.py` enforces the root list.
+- Imports allowed: `veyltrace_core`, `veyltrace_contracts`, `veyltrace_causalith` (only `ci.intervention_test` and `CIConfig`, for the claim pass's `intervention` atoms, §3.6 step 6; [05 §3.7](05-causalith.md)), `numpy`, `pyarrow`, `duckdb`, `networkx`, stdlib. Banned: `veyltrace_llm`, any LLM or HTTP client, `socket`, `torch`, `transformers`, `pandas` (package rule). `tests/test_isolation.py` enforces the root list.
 - FaultLoom never reads `telemetry.*`, `answer_key`, `inject_time` or folder names.
 
 ## 6. Missing data and failure behaviour

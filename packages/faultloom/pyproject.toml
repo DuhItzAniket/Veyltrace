@@ -9,7 +9,9 @@ description = "Veyltrace engine 6 (FaultLoom): evidence atoms (main pass and cla
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+# veyltrace-causalith: the pure restricted CI test behind the claim pass's T8 intervention atoms
+# (06 §3.6 step 6; 05 §3.7 names FaultLoom as its caller).
+dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-causalith"]
 
 # Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
 [project.entry-points."veyltrace.engines"]
@@ -31,6 +33,7 @@ zscore_above = "veyltrace_faultloom.predicates:ZSCORE_ABOVE"
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
+veyltrace-causalith = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/veyltrace_faultloom"]
@@ -38,4 +41,5 @@ packages = ["src/veyltrace_faultloom"]
 # Extra third-party or engine imports this package may use, checked by tests/test_isolation.py
 # (M0 lead decision 2026-11-06). The lead's global deny-list always wins; the owning lane fills it.
 [tool.veyltrace.isolation]
-allow = []
+# veyltrace_causalith: its pure `ci.intervention_test` only (06 §3.6 step 6, §5).
+allow = ["veyltrace_causalith"]
