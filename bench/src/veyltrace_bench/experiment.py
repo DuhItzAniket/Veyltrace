@@ -53,7 +53,6 @@ METRIC_TASKS = {
     "no_fault_rates": "R-13 normal windows",
     "selective_accuracy": "R-12 statuses (04 §7 Selective accuracy, H4b)",
     "decoy_top1_change": "RQ2 planted decoy proposals (H2b, M4)",
-    "decoy_ranked_first": "the runner computing the bench_summary 1.1 entry (#357; H4c, M3)",
     "permutation_invariance": "RQ2 proposal permutations (H2c, M4)",
 }
 

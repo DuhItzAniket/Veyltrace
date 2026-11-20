@@ -88,7 +88,7 @@ def test_root_is_a_virtual_workspace_with_all_members() -> None:
 SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix", "veyltrace-faultloom")
 # 08 §2.1, §5.4: Relentra uses FaultLoom's cards, predicate library and validate(), and the LLM client.
 SPEC_ENGINE_DEPS["relentra"] = ("veyltrace-faultloom", "veyltrace-llm")
-WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys"]}  # Observe's RCAEval-C generator, run by bench (#326)
+WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys", "stats/veyltrace_stats"]}  # Observe's (#326, #357)
 
 
 @pytest.mark.parametrize("name", [*PACKAGES, "bench"])
