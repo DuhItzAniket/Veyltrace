@@ -14,6 +14,7 @@ from veyltrace_core.config import data_root
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.ids import case_id as make_case_id
 from veyltrace_core.testing import SYNTH_CASES, VARIANTS, assert_golden, golden_path, make_context
+from veyltrace_infralume import cache
 from veyltrace_infralume.api import run
 from veyltrace_infralume.cache import CACHE_DIR
 
@@ -90,3 +91,24 @@ def test_rcaeval_runs_through_the_cache(tmp_path: Path, hf_case: Path) -> None:
         "metrics/metrics.parquet",
         "traces/traces.parquet",
     ]
+
+
+def test_a_new_contract_minor_is_a_cache_miss(
+    tmp_path: Path, hf_case: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """#349: readers accept an older minor (#321), so an entry written before a telemetry contract
+    gained a column must not be reused; a patch release keeps the entry."""
+    entries = data_root() / CACHE_DIR / "re2-ob" / make_case_id(KEY)
+    first = _rcaeval(tmp_path / "a")
+    series = cache.contract_series()
+    assert sorted(series) == sorted(TELEMETRY_CONTRACTS.values())
+    assert all(v.count(".") == 1 for v in series.values())  # major.minor: no patch in the key
+
+    monkeypatch.setattr(cache, "contract_series", lambda: {**series, "telemetry.events": "9.9"})
+    assert _rcaeval(tmp_path / "b") == first  # converted again from the raw files
+    assert len(list(entries.iterdir())) == 2
+
+    monkeypatch.setattr(cache, "contract_series", lambda: series)
+    (hf_case / "metrics.parquet").unlink()  # the first entry still serves the unchanged series
+    assert _rcaeval(tmp_path / "c") == first
+    assert len(list(entries.iterdir())) == 2

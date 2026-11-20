@@ -2,8 +2,11 @@
 
 Why: converting a raw case is the expensive half of ingest (≤ 10 s per RE2 case, outside the 30 s
 run budget); every later run of the case only materialises. The key hashes everything a converted
-table depends on: the adapter and its revision, `scrub.rules_version` and the convert-phase config
-sections, so a changed rule or config forces a fresh conversion and stale tables are never served.
+table depends on: the adapter and its revision, `scrub.rules_version`, the convert-phase config
+sections and the `<major>.<minor>` of the four telemetry contracts, so a changed rule, config or
+contract forces a fresh conversion and stale tables are never served. The contract series is in
+the key because readers accept an older minor (#321): without it, an entry written before a
+contract gained a column would be reused with that column null (#349).
 The cache holds the full-span tables after normalisation and scrubbing, plus the
 descriptive facts, never the hint: materialise asks the adapter for it on every run. Generated
 data (synth) is never cached (`Adapter.cacheable`).
@@ -18,13 +21,14 @@ from typing import Any, Final, cast
 
 import pyarrow as pa
 
+from veyltrace_contracts.registry import CONTRACTS
 from veyltrace_core import io, textio
 from veyltrace_core.adapters import TELEMETRY_CONTRACTS, Adapter, CanonicalCase, CaseRef, TelemetryTables
 from veyltrace_core.canonical import canonical_json, normalize
 from veyltrace_core.errors import ContractValidationError
 from veyltrace_core.hashing import sha256_json
 
-__all__ = ["CACHE_DIR", "CONVERT_SECTIONS", "cache_dir", "convert_cached", "full_table"]
+__all__ = ["CACHE_DIR", "CONVERT_SECTIONS", "cache_dir", "contract_series", "convert_cached", "full_table"]
 
 CACHE_DIR: Final = "cache"
 #: Config sections a conversion reads (01 §4); `sources.drop` and the overlay act at materialise.
@@ -49,10 +53,21 @@ def full_table(contract: str, table: pa.Table) -> pa.Table:
     return io.conform_table(contract, pa.Table.from_arrays(columns, schema=schema))
 
 
+def contract_series() -> dict[str, str]:
+    """`<major>.<minor>` of each telemetry contract the cache stores. The patch is left out: a
+    patch release changes no column, so it must not empty the cache."""
+    return {
+        name: ".".join(CONTRACTS[name].version.split(".")[:2])
+        for name in sorted(TELEMETRY_CONTRACTS.values())
+    }
+
+
 def cache_dir(data_root: Path, adapter: Adapter, ref: CaseRef, cfg: Mapping[str, Any]) -> Path:
-    """The cache entry of `ref` for this adapter revision, scrub rules and convert config."""
+    """The cache entry of `ref` for this adapter revision, scrub rules, convert config and
+    telemetry contract series."""
     sections = {name: normalize(cfg[name]) for name in CONVERT_SECTIONS if name in cfg}
-    key = sha256_json({"adapter": [adapter.name, adapter.version], "config": sections})[:_KEY_HEX]
+    hashed = {"adapter": [adapter.name, adapter.version], "config": sections, "contracts": contract_series()}
+    key = sha256_json(hashed)[:_KEY_HEX]
     return Path(data_root) / CACHE_DIR / ref.dataset / ref.case_id / key
 
 
