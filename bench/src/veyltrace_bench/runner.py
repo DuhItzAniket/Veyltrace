@@ -34,15 +34,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
-from veyltrace_bench import (
-    ALGO_VERSION,
-    baselines,
-    decoy_runs,
-    naive_change,
-    rcaeval,
-    simplerca,
-    stats_summary,
-)
+from veyltrace_bench import ALGO_VERSION, baselines, decoy_runs, naive_change, rcaeval, simplerca
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.child import after_run
 from veyltrace_bench.experiment import (
@@ -57,6 +49,7 @@ from veyltrace_bench.experiment import (
     unsupported,
 )
 from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
+from veyltrace_bench.stats_summary import Case, statistics
 from veyltrace_bench.summary import METRIC_KEYS, summarize
 from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
 from veyltrace_core import io, textio
@@ -323,9 +316,7 @@ def _record(
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
     score = score_case(Truth.from_answer_key(key), out, universe=universe)
     decoy = decoy_runs.decoy_columns(key, score.ranks)
-    score = replace(
-        score, wall_ms=wall_ms, peak_rss_mb=peak, **decoy
-    )  # cost and decoy metrics; no tokens (AI off)
+    score = replace(score, wall_ms=wall_ms, peak_rss_mb=peak, **decoy)  # cost, decoy; no tokens (AI off)
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
     # Every column starts null; the ones v0 leaves null are listed in run_experiment's docstring.
@@ -526,7 +517,7 @@ def run_experiment(
     runs: list[dict[str, object]] = []
     configs: list[dict[str, object]] = []
     groups: dict[tuple[str, str, str], list[CaseScore]] = {}
-    cases_scored: list[stats_summary.Case] = []
+    cases_scored: list[Case] = []
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
     for dataset, (cases, _) in selected.items():
@@ -541,11 +532,9 @@ def run_experiment(
                 rows.append(row)
                 runs.append(run)
                 groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
-                k = keys[dataset][str(row["case_id"])]
+                k, k_sys = keys[dataset][str(row["case_id"])], str(row["system"])
                 cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
-                cases_scored.append(
-                    stats_summary.Case(k.case_id, dataset, str(row["system"]), method.id, cluster, score)
-                )
+                cases_scored.append(Case(k.case_id, dataset, k_sys, method.id, cluster, score))
     summary: dict[str, object] = {
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
@@ -553,7 +542,7 @@ def run_experiment(
             _group(k, scores, exp.metrics) for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
-        "statistics": stats_summary.statistics(exp, cases_scored),  # 04 §8 (#357)
+        "statistics": statistics(exp, cases_scored),  # 04 §8 (#357)
     }
     out_dir = (out_root if out_root is not None else repo.joinpath(*RESULTS_DIR)) / exp.experiment_id
     io.write_path("bench_result", rows, out_dir / "per_case.csv")
