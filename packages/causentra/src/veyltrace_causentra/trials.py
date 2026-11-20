@@ -2,7 +2,8 @@
 
 Each trial returns `pass`, `fail` or `untestable` with a 09 §3.4 reason and the atom ids it used.
 A trial whose precondition is false (T5 without traces, T7 without a `peer_contrast` atom) is not
-applicable: it is omitted from `trials[]` and contributes no factor (T9 needs ≥ 2 sources). They
+applicable: it is omitted from `trials[]` and contributes no factor (T9 needs ≥ 2 sources and a
+candidate in the slate's top K). They
 are declared under the entry-point group `veyltrace.trials` (09 §5). T10 is `decision.claim_check`
 (proposal origin only). Every value is compared at 9 decimals, the precision the verdict shows.
 """
@@ -41,6 +42,7 @@ class TrialInputs:
     t7_min_gap: float
     k: int
     ablations: tuple[Ablation, ...]
+    top_k: frozenset[str]
 
 
 @dataclass(frozen=True)
@@ -83,6 +85,7 @@ def trial_inputs(inp: CausentraInputs, cfg: CausentraConfig) -> TrialInputs:
         cfg.t7_min_gap,
         inp.slate.k,
         ablations(inp.ev, inp.graph, inp.manifest.sources, inp.causatrix),
+        frozenset(c.service for c in inp.slate.candidates),  # the unablated top K
     )
 
 
@@ -220,8 +223,11 @@ def _has_peers(c: str, t: TrialInputs) -> bool:
     return bool(t.ev.atoms_of(c, "peer_contrast"))
 
 
-def _multi_source(_c: str, t: TrialInputs) -> bool:
-    return bool(t.ablations)  # one re-ranking per present source, none below 2 sources
+def _stays_in_top_k(c: str, t: TrialInputs) -> bool:
+    """T9 asks whether c *stays* in the top K, so it presupposes c is there with every source: it
+    applies to slate candidates only (a proposal-origin candidate is outside the top K by
+    construction and would fail by default), and only with ≥ 2 sources (lead decision on #364)."""
+    return bool(t.ablations) and c in t.top_k
 
 
 T1: Final = Trial("T1", origin)
@@ -232,7 +238,7 @@ T5: Final = Trial("T5", latency_accounting, _has_traces)
 T6: Final = Trial("T6", change_alignment)
 T7: Final = Trial("T7", peer_contrast, _has_peers)
 T8: Final = Trial("T8", intervention)
-T9: Final = Trial("T9", leave_one_source_out, _multi_source)
+T9: Final = Trial("T9", leave_one_source_out, _stays_in_top_k)
 #: The trials run on every decision-pool candidate, in numeric order (09 §3.4); T10 is
 #: decision.claim_check.
 EVALUATED: Final = (T1, T2, T3, T4, T5, T6, T7, T8, T9)

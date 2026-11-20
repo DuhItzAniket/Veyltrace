@@ -50,6 +50,7 @@ def _t(
     tol_ms: float = 0.0,
     sources: Sources = ALL,
     ablations: tuple[tuple[str, tuple[str, ...]], ...] = (),
+    top_k: frozenset[str] = frozenset({"c"}),
 ) -> TrialInputs:
     members = sorted({a.candidate for a in atoms} | {s for c in calls for s in c} | {"c"})
     edges = [{"src": s, "dst": d, "weight": 1.0, "provenance": ["traces"]} for s, d in calls]
@@ -67,6 +68,7 @@ def _t(
         3.0,
         2,
         ablations,
+        top_k,
     )
 
 
@@ -213,6 +215,9 @@ def test_t9_leave_one_source_out() -> None:
     assert _r(result) == ("fail", "drops_out_without:logs") and result.atoms == ()  # first source, sorted
     assert "T9" not in [r.id for r in run_trials("c", _t([], []))]  # < 2 sources: no re-rankings
     assert [r.id for r in run_trials("c", _t([], [], ablations=kept))][-1] == "T9"
+    # Outside the unablated top K (e.g. proposal origin): not applicable, so no T9 entry (#364 review).
+    outside = _t([], [], ablations=kept, top_k=frozenset({"a", "b"}))
+    assert "T9" not in [r.id for r in run_trials("c", outside)]
 
 
 def test_applicability_and_order() -> None:

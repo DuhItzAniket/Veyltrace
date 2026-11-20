@@ -213,6 +213,19 @@ def test_admission_needs_a_supporting_claim_that_holds(base: CausentraInputs) ->
     assert not decide(_case(base, _i("c", 5.0), proposals=proposals, claims=claims), budget).admitted
 
 
+def test_t9_skips_a_proposal_origin_candidate_outside_the_top_k(base: CausentraInputs) -> None:
+    """T9 presupposes the unablated top K: c, admitted from outside the slate, gets no T9 entry and
+    no T9 factor, while the slate candidates are tested (#364 lead review)."""
+    args = '{"k":4.0,"signal":"cpu"}'
+    proposals = _proposals(("P00000001", "c", "zscore_above", {"k": 4.0, "signal": "cpu"}))
+    claims = tuple(_claim(s, "zscore_above", True, args) for s in ("a", "b", "c"))
+    inp = _case(base, [*_i("a", 9.0), *_i("b", 4.0), *_i("c", 5.0)], proposals=proposals, claims=claims)
+    assert sum(getattr(inp.manifest.sources, s) for s in ("metrics", "logs", "traces", "events")) >= 2
+    trials = {c.service: [t.id for t in c.trials] for c in decide(inp, CFG).ranked}
+    assert "T9" not in trials["c"] and "T10" in trials["c"]
+    assert all("T9" in trials[s] for s in ("a", "b"))
+
+
 def test_claims_match_on_validated_args(base: CausentraInputs) -> None:
     # The claim pass stores validate()'s canonical args (06 §3.5 step 4): an int k finds the atom
     # of 4.0 (#216). A claim validate() rejects (a `subject` key, an unknown signal) never holds.
