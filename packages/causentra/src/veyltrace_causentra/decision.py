@@ -1,4 +1,4 @@
-"""Decision steps 1–3, 6 and the uncalibrated set of 09 §3.2–§3.7.
+"""Decision steps 1–3, 6 and the conformal set of 09 §3.2–§3.7.
 
 Step 1: the decision pool is the slate plus the services of admitted proposals (a supporting claim
 that code found true for that service). Step 2: S0 = fused score / pool maximum. Step 3:
@@ -6,8 +6,8 @@ V = S0 × Π trial factors × (1 + clip(Σ w·polarity·holds)), rounded to 9 de
 comparison; a proposal-origin candidate also runs T10, mandatory for it alone (09 §3.4).
 Step 6: order by (−V9, internal-first, earliest onset, name); the leader is the first
 candidate if its V9 > 0. Nonconformity s = 1 − V9 / V9(leader) and the set {s ≤ q̂} follow
-(uncalibrated q̂ = 0 keeps the leader and exact ties). Everything is a function of sets, sorted
-before use, so proposal and claim order never matter (09 §5).
+(q̂ from the calibration file; uncalibrated q̂ = 0 keeps the leader and exact ties). Everything is
+a function of sets, sorted before use, so proposal and claim order never matter (09 §5).
 """
 
 from __future__ import annotations
@@ -56,6 +56,11 @@ class Decision:
     candidate_set: tuple[Candidate, ...]
     margin: float
     admitted: frozenset[str]
+
+
+def in_set(s: float, q_hat: float | None) -> bool:
+    """The split-conformal membership rule s ≤ q̂ (09 §3.7); q̂ None is +∞ (03 §10): the whole pool."""
+    return q_hat is None or s <= q_hat
 
 
 def eligible_proposals(proposals: models.Proposals | None, cfg: CausentraConfig) -> list[models.Proposal]:
@@ -198,7 +203,7 @@ def decide(inp: CausentraInputs, cfg: CausentraConfig) -> Decision:
     ranked = tuple(sorted(pool, key=key))
     leader = ranked[0] if ranked and ranked[0].v > 0 else None
     s = {c.service: round(1.0 - c.v / leader.v, DECIMALS) if leader else 1.0 for c in ranked}
-    members = [c for c in ranked if inp.q_hat is None or s[c.service] <= inp.q_hat]
+    members = [c for c in ranked if in_set(s[c.service], inp.q_hat)]
     runner_up = s[ranked[1].service] if len(ranked) > 1 else 1.0  # m = s(runner-up), 1.0 without one
     margin = runner_up if leader is not None else 0.0
     return Decision(
