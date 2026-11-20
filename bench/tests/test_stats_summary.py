@@ -6,11 +6,12 @@ import json
 import random
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from veyltrace_bench.experiment import load_experiment
 from veyltrace_bench.metrics import CaseScore, MethodOutput, Truth, score_case
-from veyltrace_bench.stats_summary import POOLED_REASON, Case, statistics
+from veyltrace_bench.stats_summary import POOLED_REASON, Case
+from veyltrace_bench.stats_summary import statistics as _statistics
 from veyltrace_bench.summary import summarize
 from veyltrace_core import io, textio
 from veyltrace_core.canonical import canonical_json
@@ -26,6 +27,11 @@ HITS = {
     "ss": {"veyltrace:off": 10, "rcaeval:nsigma": 4, "rcaeval:baro": 5, "simplerca": 8},
     "tt": {"veyltrace:off": 9, "rcaeval:nsigma": 7, "rcaeval:baro": 7, "simplerca": 2},
 }
+
+
+def statistics(exp: Any, cases: list[Case]) -> Any:
+    """The statistics object as JSON-like data (Any), so tests index it freely."""
+    return _statistics(exp, cases)
 
 
 def _score(hit: bool) -> CaseScore:
@@ -106,7 +112,7 @@ def test_the_statistics_object_validates_as_bench_summary_1_1(tmp_path: Path) ->
     path = tmp_path / "summary.json"
     textio.write_bytes(path, canonical_json(doc) + b"\n")
     assert (
-        io.read_path("bench_summary", path, validate=True).statistics.params.cluster_by
+        cast(Any, io.read_path("bench_summary", path, validate=True)).statistics.params.cluster_by
         == "system/root_service/fault"
     )
 
