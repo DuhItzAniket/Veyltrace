@@ -39,6 +39,7 @@ def test_repo_config_matches_09_4() -> None:
     assert (c.proposals_max, c.c_high, c.c_med, c.likely_max_set) == (5, 0.30, 0.15, 3)
     assert (c.t2_min_fraction, c.t3_min_path_fraction, c.uncalibrated_q_hat) == (1.0, 0.5, 0.0)
     assert (c.default_tau, c.asks_max, c.k_anom) == (round(math.log1p(3.0), 9), 5, 3.0)
+    assert (c.t5_min_share, c.t6_min_proximity, c.t7_min_gap) == (0.30, 0.36787944, 3.0)
     assert len(c.weights) == 10 and c.weight("zscore_above") == 0.10 and c.weight("on_critical_path") == 0.05
 
 
@@ -53,6 +54,9 @@ def test_repo_config_matches_09_4() -> None:
         ("predicates.silent.weight", "0.1", r"causentra\.predicates\.silent\.weight"),
         ("proposals.max", -1, r"causentra\.proposals\.max"),
         ("trials.T2.min_fraction", 2.0, r"causentra\.trials\.T2\.min_fraction"),
+        ("trials.T5.min_share", 1.5, r"causentra\.trials\.T5\.min_share"),
+        ("trials.T6.min_proximity", -0.1, r"causentra\.trials\.T6\.min_proximity"),
+        ("trials.T7.min_gap", "3", r"causentra\.trials\.T7\.min_gap"),
         ("no_fault.detector", "nsigma", r"causentra\.no_fault\.detector"),
         ("asks.max", True, r"causentra\.asks\.max"),
         ("asks.max", 0, r"causentra\.asks\.max"),  # INCONCLUSIVE must keep one ask (09 §3.11)

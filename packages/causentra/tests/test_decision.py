@@ -137,7 +137,9 @@ def base(synth01_dir: Path) -> CausentraInputs:
 
 
 def _case(base: CausentraInputs, atoms: list[Atom], k: int = 2, **changes: Any) -> CausentraInputs:
+    """Three services a, b, c, the call a → b, and no events: T6 is untestable (factor 1.0, 09 §3.4)."""
     scores = {"a": 0.0480, "b": 0.0460, "c": 0.0300}
+    sources = base.manifest.sources.model_copy(update={"events": False})
     graph = graph_view(
         list(scores),
         [(s, "service") for s in scores],
@@ -146,6 +148,7 @@ def _case(base: CausentraInputs, atoms: list[Atom], k: int = 2, **changes: Any) 
     )
     return replace(
         base,
+        manifest=base.manifest.model_copy(update={"sources": sources}),
         slate=_slate(scores, k),
         ev=evidence_view(atoms, graph.universe),
         graph=graph,

@@ -16,8 +16,8 @@
 
 | Atom | Evidence | Value | Unit |
 |---|---|---|---|
-| Eb2a1231709 | cart mem anomaly (incident) | 0.822 | z |
-| E9609f44d49 | cart silence (incident) | 0 |  |
+| Ea219385f6e | catalog mem anomaly (incident) | 0.421 | z |
+| E7b0771b7a9 | catalog silence (incident) | 0 |  |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
@@ -40,8 +40,8 @@ none
 ## Why not
 
 - **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
-- **cart**: cart showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E9609f44d49, Eb2a1231709)
 - **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E3fa4c27025, Efd34e2ffcd)
+- **catalog**: catalog showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E7b0771b7a9, Ea219385f6e)
 
 ## Asks
 
@@ -60,6 +60,6 @@ prose: template
 
 ---
 
-verdict_hash: `31b3e0aa94f37445b7aca40c3aec500d715c1d6df1a52ca92a45628b09a38ebc`  
-card_hash: `aab039e606e5bc798b926212ddf6fd8fe646d2d2d7f05ba3f14abcedfa742b65`  
+verdict_hash: `8aef258d950c51f4c52b616b6cf888c0bd446e081f3c9d8e6dca77ebafffdc8c`  
+card_hash: `033298b7dd4018e7f115604f1534d1ed95b7802c3de9516012abfe07a2905d6a`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

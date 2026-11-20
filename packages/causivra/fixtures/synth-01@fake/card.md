@@ -1,12 +1,12 @@
 # CONFIRMED · checkout · cpu
 
-**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.76
+**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.78
 
 ## Summary
 
-- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, E69dec80d43)
+- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 - Its strongest internal signal was checkout cpu anomaly (incident) at 33.8 z. (cites: Ec2738c422e)
-- Confidence is high; its verified score leads frontend by a relative margin of 0.76. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, E69dec80d43)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 
 ## Candidate set
 
@@ -22,6 +22,7 @@
 | E8aa8de679c | checkout onset precedence over dependents (onset) | 1 |  |
 | E586a046788 | checkout propagation to entry (incident) | 1 |  |
 | Ee33689c27e | checkout propagation to path (incident) | 1 |  |
+| Ec64c7d2ef8 | checkout self-time share at p50 (incident) | 0.991 |  |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
 | E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
 | E2a9591ce1a | frontend silence (incident) | 0 |  |
@@ -62,6 +63,6 @@ prose: template
 
 ---
 
-verdict_hash: `3105e97f133f869d7b3fc4e6230c4fb4be220de58284c74ad342466ec41759a3`  
-card_hash: `3c84956f36d6b10f0885f284e94c2bdfcc1b0f500e144f184c3aaf72e58a48c3`  
+verdict_hash: `3d5dfc979c065d72939dc66a5bd9cb2f635caa178d1f82ff5bab6f793f7338d5`  
+card_hash: `8f39917e0075b972e393a20bb4c4276b36cb206e770d463718a1ef2db1597cb3`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
