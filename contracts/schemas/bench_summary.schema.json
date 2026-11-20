@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/1.0/bench_summary.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.1/bench_summary.schema.json",
   "title": "BenchSummary",
   "description": "bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only.",
   "x-veyltrace": {
     "name": "bench_summary",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "kind": "json",
     "producer": "bench",
     "path": "bench/results/<experiment_id>/summary.json"
@@ -23,7 +23,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^1\\.0\\.[0-9]+$"
+      "pattern": "^1\\.1\\.[0-9]+$"
     },
     "producer": {
       "description": "bench@<ALGO_VERSION>: the bench code that scored the runs.",
@@ -62,7 +62,7 @@
         "description": "Excluded case ids of one dataset part, sorted.",
         "type": "array",
         "items": {
-          "$ref": "common.schema.json#/$defs/case_id"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/case_id"
         },
         "x-sort": [
           {
@@ -73,8 +73,16 @@
       }
     },
     "statistics": {
-      "description": "Bootstrap CIs and tests: 'not run: ...' until bench/stats (O-14) exists, which makes it an object (a minor bump).",
-      "type": "string"
+      "description": "04 §8 bootstrap CIs and tests (summary_statistics); the string 'not run: <reason>' when none are computed, as every 1.0 file has it.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/summary_statistics"
+        },
+        {
+          "type": "string",
+          "pattern": "^not run: "
+        }
+      ]
     }
   },
   "$defs": {
@@ -98,10 +106,10 @@
       ],
       "properties": {
         "dataset": {
-          "$ref": "common.schema.json#/$defs/dataset"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/dataset"
         },
         "system": {
-          "$ref": "common.schema.json#/$defs/system"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/system"
         },
         "method": {
           "description": "Method id from the experiment YAML (04 §4), as bench_result.method.",
@@ -155,6 +163,7 @@
             "avg_at_5",
             "chance",
             "cost",
+            "decoy_ranked_first",
             "fine_ac_at_k",
             "lift",
             "mrr",
@@ -267,6 +276,17 @@
               "anyOf": [
                 {
                   "$ref": "#/$defs/summary_metric_cost"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decoy_ranked_first": {
+              "description": "The 04 §9 metric `decoy_ranked_first`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_decoy_ranked_first"
                 },
                 {
                   "type": "null"
@@ -720,6 +740,403 @@
         "n_cost": {
           "type": "integer",
           "minimum": 0
+        }
+      }
+    },
+    "summary_metric_decoy_ranked_first": {
+      "description": "Share of the group's rows with decoy_present whose top-1 is a decoy-changed service (04 §7 Decoy metrics, RCAEval-C, H4c); null when n_decoy is 0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decoy_ranked_first",
+        "n_decoy"
+      ],
+      "properties": {
+        "decoy_ranked_first": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_decoy": {
+          "description": "Rows with decoy_present = true.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_case_metric": {
+      "description": "A metric that is a mean over cases, so it has a cluster-bootstrap interval (04 §8); ratios (lift_at_k, rerank_at_1), cost percentiles and onset medians have none.",
+      "enum": [
+        "ac_at_1",
+        "ac_at_2",
+        "ac_at_3",
+        "ac_at_4",
+        "ac_at_5",
+        "avg_at_5",
+        "chance_at_1",
+        "chance_at_2",
+        "chance_at_3",
+        "chance_at_4",
+        "chance_at_5",
+        "chance_diff_at_1",
+        "chance_diff_at_2",
+        "chance_diff_at_3",
+        "chance_diff_at_4",
+        "chance_diff_at_5",
+        "decoy_ranked_first",
+        "fine_ac_at_1",
+        "fine_ac_at_2",
+        "fine_ac_at_3",
+        "fine_ac_at_4",
+        "fine_ac_at_5",
+        "mrr",
+        "pool_retrieval",
+        "retrieval_at_k"
+      ]
+    },
+    "summary_interval": {
+      "description": "The 95% percentile cluster-bootstrap interval of one case-mean metric of one group (04 §8).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset",
+        "estimate",
+        "high",
+        "low",
+        "method",
+        "metric",
+        "n_cases",
+        "n_clusters",
+        "system"
+      ],
+      "properties": {
+        "dataset": {
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/dataset"
+        },
+        "system": {
+          "description": "The RE2/RE3 system; null for a result pooled over the dataset (system as stratum, 04 §8).",
+          "anyOf": [
+            {
+              "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/system"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "method": {
+          "description": "Method id from the experiment YAML (04 §4).",
+          "type": "string",
+          "minLength": 1
+        },
+        "metric": {
+          "$ref": "#/$defs/summary_case_metric"
+        },
+        "estimate": {
+          "description": "The case-weighted mean, as in the group's metrics entry.",
+          "type": "number"
+        },
+        "low": {
+          "type": "number"
+        },
+        "high": {
+          "type": "number"
+        },
+        "n_cases": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "n_clusters": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "summary_comparison": {
+      "description": "One paired difference A − B on one metric over the cases both methods scored (04 §8).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dataset",
+        "difference",
+        "family",
+        "high",
+        "holm_p",
+        "kind",
+        "low",
+        "margin",
+        "mcnemar_only_a",
+        "mcnemar_only_b",
+        "mcnemar_p",
+        "method_a",
+        "method_b",
+        "metric",
+        "n_clusters",
+        "n_pairs",
+        "sign_flip_p",
+        "system"
+      ],
+      "properties": {
+        "dataset": {
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/dataset"
+        },
+        "system": {
+          "description": "The RE2/RE3 system; null for a result pooled over the dataset (system as stratum, 04 §8).",
+          "anyOf": [
+            {
+              "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/system"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "metric": {
+          "$ref": "#/$defs/summary_case_metric"
+        },
+        "method_a": {
+          "description": "Method id from the experiment YAML (04 §4).",
+          "type": "string",
+          "minLength": 1
+        },
+        "method_b": {
+          "description": "Method id from the experiment YAML (04 §4).",
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "description": "noninferiority (decided by the unadjusted CI and margin), superiority (a test, Holm within family), exploratory (unadjusted, labelled exploratory; 04 §8).",
+          "enum": [
+            "exploratory",
+            "noninferiority",
+            "superiority"
+          ]
+        },
+        "family": {
+          "description": "The experiment's statistics.holm_family for a superiority test in it; null for non-inferiority and exploratory comparisons.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "margin": {
+          "description": "Non-inferiority margin of the paired difference (0 for H1a and H2a, 04 §2); null otherwise.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "n_pairs": {
+          "description": "Cases with a scored row with a truth for both methods.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "n_clusters": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "difference": {
+          "description": "Case-weighted mean of A − B; null when n_pairs is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "low": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "high": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "sign_flip_p": {
+          "description": "Two-sided cluster sign-flip p-value (04 §8 primary test).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "mcnemar_only_a": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "mcnemar_only_b": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "mcnemar_p": {
+          "description": "Exact McNemar p-value on case-level discordant pairs; null when statistics.mcnemar is false or hits are not boolean (seed-averaged arms).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "holm_p": {
+          "description": "Holm-adjusted p-value within family; null when family is null or a member is not run (not_run says which).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "summary_statistics": {
+      "description": "04 §8 statistics of the experiment: intervals per group, paired comparisons, and what is not run and why.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "comparisons",
+        "intervals",
+        "not_run",
+        "params"
+      ],
+      "properties": {
+        "params": {
+          "description": "The experiment's statistics settings (04 §8, §9).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bootstrap_seed",
+            "cluster_by",
+            "flips",
+            "level",
+            "permutation_seed",
+            "resamples"
+          ],
+          "properties": {
+            "level": {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "exclusiveMaximum": 1
+            },
+            "resamples": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "bootstrap_seed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "flips": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "permutation_seed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cluster_by": {
+              "description": "Cluster key, fields joined by '/' (04 §8).",
+              "const": "system/root_service/fault"
+            }
+          }
+        },
+        "intervals": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary_interval"
+          },
+          "x-sort": [
+            {
+              "pointer": "dataset",
+              "order": "asc"
+            },
+            {
+              "pointer": "system",
+              "order": "asc",
+              "nulls": "first"
+            },
+            {
+              "pointer": "method",
+              "order": "asc"
+            },
+            {
+              "pointer": "metric",
+              "order": "asc"
+            }
+          ]
+        },
+        "comparisons": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary_comparison"
+          },
+          "x-sort": [
+            {
+              "pointer": "dataset",
+              "order": "asc"
+            },
+            {
+              "pointer": "system",
+              "order": "asc",
+              "nulls": "first"
+            },
+            {
+              "pointer": "metric",
+              "order": "asc"
+            },
+            {
+              "pointer": "method_a",
+              "order": "asc"
+            },
+            {
+              "pointer": "method_b",
+              "order": "asc"
+            },
+            {
+              "pointer": "kind",
+              "order": "asc"
+            }
+          ]
+        },
+        "not_run": {
+          "description": "What 04 §8 asks for that this summary does not hold, and why.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reason",
+              "scope"
+            ],
+            "properties": {
+              "scope": {
+                "type": "string",
+                "minLength": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "x-sort": [
+            {
+              "pointer": "scope",
+              "order": "asc"
+            }
+          ]
         }
       }
     }

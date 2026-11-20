@@ -81,6 +81,9 @@ SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws dec
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 STATISTICS_NOT_RUN = "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"
+#: bench_summary 1.1 metric entries v0 writes as null: an experiment listing one is refused by
+#: experiment.unsupported() until the runner computes it (#357).
+UNCOMPUTED_ENTRIES = ("decoy_ranked_first",)
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
 #: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
 IN_PROCESS = False
@@ -462,7 +465,7 @@ def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[st
     entries = {
         name: {k: flat.pop(k) for k in keys} if name in metrics else None
         for name, keys in METRIC_KEYS.items()
-    }
+    } | dict.fromkeys(UNCOMPUTED_ENTRIES)
     dataset, system, method = key
     outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
     return {
