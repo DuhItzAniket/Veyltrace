@@ -22,7 +22,7 @@ uv run veyltrace diagnose --dataset synth --case synth-01 --ai off
 
 ## v1 (R-08)
 
-`api.run` dispatches on `ctx.phase` to `veyltrace_faultloom.passes`. Every 06 §3.4 kind except `intervention` (R-12) is computed; nothing reads `telemetry.*`, answer keys or case names.
+`api.run` dispatches on `ctx.phase` to `veyltrace_faultloom.passes`. Every 06 §3.4 kind is computed (`intervention` in the claim pass); nothing reads `telemetry.*`, answer keys or case names.
 
 - **Input view** (`inputs.py`): every 06 §2.1 input read through `ctx`, plus the shared values:
   - the universe U, `tol_ns`, the windows, `k_anom`;
@@ -42,11 +42,11 @@ uv run veyltrace diagnose --dataset synth --case synth-01 --ai off
   - every distinct claim runs for every candidate of the claim-pass pool (slate ∪ proposed graph nodes);
   - the `claim_check` atoms are appended to the main evidence, which is read back unchanged;
   - metrics: `claims.seen`, `claims.valid`, `claims.rejected.<reason>`, `pool`;
-  - every result notes that `intervention` atoms (T8) are R-12.
+  - `intervention` atoms (R-12, `intervention.py`): the decision pool D (slate ∪ proposed graph nodes with a valid supporting claim found true for them) in `slate.all_scores` order, the first `intervention.max_candidates` tested with Causalith's `ci.intervention_test` on the top `internal_anomaly{robust_z}` series; untestable results write no atom; written with AI off too; never carried forward, so re-running the step is idempotent; metric `atoms.intervention`; a note only when `signal_cube.series` or `graph.edges` is absent.
 - **`atom_sources(atom)`** (`sources.py`): the sources of the series in `refs` plus the kind's tag (06 §3.3), for Causentra's T9.
 - **Fixtures.**
   - Synth Observe outputs are still stubs, so the synth goldens hold only `silence = 0` atoms (from the stub onsets).
   - Every kind and predicate is pinned by the synth-shaped hand-made case `fixtures/handmade/cpu-hog/`. Its `inputs.json` is written through `io.write` by the tests, and `evidence.main.txt` is the expected canonical evidence. It carries the 06 §3.8 worked numbers.
   - Refresh: `VEYLTRACE_UPDATE_HANDMADE=1 uv run pytest packages/faultloom/tests/test_handmade.py`.
 - **`evidence_cards(slate, k=None, *, ctx, order=None)`** (`cards.py`, 06 §3.7): a pure, read-only `CardDeck` for Relentra `brief` mode, callable with Relentra's own context (it reads the faultloom config section of the lock). `k` defaults to `cards.k_default`; the budget shrinks `k`, then the onset list, then drops cards (`truncated`).
-- **Spec readings** made for R-08 are in 06 §11 Q13–Q18; `intervention` atoms are R-12.
+- **Spec readings** made for R-08 are in 06 §11 Q13–Q18.

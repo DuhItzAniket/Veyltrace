@@ -172,7 +172,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "bench_manifest": ContractInfo(
             name="bench_manifest",
             kind="json",
-            version="1.0.0",
+            version="1.1.0",
             path="bench/results/<experiment_id>/manifest.json",
             key=(),
             unique=False,
@@ -194,7 +194,7 @@ CONTRACTS: Mapping[str, ContractInfo] = MappingProxyType(
         "bench_summary": ContractInfo(
             name="bench_summary",
             kind="json",
-            version="1.1.0",
+            version="1.2.0",
             path="bench/results/<experiment_id>/summary.json",
             key=(),
             unique=False,

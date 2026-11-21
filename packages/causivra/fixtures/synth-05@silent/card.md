@@ -1,12 +1,12 @@
 # INCONCLUSIVE · leading candidate cart
 
-**INCONCLUSIVE** · confidence: low · candidate set size: 1 · margin: 0.79
+**INCONCLUSIVE** · confidence: low · candidate set size: 1 · margin: 0.81
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 service. (cites: Efeb591839a, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
-- The leading candidate is cart. (cites: Efeb591839a, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
-- The asks below list what would settle it: trials to check. (cites: Efeb591839a, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
+- No single root cause could be established; the candidate set has 1 service. (cites: Efeb591839a, Ee65e315075, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
+- The leading candidate is cart. (cites: Efeb591839a, Ee65e315075, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
+- The asks below list what would settle it: trials to check. (cites: Efeb591839a, Ee65e315075, E2e0bd9e9a2, Ef09cfdb4dc, E9609f44d49)
 
 ## Candidate set
 
@@ -17,13 +17,14 @@
 | Atom | Evidence | Value | Unit |
 |---|---|---|---|
 | Efeb591839a | cart logs anomaly (incident) | 4 | z |
+| Ee65e315075 | cart anomaly not explained by parents (incident) | 4 | z |
 | E2e0bd9e9a2 | cart onset precedence over self (onset) | 0 | ms |
 | Ef09cfdb4dc | cart contrast with peers from anomalies (incident) | 3.28 | z |
 | E9609f44d49 | cart silence (incident) | 1 |  |
 | E847fffbec6 | catalog self_time anomaly (incident) | 1.05 | z |
 | E7b0771b7a9 | catalog silence (incident) | 0 |  |
-| Ec3ee13da9f | checkout self_time anomaly (incident) | 1.03 | z |
-| E69dec80d43 | checkout silence (incident) | 0 |  |
+| E58335ef082 | frontend mem anomaly (incident) | 0.707 | z |
+| E2a9591ce1a | frontend silence (incident) | 0 |  |
 | E89d6468c5f | payment mem anomaly (incident) | 1.09 | z |
 | E23c811e2ae | payment silence (incident) | 0 |  |
 
@@ -42,7 +43,7 @@ cart → checkout → frontend
 
 - **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 - **catalog**: catalog showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E7b0771b7a9, E847fffbec6)
-- **checkout**: checkout showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E69dec80d43, Ec3ee13da9f)
+- **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
 
 ## Asks
 
@@ -58,6 +59,6 @@ prose: template
 
 ---
 
-verdict_hash: `7eb51f0d31e6e60ffce2119fb8a89b4f323ed4f89dc4b786635c70184a2956fe`  
-card_hash: `d9ab6e7ff1dbc7d68a87abc3ccd4a128a6983a725d3cb166cd10f382afada9ac`  
+verdict_hash: `942d9c5f4c64d6fdb06be94ff53ab5a09ea6075d7982464c6e39ee41975adea9`  
+card_hash: `b2ff9a8af3feee7018f1d5f85addc3d8bcf3c7f790bd89f21bcbeeeeb71b12c1`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
