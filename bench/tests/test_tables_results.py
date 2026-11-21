@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from veyltrace_bench.tables import cells
-from veyltrace_bench.tables.results import NO_RESULTS, load, read_register
+from veyltrace_bench.tables.results import NO_GROUP, NO_RESULTS, load, read_register
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError, ContractValidationError
 
@@ -61,7 +61,11 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
     rq1 = load(results, "re2-oracle-rq1-v1", {})
     off = ("re2-ob", "ob", "veyltrace:off")
     assert rq1.label == "re2-oracle-rq1-v1 @ fixture"
-    assert rq1.manifest is not None and [d.dataset for d in rq1.manifest.datasets] == ["synth"]
+    assert rq1.manifest is not None and [d.dataset for d in rq1.manifest.datasets] == [
+        "re2-ob",
+        "re2-ss",
+        "re2-tt",
+    ]
     assert [name for name, _ in rq1.hashes] == ["manifest.json", "per_case.csv", "summary.json"]
     assert rq1.metric(*off, "ac_at_k", "ac_at_1") == cells.Cell("0.500 [0.375, 0.625]")
     assert rq1.metric(*off, "ac_at_k", "ac_at_2").note == (
@@ -75,9 +79,7 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
     assert rq1.metric(*off, "onset_error", "n_onset") == cells.not_run(
         "the experiment does not list the metric `onset_error`"
     )
-    assert rq1.metric("re2-tt", "tt", "veyltrace:off", "ac_at_k", "ac_at_1") == cells.not_run(
-        "no (re2-tt, tt, veyltrace:off) group in its summary.json"
-    )
+    assert rq1.metric("re2-tt", "tt", "veyltrace:off", "ac_at_k", "ac_at_1") == cells.not_run(NO_GROUP)
     assert rq1.count(*off, "n_fault") == cells.Cell("8") and rq1.count(*off, "timeout") == cells.Cell("0")
     assert rq1.pooled("re2", "veyltrace:off", "ac_at_1") == cells.not_run(
         "re2 pooled intervals waits for the system-stratified cluster bootstrap"

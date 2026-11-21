@@ -40,3 +40,16 @@ uv run veyltrace bench run bench/experiments/synth-smoke.yaml --out /tmp/vt-resu
 - An `ok` run with empty `ranks` or a slate with `rankers_active == []` (the R-00 stubs) is unranked ([04 §7](../docs/04-evaluation-protocol.md)): empty `ranks`, every hit a miss, counted (fault cases only) as `n_unranked`. No-fault cases (synth-05) have no truth: null hits, outside every accuracy denominator. Chance@k's n_i is the number of the case's `case_manifest.services` ([04 §7](../docs/04-evaluation-protocol.md)), and Chance@k is null unless every fault case has one.
 - `--table` is for results that feed a table: it refuses a dirty work tree (core's `code.dirty` or uncommitted `bench/` files; [AGENTS.md](AGENTS.md) Never 3) and synth (04 §3).
 - Exit codes: 0 results written (failed, rejected, `no_alert` and timeout runs are rows); 1 error; 2 usage, `--table` refused, or synth without an `--out` outside the repo; 3 input missing (answer keys: `veyltrace data fetch`); 4 invalid or unsupported experiment.
+
+## Tables and figures (R-17)
+
+```bash
+uv run veyltrace bench tables           # regenerate bench/results/tables/*.md and *.tex
+uv run veyltrace bench tables --check   # write nothing; exit 1 and list the paths that differ
+```
+
+- Inputs: the experiment YAMLs (which experiments exist; grid coordinates such as `shift_s`) and each `bench/results/<experiment_id>/`. Numbers come from `summary.json` only ([04 §9](../docs/04-evaluation-protocol.md)). `manifest.json` gives the commit. The SHA-256 of all three result files is printed under each table ([04 §10.2](../docs/04-evaluation-protocol.md)). Synth experiments are never reported.
+- Every row comes from one experiment and ends with `<experiment_id> @ <commit>`. A value with a 95% cluster-bootstrap interval prints as `0.500 [0.375, 0.625]`.
+- A cell is never blank. A null that the summary defines prints as `n/a`. Anything missing prints as `not run`, and its footnote gives the reason: no results directory, an incomplete result, a summary older than 1.1, a dirty work tree, a missing group, an unlisted metric, or a metric that has no `bench_summary` entry.
+- The reason for an experiment that is cut on purpose comes from `bench/results/not_run.yaml` (`<experiment_id>: <reason>`, the R-16 cut list). An entry that names no experiment YAML is an error.
+- Output is byte-identical across runs and machines: no timestamp, no path, LF, canonical numbers. `bench/results/tables/` is generated only, and a stale `.md`/`.tex` there is removed on write.

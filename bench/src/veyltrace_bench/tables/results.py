@@ -29,6 +29,7 @@ FILES = (MANIFEST, PER_CASE, SUMMARY)  # sorted: the order of the hashes in a ta
 REGISTER = "not_run.yaml"  # <results>/not_run.yaml: {experiment_id: reason}, the R-16 cut list
 SUMMARY_VERSION = "1.1."  # the bench_summary minor the generator reads (03 §13.3)
 NO_RESULTS = "no committed results in bench/results"  # the row names the experiment
+NO_GROUP = "its summary.json has no group for this dataset, system and method"
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
 
 #: Case-mean summary keys, the ones bench_summary 1.1 gives a bootstrap interval (03 §13.3).
@@ -94,7 +95,7 @@ class Results:
         if self.reason is not None:
             return self.reason
         if system is not None and self.group(dataset, system, method) is None:
-            return f"no ({dataset}, {system}, {method}) group in its summary.json"
+            return NO_GROUP  # the row names the system and method
         return None
 
     def metric(self, dataset: str, system: str, method: str, entry: str, key: str) -> Cell:

@@ -107,8 +107,8 @@ Sources:
 - re2-oracle-loso-v1: not run: no committed results in bench/results
 - re2-oracle-permute-v1: not run: no committed results in bench/results
 - re2-oracle-planted-v1: not run: no committed results in bench/results
-- re2-oracle-prior-only-v1: commit fixture; sha256 manifest.json e0fe8c86aa082b583cff657ae6e9720d82020e61ca2c44434f9ffb12289ae660, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json 4bb2e5c54796dee2b032306f74c49d73b3fd7b094e176fec771167359ccaa9c1
-- re2-oracle-rq1-v1: commit fixture; sha256 manifest.json af068d9f579800f17c50b4a2abf3edccda27b73d91c28f01f1dd0a2b1e86f3d1, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json ce8e692f3660d5a83765c56152dfc6badb6de0b401b6ac6325c96fd2d5afb1d7
+- re2-oracle-prior-only-v1: commit fixture; sha256 manifest.json cdd600186d3a94d53c9b3dcdb5863e5d8449001473926578980607c9b2b53c84, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json 4bb2e5c54796dee2b032306f74c49d73b3fd7b094e176fec771167359ccaa9c1
+- re2-oracle-rq1-v1: commit fixture; sha256 manifest.json 13c27191f38ea000eda5bc31c81ad187ce2ac7b5d3fd02a471d0a5b30ecde3bf, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json ce8e692f3660d5a83765c56152dfc6badb6de0b401b6ac6325c96fd2d5afb1d7
 - re2-oracle-rq2-v1: not run: incomplete result: no summary.json (bench writes manifest.json last)
 - re2-oracle-rq3-investigate-v1: not run: no committed results in bench/results
 - re2-oracle-rq3-v1: not run: no committed results in bench/results

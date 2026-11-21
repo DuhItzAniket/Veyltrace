@@ -74,6 +74,11 @@ def write(experiment_id: str, summary: dict[str, Any] | None, *, dirty: bool = F
     manifest = _example("bench_manifest")
     manifest["experiment_id"] = manifest["experiment"]["experiment_id"] = experiment_id
     manifest["code"]["dirty"] = dirty
+    synth = manifest["datasets"][0]
+    manifest["datasets"] = [  # 8 run cases and 1 excluded per RE2 part; ids unique across parts
+        synth | {"dataset": part, "cases": [f"{j:04x}{i:08x}" for i in range(8)], "excluded": [f"{j:04x}{8:08x}"]}
+        for j, part in enumerate(("re2-ob", "re2-ss", "re2-tt"), 1)
+    ]
     io.write_path("bench_manifest", manifest, out / "manifest.json")
     textio.write_text(out / "per_case.csv", PER_CASE_HEADER)
     if summary is not None:
