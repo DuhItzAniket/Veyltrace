@@ -32,7 +32,8 @@ PER_CASE_HEADER = (
     "verdict_hash\n"
 )
 ENTRIES = ("ac_at_k", "avg_at_5", "chance", "cost", "decoy_ranked_first", "fine_ac_at_k", "lift", "mrr",
-           "onset_error", "rerank_at_1", "retrieval_at_k")  # fmt: skip
+           "onset_error", "rerank_at_1", "retrieval_at_k", "coverage", "set_size", "no_fault_rates",
+           "risk_coverage", "selective_accuracy", "decoy_top1_change", "permutation_invariance")  # fmt: skip
 
 
 def _example(name: str) -> dict[str, Any]:
@@ -60,6 +61,16 @@ def group(
                  "tokens_out_p50": None, "tokens_out_p95": None},
         "onset_error": None,
         "decoy_ranked_first": None,
+        # bench_summary 1.2 entries (CCR #404), synthetic: 7 of 8 in the set, alpha 0.10
+        "coverage": {"coverage": 0.875, "coverage_gap": -0.025, "pool_coverage": 1.0, "n_fault": 8, "by_fold": []},
+        "set_size": {"set_size_mean": 1.5, "set_size_median": 1.0, "singleton_share": 0.5, "n_set": 8},
+        "no_fault_rates": {"false_alarm_rate": 0.25, "n_normal": windows, "wrong_no_fault_rate": 0.0, "n_fault": 8,
+                           "no_fault_precision": 1.0, "no_fault_recall": 0.75, "by_fold": []},
+        "risk_coverage": {"aurc_verdict": 0.25, "aurc_fused": 0.375, "n_fault": 8},
+        "selective_accuracy": {"ac_at_1_confirmed": 0.75, "answer_rate_confirmed": 0.5,
+                               "ac_at_1_likely_or_better": 0.625, "answer_rate_likely_or_better": 0.875, "n_fault": 8},
+        "decoy_top1_change": {"decoy_top1_change": 0.125, "n_pairs": 8},
+        "permutation_invariance": {"permutation_invariance": 0.875, "n_cases": 8},
     }  # fmt: skip
     return {
         "dataset": dataset, "system": dataset.split("-")[1], "method": method,
@@ -212,9 +223,12 @@ def main() -> None:
         dirty=True,
     )
     write("re3-oracle-rq2-v1", None)  # incomplete: no summary.json
+    listed = ("ac_at_k", "permutation_invariance", "cost")
+    perm = [group(ds, "veyltrace:brief", [0.5, 0.75, 0.875, 0.875, 1.0], slate=0.875, listed=listed) for ds in ("re2-ob", "re2-ss")]
+    write("re2-oracle-permute-v1", summary("re2-oracle-permute-v1", perm, "not run: fixture statistics are off"))
     doc, rows = rq2()
     write("re2-oracle-rq2-v1", doc, rows=rows)
-    listed = ("ac_at_k", "retrieval_at_k", "cost")  # the summary entries of rq3's listed metrics
+    listed = ("ac_at_k", "retrieval_at_k", "cost", "coverage", "set_size", "risk_coverage", "no_fault_rates")
     rq3 = [
         group(ds, m, [0.5, 0.75, 0.875, 0.875, 1.0], slate=0.875, listed=listed, windows=4)
         for ds in ("re2-ob", "re2-ss", "re2-tt") for m in ("veyltrace:brief", "veyltrace:off")
