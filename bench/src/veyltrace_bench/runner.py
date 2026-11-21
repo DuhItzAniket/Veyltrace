@@ -904,9 +904,21 @@ def run_experiment(
                 continue
             if method.kind == agent_only.KIND:  # no run of its own: its source's, per case and seed
                 source = agent_only.source_of(exp, method)
+                fallback: dict[str, int] = {}  # system -> rows with no hypotheses: the slate ranking
                 for k, _, s in _units(method, rows_keys, []):
                     shared = ai_runs[(source.id, k.case_id, s)]
+                    proposals = _read("proposals", shared.run_dir, Proposals)
+                    if proposals is None or not proposals.proposals:
+                        fallback[str(k.system)] = fallback.get(str(k.system), 0) + 1
                     keep(_record(exp, method, k, shared, _fold(split, k.case_id), None, s))
+                for system, n in sorted(fallback.items()):  # 04 §4: no hypotheses -> the slate order
+                    _log.info(
+                        "bench.agent_only_slate_fallback",
+                        dataset=dataset,
+                        system=system,
+                        method=method.id,
+                        rows=n,
+                    )
                 continue
             ran = _run_method(
                 exp,
