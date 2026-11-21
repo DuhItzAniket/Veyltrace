@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from veyltrace_bench.experiment import load_experiment
+from veyltrace_bench.tables.subset import case_list
 from veyltrace_core import io, textio
 from veyltrace_core.hashing import sha256_text_lf
 
@@ -75,7 +76,9 @@ def interval(dataset: str, method: str, metric: str, estimate: float) -> dict[st
             "low": max(0.0, estimate - 0.125), "high": min(1.0, estimate + 0.125), "n_cases": 8, "n_clusters": 4}  # fmt: skip
 
 
-def write(experiment_id: str, summary: dict[str, Any] | None, *, dirty: bool = False) -> None:
+def write(
+    experiment_id: str, summary: dict[str, Any] | None, *, dirty: bool = False, rows: list[dict[str, Any]] | None = None
+) -> None:
     out = OUT / experiment_id
     manifest = _example("bench_manifest")
     yaml = EXPERIMENTS / f"{experiment_id}.yaml"  # the committed experiment, as bench records it
@@ -89,7 +92,10 @@ def write(experiment_id: str, summary: dict[str, Any] | None, *, dirty: bool = F
         for j, part in enumerate(("re2-ob", "re2-ss", "re2-tt"), 1)
     ]
     io.write_path("bench_manifest", manifest, out / "manifest.json")
-    textio.write_text(out / "per_case.csv", PER_CASE_HEADER)
+    if rows:
+        io.write_path("bench_result", rows, out / "per_case.csv")  # validated and sorted like bench's
+    else:
+        textio.write_text(out / "per_case.csv", PER_CASE_HEADER)
     if summary is not None:
         io.write_path("bench_summary", summary, out / "summary.json")
 
@@ -141,6 +147,53 @@ def rq1() -> dict[str, Any]:
     return summary("re2-oracle-rq1-v1", groups, stats)
 
 
+def case_row(case_id: str, dataset: str, method: str, seed: int | None, hits: tuple[int, int, int],
+             variant: str | None = None) -> dict[str, Any]:  # fmt: skip
+    """One per_case.csv row of an `ok` run with the given hits at 1, 3 and 5."""
+    return {
+        "case_id": case_id, "dataset": dataset, "system": dataset.split("-")[1], "method": method,
+        "ai_mode": "record" if seed is not None else "off", "seed": seed, "variant": variant, "fold": None,
+        "protocol": "oracle", "run_outcome": "ok", "pool_hit": True, "shift_s": 0, "sources_dropped": [],
+        "status": None, "ranks": ["svc_cpu"], "hit_at_1": bool(hits[0]), "hit_at_3": bool(hits[1]),
+        "hit_at_5": bool(hits[2]), "retrieval_hit": True, "fault_class_hit": None, "in_set": None, "set_size": None,
+        "onset_error_ms": None, "decoy_present": None, "decoy_ranked_first": None, "wall_ms": 1000.0,
+        "peak_rss_mb": 1000.0, "tokens_in": 10 if seed is not None else None,
+        "tokens_out": 5 if seed is not None else None, "verdict_hash": None,
+    }  # fmt: skip
+
+
+def rq2() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """re2-oracle-rq2-v1: a summary over all cases, and brief rows on four 90-case-subset ids (two
+    per part, ob and ss), one id outside the subset, an extra seed and a perturbed variant, so the
+    shift curve's computed 0 s point (review H1) must pick exactly the subset's rows and seeds."""
+    subset = sorted(case_list(REPO / "bench" / "re2_investigate_cases.yaml"))[:4]
+    brief = "veyltrace:brief"
+    rows = [
+        *(case_row(subset[0], "re2-ob", brief, s, (1, 1, 1)) for s in (1, 2, 3)),  # in: AC@1 3/6 on ob
+        *(case_row(subset[1], "re2-ob", brief, s, (0, 1, 1)) for s in (1, 2, 3)),  # in: AC@3 6/6 on ob
+        case_row(subset[0], "re2-ob", brief, 4, (0, 0, 0)),  # out: seed 4 is not a shift-arm seed
+        case_row(subset[1], "re2-ob", brief, 1, (1, 1, 1), variant="perm-1"),  # out: a perturbed variant
+        *(case_row("aaaaaaaaaaaa", "re2-ob", brief, s, (1, 1, 1)) for s in (1, 2, 3)),  # out: not in the subset
+        case_row(subset[0], "re2-ob", "veyltrace:off", None, (0, 0, 0)),  # out: another method
+        *(case_row(c, "re2-ss", brief, s, (1, 1, 1)) for c in subset[2:] for s in (1, 2, 3)),  # in: AC@1 1 on ss
+    ]
+    listed = ("ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift", "cost")
+    acs = {"agent-only:brief": [0.25, 0.5, 0.625, 0.75, 0.75], "veyltrace:brief": [0.625, 0.75, 0.875, 1.0, 1.0],
+           "veyltrace:off": [0.5, 0.75, 0.875, 0.875, 1.0]}  # fmt: skip
+    groups = [group(ds, m, ac, slate=0.875, listed=listed) for ds in ("re2-ob", "re2-ss") for m, ac in sorted(acs.items())]
+    intervals = [interval(ds, m, "ac_at_1", ac[0]) for ds in ("re2-ob", "re2-ss") for m, ac in sorted(acs.items())]
+    base = {"dataset": "re2-ob", "system": "ob", "metric": "ac_at_1", "method_a": brief, "method_b": "veyltrace:off",
+            "n_pairs": 8, "n_clusters": 4, "difference": 0.125, "low": 0.0, "high": 0.25, "sign_flip_p": 0.25,
+            "mcnemar_only_a": 3, "mcnemar_only_b": 1, "mcnemar_p": 0.625}  # fmt: skip
+    comparisons = [
+        base | {"kind": "noninferiority", "family": None, "margin": 0.0, "holm_p": None},
+        base | {"kind": "superiority", "family": "rq2", "margin": None, "holm_p": 0.5},
+    ]
+    stats = {"params": _example("bench_summary")["statistics"]["params"], "intervals": intervals,
+             "comparisons": comparisons, "not_run": []}  # fmt: skip
+    return summary("re2-oracle-rq2-v1", groups, stats), rows
+
+
 def main() -> None:
     shutil.rmtree(OUT, ignore_errors=True)
     write("re2-oracle-rq1-v1", rq1())
@@ -159,6 +212,8 @@ def main() -> None:
         dirty=True,
     )
     write("re3-oracle-rq2-v1", None)  # incomplete: no summary.json
+    doc, rows = rq2()
+    write("re2-oracle-rq2-v1", doc, rows=rows)
     listed = ("ac_at_k", "retrieval_at_k", "cost")  # the summary entries of rq3's listed metrics
     rq3 = [
         group(ds, m, [0.5, 0.75, 0.875, 0.875, 1.0], slate=0.875, listed=listed, windows=4)
