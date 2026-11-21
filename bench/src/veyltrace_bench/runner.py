@@ -30,11 +30,21 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, cast
 
-from veyltrace_bench import ALGO_VERSION, baselines, decoy_runs, naive_change, rcaeval, simplerca
+from veyltrace_bench import (
+    ALGO_VERSION,
+    baselines,
+    calibrated,
+    decoy_runs,
+    naive_change,
+    rcaeval,
+    simplerca,
+    splits,
+)
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.child import after_run
 from veyltrace_bench.experiment import (
@@ -51,7 +61,14 @@ from veyltrace_bench.experiment import (
 from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
 from veyltrace_bench.stats_summary import Case, statistics
 from veyltrace_bench.summary import METRIC_KEYS, summarize
-from veyltrace_contracts.models import AnswerKeyRow, BenchResultRow, CaseManifest, Onsets, Slate, Verdict
+from veyltrace_contracts.models import (
+    AnswerKeyRow,
+    BenchResultRow,
+    CaseManifest,
+    Onsets,
+    Slate,
+    Verdict,
+)
 from veyltrace_core import io, textio
 from veyltrace_core.cli import THREAD_ENV
 from veyltrace_core.config import ResolvedConfig, config_sha256, data_root, find_config_dir, resolve_config
@@ -116,7 +133,6 @@ def child_command(request: Path, result: Path) -> list[str]:
 def _execute(
     key: AnswerKeyRow,
     method: MethodSpec,
-    cfg: ResolvedConfig,
     overrides: dict[str, object],
     runs_root: Path,
     timeout_s: int,
@@ -126,11 +142,17 @@ def _execute(
     `baseline` ({to_step, baseline?, export?}) stops the run early for a baseline (child.py)."""
     extra = baseline or {}
     if IN_PROCESS:
-        if OVERLAY_KEY in overrides:  # the case's own overlay, resolved as the child resolves it
-            cfg = resolve_config(overrides, dataset=key.dataset, ai_mode=method.ai.mode)
+        cfg = resolve_config(overrides, dataset=key.dataset, ai_mode=method.ai.mode)  # as the child does
         start = time.perf_counter()
         step = cast("str", extra.get("to_step", LAST_STEP))
-        s = run_case(key.dataset, key.case_id, method.ai.mode, config=cfg, runs_root=runs_root, to_step=step)
+        s = run_case(
+            key.dataset,
+            key.case_id,
+            method.ai.mode,
+            config=cfg,
+            runs_root=runs_root,
+            to_step=step,
+        )
         ranks = after_run(extra, s)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
         got = tuple(ranks) if ranks is not None else None
@@ -186,9 +208,15 @@ def protocol_overrides(exp: Experiment, overlay: str | None = None) -> dict[str,
     return hooks | ({OVERLAY_KEY: overlay} if overlay is not None else {})
 
 
-def overrides_for(exp: Experiment, method: MethodSpec, overlay: str | None = None) -> dict[str, object]:
-    """The run's config overrides: the protocol hooks, then the method's own keys."""
-    return {**protocol_overrides(exp, overlay), **method.overrides}
+def overrides_for(
+    exp: Experiment,
+    method: MethodSpec,
+    overlay: str | None = None,
+    calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
+) -> dict[str, object]:
+    """The run's config overrides: the protocol hooks, the calibration choice (`calibrated`), then
+    the method's own keys (which may set neither)."""
+    return {**protocol_overrides(exp, overlay), **calibration_keys, **method.overrides}
 
 
 def run_outcome(outcome: str, wall_ms: float, timeout_s: int) -> str:
@@ -262,19 +290,19 @@ def _read[M: (Verdict, Slate, CaseManifest, Onsets)](
         return None
 
 
-def _run_one(
+def _timed(
     exp: Experiment,
     method: MethodSpec,
-    cfg: ResolvedConfig,
     key: AnswerKeyRow,
     runs_root: Path,
     timed: Timed,
     baseline: dict[str, Any] | None = None,
     overlay: str | None = None,
-) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
-    """Diagnose one case with one method and score it: (per_case row, score, manifest run entry)."""
-    over = overrides_for(exp, method, overlay)
-    done = _execute(key, method, cfg, over, runs_root, exp.resources.timeout_s, baseline)
+    calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
+) -> Executed:
+    """Diagnose one case with one method; a run another kind already made keeps that run's cost."""
+    over = overrides_for(exp, method, overlay, calibration_keys)
+    done = _execute(key, method, over, runs_root, exp.resources.timeout_s, baseline)
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
     kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
     if done.cached and done.run_id is not None:  # bench emptied its runs dir: another method ran it
@@ -284,11 +312,19 @@ def _run_one(
         wall_ms, peak, kinds = earlier  # e.g. causatrix:rrf and veyltrace:off: one run, scored twice
     if done.run_id is not None:
         timed[done.run_id] = (wall_ms, peak, kinds | {method.kind})
-    return _record(exp, method, key, replace(done, wall_ms=wall_ms, peak_rss_mb=peak))
+    return replace(done, wall_ms=wall_ms, peak_rss_mb=peak)
+
+
+def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[str, object]:
+    """The manifest entry of one executed run (03 §13.4 runs[])."""
+    case = _read("case_manifest", done.run_dir, CaseManifest)
+    inputs = manifest_hash((i.name, i.sha256) for i in case.inputs) if case is not None else None
+    run: dict[str, object] = {"case_id": key.case_id, "dataset": key.dataset, "method": method.id}
+    return run | {"run_id": done.run_id, "inputs_sha256": inputs}  # run_id None: killed
 
 
 def _record(
-    exp: Experiment, method: MethodSpec, key: AnswerKeyRow, done: Executed
+    exp: Experiment, method: MethodSpec, key: AnswerKeyRow, done: Executed, fold: str | None = None
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Score one executed run: (per_case row, score, manifest run entry). n_i (its `services`) and
     the input hashes come from the run's case_manifest (Infralume, step 0): the case's own, the
@@ -327,6 +363,7 @@ def _record(
         "system": key.system,
         "method": method.id,
         "ai_mode": method.ai.mode,
+        "fold": fold,
         "protocol": p.alert,
         "run_outcome": outcome,
         "shift_s": p.shift_s,
@@ -338,9 +375,7 @@ def _record(
         **score.columns(),
         **decoy,
     }
-    inputs = manifest_hash((i.name, i.sha256) for i in case.inputs) if case is not None else None
-    run: dict[str, object] = {"case_id": key.case_id, "dataset": key.dataset, "method": method.id}
-    return row, score, run | {"run_id": done.run_id, "inputs_sha256": inputs}  # run_id None: killed
+    return row, score, _run_entry(method, key, done)
 
 
 type Scored = tuple[dict[str, object], CaseScore, dict[str, object]]
@@ -349,34 +384,44 @@ type Scored = tuple[dict[str, object], CaseScore, dict[str, object]]
 def _run_method(
     exp: Experiment,
     method: MethodSpec,
-    cfg: ResolvedConfig,
     cases: list[AnswerKeyRow],
     bench_runs: Path,
     timed: Timed,
     reports: dict[tuple[str, str], str],
     overlays: dict[str, str],
+    split: calibrated.Split | None,
 ) -> list[Scored]:
-    """Every case of one dataset with one method. A baseline gets its own runs directory, so its
-    alert-step runs are executed and timed, never reused from another method."""
+    """Every case of one dataset with one method, each run once. A baseline gets its own runs
+    directory, so its alert-step runs are executed and timed, never reused from another method."""
     if method.kind == "rcaeval":
-        return _run_rcaeval(exp, method, cfg, cases, bench_runs, reports, overlays)
+        return _run_rcaeval(exp, method, cases, bench_runs, reports, overlays, split)
     root, extra = bench_runs, None
     if method.kind == "internal_baseline":
         root, extra = (
             bench_runs / BASELINE_RUNS / slug(method.id),
             {"to_step": INPUT_STEP, "baseline": method.id},
         )
-    return [_run_one(exp, method, cfg, key, root, timed, extra, overlays.get(key.case_id)) for key in cases]
+    out: list[Scored] = []
+    for key in cases:
+        keys = calibrated.first_run(split, key.case_id)
+        done = _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys)
+        out.append(_record(exp, method, key, done, _fold(split, key.case_id)))
+    return out
+
+
+def _fold(split: calibrated.Split | None, case: str) -> str | None:
+    """bench_result.fold: the case's test fold, null under split none (03 §13.2)."""
+    return None if split is None else split.plan.test_fold[case]
 
 
 def _run_rcaeval(
     exp: Experiment,
     method: MethodSpec,
-    cfg: ResolvedConfig,
     cases: list[AnswerKeyRow],
     bench_runs: Path,
     reports: dict[tuple[str, str], str],
     overlays: dict[str, str],
+    split: calibrated.Split | None,
 ) -> list[Scored]:
     """Export every case (alert-step run, in a child), then one main.py run over the exported ones
     with a budget of `timeout_s` per case; its wall time is shared equally among them."""
@@ -389,8 +434,8 @@ def _run_rcaeval(
     done: dict[str, Executed] = {}
     for key in cases:
         extra = {"to_step": INPUT_STEP, "export": str(rcaeval.case_dir(work, mapping, key))}
-        over = overrides_for(exp, method, overlays.get(key.case_id))
-        done[key.case_id] = _execute(key, method, cfg, over, root, timeout_s, extra)
+        over = overrides_for(exp, method, overlays.get(key.case_id), calibrated.first_run(split, key.case_id))
+        done[key.case_id] = _execute(key, method, over, root, timeout_s, extra)
     exported = [c for c, d in done.items() if run_outcome(d.outcome, d.wall_ms, timeout_s) == "ok"]
     if exported:
         got = rcaeval.run_main(settings, repo, work, mapping, args, exported, timeout_s * len(exported))
@@ -400,7 +445,19 @@ def _run_rcaeval(
             d = done[c]
             outcome = "timeout" if got.timed_out else d.outcome
             done[c] = replace(d, outcome=outcome, wall_ms=d.wall_ms + share, ranks=got.ranks[c])
-    return [_record(exp, method, key, done[key.case_id]) for key in cases]
+    return [_record(exp, method, key, done[key.case_id], _fold(split, key.case_id)) for key in cases]
+
+
+def _split(
+    exp: Experiment,
+    keys: dict[str, dict[str, AnswerKeyRow]],
+    selected: dict[str, tuple[list[str], list[str]]],
+    repo: Path,
+) -> calibrated.Split | None:
+    """The experiment's split over its selected cases."""
+    splits.check_split(exp.split)
+    chosen = {c: keys[d][c] for d, (cases, _) in selected.items() for c in cases}
+    return calibrated.make_split(exp, chosen, {})
 
 
 def check_baselines(exp: Experiment, repo: Path) -> None:
@@ -484,6 +541,9 @@ def run_experiment(
     dirty tree (bench/AGENTS.md Never 3). Synth is never reported (04 §3): it is refused with
     `table` and needs an explicit `out_root` outside the repository.
 
+    Under a calibration split (`calibrated`, #391) every row is the case's held-out prediction,
+    made with the file an earlier experiment fitted without its cluster, and `fold` its test fold.
+
     per_case.csv columns v0 leaves null: seed and variant (no AI arms, no perturbed variants),
     fold (split none), decoy_present and decoy_ranked_first (no protocol.decoys), peak_rss_mb of a
     run killed at the timeout (never reported) and tokens_in/out (AI off); onset_error_ms is filled
@@ -509,6 +569,12 @@ def run_experiment(
         for c in cases:
             Truth.from_answer_key(keys[d][c])  # refuse a fault row without a root before any run
     check_rankers(exp)
+    split = _split(exp, keys, selected, repo)
+    for dataset in selected:  # every file a held-out run needs exists before the first case
+        for method in exp.methods:
+            if split is not None and method.kind == calibrated.CALIBRATED_KIND:
+                cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
+                calibrated.check(exp, split, method, cfg)
     bench_runs = (runs_root or default_runs_root()) / BENCH_RUNS / exp.experiment_id
     if bench_runs.exists():  # bench's own directory: stale runs would be reused untimed
         shutil.rmtree(bench_runs)
@@ -520,21 +586,27 @@ def run_experiment(
     cases_scored: list[Case] = []
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
+
+    def keep(scored: Scored) -> None:
+        row, score, run = scored
+        rows.append(row)
+        runs.append(run)
+        dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
+        groups.setdefault((dataset, k_sys, method_id), []).append(score)
+        k = keys[dataset][str(row["case_id"])]
+        cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
+        cases_scored.append(Case(k.case_id, dataset, k_sys, method_id, cluster, score))
+
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
+            # The config apart from the calibration choice, which each run's own manifest records.
             cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
             configs.append(
                 {"dataset": dataset, "method": method.id, "config_sha256": method_config_sha256(method, cfg)}
             )
             rows_keys = [keys[dataset][c] for c in cases]
-            scored = _run_method(exp, method, cfg, rows_keys, bench_runs, timed, reports, overlays)
-            for row, score, run in scored:
-                rows.append(row)
-                runs.append(run)
-                groups.setdefault((dataset, str(row["system"]), method.id), []).append(score)
-                k, k_sys = keys[dataset][str(row["case_id"])], str(row["system"])
-                cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
-                cases_scored.append(Case(k.case_id, dataset, k_sys, method.id, cluster, score))
+            for scored in _run_method(exp, method, rows_keys, bench_runs, timed, reports, overlays, split):
+                keep(scored)
     summary: dict[str, object] = {
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
