@@ -4,6 +4,7 @@ hand-made 1.1 fixtures and the committed experiment YAMLs.
 
 from __future__ import annotations
 
+import json
 import shutil
 from pathlib import Path
 
@@ -42,22 +43,41 @@ def test_every_rq2_to_rq6_table_is_generated(files: dict[str, str]) -> None:
     assert expected <= {Path(k).stem for k in files}
 
 
-def test_metrics_without_a_summary_entry_say_so(files: dict[str, str]) -> None:
+def test_the_1_2_entries_render_with_their_reasons(files: dict[str, str], results: Path) -> None:
     t7 = files["tables/t07-rq3-calibration.md"]
     assert "re2-oracle-rq3-v1" in t7 and "re2-oracle-loso-v1" in t7 and "re2-to-nezha-transfer-v1" in t7
+    row = next(
+        line
+        for line in t7.splitlines()
+        if line.startswith("| re2-oracle-rq3-v1 | crossfit2 (rcaeval-re2) | 0.1 | ob | veyltrace:off |")
+    )
+    assert (
+        "| 0.875 | -0.025 | 1.000 | 1.500 | 0.500 | 0.250 | 0.375 | 0.250 | 0.000 |" in row
+    )  # coverage … wrong NO_FAULT
+    assert "no committed results in bench/results" in t7  # loso did not run: its own reason wins
+    assert "alpha 0.1 (each experiment's calibration.alpha" in t7 and NO_ENTRY.format("coverage") not in t7
     arms = files["tables/t06d-rq2-proposal-arms.md"]
-    assert "| re2-oracle-planted-v1 | agent-only:brief | decoy_top1_change | not run<sup>" in arms
-    assert "| re2-oracle-permute-v1 | veyltrace:brief | permutation_invariance | not run<sup>" in arms
-    assert NO_ENTRY.format("coverage") in t7  # rq3 ran: the gap is named
-    assert "no committed results in bench/results" in t7  # loso did not: its own reason wins
-    assert "| re2-oracle-rq3-v1 | crossfit2 (rcaeval-re2) | 0.1 | ob | veyltrace:off | 0.500<sup>" in t7
-    assert "alpha 0.1 (each experiment's calibration.alpha" in t7
+    assert "| re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance | 0.875 | 8 |" in arms
+    assert (
+        "| re2-oracle-planted-v1 | ob | agent-only:brief | decoy_top1_change | not run<sup>" in arms
+    )  # no results
+    path = results / "re2-oracle-permute-v1" / "summary.json"  # the same file as written by bench 1.1
+    doc = json.loads(textio.read_text(path))
+    doc["schema_version"] = "1.1.0"
+    for group in doc["groups"]:
+        for entry in ("coverage", "set_size", "no_fault_rates", "risk_coverage", "selective_accuracy",
+                      "decoy_top1_change", "permutation_invariance"):  # fmt: skip
+            del group["metrics"][entry]
+    textio.write_text(path, json.dumps(doc))
+    again = generate.outputs(results, EXPERIMENTS)["tables/t06d-rq2-proposal-arms.md"].decode()
+    assert "summary.json is bench_summary 1.1, which has no `permutation_invariance` entry (re-run)" in again
 
 
 def test_a_run_experiment_shows_the_gap_for_a_listed_metric(files: dict[str, str]) -> None:
     ablation = files["tables/t11-rq4-ablation.md"]  # point "none" is re2-oracle-rq1-v1, which ran
     assert "| none | all | ob | veyltrace:off | 0.500 [0.375, 0.625] |" in ablation
     assert "the experiment does not list the metric `selective_accuracy`" in ablation  # rq1 does not list it
+    assert "| AC@1 among CONFIRMED | Answer rate CONFIRMED | AC@1 among CONFIRMED or LIKELY |" in ablation
 
 
 def test_the_brief_shift_point_at_0_s_is_computed_on_the_subset(files: dict[str, str]) -> None:

@@ -60,7 +60,8 @@ def test_each_kind_of_missing_result_is_not_run_with_its_reason(results: Path) -
         reason("re3-oracle-rq2-v1") == "incomplete result: no summary.json (bench writes manifest.json last)"
     )
     assert (
-        reason("re2-oracle-baselines-r05") == "summary.json is bench_summary 0.1.0; tables read 1.1 (re-run)"
+        reason("re2-oracle-baselines-r05")
+        == "summary.json is bench_summary 0.1.0; tables read 1.1 and 1.2 (re-run)"
     )
     assert reason("re2-detected-rq1-v1") == "results from a dirty work tree are never used (04 §10.2)"
 
