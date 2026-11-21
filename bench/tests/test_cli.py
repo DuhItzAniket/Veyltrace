@@ -48,3 +48,20 @@ def test_table_refusals_are_usage_errors(
         assert bench_cli.main(["run", str(SMOKE), "--table", "--out", str(out)]) == 2
         assert reason in capsys.readouterr().err
     assert not out.exists()  # refused before any run or write
+
+
+def test_a_relative_runs_root_is_resolved_against_the_callers_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The run children start in the repository root, so a relative --runs-root reaches them, and
+    the manifest's calibrations (#412), as the directory the caller meant."""
+    seen: dict[str, object] = {}
+
+    def fake(experiment: Path, **kwargs: object) -> tuple[Path, dict[str, object]]:
+        seen.update(kwargs)
+        return tmp_path, {}
+
+    monkeypatch.setattr(bench_cli, "run_experiment", fake)
+    monkeypatch.chdir(tmp_path)
+    assert bench_cli.main(["run", "x.yaml", "--runs-root", "runs"]) == 0
+    assert seen["runs_root"] == (tmp_path / "runs").resolve()
