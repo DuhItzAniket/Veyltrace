@@ -61,6 +61,7 @@ class CausentraConfig:
     t6_min_proximity: float
     t7_min_gap: float
     uncalibrated_q_hat: float
+    beta: float
     default_tau: float
     asks_max: int
     k_anom: float
@@ -141,6 +142,7 @@ def config_from(cfg: Mapping[str, Any], core: Mapping[str, Any]) -> CausentraCon
         t6_min_proximity=num("trials.T6.min_proximity", 0.0, 1.0),
         t7_min_gap=num("trials.T7.min_gap", 0.0),
         uncalibrated_q_hat=num("calibration.uncalibrated_q_hat", 0.0),
+        beta=num("no_fault.beta", 0.0, 1.0),
         default_tau=num("no_fault.default_tau", 0.0),
         asks_max=_int(get("asks.max"), "causentra.asks.max", 1),  # ≥ 1: INCONCLUSIVE always asks (09 §3.11)
         k_anom=_number(_get(core, "core", "thresholds.anomaly_z"), "core.thresholds.anomaly_z"),

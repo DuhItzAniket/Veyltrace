@@ -234,6 +234,7 @@ Slate with K = 2 for brevity: A (fused 0.0480), B (0.0460). Relentra (brief mode
 | Same (predicate, args) claimed by several proposals | counted once in Σ |
 | `proposals.status = failed` or `skipped` | treated as no proposals; any listed proposals are rejected `budget` |
 | Calibration loaded for another `ai_arm` or `alert_protocol` than the run's | hard error (`EngineResult.status = failed`): the file applies only to the same arm and protocol ([03 §12.1](../03-contracts.md)); mixing would void the guarantee |
+| Calibration fitted at another `alpha` or `no_fault.beta` than the run's `causentra.alpha` / `causentra.no_fault.beta` (compared at 9 decimals) | hard error (`EngineResult.status = failed`, no verdict): q̂ is the ⌈(n+1)(1−α)⌉-th score and τ_nf the ⌈(m+1)(1−β)⌉-th M at the file's own levels (§3.7, §3.8), so they do not apply at others |
 | `NO_FAULT` while proposals exist | proposals still get outcomes; `NO_FAULT` wins |
 
 ## 4. Configuration — `config/causentra.yaml`
