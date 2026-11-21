@@ -39,9 +39,9 @@ def _example(name: str) -> dict[str, Any]:
 
 
 def group(
-    dataset: str, method: str, ac: list[float], *, slate: float | None, listed: tuple[str, ...]
+    dataset: str, method: str, ac: list[float], *, slate: float | None, listed: tuple[str, ...], windows: int = 0
 ) -> dict[str, Any]:
-    """One summary group of 8 fault cases (+0 normal windows) with AC@1..5 = `ac`."""
+    """One summary group of 8 fault cases (+ `windows` normal windows) with AC@1..5 = `ac`."""
     chance = [k / N_SERVICES for k in range(1, 6)]
     metrics: dict[str, Any] = {
         "ac_at_k": {f"ac_at_{k}": ac[k - 1] for k in range(1, 6)},
@@ -63,8 +63,9 @@ def group(
     return {
         "dataset": dataset, "system": dataset.split("-")[1], "method": method,
         "metrics": {e: (metrics[e] if e in listed else None) for e in ENTRIES},
-        "n_rows": 8, "n_fault": 8, "n_no_truth": 0, "n_unranked": 0, "n_fine": 8, "n_chance": 8,
-        "n_outside_services": 0, "outcomes": {"failed": 0, "no_alert": 0, "ok": 8, "rejected": 0, "timeout": 0},
+        "n_rows": 8 + windows, "n_fault": 8, "n_no_truth": windows, "n_unranked": 0, "n_fine": 8, "n_chance": 8,
+        "n_outside_services": 0,
+        "outcomes": {"failed": 0, "no_alert": 0, "ok": 8 + windows, "rejected": 0, "timeout": 0},
     }  # fmt: skip
 
 
@@ -158,6 +159,12 @@ def main() -> None:
         dirty=True,
     )
     write("re3-oracle-rq2-v1", None)  # incomplete: no summary.json
+    listed = ("ac_at_k", "retrieval_at_k", "cost")  # the summary entries of rq3's listed metrics
+    rq3 = [
+        group(ds, m, [0.5, 0.75, 0.875, 0.875, 1.0], slate=0.875, listed=listed, windows=4)
+        for ds in ("re2-ob", "re2-ss", "re2-tt") for m in ("veyltrace:brief", "veyltrace:off")
+    ]  # fmt: skip
+    write("re2-oracle-rq3-v1", summary("re2-oracle-rq3-v1", rq3, "not run: fixture statistics are off"))
     old = OUT / "re2-oracle-baselines-r05"
     write("re2-oracle-baselines-r05", None)
     textio.write_text(old / "summary.json", '{"schema_version":"0.1.0"}\n')  # an R-05-era summary

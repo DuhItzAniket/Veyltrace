@@ -54,7 +54,7 @@ def test_each_kind_of_missing_result_is_not_run_with_its_reason(results: Path) -
         return load(results, experiment_id, register).reason
 
     assert reason("re2-oracle-rq1-v1") is None
-    assert reason("re2-oracle-rq3-v1") == NO_RESULTS
+    assert reason("re2-oracle-loso-v1") == NO_RESULTS
     assert reason("fse26-oracle-rq1-v1") == "stretch dataset not verified (07 §1.1 cut item 2)"  # register
     assert (
         reason("re3-oracle-rq2-v1") == "incomplete result: no summary.json (bench writes manifest.json last)"
@@ -106,10 +106,10 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
         "0.250", "no interval: not run: fixture statistics are off"
     )
     assert prior.pooled("re2", "prior-only", "ac_at_1") == cells.not_run("fixture statistics are off")
-    missing = load(results, "re2-oracle-rq3-v1", NONE)
+    missing = load(results, "re2-oracle-loso-v1", NONE)
     assert missing.metric(*off, "ac_at_k", "ac_at_1") == cells.not_run(NO_RESULTS)
-    assert missing.label == "re2-oracle-rq3-v1 (not run)"
-    assert replace(missing, role="pre-registered").label == "re2-oracle-rq3-v1 (not run) (pre-registered)"
+    assert missing.label == "re2-oracle-loso-v1 (not run)"
+    assert replace(missing, role="pre-registered").label == "re2-oracle-loso-v1 (not run) (pre-registered)"
 
 
 def test_a_current_summary_that_breaks_its_contract_is_an_error_not_a_not_run(results: Path) -> None:
