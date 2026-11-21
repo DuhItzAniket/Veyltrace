@@ -447,6 +447,8 @@ def _record(
     decoy = decoy_runs.decoy_columns(key, score.ranks)
     tokens_in, tokens_out = ai_arms.tokens(done.run_dir) if method.ai.mode != "off" else (None, None)
     cost = {"wall_ms": wall_ms, "peak_rss_mb": peak, "tokens_in": tokens_in, "tokens_out": tokens_out}
+    if done.ai_mode == ai_arms.REPLAY:  # a replay has no model time: its cost would mislead (#406 review)
+        cost = dict.fromkeys(cost)
     score = replace(score, **cost, **decoy)  # cost (tokens: the proposals' budget, 03 §9.1) and decoys
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
@@ -641,16 +643,20 @@ def _fit(
     ran: list[tuple[Unit, Executed]],
     commit: str,
 ) -> None:
-    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8); an
-    AI arm's seeds are pooled: one file per arm and alert protocol, the same for every seed."""
+    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8). An AI
+    arm is fitted on its first listed seed only (n = cases, m = windows) and the file serves every
+    seed, whose rows are exchangeable with it marginally (ADR 20261121-ak-calibration-fit-conventions)."""
     cfg = resolve_config(overrides_for(exp, method), dataset=ran[0][0][0].dataset, ai_mode=method.ai.mode)
     arm = calibrated.arm(method, cfg)
     default_tau = float(cast("dict[str, Any]", cfg.engine("causentra"))["no_fault"]["default_tau"])
     for fold in sorted(split.plan.fits):  # a window follows its case's fold (04 §5.4 item 1)
-        members = [(k, v, s, d) for (k, v, s), d in ran if k.case_id in split.plan.fits[fold]]  # seeds pooled
+        designated = ai_arms.seeds_of(method)[0]  # None for a deterministic method
+        members = [
+            (k, v, s, d) for (k, v, s), d in ran if k.case_id in split.plan.fits[fold] and s == designated
+        ]
         timeout_s = exp.resources.timeout_s
         fitted = [
-            (replace(r, seed=s), d)  # seeds pool into one fit (n = cases x seeds)
+            (replace(r, seed=s), d)  # the designated seed's runs only
             for k, v, s, d in members
             if (r := _calibration_run(k, v, d, timeout_s)) is not None
         ]

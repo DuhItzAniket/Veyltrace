@@ -163,14 +163,9 @@ def _check_file(exp: Experiment, split: Split, family: str) -> None:
         if applied == fold and (case in fit_cases or split.clusters[case] in fit_clusters):
             raise ConfigError(f"{where}: test case {case}'s cluster {split.clusters[case]} is in its fit")
     faults = sum(not k.is_no_fault for k in fit_keys.values())
-    seeds = [
-        len(m.ai.seeds) or 1
-        for m in fitting.methods
-        if m.kind == CALIBRATED_KIND and _arm_of(m) == content.ai_arm
-    ]
-    if content.n not in {faults * s for s in seeds or [1]}:
+    if content.n != faults:  # an AI arm is fitted on its first seed only: n = fault cases
         raise ConfigError(
-            f"{where}: n = {content.n}, but that plan's fold has {faults} fault cases (x seeds {seeds});"
+            f"{where}: n = {content.n}, but that plan's fold has {faults} fault cases;"
             " the fitting experiment's selection changed since the fit"
         )
 

@@ -247,8 +247,8 @@ def statistics(exp: Experiment, cases: Sequence[Case]) -> dict[str, object]:
     intervals: list[dict[str, object]] = []
     for (dataset, system, method), members in sorted(groups.items()):
         for metric in sorted(wanted):
-            if got := _defined(metric, members):
-                ci = cluster_bootstrap([v for v, _ in got], [c.cluster for _, c in got],
+            if means := _case_means(metric, members):  # a seeded group: one value per case (04 §8)
+                ci = cluster_bootstrap([v for v, _ in means.values()], [cl for _, cl in means.values()],
                                        seed=st.bootstrap.seed, resamples=st.bootstrap.resamples)  # fmt: skip
                 intervals.append({"dataset": dataset, "system": system, "method": method, "metric": metric,
                                   "estimate": ci.estimate, "low": ci.low, "high": ci.high,
