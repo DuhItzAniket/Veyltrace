@@ -1,0 +1,5 @@
+# latexmk settings for the Veyltrace paper. Run `latexmk` from paper/ (README.md).
+$pdf_mode = 1;            # pdflatex
+$out_dir = 'build';       # git-ignored; nothing generated lands next to the sources
+$bibtex_use = 2;          # run BibTeX when the .bib files change; clean its output too
+@default_files = ('main.tex');  # preamble.tex and sections/ are inputs, not documents
