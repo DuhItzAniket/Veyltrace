@@ -74,12 +74,12 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
     exp = _load(
         tmp_path,
         BASE.replace("[mrr]", "[mrr, coverage, cost]")
-        + "split: {scheme: crossfit2}\nprotocol: {decoys: {pi: 0.5}}\nresources: {workers: 2}\n"
+        + "calibration: {fit: true}\nprotocol: {decoys: {pi: 0.5}}\nresources: {workers: 2}\n"
         + "methods: [{id: b, kind: agent_only}, {id: v, kind: veyltrace, ai: {mode: record, seeds: [1]}}]\n",
     )
     todo = " | ".join(unsupported(exp))
     for task in (
-        "scheme crossfit2 (R-13)",
+        "calibration.fit (R-13",  # split schemes run since #391; fitting is #376
         "workers",
         "agent_only",
         "AI arms",
