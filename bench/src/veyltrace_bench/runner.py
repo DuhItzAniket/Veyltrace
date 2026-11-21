@@ -38,6 +38,7 @@ from typing import Any, cast
 
 from veyltrace_bench import (
     ALGO_VERSION,
+    agent_only,
     ai_arms,
     baselines,
     calibrated,
@@ -73,6 +74,7 @@ from veyltrace_contracts.models import (
     BenchResultRow,
     CaseManifest,
     Onsets,
+    Proposals,
     RunManifest,
     Slate,
     Verdict,
@@ -326,7 +328,7 @@ def check_rankers(exp: Experiment) -> None:
         raise ConfigError(f"methods name unknown rankers {unknown}: {RANKERS_KEY} is {sorted(configured)}")
 
 
-def _read[M: (Verdict, Slate, CaseManifest, Onsets)](
+def _read[M: (Verdict, Slate, CaseManifest, Onsets, Proposals)](
     name: str, run_dir: Path | None, model: type[M]
 ) -> M | None:
     """A JSON output of the run, or None when the run did not write a valid one (or was killed)."""
@@ -422,12 +424,13 @@ def _record(
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
     outcome = done.outcome if done.judged else run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
     slate_scored, baseline = method.kind == "causatrix", method.kind in BASELINE_KINDS
+    agent = method.kind == agent_only.KIND  # the proposals of its source's run (04 §4)
     verdict = (
         _read("verdict", done.run_dir, Verdict) if outcome == "ok" and method.kind == "veyltrace" else None
     )
     slate = _read("slate", done.run_dir, Slate) if outcome == "ok" and not baseline else None
     if outcome == "ok" and (
-        done.ranks is None if baseline else slate is None or (verdict is None and not slate_scored)
+        done.ranks is None if baseline else slate is None or (verdict is None and not (slate_scored or agent))
     ):
         outcome = "failed"  # a missing output is a failed run (04 §7)
     case = _read("case_manifest", done.run_dir, CaseManifest)
@@ -436,6 +439,9 @@ def _record(
     onsets = _read("onsets", done.run_dir, Onsets) if detected else None
     if baseline:
         out = MethodOutput(outcome=outcome, ranks=done.ranks if outcome == "ok" and done.ranks else ())
+    elif agent:
+        proposals = _read("proposals", done.run_dir, Proposals) if outcome == "ok" else None
+        out = agent_only.output(outcome, proposals, slate, slate_ranks(slate) if slate is not None else ())
     else:
         out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
@@ -489,6 +495,7 @@ def _run_method(
     windows: list[AnswerKeyRow] | None = None,
     dropped: list[dict[str, object]] | None = None,
     sources: dict[tuple[str, str], Executed] | None = None,
+    ai_runs: dict[tuple[str, str, int | None], Executed] | None = None,
 ) -> list[Scored]:
     """Every case of one dataset with one method, each run once, then its normal `windows`; a window
     with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
@@ -513,6 +520,8 @@ def _run_method(
         )
         if sources is not None and plain and method.kind == upstream.SOURCE_KIND and method.ai.mode == "off":
             sources[(method.id, key.case_id)] = done
+        if ai_runs is not None and variant is None and method.ai.mode != "off":
+            ai_runs[(method.id, key.case_id, seed)] = done  # what an agent_only method scores (04 §4)
         if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
@@ -829,6 +838,9 @@ def run_experiment(
     check_rankers(exp)
     normal_windows.check(exp)
     ai_arms.check(exp)
+    for m in exp.methods:  # each agent_only method has its source before it (04 §4)
+        if m.kind == agent_only.KIND:
+            agent_only.source_of(exp, m)
     split = _split(exp, keys, selected, repo)
     for dataset in selected:  # every file a held-out run needs exists before the first case
         for method in exp.methods:
@@ -854,6 +866,7 @@ def run_experiment(
     reports: dict[tuple[str, str], str] = {}
     first: dict[str, list[tuple[Unit, Executed]]] = {}  # a fitting method's calibration runs
     sources: dict[tuple[str, str], Executed] = {}  # (method, case): runs causatrix:<ranker> reuses (#413)
+    ai_runs: dict[tuple[str, str, int | None], Executed] = {}  # (method, case, seed): AI-arm runs
 
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
@@ -887,9 +900,40 @@ def run_experiment(
                     first.setdefault(method.id, []).append((unit, done))
                     if v is None and s is None and method.ai.mode == "off":
                         sources[(method.id, k.case_id)] = done  # what causatrix:<ranker> reuses (#413)
+                    if v is None and method.ai.mode != "off":
+                        ai_runs[(method.id, k.case_id, s)] = done
+                continue
+            if method.kind == agent_only.KIND:  # no run of its own: its source's, per case and seed
+                source = agent_only.source_of(exp, method)
+                fallback: dict[str, int] = {}  # system -> rows with no hypotheses: the slate ranking
+                for k, _, s in _units(method, rows_keys, []):
+                    shared = ai_runs[(source.id, k.case_id, s)]
+                    proposals = _read("proposals", shared.run_dir, Proposals)
+                    if proposals is None or not proposals.proposals:
+                        fallback[str(k.system)] = fallback.get(str(k.system), 0) + 1
+                    keep(_record(exp, method, k, shared, _fold(split, k.case_id), None, s))
+                for system, n in sorted(fallback.items()):  # 04 §4: no hypotheses -> the slate order
+                    _log.info(
+                        "bench.agent_only_slate_fallback",
+                        dataset=dataset,
+                        system=system,
+                        method=method.id,
+                        rows=n,
+                    )
                 continue
             ran = _run_method(
-                exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs, sources
+                exp,
+                method,
+                rows_keys,
+                bench_runs,
+                timed,
+                reports,
+                overlays,
+                split,
+                windows,
+                runs,
+                sources,
+                ai_runs,
             )
             for scored in ran:
                 keep(scored)
