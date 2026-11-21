@@ -25,8 +25,11 @@ SMOKE = Path(__file__).resolve().parents[1] / "experiments" / "synth-smoke.yaml"
 NORMAL_WINDOW = case_id("synth-05")
 HITS = ("hit_at_1", "hit_at_3", "hit_at_5", "retrieval_hit", "pool_hit", "in_set")
 RAN = {"run_outcome": "ok", "method": "veyltrace:off"}
-#: hit_at_1/3/5, retrieval_hit, pool_hit per fault case: each of synth-01..04 leads with its root.
-RANK_HITS = {f"synth-0{i}": (True,) * 5 for i in range(1, 5)}
+#: hit_at_1/3/5, retrieval_hit, pool_hit per fault case: synth-01, 03 and 04 lead with their root.
+#: synth-02 (network delay on recommend's egress) ranks recommend second since R-12d: its T8
+#: intervention test finds the latency explained by its callee (stat_resid 0.44 < k_anom), and
+#: frontend, whose spans carry both delays, leads (09 §7 allows either leader).
+RANK_HITS = {f"synth-0{i}": (True,) * 5 for i in range(1, 5)} | {"synth-02": (False, True, True, True, True)}
 
 
 def _check_against_the_goldens(row: dict[str, object], case: str, root: str | None) -> None:
@@ -78,9 +81,9 @@ def test_synth_smoke_runs_end_to_end(tmp_path: Path) -> None:
         io.read_path(f"bench_{name}", out / f"{name}.json", validate=True)
     assert '"outcomes":{"failed":0,"no_alert":0,"ok":5,"rejected":0,"timeout":0}' in summary
     # n_unranked 0: every synth case has ranker votes since R-09; ac and mrr follow from RANK_HITS.
-    for part in ('"n_unranked":0', '"n_fault":4', '"n_chance":4', '"ac_at_1":1.0', '"chance_at_1":0.16666'):
+    for part in ('"n_unranked":0', '"n_fault":4', '"n_chance":4', '"ac_at_1":0.75', '"chance_at_1":0.16666'):
         assert part in summary
-    assert '"mrr":{"mrr":1.0}' in summary and '"rerank_at_1":null' in summary  # only the YAML's metrics
+    assert '"mrr":{"mrr":0.875}' in summary and '"rerank_at_1":null' in summary  # only the YAML's metrics
     assert f'"experiment_sha256":"{sha256_text_lf(SMOKE)}"' in manifest and manifest.count('"run_id"') == 5
     assert manifest.count('"inputs_sha256":"') == 6 and '"cases_without_inputs":[]' in manifest
     assert run() == out  # again on the same runs root: bench empties its dir, all re-run
