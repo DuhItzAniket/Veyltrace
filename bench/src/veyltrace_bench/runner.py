@@ -42,6 +42,7 @@ from veyltrace_bench import (
     calibration,
     decoy_runs,
     naive_change,
+    normal_windows,
     rcaeval,
     simplerca,
     splits,
@@ -122,6 +123,7 @@ class Executed:
     peak_rss_mb: float | None
     ranks: tuple[str, ...] | None = None  # a baseline's ranks (simplerca); None otherwise
     judged: bool = False  # outcome already judged per run against timeout_s (a held-out restart)
+    reason: str | None = None  # core's rejection reason (RunSummary.reason), e.g. empty_window
 
 
 def slug(method_id: str) -> str:
@@ -162,7 +164,7 @@ def _execute(
         ranks = after_run(extra, s)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
         got = tuple(ranks) if ranks is not None else None
-        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None, got)
+        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None, got, reason=s.reason)
     request = {
         "dataset": key.dataset,
         "case_id": key.case_id,
@@ -203,14 +205,19 @@ def _execute(
         float(got["wall_ms"]),
         float(got["peak_rss_mb"]),
         tuple(ranks) if ranks is not None else None,
+        reason=cast("str | None", s.get("reason")),
     )
 
 
-def protocol_overrides(exp: Experiment, overlay: str | None = None) -> dict[str, object]:
-    """The protocol hooks as config overrides, with the case's events overlay if it has one."""
+def protocol_overrides(
+    exp: Experiment, overlay: str | None = None, variant: str | None = None
+) -> dict[str, object]:
+    """The protocol hooks as config overrides, with the case's events overlay if it has one; a
+    normal window (`variant`) moves the oracle alert before the injection (04 §5.4 item 6)."""
     p = exp.protocol
     alert, shift, drop, _ = PROTOCOL_KEYS
-    hooks: dict[str, object] = {alert: p.alert, shift: p.shift_s, drop: list(p.sources_drop)}
+    shift_s = normal_windows.SHIFT_S if variant == normal_windows.VARIANT else p.shift_s
+    hooks: dict[str, object] = {alert: p.alert, shift: shift_s, drop: list(p.sources_drop)}
     return hooks | ({OVERLAY_KEY: overlay} if overlay is not None else {})
 
 
@@ -219,10 +226,11 @@ def overrides_for(
     method: MethodSpec,
     overlay: str | None = None,
     calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
+    variant: str | None = None,
 ) -> dict[str, object]:
     """The run's config overrides: the protocol hooks, the calibration choice (`calibrated`), then
     the method's own keys (which may set neither)."""
-    return {**protocol_overrides(exp, overlay), **calibration_keys, **method.overrides}
+    return {**protocol_overrides(exp, overlay, variant), **calibration_keys, **method.overrides}
 
 
 def run_outcome(outcome: str, wall_ms: float, timeout_s: int) -> str:
@@ -305,9 +313,10 @@ def _timed(
     baseline: dict[str, Any] | None = None,
     overlay: str | None = None,
     calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
+    variant: str | None = None,
 ) -> Executed:
     """Diagnose one case with one method; a run another kind already made keeps that run's cost."""
-    over = overrides_for(exp, method, overlay, calibration_keys)
+    over = overrides_for(exp, method, overlay, calibration_keys, variant)
     done = _execute(key, method, over, runs_root, exp.resources.timeout_s, baseline)
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
     kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
@@ -329,6 +338,7 @@ def _restart(
     split: calibrated.Split,
     root: Path,
     overlay: str | None,
+    variant: str | None = None,
 ) -> Executed:
     """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Each
     run is judged against `timeout_s` on its own and the worse outcome kept; the cost is both runs'
@@ -336,7 +346,7 @@ def _restart(
     20261121-ak-calibration-fit-conventions)."""
     if run_outcome(first.outcome, first.wall_ms, exp.resources.timeout_s) != "ok" or first.run_dir is None:
         return first  # nothing to restart: the calibration run's outcome is the case's
-    over = overrides_for(exp, method, overlay, split.held_out(key.case_id))  # only the file differs
+    over = overrides_for(exp, method, overlay, split.held_out(key.case_id), variant)  # only the file differs
     extra = {"from_step": calibrated.RESTART_STEP, "reuse_dir": str(first.run_dir)}
     done = _execute(key, method, over, root, exp.resources.timeout_s, extra)
     peaks = [p for p in (first.peak_rss_mb, done.peak_rss_mb) if p is not None]
@@ -356,7 +366,12 @@ def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[st
 
 
 def _record(
-    exp: Experiment, method: MethodSpec, key: AnswerKeyRow, done: Executed, fold: str | None = None
+    exp: Experiment,
+    method: MethodSpec,
+    key: AnswerKeyRow,
+    done: Executed,
+    fold: str | None = None,
+    variant: str | None = None,
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Score one executed run: (per_case row, score, manifest run entry). n_i (its `services`) and
     the input hashes come from the run's case_manifest (Infralume, step 0): the case's own, the
@@ -382,7 +397,9 @@ def _record(
     else:
         out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
-    score = score_case(Truth.from_answer_key(key), out, universe=universe)
+    window = variant == normal_windows.VARIANT  # only a normal window has no truth (04 §5.4 item 6)
+    truth = Truth(None) if window else Truth.from_answer_key(key)
+    score = score_case(truth, out, universe=universe)
     decoy = decoy_runs.decoy_columns(key, score.ranks)
     score = replace(score, wall_ms=wall_ms, peak_rss_mb=peak, **decoy)  # cost, decoy; no tokens (AI off)
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
@@ -395,10 +412,11 @@ def _record(
         "system": key.system,
         "method": method.id,
         "ai_mode": method.ai.mode,
+        "variant": variant,
         "fold": fold,
         "protocol": p.alert,
         "run_outcome": outcome,
-        "shift_s": p.shift_s,
+        "shift_s": normal_windows.SHIFT_S if variant == normal_windows.VARIANT else p.shift_s,
         "sources_dropped": sorted(p.sources_drop),
         "status": verdict.status if verdict is not None else None,
         "verdict_hash": verdict.verdict_hash if verdict is not None else None,
@@ -422,8 +440,11 @@ def _run_method(
     reports: dict[tuple[str, str], str],
     overlays: dict[str, str],
     split: calibrated.Split | None,
+    windows: list[AnswerKeyRow] | None = None,
+    dropped: list[dict[str, object]] | None = None,
 ) -> list[Scored]:
-    """Every case of one dataset with one method, each run once. A baseline gets its own runs
+    """Every case of one dataset with one method, each run once, then its normal `windows`; a window
+    with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
     directory, so its alert-step runs are executed and timed, never reused from another method."""
     if method.kind == "rcaeval":
         return _run_rcaeval(exp, method, cases, bench_runs, reports, overlays, split)
@@ -434,10 +455,14 @@ def _run_method(
             {"to_step": INPUT_STEP, "baseline": method.id},
         )
     out: list[Scored] = []
-    for key in cases:
+    units = [(k, None) for k in cases] + [(k, normal_windows.VARIANT) for k in windows or []]
+    for key, variant in units:
         keys = calibrated.first_run(split, key.case_id)
-        done = _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys)
-        out.append(_record(exp, method, key, done, _fold(split, key.case_id)))
+        done = _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant)
+        if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
+            (dropped if dropped is not None else []).append(_run_entry(method, key, done))
+            continue
+        out.append(_record(exp, method, key, done, _fold(split, key.case_id), variant))
     return out
 
 
@@ -480,12 +505,19 @@ def _run_rcaeval(
     return [_record(exp, method, key, done[key.case_id], _fold(split, key.case_id)) for key in cases]
 
 
-def _calibration_run(key: AnswerKeyRow, done: Executed, timeout_s: int) -> calibration.CalibrationRun | None:
+def _calibration_run(
+    key: AnswerKeyRow, variant: str | None, done: Executed, timeout_s: int
+) -> calibration.CalibrationRun | None:
     """A calibration run as the fit reads it: a fault case's root score (+inf without a verdict or
-    unranked), a no-fault case's window (synth-05, VeylLab: M, or +inf when it could never be
-    NO_FAULT), None for a no-fault case of another source (ADR 20261121-ak-calibration-fit-conventions)."""
+    unranked), a normal window (an RCAEval pre-injection window, or a no-fault case of synth-05 or
+    VeylLab: M, or +inf when it could never be NO_FAULT), None for a dropped window or a no-fault case
+    of another source (ADR 20261121-ak-calibration-fit-conventions)."""
     ok = run_outcome(done.outcome, done.wall_ms, timeout_s) == "ok"
     run_dir = done.run_dir if ok else None
+    if variant == normal_windows.VARIANT:  # 04 §5.4 item 6
+        if normal_windows.dropped(done.run_dir, done.reason):
+            return None
+        return calibration.window(key.case_id, variant, calibration.PRE_INJECTION, run_dir)
     if key.is_no_fault:
         if (source := calibration.window_source(key.dataset)) is None:
             return None
@@ -500,18 +532,19 @@ def _fit(
     exp: Experiment,
     split: calibrated.Split,
     method: MethodSpec,
-    ran: list[tuple[AnswerKeyRow, Executed]],
+    ran: list[tuple[AnswerKeyRow, str | None, Executed]],
     commit: str,
 ) -> None:
     """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8)."""
     cfg = resolve_config(overrides_for(exp, method), dataset=ran[0][0].dataset, ai_mode=method.ai.mode)
     arm = calibrated.arm(method, cfg)
     default_tau = float(cast("dict[str, Any]", cfg.engine("causentra"))["no_fault"]["default_tau"])
-    by_case = {key.case_id: (key, done) for key, done in ran}
-    for fold in sorted(split.plan.fits):
-        members = [by_case[c] for c in calibrated.fit_cases(split, fold, by_case)]
-        runs = [r for k, d in members if (r := _calibration_run(k, d, exp.resources.timeout_s)) is not None]
-        manifests = [_read_manifest(d.run_dir) for _, d in members]
+    for fold in sorted(split.plan.fits):  # a window follows its case's fold (04 §5.4 item 1)
+        members = [(k, v, d) for k, v, d in ran if k.case_id in split.plan.fits[fold]]
+        timeout_s = exp.resources.timeout_s
+        fitted = [(r, d) for k, v, d in members if (r := _calibration_run(k, v, d, timeout_s)) is not None]
+        runs = [r for r, _ in fitted]
+        manifests = [_read_manifest(d.run_dir) for _, d in fitted]  # dropped windows are not in the fit
         content = calibration.fit(
             runs,
             family=split.family,
@@ -553,15 +586,8 @@ def _split(
     calibration cases from the file's source parts, development cases excluded (04 §5.4 item 7)."""
     splits.check_split(exp.split)
     chosen = {c: keys[d][c] for d, (cases, _) in selected.items() for c in cases}
-    outside: dict[str, AnswerKeyRow] = {}
-    if exp.split.scheme == "transfer" and exp.calibration.fit:
-        parts = splits.TRANSFER_SOURCES[str(exp.split.calibrate_from)]
-        source = exp.model_copy(
-            update={"dataset": exp.dataset.model_copy(update={"parts": parts, "cases": "all"})}
-        )
-        source_keys = {d: load_answer_keys(d) for d in parts}
-        picked = select_cases(source, repo)
-        outside = {c: source_keys[d][c] for d, (cases, _) in picked.items() for c in cases}
+    fits_transfer = exp.split.scheme == "transfer" and exp.calibration.fit
+    outside = calibrated.transfer_keys(exp, repo) if fits_transfer else {}
     return calibrated.make_split(exp, chosen, outside)
 
 
@@ -675,6 +701,7 @@ def run_experiment(
         for c in cases:
             Truth.from_answer_key(keys[d][c])  # refuse a fault row without a root before any run
     check_rankers(exp)
+    normal_windows.check(exp)
     split = _split(exp, keys, selected, repo)
     for dataset in selected:  # every file a held-out run needs exists before the first case
         for method in exp.methods:
@@ -698,7 +725,7 @@ def run_experiment(
     cases_scored: list[Case] = []
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
-    first: dict[str, list[tuple[AnswerKeyRow, Executed]]] = {}  # a fitting method's calibration runs
+    first: dict[str, list[tuple[AnswerKeyRow, str | None, Executed]]] = {}  # a fitting method's runs
 
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
@@ -719,26 +746,51 @@ def run_experiment(
                 {"dataset": dataset, "method": method.id, "config_sha256": method_config_sha256(method, cfg)}
             )
             rows_keys = [keys[dataset][c] for c in cases]
-            if split is not None and split.fit and method.kind == calibrated.CALIBRATED_KIND:
-                ran = [
-                    (k, _timed(exp, method, k, bench_runs, timed, None, overlays.get(k.case_id)))
-                    for k in rows_keys
-                ]
-                first.setdefault(method.id, []).extend(ran)
+            verdicts = method.kind == calibrated.CALIBRATED_KIND
+            windows = normal_windows.windows_of(exp, rows_keys) if verdicts else []
+            if split is not None and split.fit and verdicts:
+                units = [(k, None) for k in rows_keys] + [(k, normal_windows.VARIANT) for k in windows]
+                calibration_keys = calibrated.UNCALIBRATED
+                first.setdefault(method.id, []).extend(
+                    (
+                        k,
+                        v,
+                        _timed(
+                            exp,
+                            method,
+                            k,
+                            bench_runs,
+                            timed,
+                            None,
+                            overlays.get(k.case_id),
+                            calibration_keys,
+                            v,
+                        ),
+                    )
+                    for k, v in units
+                )
                 continue
-            for scored in _run_method(exp, method, rows_keys, bench_runs, timed, reports, overlays, split):
+            ran = _run_method(
+                exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs
+            )
+            for scored in ran:
                 keep(scored)
     for method in exp.methods:  # fit on the calibration runs, then the held-out runs (04 §5.4 item 3)
         if split is None or method.id not in first:
             continue
-        outside = [
-            (k, _timed(exp, method, k, bench_runs, timed)) for k in split.fit_keys.values()
-        ]  # transfer
-        runs.extend(_run_entry(method, k, d) for k, d in [*first[method.id], *outside])
+        outside_keys = list(split.fit_keys.values())  # transfer: its source parts, with their windows
+        outside_units = [(k, None) for k in outside_keys]
+        outside_units += [(k, normal_windows.VARIANT) for k in normal_windows.pre_injection(outside_keys)]
+        outside = [(k, v, _timed(exp, method, k, bench_runs, timed, variant=v)) for k, v in outside_units]
+        runs.extend(_run_entry(method, k, d) for k, _, d in [*first[method.id], *outside])
         _fit(exp, split, method, [*first[method.id], *outside], str(code["commit"]))
-        for key, done in first[method.id]:
-            held_out = _restart(exp, method, key, done, split, bench_runs, overlays.get(key.case_id))
-            keep(_record(exp, method, key, held_out, _fold(split, key.case_id)), held_out is not done)
+        for key, variant, done in first[method.id]:
+            if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
+                continue  # dropped (04 §5.4 item 6); its calibration run is in the manifest
+            held_out = _restart(exp, method, key, done, split, bench_runs, overlays.get(key.case_id), variant)
+            keep(
+                _record(exp, method, key, held_out, _fold(split, key.case_id), variant), held_out is not done
+            )
     if split is not None:
         verdicts = {m.id for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND}  # sets and statuses
         for rates in calibration.held_out_rates(r for r in rows if r["method"] in verdicts):  # #37, per fold
