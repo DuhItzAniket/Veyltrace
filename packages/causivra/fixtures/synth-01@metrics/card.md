@@ -4,9 +4,9 @@
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 service. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
-- The leading candidate is checkout. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
-- The asks below list what would settle it: telemetry to collect and trials to check. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
+- No single root cause could be established; the candidate set has 1 service. (cites: Ec2738c422e, E4896664f91, E39040cc71a, E69dec80d43)
+- The leading candidate is checkout. (cites: Ec2738c422e, E4896664f91, E39040cc71a, E69dec80d43)
+- The asks below list what would settle it: telemetry to collect and trials to check. (cites: Ec2738c422e, E4896664f91, E39040cc71a, E69dec80d43)
 
 ## Candidate set
 
@@ -16,9 +16,10 @@
 
 | Atom | Evidence | Value | Unit |
 |---|---|---|---|
-| Eb2a1231709 | cart mem anomaly (incident) | 0.822 | z |
-| E9609f44d49 | cart silence (incident) | 0 |  |
+| Ea219385f6e | catalog mem anomaly (incident) | 0.421 | z |
+| E7b0771b7a9 | catalog silence (incident) | 0 |  |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
+| E4896664f91 | checkout anomaly not explained by parents (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
 | E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
@@ -40,8 +41,8 @@ none
 ## Why not
 
 - **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
-- **cart**: cart showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E9609f44d49, Eb2a1231709)
 - **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E3fa4c27025, Efd34e2ffcd)
+- **catalog**: catalog showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E7b0771b7a9, Ea219385f6e)
 
 ## Asks
 
@@ -60,6 +61,6 @@ prose: template
 
 ---
 
-verdict_hash: `31b3e0aa94f37445b7aca40c3aec500d715c1d6df1a52ca92a45628b09a38ebc`  
-card_hash: `aab039e606e5bc798b926212ddf6fd8fe646d2d2d7f05ba3f14abcedfa742b65`  
+verdict_hash: `860688110876d5319db23474ec0b617ff22d2b2f6de30116b63e4e539050630e`  
+card_hash: `c9e12e738b67bb0e3f79a3ec7b9c3264bd66ed4229022b578a7740e400b93619`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

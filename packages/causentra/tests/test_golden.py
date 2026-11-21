@@ -62,3 +62,27 @@ def test_golden_verdict_ranks_every_slate_candidate(case: str, tmp_path: Path) -
     slate = io.read_model("slate", run_dir, models.Slate)
     assert {c.service for c in slate.candidates} <= {r.service for r in expected.ranked}
     assert len(expected.ranks_rcaeval) == len(slate.all_scores)
+
+
+def _trial(verdict: models.Verdict, service: str, trial: str) -> tuple[str, str | None]:
+    found = [
+        (t.result, t.reason)
+        for r in verdict.ranked
+        if r.service == service
+        for t in r.trials
+        if t.id == trial
+    ]
+    assert len(found) == 1, (service, trial)
+    return found[0]
+
+
+def test_golden_checklist_of_09_7_supporting_trials() -> None:
+    """09 §7 golden checklist: synth-04's change passes T6 on the injected service; synth-01's CPU hog
+    owns the critical-path self-time (T5); no events means T6 untestable, never failed."""
+    synth04, synth01 = golden("verdict", "synth-04"), golden("verdict", "synth-01")
+    noevents = golden("verdict", "synth-01@noevents")
+    assert isinstance(synth04, models.Verdict) and isinstance(synth01, models.Verdict)
+    assert isinstance(noevents, models.Verdict)
+    assert synth04.root is not None and _trial(synth04, synth04.root.service, "T6") == ("pass", None)
+    assert synth01.root is not None and _trial(synth01, synth01.root.service, "T5") == ("pass", None)
+    assert {t.reason for r in noevents.ranked for t in r.trials if t.id == "T6"} == {"no_events"}

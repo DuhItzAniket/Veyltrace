@@ -1,9 +1,8 @@
 """Engine entry point of Causentra (registered as `veyltrace.engines:causentra`).
 
-Pipeline step 9 (09 §3.1): read the inputs, run trials T1–T4 on every decision-pool candidate,
-compute V, order, set and status, and write `verdict.json` with its `verdict_hash`. R-12 adds
-T5–T10 and the conformal set. The signature `run(ctx: RunContext) -> EngineResult` is fixed
-(AGENTS §5).
+Pipeline step 9 (09 §3.1): read the inputs, run the trials on every decision-pool candidate,
+compute V, order, set and status, and write `verdict.json` with its `verdict_hash`. The signature
+`run(ctx: RunContext) -> EngineResult` is fixed (AGENTS §5).
 """
 
 from __future__ import annotations
@@ -22,20 +21,30 @@ from veyltrace_core.hashing import sha256_json
 REQUIRED: Final = ("slate", "evidence")
 
 
-def _alpha_mismatch(ctx: RunContext, alpha: float) -> str | None:
-    """Why the calibration's q_hat cannot be used at `alpha` (its q_hat is the ceil((n+1)(1-alpha))-th score
-    at the file's own alpha, 09 §3.7), treated like the arm/protocol mismatch of 09 §3.15."""
+def _calibration_mismatch(ctx: RunContext, alpha: float, beta: float) -> str | None:
+    """Why the calibration file cannot be used by this run, treated like the arm/protocol mismatch of
+    09 §3.15: its q_hat is the ceil((n+1)(1-alpha))-th score at the file's own alpha (09 §3.7), and its
+    tau_nf the ceil((m+1)(1-beta))-th M at the file's own beta (09 §3.8)."""
     calibration = ctx.config.calibration
-    if calibration is None or round(calibration.alpha, DECIMALS) == round(alpha, DECIMALS):
+    if calibration is None:
         return None
-    return (
-        f"calibration {ctx.config.calibration_family} was fitted at alpha={calibration.alpha}, the run's "
-        f"causentra.alpha is {alpha}: its q_hat does not apply (09 §3.7, §3.15)"
-    )
+    family = ctx.config.calibration_family
+    if round(calibration.alpha, DECIMALS) != round(alpha, DECIMALS):
+        return (
+            f"calibration {family} was fitted at alpha={calibration.alpha}, the run's "
+            f"causentra.alpha is {alpha}: its q_hat does not apply (09 §3.7, §3.15)"
+        )
+    if round(calibration.no_fault.beta, DECIMALS) != round(beta, DECIMALS):
+        return (
+            f"calibration {family} was fitted at no_fault.beta={calibration.no_fault.beta}, the run's "
+            f"causentra.no_fault.beta is {beta}: its tau_nf does not apply (09 §3.8, §3.15)"
+        )
+    return None
 
 
 def run(ctx: RunContext) -> EngineResult:
-    """Pipeline step 9: the verdict (09 §6: no slate or evidence fails; so does a foreign alpha)."""
+    """Pipeline step 9: the verdict (09 §6: no slate or evidence fails; so does a calibration fitted at
+    another alpha or beta)."""
     if ctx.engine != ENGINE:
         msg = f"causentra called with a context for engine {ctx.engine!r}"
         raise ValueError(msg)
@@ -47,7 +56,7 @@ def run(ctx: RunContext) -> EngineResult:
             notes=(f"missing input(s) {', '.join(missing)}: no verdict (09 §6)",),
         )
     cfg = config_from(ctx.config, ctx.config.core)
-    mismatch = _alpha_mismatch(ctx, cfg.alpha)
+    mismatch = _calibration_mismatch(ctx, cfg.alpha, cfg.beta)
     if mismatch is not None:
         return EngineResult(engine=ENGINE, status="failed", notes=(mismatch,))
     inp = load_inputs(ctx, cfg)

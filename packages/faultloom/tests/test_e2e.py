@@ -37,9 +37,13 @@ def test_pipeline_runs_through_the_claim_pass(tmp_path: Path, case: str) -> None
     for name in STEPS:
         assert by_step[name].engine == "faultloom"
         assert by_step[name].status == "ok", by_step[name].notes
-    # AI off: no proposals, so the claim pass carries the main evidence forward byte-identical.
-    assert by_step["faultloom"].outputs == by_step["faultloom.claim_pass"].outputs
+    # AI off: no proposals, so the claim pass adds no claim_check atoms, only the T8 intervention
+    # atoms of the slate (06 §3.6 steps 1 and 6); the engine-pass rows are carried forward.
     evidence = io.read_table("evidence", summary.run_dir, validate=True)
+    kinds = evidence.column("kind").to_pylist()
+    assert "claim_check" not in kinds
+    main_atoms = by_step["faultloom"].metrics["atoms"]
+    assert main_atoms + kinds.count("intervention") == by_step["faultloom.claim_pass"].metrics["atoms"]
     assert evidence.num_rows == by_step["faultloom.claim_pass"].metrics["atoms"]
     # Every atom is about a member of U (manifest services and non-external graph nodes, 06 §2.1).
     manifest = io.read_model("case_manifest", summary.run_dir, models.CaseManifest)

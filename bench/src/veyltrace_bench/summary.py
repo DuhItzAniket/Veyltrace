@@ -40,6 +40,7 @@ METRIC_KEYS: Mapping[str, tuple[str, ...]] = MappingProxyType(
         "lift": _at_ks("lift", "chance_diff"),  # Lift@k = AC@k / Chance@k, also AC@k − Chance@k
         "onset_error": ("onset_error_median_ms", "onset_error_max_ms", "n_onset"),  # 04 §7, #215
         "cost": ("n_cost", *(f"{c}_p{p}" for c in COST_COLUMNS for p in COST_PERCENTILES)),  # #316
+        "decoy_ranked_first": ("decoy_ranked_first", "n_decoy"),  # 04 §7 Decoy metrics, H4c (#357)
     }
 )
 ALL_METRICS = tuple(METRIC_KEYS)
@@ -114,5 +115,8 @@ def summarize(scores: Iterable[CaseScore], metrics: Collection[str] = ALL_METRIC
         for p in COST_PERCENTILES:
             values[f"{column}_p{p}"] = nearest_rank(have, p)
     values["n_cost"] = sum(s.wall_ms is not None for s in rows)
+    decoyed = [s for s in rows if s.decoy_present]  # over rows, as decoys are planted per case
+    values["decoy_ranked_first"] = _rate([s.decoy_ranked_first for s in decoyed])
+    values["n_decoy"] = len(decoyed)
     keep = {key for name in metrics if name in METRIC_KEYS for key in METRIC_KEYS[name]}
     return counts | {key: value for key, value in values.items() if key in keep}
