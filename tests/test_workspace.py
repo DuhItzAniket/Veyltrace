@@ -90,6 +90,9 @@ SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix", "veyltrace-faultloom")
 SPEC_ENGINE_DEPS["faultloom"] = ("veyltrace-causalith",)
 # 08 §2.1, §5.4: Relentra uses FaultLoom's cards, predicate library and validate(), and the LLM client.
 SPEC_ENGINE_DEPS["relentra"] = ("veyltrace-faultloom", "veyltrace-llm")
+# 04 §5.4 item 6, 09 §3.8: bench fits tau_nf on Causentra's NO_FAULT statistic M with Causentra's own
+# code (no second implementation, #373); bench imports engines only outside the isolation scope.
+SPEC_ENGINE_DEPS["bench"] = ("veyltrace-causentra",)
 WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys", "stats/veyltrace_stats"]}  # Observe's (#326, #357)
 
 

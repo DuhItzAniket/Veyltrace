@@ -9,11 +9,12 @@ description = "Veyltrace bench: evaluation harness, baselines, metrics, calibrat
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-causentra"]
 
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
+veyltrace-causentra = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/veyltrace_bench", "decoys/veyltrace_decoys", "stats/veyltrace_stats"]
