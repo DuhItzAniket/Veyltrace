@@ -163,21 +163,11 @@ def _check_file(exp: Experiment, split: Split, family: str) -> None:
         if applied == fold and (case in fit_cases or split.clusters[case] in fit_clusters):
             raise ConfigError(f"{where}: test case {case}'s cluster {split.clusters[case]} is in its fit")
     faults = sum(not k.is_no_fault for k in fit_keys.values())
-    seeds = [
-        len(m.ai.seeds) or 1
-        for m in fitting.methods
-        if m.kind == CALIBRATED_KIND and _arm_of(m) == content.ai_arm
-    ]
-    if content.n not in {faults * s for s in seeds or [1]}:
+    if content.n != faults:  # an AI arm is fitted on its first seed only: n = fault cases
         raise ConfigError(
-            f"{where}: n = {content.n}, but that plan's fold has {faults} fault cases (x seeds {seeds});"
+            f"{where}: n = {content.n}, but that plan's fold has {faults} fault cases;"
             " the fitting experiment's selection changed since the fit"
         )
-
-
-def _arm_of(method: MethodSpec) -> str:
-    """A method's calibration arm from its YAML alone (core's ai_arm_for with relentra enabled)."""
-    return "off" if method.ai.mode == "off" else str(method.ai.relentra_mode)
 
 
 def transfer_keys(exp: Experiment, repo: Path) -> dict[str, AnswerKeyRow]:

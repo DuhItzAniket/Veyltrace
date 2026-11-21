@@ -146,5 +146,9 @@ def test_a_seeded_arm_pairs_on_per_case_seed_means() -> None:
     )  # fmt: skip
     assert abs(row["difference"] - (-1 / 3 + 0 + 1) / 3) < 1e-12  # mean of the per-case differences
     assert (row["mcnemar_only_a"], row["mcnemar_p"]) == (None, None)
+    brief_ac = next(
+        i for i in got["intervals"] if i["method"] == "veyltrace:brief" and i["metric"] == "ac_at_1"
+    )
+    assert brief_ac["n_cases"] == 3 and abs(brief_ac["estimate"] - (2 / 3 + 0 + 1) / 3) < 1e-12  # case means
     reasons = {r["reason"] for r in got["not_run"] if r["scope"].startswith("mcnemar ")}
     assert reasons == {"seeded method: per-case seed means are not binary"}
