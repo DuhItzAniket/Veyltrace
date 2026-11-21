@@ -1,4 +1,5 @@
-"""Clustered resampling (04 §8): the percentile cluster bootstrap and the sign-flip permutation test.
+"""Clustered resampling (04 §8): the percentile cluster bootstrap, its system-stratified form for
+pooled rows, and the sign-flip permutation test.
 
 RCAEval repeats each (system, root service, fault) several times, and repetitions are not
 independent, so both procedures resample whole clusters, never single cases. Every per-case value
@@ -18,7 +19,13 @@ from typing import Any, Final
 
 import numpy as np
 
-__all__ = ["Interval", "PermutationTest", "cluster_bootstrap", "sign_flip_test"]
+__all__ = [
+    "Interval",
+    "PermutationTest",
+    "cluster_bootstrap",
+    "sign_flip_test",
+    "stratified_cluster_bootstrap",
+]
 
 LEVEL: Final = 0.95  # 04 §8: 95% intervals
 RESAMPLES: Final = 2000  # 04 §8: bootstrap resamples
@@ -84,6 +91,53 @@ def cluster_bootstrap(
     low, high = np.quantile(means, [(1 - level) / 2, (1 + level) / 2])
     estimate = math.fsum(sums.tolist()) / len(values)
     return Interval(estimate, float(low), float(high), len(values), len(sums), resamples)
+
+
+def stratified_cluster_bootstrap(
+    values: Sequence[float],
+    clusters: Sequence[Hashable],
+    strata: Sequence[Hashable],
+    *,
+    seed: int,
+    resamples: int = RESAMPLES,
+    level: float = LEVEL,
+) -> Interval:
+    """The case-weighted mean of `values` with a percentile interval from resampling clusters
+    within each stratum (04 §8 "pooled numbers: case-weighted, system as stratum").
+
+    Each resample draws, in every stratum, as many of that stratum's clusters as it has, with
+    replacement, and takes the mean over all drawn cases. A stratum therefore always contributes
+    its own number of clusters, so a pooled RE2 interval never comes from a resample that is
+    mostly one system. Strata are visited in sorted label order from one generator, so with a
+    single stratum the result equals `cluster_bootstrap` for the same seed. A cluster belongs to
+    one stratum (04 §5.4: the system is part of the cluster).
+    """
+    if resamples < 1 or not 0 < level < 1:
+        raise ValueError("resamples must be >= 1 and level in (0, 1)")
+    if not (len(values) == len(clusters) == len(strata)) or not values:
+        raise ValueError("values, clusters and strata must be non-empty and of equal length")
+    rows: dict[Hashable, list[int]] = {}
+    home: dict[Hashable, Hashable] = {}
+    for i, (cluster, stratum) in enumerate(zip(clusters, strata, strict=True)):
+        if home.setdefault(cluster, stratum) != stratum:
+            raise ValueError(f"cluster {cluster!r} is in more than one stratum")
+        rows.setdefault(stratum, []).append(i)
+    ordered: Any = sorted(rows, key=repr)
+    gen = np.random.default_rng(seed)
+    total, cases, n_clusters = np.zeros(resamples), np.zeros(resamples), 0
+    for stratum in ordered:
+        idx = rows[stratum]
+        sums, counts = (
+            np.asarray(x, dtype=np.float64)
+            for x in _by_cluster([values[i] for i in idx], [clusters[i] for i in idx])
+        )
+        drawn = gen.integers(0, len(sums), size=(resamples, len(sums)))
+        total += sums[drawn].sum(axis=1)
+        cases += counts[drawn].sum(axis=1)
+        n_clusters += len(sums)
+    low, high = np.quantile(total / cases, [(1 - level) / 2, (1 + level) / 2])
+    estimate = math.fsum(float(v) for v in values) / len(values)
+    return Interval(estimate, float(low), float(high), len(values), n_clusters, resamples)
 
 
 def sign_flip_test(
