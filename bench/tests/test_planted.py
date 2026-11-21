@@ -88,7 +88,9 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
             and r["case_id"] == got.case_id
         )  # fmt: skip
         ranks = agent["ranks"]
-        assert isinstance(ranks, list) and str(ranks[0]).split("_")[0] == decoy  # the stub proposed nothing
+        # Planted proposals carry no rank until proposals 1.1 (CCR #409), so agent-only cannot order
+        # them: the planted row is unranked (a miss, 04 §7), never ranked by the file's A-Z order.
+        assert ranks == [] and decoy
     planted_rows = [r for r in rows if r["variant"] == "plant-1" and r["method"] == "veyltrace:brief"]
     assert (
         all(r["verdict_hash"] for r in planted_rows)
