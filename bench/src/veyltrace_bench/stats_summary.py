@@ -5,9 +5,12 @@ Every case-mean metric the experiment lists gets a 95% percentile cluster-bootst
 paired comparisons on `primary_metric`, per system: non-inferiority with margin 0 (04 §2: "CI not
 entirely below 0") and superiority in `holm_family`. The pooled superiority test runs over all
 clusters of the benchmark and joins Holm. The sign flip needs no strata because each cluster flips
-on its own (lead, 21 Nov). Pooled intervals wait for the system-stratified bootstrap and are listed
-in `not_run`; unstratified pooling is never used. Clusters are (system, root service, fault), the
-seeds are the experiment's, and the procedures are veyltrace_stats' (O-14).
+on its own (lead, 21 Nov). Pooled rows (`system` null, `dataset` the benchmark) use the
+system-stratified cluster bootstrap (04 §8 "case-weighted, system as stratum"; #426): the pooled
+intervals of every method and the pooled comparison's `low`/`high`, which H1b needs with Holm
+(04 §2). Unstratified pooling is never used. Seeded methods enter on per-case seed means. Clusters
+are (system, root service, fault), the stratum is the cluster's system, the seeds are the
+experiment's, and the procedures are veyltrace_stats' (O-14).
 """
 
 from __future__ import annotations
@@ -20,7 +23,13 @@ from veyltrace_bench.experiment import Experiment
 from veyltrace_bench.metrics import AC_KS, CaseScore, chance_at
 from veyltrace_bench.summary import METRIC_KEYS
 from veyltrace_core.errors import ConfigError
-from veyltrace_stats.cluster import LEVEL, cluster_bootstrap, sign_flip_test
+from veyltrace_stats.cluster import (
+    LEVEL,
+    Interval,
+    cluster_bootstrap,
+    sign_flip_test,
+    stratified_cluster_bootstrap,
+)
 from veyltrace_stats.exact import holm, mcnemar_exact
 
 __all__ = ["Case", "statistics"]
@@ -28,7 +37,6 @@ __all__ = ["Case", "statistics"]
 BEST_SIMPLE_BASELINE = "best_simple_baseline"  # 04 §2: the highest primary metric among `baselines`
 MARGIN = 0.0  # 04 §2 H1a and H2a: the paired difference's CI must not lie entirely below 0
 CLUSTER_BY = "system/root_service/fault"  # 04 §8
-POOLED_REASON = "waits for the system-stratified cluster bootstrap (bench/stats follow-up)"
 
 Groups = dict[tuple[str, str, str], list["Case"]]  # (dataset, system, method) -> its cases
 Value = Callable[[CaseScore], float | None]  # a case's value; None outside the metric's cases
@@ -124,6 +132,7 @@ def _paired(
     interval: bool,
     not_run: list[dict[str, str]] | None = None,
     scope: str = "",
+    stratified: bool = False,
 ) -> dict[str, object]:
     """The paired difference a − b over the cases both have a value for (04 §8), paired on case_id:
     a seeded method's value is its per-case seed mean, so `n_pairs` counts cases and the bootstrap
@@ -141,7 +150,7 @@ def _paired(
     diffs, clusters = [va - vb for va, vb, _ in pairs], [p[2] for p in pairs]
     row["difference"] = _mean(diffs)
     if interval:
-        ci = cluster_bootstrap(diffs, clusters, seed=st.bootstrap.seed, resamples=st.bootstrap.resamples)
+        ci = _bootstrap(exp, diffs, clusters, stratified)
         row |= {"low": ci.low, "high": ci.high}
     row["sign_flip_p"] = sign_flip_test(
         diffs, clusters, seed=st.permutation.seed, flips=st.permutation.n
@@ -153,6 +162,34 @@ def _paired(
         m = mcnemar_exact([va == 1.0 for va, _, _ in pairs], [vb == 1.0 for _, vb, _ in pairs])
         row |= {"mcnemar_only_a": m.only_a, "mcnemar_only_b": m.only_b, "mcnemar_p": m.p_value}
     return row
+
+
+def _bootstrap(
+    exp: Experiment, values: Sequence[float], clusters: Sequence[tuple[str | None, ...]], stratified: bool
+) -> Interval:
+    """The 04 §8 cluster-bootstrap interval; `stratified` (a pooled row) resamples clusters within
+    each system, the cluster's first part, so a pooled interval is never mostly one system."""
+    boot = exp.statistics.bootstrap
+    if stratified:
+        strata = [cl[0] for cl in clusters]
+        return stratified_cluster_bootstrap(
+            values, clusters, strata, seed=boot.seed, resamples=boot.resamples
+        )
+    return cluster_bootstrap(values, clusters, seed=boot.seed, resamples=boot.resamples)
+
+
+def _interval_row(
+    exp: Experiment, key: tuple[str, str | None, str], metric: str, members: Sequence[Case], stratified: bool
+) -> dict[str, object] | None:
+    """One intervals[] entry of a group (or of a pooled method, `stratified`), on per-case means."""
+    means = _case_means(metric, members)  # a seeded group: one value per case (04 §8)
+    if not means:
+        return None
+    ci = _bootstrap(exp, [v for v, _ in means.values()], [cl for _, cl in means.values()], stratified)
+    dataset, system, method = key
+    return {"dataset": dataset, "system": system, "method": method, "metric": metric,
+            "estimate": ci.estimate, "low": ci.low, "high": ci.high,
+            "n_cases": ci.n_cases, "n_clusters": ci.n_clusters}  # fmt: skip
 
 
 def _best(metric: str, candidates: Sequence[str], cases: dict[str, list[Case]]) -> str:
@@ -212,7 +249,7 @@ def _comparisons(
                 "holm_p": None,
             }
             | _paired(
-                exp, metric, every[subject], every[b], False, not_run, f"{bench} pooled {subject} vs {b}"
+                exp, metric, every[subject], every[b], True, not_run, f"{bench} pooled {subject} vs {b}", True
             )
             | {"kind": "superiority", "family": st.holm_family, "margin": None}
         )
@@ -245,18 +282,24 @@ def statistics(exp: Experiment, cases: Sequence[Case]) -> dict[str, object]:
         groups.setdefault((c.dataset, c.system, c.method), []).append(c)
     wanted = {key for name in exp.metrics for key in METRIC_KEYS.get(name, ()) if key in VALUES}
     intervals: list[dict[str, object]] = []
-    for (dataset, system, method), members in sorted(groups.items()):
-        for metric in sorted(wanted):
-            if means := _case_means(metric, members):  # a seeded group: one value per case (04 §8)
-                ci = cluster_bootstrap([v for v, _ in means.values()], [cl for _, cl in means.values()],
-                                       seed=st.bootstrap.seed, resamples=st.bootstrap.resamples)  # fmt: skip
-                intervals.append({"dataset": dataset, "system": system, "method": method, "metric": metric,
-                                  "estimate": ci.estimate, "low": ci.low, "high": ci.high,
-                                  "n_cases": ci.n_cases, "n_clusters": ci.n_clusters})  # fmt: skip
+    for key, members in sorted(groups.items()):
+        intervals += [
+            r for metric in sorted(wanted) if (r := _interval_row(exp, key, metric, members, False))
+        ]
     benches = sorted({d.split("-")[0] for d in exp.dataset.parts})
     pooled = len(exp.dataset.parts) > 1 and len(benches) == 1  # 04 §8: pooled within one benchmark only
     bench = benches[0] if pooled else None
-    not_run = [{"scope": f"{bench} pooled intervals", "reason": POOLED_REASON}] if bench else []
+    if bench is not None:  # case-weighted over the benchmark's systems, system as stratum (#427)
+        for method in sorted({m for _, _, m in groups}):
+            members = [c for (_, _, m), cs in groups.items() if m == method for c in cs]
+            pooled_key = (bench, None, method)
+            intervals += [
+                r for metric in sorted(wanted) if (r := _interval_row(exp, pooled_key, metric, members, True))
+            ]
+        intervals.sort(
+            key=lambda r: tuple(_sort_key(r, k) for k in ("dataset", "system", "method", "metric"))
+        )
+    not_run: list[dict[str, str]] = []
     comparisons = _comparisons(exp, groups, bench, not_run)
     boot, perm = st.bootstrap, st.permutation
     params = {"level": LEVEL, "resamples": boot.resamples, "bootstrap_seed": boot.seed,
