@@ -111,7 +111,7 @@ def fig7(ctx: Context) -> dict[str, bytes]:
             for m in SHIFT_SERIES
         }
         title = f"Fig. 7: AC@1 vs alert shift, RE2-{panel.upper()}"
-        computed = zero.results.role if zero.results and zero.results.role else None
+        computed = zero.subset  # set whether or not the subset point could be computed
         note = _note(mine) + (f"; {BRIEF} at 0 s {computed}" if computed else "")
         files[f"fig7-shift-{panel}.svg"] = svg.lines(title, "shift (s)", "AC@1", xs, series, note).encode()
     return files
