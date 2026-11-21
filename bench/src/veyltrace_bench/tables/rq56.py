@@ -11,12 +11,12 @@ from __future__ import annotations
 from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.render import Row, Table
-from veyltrace_bench.tables.rq1 import methods, system_of
+from veyltrace_bench.tables.rq1 import methods
 
 MAIN = ("re2-oracle-rq1-v1", "re2-oracle-rq2-v1")  # Table 8: the deterministic and AI paths on RE2
 COST = (
     ("Wall p50 (ms)", "wall_ms_p50"), ("Wall p95 (ms)", "wall_ms_p95"),
-    ("Peak RSS p50 (MB)", "peak_rss_mb_p50"), ("Peak RSS p95 (MB)", "peak_rss_mb_p95"),
+    ("Peak RSS p50 (MiB)", "peak_rss_mb_p50"), ("Peak RSS p95 (MiB)", "peak_rss_mb_p95"),
     ("Tokens in p50", "tokens_in_p50"), ("Tokens in p95", "tokens_in_p95"),
     ("Tokens out p50", "tokens_out_p50"), ("Tokens out p95", "tokens_out_p95"), ("Rows with cost", "n_cost"),
 )  # fmt: skip
@@ -28,7 +28,7 @@ def _cost_rows(ctx: Context, experiment_ids: tuple[str, ...]) -> list[Row]:
     for eid in experiment_ids:
         exp, res = ctx.spec(eid), ctx.get(eid)
         for part in exp.dataset.parts:
-            sys = system_of(part)
+            sys = res.system_of(part)
             for m in methods(exp):
                 values = [res.metric(part, sys, m, "cost", key) for _, key in COST]
                 rows.append(Row((cells.text(eid), cells.text(sys), cells.text(m), *values), res))
@@ -38,7 +38,8 @@ def _cost_rows(ctx: Context, experiment_ids: tuple[str, ...]) -> list[Row]:
 def cost(ctx: Context) -> list[Table]:
     caption = (
         "Nearest-rank p50 and p95 over each group's rows (03 §13.3); wall time per case and method, "
-        "peak RSS of the run, LLM tokens of AI arms. Laptop specs: docs/team/*.md."
+        "peak RSS of the run in MiB (per_case.csv peak_rss_mb), LLM tokens of AI arms. Laptop specs: "
+        "docs/team/*.md."
     )
     every = tuple(e.experiment_id for e in ctx.experiments if "cost" in e.metrics)
     return [

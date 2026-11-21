@@ -45,7 +45,7 @@ uv run veyltrace bench run bench/experiments/synth-smoke.yaml --out /tmp/vt-resu
 
 ```bash
 uv run veyltrace bench tables           # regenerate bench/results/tables/*.md and *.tex
-uv run veyltrace bench tables --check   # write nothing; exit 1 and list the paths that differ
+uv run veyltrace bench tables --check   # write nothing; exit 2 and list the paths that differ (1 = error)
 ```
 
 - Inputs: the experiment YAMLs (which experiments exist; grid coordinates such as `shift_s`) and each `bench/results/<experiment_id>/`. Numbers come from `summary.json` only ([04 §9](../docs/04-evaluation-protocol.md)). `manifest.json` gives the commit. The SHA-256 of all three result files is printed under each table ([04 §10.2](../docs/04-evaluation-protocol.md)). Synth experiments are never reported.
