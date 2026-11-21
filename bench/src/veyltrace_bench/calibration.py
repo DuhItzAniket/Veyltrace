@@ -59,6 +59,13 @@ class CalibrationRun:
         return self.case_id if self.variant is None else f"{self.case_id}/{self.variant}"
 
 
+def window_source(dataset: str) -> str | None:
+    """The normal-window source of a no-fault case of `dataset` (03 §12.1), None for others."""
+    if dataset == "synth":
+        return SYNTH_05
+    return VEYLLAB if dataset.startswith(f"{VEYLLAB}-") else None
+
+
 def root_score(verdict: Verdict | None, root_service: str) -> float:
     """The calibration score of a fault case (09 §3.7 rule 2); +∞ outside the pool or with no verdict."""
     if verdict is None:

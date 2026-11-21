@@ -18,7 +18,7 @@ an error before the first case, never a silently uncalibrated run.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -31,6 +31,7 @@ from veyltrace_core.config import CALIBRATION_DIRNAME, ResolvedConfig, find_conf
 from veyltrace_core.errors import ConfigError
 
 FAMILY_KEY, FAMILY_MAP_KEY, FOLD_KEY = CALIBRATION_KEYS
+RESTART_STEP = "causentra"  # a held-out run re-runs from here on its calibration run (core reuse_dir)
 CALIBRATED_KIND = "veyltrace"  # the method kind whose verdict (set, status) the split serves
 UNCALIBRATED: Mapping[str, object] = {FAMILY_KEY: None, FAMILY_MAP_KEY: {}}
 
@@ -112,3 +113,8 @@ def check(exp: Experiment, split: Split, method: MethodSpec, cfg: ResolvedConfig
             f"calibration.fit is false but config/calibration/ has no {missing}: run the experiment"
             f" that fits split.family {split.family} first (04 §5.4 item 4)"
         )
+
+
+def fit_cases(split: Split, fold: str, ran: Iterable[str]) -> list[str]:
+    """The cases of the fit for `fold` among the ones that ran, sorted."""
+    return sorted(set(ran) & split.plan.fits[fold])

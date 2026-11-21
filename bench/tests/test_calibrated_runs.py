@@ -1,4 +1,4 @@
-"""The runner under a calibration split (04 §5.4; #376): fit, held-out restarts, file reuse.
+"""The runner under a calibration split (04 §5.4; #391, #376): fit, held-out restarts, reuse.
 
 Each test works on a copy of config/ (VEYLTRACE_CONFIG_DIR), so calibration files are written
 under tmp_path and never into the repository's config/calibration/.
@@ -18,7 +18,7 @@ import pytest
 from veyltrace_bench import answer_keys, calibration, runner, splits
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
-from veyltrace_core.calibration import write_calibration
+from veyltrace_core.calibration import load_calibration, write_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_file
@@ -68,6 +68,54 @@ def _rows(out: Path) -> list[dict[str, object]]:
 def _off_runs(out: Path) -> int:
     runs = json.loads(textio.read_text(out / "manifest.json"))["runs"]
     return sum(r["method"] == "veyltrace:off" for r in runs)
+
+
+def test_crossfit2_fits_both_folds_and_tests_each_case_on_the_other(
+    tmp_path: Path, config_root: Path
+) -> None:
+    exp = _yaml(tmp_path, FIT.replace("FIT", "true"), "fit")
+    out, _ = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    rows = _rows(out)
+    off = {str(r["case_id"]): r for r in rows if r["method"] == "veyltrace:off"}
+    keys = {c: k for c, k in answer_keys.load_answer_keys("synth").items() if c in off}  # the 5 listed
+    plan = splits.crossfit2(keys, 20261108)
+    files = {
+        f: load_calibration(config_root / "calibration" / f"synth.off.oracle.{f}.json") for f in splits.FOLDS
+    }
+    for fold, ref in files.items():  # each file is fitted on its own fold's cases only
+        faults = [c for c in plan.fits[fold] if not keys[c].is_no_fault]
+        assert (ref.content.n, ref.content.split.fold, ref.content.experiment_id) == (
+            len(faults),
+            fold,
+            "synth-crossfit",
+        )
+        windows = [c for c in plan.fits[fold] if keys[c].is_no_fault]
+        assert ref.content.no_fault.m == len(windows) and not ref.content.no_fault.calibrated  # m < 9
+        assert ref.content.no_fault.sources == (["synth-05"] if windows else [])
+    assert {c: r["fold"] for c, r in off.items()} == dict(plan.test_fold)  # one held-out row per case
+    assert all(r["fold"] == plan.test_fold[str(r["case_id"])] for r in rows)  # rrf rows too
+    assert _off_runs(out) == 2 * len(keys)  # calibration runs + held-out runs
+    for run_dir in (tmp_path / "runs").rglob("run_manifest.json"):
+        got = io.read_model("run_manifest", run_dir.parent, models.RunManifest)
+        verdict = io.read_model("verdict", run_dir.parent, models.Verdict)
+        if verdict.calibration.family == "uncalibrated":
+            continue  # a calibration run (also the run causatrix:rrf shares)
+        applied = plan.applied[got.case_id]
+        assert verdict.calibration.family == f"synth.off.oracle.{applied}"
+        assert got.calibration_sha256 == sha256_file(
+            config_root / "calibration" / f"synth.off.oracle.{applied}.json"
+        )
+    rates = {str(r["fold"]): r for r in calibration.held_out_rates(off.values())}
+    assert sorted(rates) == ["foldA", "foldB", "pooled"] and rates["pooled"]["n_fault"] == 4  # #37's check
+    assert rates["pooled"]["coverage"] == 1.0  # q_hat is +inf at n < 9: every set is the whole pool
+
+    again = _yaml(tmp_path, FIT.replace("FIT", "false").replace("synth-crossfit", "synth-reuse"), "reuse")
+    out2, _ = runner.run_experiment(again, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    reused = {str(r["case_id"]): r for r in _rows(out2) if r["method"] == "veyltrace:off"}
+    assert [(r["fold"], r["status"], r["verdict_hash"]) for r in reused.values()] == [
+        (off[c]["fold"], off[c]["status"], off[c]["verdict_hash"]) for c in reused
+    ]  # the same file applied in one run: the same held-out verdicts
+    assert _off_runs(out2) == len(keys)
 
 
 def _write_fold_files(config_root: Path) -> None:
