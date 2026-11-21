@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import itertools
+import math
 import re
 from dataclasses import replace
 from pathlib import Path
@@ -25,6 +26,7 @@ from veyltrace_causentra.outcome import (
     asks,
     labels,
     no_fault,
+    no_fault_statistic,
     proposal_outcomes,
     ranks_rcaeval,
     status_of,
@@ -241,6 +243,19 @@ def test_no_fault_statistic(base: CausentraInputs) -> None:
     assert not nf([_z("a", "internal_anomaly", 0.5), _z("c", "internal_anomaly", 3.5)])
     assert nf([_z("a", "internal_anomaly", 0.5), _sil("c", 0.0)])  # a 0.0 silence atom is not silent
     assert not nf([_z("a", "internal_anomaly", 0.5), _sil("c", 1.0)])
+
+
+def test_no_fault_statistic_is_m_and_ignores_silence(base: CausentraInputs) -> None:
+    """M itself (bench fits tau_nf on it, 04 §5.4 item 6): undefined without robust_z atoms; silence
+    vetoes NO_FAULT separately and leaves M as it is."""
+
+    def m(atoms: list[Atom]) -> float | None:
+        return no_fault_statistic(_with(base, atoms, entry_services=("a",)))
+
+    assert m([]) is None
+    assert m([_z("a", "external_anomaly", 3.0), _z("b", "internal_anomaly", 1.0)]) == math.log1p(3.0)
+    assert m([_z("a", "internal_anomaly", 0.5), _z("b", "external_anomaly", 10.0)]) == math.log1p(0.5)
+    assert m([_z("a", "internal_anomaly", 0.5), _sil("c", 1.0)]) == math.log1p(0.5)
 
 
 def _slate(scores: dict[str, float], k: int) -> models.Slate:

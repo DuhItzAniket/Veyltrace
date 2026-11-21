@@ -1187,12 +1187,14 @@ name = "veyltrace-bench"
 version = "0.1.0"
 source = { editable = "bench" }
 dependencies = [
+    { name = "veyltrace-causentra" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "veyltrace-causentra", editable = "packages/causentra" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
 ]
