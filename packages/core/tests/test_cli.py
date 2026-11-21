@@ -217,8 +217,8 @@ def test_bench_run_without_bench_is_a_clear_error(
 
 
 def test_bench_tables_delegates_with_its_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = _fake_command(monkeypatch, "bench", 1)  # 1: `--check` found a difference (R-17, #400)
-    assert cli.main(["bench", "tables", "--check", "--results", "r"]) == 1
+    calls = _fake_command(monkeypatch, "bench", 2)  # 2: `--check` found a difference (R-17, #400)
+    assert cli.main(["bench", "tables", "--check", "--results", "r"]) == 2
     assert calls == [["tables", "--check", "--results", "r"]]
 
 
