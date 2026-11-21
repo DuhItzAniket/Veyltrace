@@ -6,9 +6,11 @@
 
 \leadq{still to write: the predicate library; configuration defaults with their sources; prompts and JSON schemas; hardware per laptop; the pinned RCAEval commit.}
 
-\resulttable*{tab:index}{Results index: every pre-registered experiment with its research questions, status (run, or not run with the reason and its decision record), code commit and result-file hashes.}{all 55 experiment configurations marked prereg: true in bench/experiments/}{a0-results-index}
+\resulttable*{tab:index}{Results index: every experiment configuration (synthetic smoke runs excluded) with its research questions, whether it is pre-registered, its status (run, or not run with the reason), its result groups and its statistics.}{every non-synthetic configuration in bench/experiments/, including all 55 pre-registered ones}{a0-results-index}
+\leadq{docs/04 §10 asks for each not-run cell's decision record (ADR), and §10.2 for the code commit and result hashes behind every number; R-17's index has neither column yet.}
 
-\resulttable*{tab:costall}{Cost of every experiment: p50 and p95 wall time, peak memory and tokens per case, with whether the run shared the machine.}{every experiment in bench/results/}{a1-cost-all}
+\resulttable*{tab:costall}{Cost of every experiment: p50 and p95 wall time, peak memory and tokens per case.}{every experiment in bench/results/}{a1-cost-all}
+\leadq{which runs shared the machine (R-16 plan, decision 3) is not in R-17's table; add it there or state it in §5.5.}
 
 \resulttable*{tab:rq1det}{RQ1 accuracy on RE2 under the detected alert.}{re2-detected-rq1-v1}{t05-rq1-re2-detected}
 \resulttable*{tab:rq1re3}{RQ1 accuracy on RE3 (code faults) under the oracle alert.}{re3-oracle-rq1-v1, re3-oracle-prior-only-v1}{t05-rq1-re3-oracle}

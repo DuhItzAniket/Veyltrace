@@ -9,7 +9,7 @@
 
 All numbers come from one engine-freeze commit and the experiment configurations frozen at \code{prereg-v1}.
 Every pre-registered experiment appears in the results index (Table~\ref{tab:index}), with its status; one that did not run is listed there as not run, with its reason and the decision record behind it.
-\leadq{name the engine-freeze tag (R-16 plan: \code{results-code-v1}) once it exists.}
+\leadq{name the engine-freeze tag (R-16 plan: \code{results-code-v1}) once it exists. Pooled values and every pooled interval (H1b, H2a, pooled AC@1) wait for the pooled bootstrap (R-16 B9, Observe lane). Metrics that \code{bench_summary} 1.1 has no entry for are flagged where they appear.}
 
 \subsection{RQ1: Accuracy}
 \label{sec:rq1}
@@ -26,11 +26,11 @@ For H1b, the pooled difference is \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:of
 For H1c, Retrieval@5 is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/retrieval_at_k}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/retrieval_at_k} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/retrieval_at_k} on OB, SS and TT, against a target of 0.90 per system.
 \leadq{verdict on H1a--H1c in one sentence each, and the stretch criterion (a significant per-system gain on at least two systems).}
 
-Under the detected-alert protocol (Table~\ref{tab:rq1det}), AC@1 is \resnum{re2-detected-rq1-v1}{pooled/veyltrace:off/ac_at_1}, \resnum{re2-detected-rq1-v1}{pooled/veyltrace:off/outcomes.no_alert} fault cases had no detected breach and count as misses, and the median onset error is \resnum{re2-detected-rq1-v1}{pooled/veyltrace:off/onset_error.onset_error_median_ms}\,ms.
+Under the detected-alert protocol (Table~\ref{tab:rq1det}), AC@1 of \code{veyltrace:off} is \resnum{re2-detected-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re2-detected-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/ac_at_1} on OB, SS and TT; the table gives the fault cases with no detected breach, which count as misses, and the median onset error per system.
 On RE3's code faults (Table~\ref{tab:rq1re3}), AC@1 of \code{veyltrace:off} is \resnum{re3-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re3-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re3-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1} on OB, SS and TT.
-Where they ran, AC@1 is \resnum{nezha-oracle-rq1-v1}{pooled/veyltrace:off/ac_at_1} on Nezha, \resnum{veyllab-oracle-rq1-v1}{pooled/veyltrace:off/ac_at_1} on VeylLab and \resnum{fse26-oracle-rq1-v1}{pooled/veyltrace:off/ac_at_1} on the stretch FSE'26 Train Ticket set (Tables~\ref{tab:rq1nezha}--\ref{tab:rq1fse}).
+Nezha, VeylLab and the stretch FSE'26 Train Ticket set are reported per system where they ran (Tables~\ref{tab:rq1nezha}, \ref{tab:rq1lab} and~\ref{tab:rq1fse}).
 
-\resultfigure{fig:decomp}{Where errors come from: AC@1 decomposed into Retrieval@5 (truth in the slate) and Rerank@1 (truth ranked first given retrieval), per system.}{re2-oracle-rq1-v1, re3-oracle-rq1-v1}{fig4-retrieval-rerank}
+\resultfigure{fig:decomp}{Where errors come from: AC@1 decomposed into Retrieval@5 (truth in the slate) and Rerank@1 (truth ranked first given retrieval), per RE2 system.}{re2-oracle-rq1-v1}{fig4-retrieval-rerank}
 
 Figure~\ref{fig:decomp} separates retrieval from re-ranking errors; the single-ranker and fused-slate rows of Table~\ref{tab:rq1} show what each ranker, the fusion and the verifier add.
 \leadq{failure taxonomy of the misses by fault class (expected: network faults, where T1 fails), from per\_case.csv.}
@@ -43,13 +43,13 @@ Figure~\ref{fig:decomp} separates retrieval from re-ranking errors; the single-r
 \subsection{RQ3: Calibration and abstention}
 \label{sec:rq3}
 
-\resulttable*{tab:rq3}{RQ3 calibration on held-out folds, per experiment, system and AI arm: AC@1, Retrieval@K, coverage at $\alpha = 0.10$, set size, risk--coverage (AURC) and the \NOFAULT rates on fault cases and normal windows; cross-fit, leave-one-system-out and RE2-to-Nezha transfer splits.}{re2-oracle-rq3-v1, re2-oracle-rq3-investigate-v1, re2-oracle-loso-v1, re2-to-nezha-transfer-v1, veyllab-oracle-rq2-v1}{t07-rq3-calibration}
+\resulttable*{tab:rq3}{RQ3 calibration on held-out folds, per experiment, system and AI arm: AC@1, Retrieval@K, coverage at $\alpha = 0.10$, set size, risk--coverage (AURC) and the \NOFAULT rates on fault cases and normal windows; cross-fit, leave-one-system-out and (where its adapter exists) RE2-to-Nezha transfer splits.}{re2-oracle-rq3-v1, re2-oracle-rq3-investigate-v1, re2-oracle-loso-v1, re2-to-nezha-transfer-v1, veyllab-oracle-rq1-v1, veyllab-oracle-rq2-v1}{t07-rq3-calibration}
 
-\leadq{\code{bench_summary} 1.1 has no \code{coverage}, \code{set_size}, \code{risk_coverage} or \code{no_fault_rates} entry, so R-17 marks Table~\ref{tab:rq3} and Figure~\ref{fig:riskcov} as not run; RQ3 needs a contract change before its numbers can be generated.}
+\leadq{\code{bench_summary} 1.1 has no \code{coverage}, \code{set_size}, \code{risk_coverage} or \code{no_fault_rates} entry, so R-17 marks Table~\ref{tab:rq3} and Figure~\ref{fig:riskcov} as not run; RQ3 needs a contract change before its numbers can be generated. Its keys below are provisional, and the change must also give a family-level (\code{pooled}) coverage, because H3a is stated per calibration family.}
 H3a holds if held-out coverage is at least 0.85 per calibration family: it is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/coverage} for \code{veyltrace:off}, \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:brief/coverage} for \code{veyltrace:brief} and \resnum{re2-oracle-rq3-investigate-v1}{pooled/veyltrace:investigate/coverage} for \code{veyltrace:investigate} on its subset (Table~\ref{tab:rq3}).
 For H3b, the mean set size is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/set_size.mean} and \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:brief/set_size.mean}, against a target of at most 3.
 For H3c, the AURC of the verified score is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/risk_coverage.aurc_v} against \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/risk_coverage.aurc_f} for the fused score (Figure~\ref{fig:riskcov}).
-For H3d, leave-one-system-out coverage is \resnum{re2-oracle-loso-v1}{ob/veyltrace:off/coverage}, \resnum{re2-oracle-loso-v1}{ss/veyltrace:off/coverage} and \resnum{re2-oracle-loso-v1}{tt/veyltrace:off/coverage} with OB, SS and TT held out, and coverage after transfer to Nezha is \resnum{re2-to-nezha-transfer-v1}{pooled/veyltrace:off/coverage}.
+For H3d, leave-one-system-out coverage is \resnum{re2-oracle-loso-v1}{ob/veyltrace:off/coverage}, \resnum{re2-oracle-loso-v1}{ss/veyltrace:off/coverage} and \resnum{re2-oracle-loso-v1}{tt/veyltrace:off/coverage} with OB, SS and TT held out, and, if the Nezha adapter (O-08) lands, coverage after transfer to Nezha is \resnum{re2-to-nezha-transfer-v1}{pooled/veyltrace:off/coverage}.
 On held-out normal windows, \sys answered \NOFAULT on \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/no_fault_rates.normal_declared_no_fault} of windows (target at least 0.85), and on fault cases it wrongly answered \NOFAULT on \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/no_fault_rates.wrong_no_fault} (target at most 0.05).
 \leadq{verdict on H3a--H3d and the \NOFAULT targets; abstention per fault class.}
 
@@ -61,11 +61,12 @@ On held-out normal windows, \sys answered \NOFAULT on \resnum{re2-oracle-rq3-v1}
 \lanesectionor{observe-rq4}{05-rq4-shift-ablation}
 
 \paragraph{Decoy changes (RCAEval-C)}
-\resultfigure*{fig:rcaevalc}{RCAEval-C: AC@1 and the share of cases with a decoy-changed service ranked first over the true-change probability $\pi$ and the decoy rate $\lambda$, for the deterministic methods on all RE2 cases and the AI arms on the 90-case subset.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1 (9 deterministic cells), rcaevalc-pi{0,05,1}-l{0,2,6}-ai-v1 (9 AI cells, 90-case subset)}{fig9-rcaevalc}
-\resulttable*{tab:rcaevalc}{RCAEval-C grid: AC@1 and \code{decoy_ranked_first} per cell and method, including \code{naive-change}, with 95\% intervals.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1, rcaevalc-pi{0,05,1}-l{0,2,6}-ai-v1}{t12-rq4-rcaevalc}
-H4c holds if decoy changes alone ($\pi = 0$) cost at most 5 AC@1 points against no change events and a true change raises AC@1.
-With $\pi = 0$, AC@1 changes by \resnum{rcaevalc-pi0-l0-v1}{pooled/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l2-v1} at $\lambda = 2$ and \resnum{rcaevalc-pi0-l0-v1}{pooled/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1} at $\lambda = 6$ decoys per hour; a true change on every root ($\pi = 1$, $\lambda = 0$) changes it by \resnum{rcaevalc-pi0-l0-v1}{pooled/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi1-l0-v1}.
-A decoy-changed service is ranked first in \resnum{rcaevalc-pi0-l6-v1}{pooled/veyltrace:off/decoy_ranked_first} of cases at the highest decoy rate, against \resnum{rcaevalc-pi0-l6-v1}{pooled/naive-change/decoy_ranked_first} for \code{naive-change} (Figure~\ref{fig:rcaevalc}, Table~\ref{tab:rcaevalc}).
+\resultfigure*{fig:rcaevalc}{RCAEval-C: AC@1 of \code{veyltrace:off} over the true-change probability $\pi$ and the decoy rate $\lambda$, one panel per RE2 system.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1 (9 deterministic cells)}{fig9-rcaevalc}
+\resulttable*{tab:rcaevalc}{RCAEval-C grid: AC@1, AC@3, Retrieval@K and \code{decoy_ranked_first} per cell, system and method, including \code{naive-change} and, on the 90-case subset, the AI arms.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1 (all RE2 cases), rcaevalc-pi{0,05,1}-l{0,2,6}-ai-v1 (90-case subset)}{t12-rq4-rcaevalc}
+H4c holds if decoy changes alone ($\pi = 0$) cost at most 0.05 in AC@1 against no change events and a true change raises AC@1.
+At the highest decoy rate ($\pi = 0$, $\lambda = 6$ per hour), AC@1 of \code{veyltrace:off} changes by \resnum{rcaevalc-pi0-l0-v1}{ob/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1}, \resnum{rcaevalc-pi0-l0-v1}{ss/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1} and \resnum{rcaevalc-pi0-l0-v1}{tt/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1} on OB, SS and TT against no change events; Table~\ref{tab:rcaevalc} gives $\lambda = 2$ and the true-change cells.
+A decoy-changed service is ranked first in \resnum{rcaevalc-pi0-l6-v1}{ob/veyltrace:off/decoy_ranked_first}, \resnum{rcaevalc-pi0-l6-v1}{ss/veyltrace:off/decoy_ranked_first} and \resnum{rcaevalc-pi0-l6-v1}{tt/veyltrace:off/decoy_ranked_first} of OB, SS and TT cases at that rate; \code{naive-change} is in the same table (Figure~\ref{fig:rcaevalc}).
+\leadq{the shift and RCAEval-C configurations list \code{coverage} and \code{set_size}, which the runner refused at the time of writing; check before R-16 runs them.}
 These change logs are synthetic (\S\ref{sec:threats}).
 H4d (exploratory) is an optional name-anonymisation probe with no pre-registered experiment; it is reported only if run.
 
