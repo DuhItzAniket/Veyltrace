@@ -216,6 +216,20 @@ def test_bench_run_without_bench_is_a_clear_error(
     assert "veyltrace.commands:bench" in capsys.readouterr().err
 
 
+def test_bench_tables_delegates_with_its_exit_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _fake_command(monkeypatch, "bench", 1)  # 1: `--check` found a difference (R-17, #400)
+    assert cli.main(["bench", "tables", "--check", "--results", "r"]) == 1
+    assert calls == [["tables", "--check", "--results", "r"]]
+
+
+def test_bench_tables_without_bench_is_a_clear_error(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _without_command(monkeypatch, cli.BENCH_COMMAND)
+    assert cli.main(["bench", "tables"]) == DiagnoseExit.ERROR
+    assert "veyltrace.commands:bench" in capsys.readouterr().err
+
+
 def test_data_fetch_builds_a_fetch_request(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[FetchRequest] = []
 
