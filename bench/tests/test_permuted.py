@@ -27,7 +27,7 @@ dataset: {{parts: [synth], cases: all, exclude: null, normal_windows: none}}
 protocol: {{alert: oracle, shift_s: 0, sources_drop: [], permute_proposals: {{n: 2, seed: 3}}}}
 methods:
   - {{id: "veyltrace:brief", kind: veyltrace, {ARM}}}
-metrics: [ac_at_k]
+metrics: [ac_at_k, permutation_invariance]
 """
 
 
@@ -75,3 +75,5 @@ def test_permutations_are_rows_without_runs(tmp_path: Path, monkeypatch: pytest.
     )
     runs = json.loads(textio.read_text(out / "manifest.json"))["runs"]
     assert len(runs) == 5  # the five record runs; permutations make no run and no model call
+    group = json.loads(textio.read_text(out / "summary.json"))["groups"][0]
+    assert group["metrics"]["permutation_invariance"] == {"permutation_invariance": 1.0, "n_cases": 5}
