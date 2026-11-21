@@ -44,6 +44,11 @@ class Case:
     method: str
     cluster: tuple[str | None, ...]  # (system, root service, fault label), 04 §8
     score: CaseScore
+    seed: int | None = None  # an LLM arm's seed (bench_result.seed); None for a deterministic method
+
+
+#: Why McNemar is not run for a seeded method (04 §8 "LLM arms": paired on per-case seed means).
+SEEDED_MCNEMAR = "seeded method: per-case seed means are not binary"
 
 
 def _hit(hit: bool | None) -> float:
@@ -99,13 +104,35 @@ def _mean(values: Sequence[float]) -> float:
     return math.fsum(values) / len(values)
 
 
+def _case_means(metric: str, cases: Sequence[Case]) -> dict[str, tuple[float, tuple[str | None, ...]]]:
+    """case id -> (mean value over its rows, cluster), in first-row order. A seeded method has one
+    row per seed, so its value is the per-case mean over seeds (04 §8 "LLM arms"); a deterministic
+    method has one row per case, its value unchanged."""
+    rows: dict[str, list[float]] = {}
+    clusters: dict[str, tuple[str | None, ...]] = {}
+    for v, c in _defined(metric, cases):
+        rows.setdefault(c.case_id, []).append(v)
+        clusters[c.case_id] = c.cluster
+    return {case: (_mean(values), clusters[case]) for case, values in rows.items()}
+
+
 def _paired(
-    exp: Experiment, metric: str, a: Sequence[Case], b: Sequence[Case], interval: bool
+    exp: Experiment,
+    metric: str,
+    a: Sequence[Case],
+    b: Sequence[Case],
+    interval: bool,
+    not_run: list[dict[str, str]] | None = None,
+    scope: str = "",
 ) -> dict[str, object]:
-    """The paired difference a − b over the cases both have a value for (04 §8)."""
+    """The paired difference a − b over the cases both have a value for (04 §8), paired on case_id:
+    a seeded method's value is its per-case seed mean, so `n_pairs` counts cases and the bootstrap
+    resamples clusters, not seeds. McNemar needs binary pairs, so with a seeded side it is not run
+    (listed in `not_run` under `scope`)."""
     st = exp.statistics
-    other = {c.case_id: v for v, c in _defined(metric, b)}
-    pairs = [(v, other[c.case_id], c.cluster) for v, c in _defined(metric, a) if c.case_id in other]
+    means_a, means_b = _case_means(metric, a), _case_means(metric, b)
+    pairs = [(va, means_b[c][0], cl) for c, (va, cl) in means_a.items() if c in means_b]
+    seeded = any(c.seed is not None for c in (*a, *b))
     keys = ("difference", "low", "high", "sign_flip_p", "mcnemar_only_a", "mcnemar_only_b", "mcnemar_p")
     row: dict[str, object] = {key: None for key in keys}
     row |= {"n_pairs": len(pairs), "n_clusters": len({p[2] for p in pairs})}
@@ -119,7 +146,10 @@ def _paired(
     row["sign_flip_p"] = sign_flip_test(
         diffs, clusters, seed=st.permutation.seed, flips=st.permutation.n
     ).p_value
-    if st.mcnemar and all(va in (0.0, 1.0) and vb in (0.0, 1.0) for va, vb, _ in pairs):
+    if st.mcnemar and seeded:
+        if not_run is not None:
+            not_run.append({"scope": f"mcnemar {scope}", "reason": SEEDED_MCNEMAR})
+    elif st.mcnemar and all(va in (0.0, 1.0) and vb in (0.0, 1.0) for va, vb, _ in pairs):
         m = mcnemar_exact([va == 1.0 for va, _, _ in pairs], [vb == 1.0 for _, vb, _ in pairs])
         row |= {"mcnemar_only_a": m.only_a, "mcnemar_only_b": m.only_b, "mcnemar_p": m.p_value}
     return row
@@ -164,7 +194,8 @@ def _comparisons(
             "method_b": b,
             "holm_p": None,
         }
-        diff = _paired(exp, metric, here[subject], here[b], interval=True)
+        scope = f"{d}/{s} {subject} vs {b}"
+        diff = _paired(exp, metric, here[subject], here[b], interval=True, not_run=not_run, scope=scope)
         rows.append(base | diff | {"kind": "noninferiority", "family": None, "margin": MARGIN})
         if st.holm_family is not None:
             rows.append(base | diff | {"kind": "superiority", "family": st.holm_family, "margin": None})
@@ -180,7 +211,9 @@ def _comparisons(
                 "method_b": b,
                 "holm_p": None,
             }
-            | _paired(exp, metric, every[subject], every[b], interval=False)
+            | _paired(
+                exp, metric, every[subject], every[b], False, not_run, f"{bench} pooled {subject} vs {b}"
+            )
             | {"kind": "superiority", "family": st.holm_family, "margin": None}
         )
     family = [r for r in rows if r["family"] is not None]

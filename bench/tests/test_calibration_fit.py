@@ -64,11 +64,34 @@ def test_tau_nf_is_fitted_from_nine_windows_and_defaults_below() -> None:
         "beta": 0.1, "m": 8, "rank_index": 9, "tau_nf": 1.386294361, "calibrated": False,
         "sources": ["rcaeval_pre_injection"],
     }  # fmt: skip
-    nine = cal.fit([*eight, _window(8, 0.8, cal.SYNTH_05), _window(9, None)], **COMMON)
+    nine = cal.fit([*eight, _window(8, 0.8, cal.SYNTH_05)], **COMMON)
     assert (nine.no_fault.m, nine.no_fault.rank_index, nine.no_fault.calibrated) == (9, 9, True)
-    assert nine.no_fault.tau_nf == pytest.approx(0.8)  # the largest of 9 (no M: left out, 0.9 never seen)
+    assert nine.no_fault.tau_nf == pytest.approx(0.8)  # the largest of 9
     assert nine.no_fault.sources == ["rcaeval_pre_injection", "synth-05"]
     assert nine.n == 0 and nine.q_hat is None  # no fault case: q_hat +inf, set = whole pool
+
+
+def _never(i: int, reason: str) -> cal.CalibrationRun:
+    return cal.CalibrationRun(
+        f"{i:012x}", "shift-510", source=cal.PRE_INJECTION, statistic=math.inf, never=reason
+    )
+
+
+def test_windows_that_can_never_be_no_fault_score_inf_and_stay_in_m() -> None:
+    """Failed, no-M and silent windows are false alarms at test time, so they count in m at +inf
+    (ADR 20261121-ak-calibration-fit-conventions); an index landing on +inf has no finite tau."""
+    nineteen = [_window(i, 0.01 * i) for i in range(19)]
+    one = cal.fit([*nineteen, _never(19, cal.SILENT)], **COMMON)  # m 20, index 19: the 19th finite M
+    assert (one.no_fault.m, one.no_fault.rank_index, one.no_fault.calibrated) == (20, 19, True)
+    assert one.no_fault.tau_nf == pytest.approx(0.18)
+    nine = [_window(i, 0.1 * i) for i in range(9)]
+    landed = cal.fit([*nine, _never(9, cal.NO_M)], **COMMON)  # m 10, index 10: +inf
+    assert (landed.no_fault.m, landed.no_fault.calibrated, landed.no_fault.tau_nf) == (10, False, 1.386294361)
+    runs = [_never(1, cal.FAILED), _never(2, cal.NO_M), _never(3, cal.NO_M), _window(4, 0.1)]
+    assert cal.never_counts(runs) == {"n_failed": 1, "n_no_m": 2, "n_silent": 0}
+    assert cal.window("000000000009", None, cal.SYNTH_05, None) == cal.CalibrationRun(
+        "000000000009", None, source=cal.SYNTH_05, statistic=math.inf, never=cal.FAILED
+    )  # no run dir: the run failed or timed out
 
 
 def test_file_has_no_case_ids_round_trips_through_core_and_hashes_order_free(tmp_path: Path) -> None:
@@ -93,6 +116,7 @@ def test_root_score_reads_the_pool_with_the_coarse_transform() -> None:
     assert cal.root_score(verdict, f"{leader.service}-db") == 0.0  # -db folded as RCAEval does
     assert cal.root_score(verdict, "not-a-service") == math.inf
     assert cal.root_score(None, leader.service) == math.inf  # no verdict: outside the pool
+    assert cal.root_score(verdict, leader.service, unranked=True) == math.inf  # a miss (04 §7)
 
 
 def test_run_statistic_is_causentras_m(tmp_path: Path) -> None:
@@ -100,10 +124,11 @@ def test_run_statistic_is_causentras_m(tmp_path: Path) -> None:
     assert cli.main(["data", "fetch", "synth"]) == 0
     for case in ("synth-05", "synth-01"):
         s = run_case("synth", case, "off", runs_root=tmp_path / "runs")
-        m = cal.run_statistic(s.run_dir)
+        m, silent = cal.run_statistic(s.run_dir)
         status = io.read_model("verdict", s.run_dir, models.Verdict).status
         assert s.case_id == case_id(case) and m is not None
-        assert (status == "NO_FAULT") == (round(m, 9) <= 1.386294361)  # uncalibrated: default tau
+        assert (status == "NO_FAULT") == (not silent and round(m, 9) <= 1.386294361)  # default tau
+        assert cal.window(s.case_id, None, cal.SYNTH_05, s.run_dir).statistic == (math.inf if silent else m)
 
 
 def test_held_out_rates_per_fold_and_pooled() -> None:
