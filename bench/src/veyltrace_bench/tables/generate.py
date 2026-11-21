@@ -15,6 +15,7 @@ from pathlib import Path
 from veyltrace_bench.tables.context import Context, context
 from veyltrace_bench.tables.index import development_cases, results_index
 from veyltrace_bench.tables.render import Row, Table, latex, markdown
+from veyltrace_bench.tables.rq1 import accuracy, datasets, rq1_comparisons
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
 
@@ -22,7 +23,7 @@ TABLES_DIR = "tables"
 GENERATED_SUFFIXES = (".md", ".tex")  # what TABLES_DIR may hold; anything else there is left alone
 
 Builder = Callable[[Context], list[Table]]
-BUILDERS: tuple[Builder, ...] = (results_index, development_cases)
+BUILDERS: tuple[Builder, ...] = (results_index, development_cases, datasets, accuracy, rq1_comparisons)
 REVISES = "revises "  # the role of a revision's results (Context.revised)
 UNPAIRED: frozenset[Builder] = frozenset({results_index, development_cases})  # list every experiment once
 

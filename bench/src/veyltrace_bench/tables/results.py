@@ -33,6 +33,7 @@ REGISTER = "not_run.yaml"
 REVISES, REASON = "revises", "reason"
 SUMMARY_VERSION = "1.1."  # the bench_summary minor the generator reads (03 §13.3)
 NO_RESULTS = "no committed results in bench/results"  # the row names the experiment
+NO_GROUP = "its summary.json has no group for this dataset, system and method"
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
 SHORT_SHA = 12  # experiment_sha256 prefix in a not-run reason
 
@@ -129,7 +130,7 @@ class Results:
         if self.reason is not None:
             return self.reason
         if system is not None and self.group(dataset, system, method) is None:
-            return f"no ({dataset}, {system}, {method}) group in its summary.json"
+            return NO_GROUP  # the row names the system and method
         return None
 
     def metric(self, dataset: str, system: str, method: str, entry: str, key: str) -> Cell:

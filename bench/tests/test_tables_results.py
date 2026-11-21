@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from veyltrace_bench.tables import cells
-from veyltrace_bench.tables.results import NO_RESULTS, Register, load, read_register
+from veyltrace_bench.tables.results import NO_GROUP, NO_RESULTS, Register, load, read_register
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError, ContractValidationError
 from veyltrace_core.hashing import sha256_text_lf
@@ -54,7 +54,7 @@ def test_each_kind_of_missing_result_is_not_run_with_its_reason(results: Path) -
         return load(results, experiment_id, register).reason
 
     assert reason("re2-oracle-rq1-v1") is None
-    assert reason("re2-oracle-rq3-v1") == NO_RESULTS
+    assert reason("re2-oracle-loso-v1") == NO_RESULTS
     assert reason("fse26-oracle-rq1-v1") == "stretch dataset not verified (07 §1.1 cut item 2)"  # register
     assert (
         reason("re3-oracle-rq2-v1") == "incomplete result: no summary.json (bench writes manifest.json last)"
@@ -79,6 +79,7 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
     off = ("re2-ob", "ob", "veyltrace:off")
     assert rq1.label == "re2-oracle-rq1-v1 @ fixture"
     assert rq1.manifest is not None and rq1.manifest.experiment["experiment_id"] == "re2-oracle-rq1-v1"
+    assert [d.dataset for d in rq1.manifest.datasets] == ["re2-ob", "re2-ss", "re2-tt"]
     assert [name for name, _ in rq1.hashes] == ["manifest.json", "per_case.csv", "summary.json"]
     assert rq1.metric(*off, "ac_at_k", "ac_at_1") == cells.Cell("0.500 [0.375, 0.625]")
     assert rq1.metric(*off, "ac_at_k", "ac_at_2").note == (
@@ -94,9 +95,7 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
     assert rq1.metric(*off, "onset_error", "n_onset") == cells.not_run(
         "the experiment does not list the metric `onset_error`"
     )
-    assert rq1.metric("re2-tt", "tt", "veyltrace:off", "ac_at_k", "ac_at_1") == cells.not_run(
-        "no (re2-tt, tt, veyltrace:off) group in its summary.json"
-    )
+    assert rq1.metric("re2-tt", "tt", "veyltrace:off", "ac_at_k", "ac_at_1") == cells.not_run(NO_GROUP)
     assert rq1.count(*off, "n_fault") == cells.Cell("8") and rq1.count(*off, "timeout") == cells.Cell("0")
     assert rq1.pooled("re2", "veyltrace:off", "ac_at_1") == cells.not_run(
         "re2 pooled intervals waits for the system-stratified cluster bootstrap"
@@ -107,10 +106,10 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
         "0.250", "no interval: not run: fixture statistics are off"
     )
     assert prior.pooled("re2", "prior-only", "ac_at_1") == cells.not_run("fixture statistics are off")
-    missing = load(results, "re2-oracle-rq3-v1", NONE)
+    missing = load(results, "re2-oracle-loso-v1", NONE)
     assert missing.metric(*off, "ac_at_k", "ac_at_1") == cells.not_run(NO_RESULTS)
-    assert missing.label == "re2-oracle-rq3-v1 (not run)"
-    assert replace(missing, role="pre-registered").label == "re2-oracle-rq3-v1 (not run) (pre-registered)"
+    assert missing.label == "re2-oracle-loso-v1 (not run)"
+    assert replace(missing, role="pre-registered").label == "re2-oracle-loso-v1 (not run) (pre-registered)"
 
 
 def test_a_current_summary_that_breaks_its_contract_is_an_error_not_a_not_run(results: Path) -> None:

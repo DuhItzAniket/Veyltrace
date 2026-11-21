@@ -75,11 +75,11 @@ def test_a_register_naming_an_unknown_experiment_is_a_config_error(results: Path
 
 
 def test_renderers_escape_and_number_notes_once() -> None:
-    src = load(FIXTURES / "results", "re2-oracle-rq3-v1", Register())
+    src = load(FIXTURES / "results", "re2-oracle-loso-v1", Register())
     row = Row((cells.text("a|b_c"), cells.not_run("x ≥ 1 & y")), src)
     table = Table("t", "T", "Caption § 7.", ("Name", "Value"), (row, row))
     md = markdown(table)
-    assert "| a\\|b_c | not run<sup>1</sup> | re2-oracle-rq3-v1 (not run) |" in md
+    assert "| a\\|b_c | not run<sup>1</sup> | re2-oracle-loso-v1 (not run) |" in md
     assert md.count("\n1. not run: x ≥ 1 & y\n") == 1 and "<sup>2</sup>" not in md
     tex = latex(table)
     assert r"a\textbar{}b\_c & not run\textsuperscript{1} &" in tex
@@ -106,7 +106,7 @@ def test_specs_come_from_the_manifest_and_must_match_the_committed_yaml(results:
     _edit_manifest(results, RQ1, lambda d: d["experiment"].update(description="as the manifest ran it"))
     ctx = context.context(results, EXPERIMENTS)
     assert ctx.spec(RQ1).description == "as the manifest ran it"  # the manifest, not the YAML
-    assert ctx.spec("re2-oracle-rq3-v1").description.startswith("RQ3")  # no results: the YAML
+    assert ctx.spec("re2-oracle-loso-v1").description.startswith("RQ3")  # no results: the YAML
     assert "; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert" in (
         generate.outputs(results, EXPERIMENTS)[INDEX].decode()
     )
