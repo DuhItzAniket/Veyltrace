@@ -5,7 +5,7 @@
 \paragraph{Internal validity}
 Harness differences are large in this field: BARO's AC@1 on RE2-TT is 0.67 in RCAEval's harness and 0.32 in PRISM's~\cite{rcaeval2024,prism2026}.
 We therefore run every baseline in one harness with a pinned RCAEval commit, the same inputs and the same denominators, compare only against our own re-runs, and report reproduction gaps; our numbers for published methods may still differ from the published ones.
-Two baselines, \code{simplerca} and \code{prism-plain}, are re-implementations from the papers and may differ from the originals.
+The alert-count baseline \code{simplerca} is a re-implementation from its paper and may differ from the original.
 We wrote both the predicates and the verifier, so the trials encode our assumptions; for example, T1 expects the root to show an internal anomaly, which network faults often lack.
 All parameters are set a priori in configuration with a cited source and frozen before testing, and we report per-fault-class results, including any high abstention on network faults, rather than tuning it away.
 Some defaults came from papers evaluated on RCAEval itself, so some optimism may remain; we treat RE1 as development data and report RE2 and RE3 as test data.
@@ -15,28 +15,30 @@ The lead author built the system and runs the evaluation; the pre-registration t
 \paragraph{External validity}
 RCAEval's three systems are small demo applications with single injected faults, and real incidents differ.
 Even the retrieval of statistical methods, which is 98--100\% on microservice benchmarks, falls to 35--64\% on industrial control data~\cite{decomprca2026}.
-Nezha and VeylLab add sources but no production data, and laptop-collected data carries host contention, a desktop virtual machine and a single-node cluster, which we record and report.
-The change logs of RCAEval-C are synthetic, and its generated true change encodes the injected service by construction, so RCAEval-C tests how gullible the change channel is, not whether it helps on real change logs, which are noisier; real rollout and flag changes in VeylLab are the backup evidence.
+Nezha and VeylLab, if their adapters are ready in time, add sources but no production data, and laptop-collected data carries host contention, a desktop virtual machine and a single-node cluster, which we record and report.
+The change logs of RCAEval-C are synthetic, and its generated true change encodes the injected service by construction, so RCAEval-C tests how gullible the change channel is, not whether it helps on real change logs, which are noisier; real rollout and flag changes in VeylLab would be the backup evidence.
 Conformal coverage assumes exchangeability, which fails across systems; leave-one-system-out coverage is reported as an empirical result.
 
 \paragraph{Construct validity}
 Service-level AC@1 ignores the propagation path and the fault type, and LLM agents identify faulty services better than faulty edges~\cite{openrca2026v2}; we also report fault-type and indicator accuracy, but RCAEval has no path ground truth.
 Proposer lift depends on the predicate library: the LLM can only help through predicates we wrote, so a zero lift is a finding about this library and model, not about LLMs in general, and we report which predicates the model requested.
-RCAEval normal windows are short pre-injection slices that may contain the tail of a previous fault (\S\ref{sec:splits}), so we report \NOFAULT separately on VeylLab's no-fault captures.
+RCAEval normal windows are short pre-injection slices that may contain the tail of a previous fault (\S\ref{sec:splits}), so we also report \NOFAULT on VeylLab's no-fault captures if they exist.
 RCAEval has known label issues, such as a case whose folder names the wrong code fault~\cite{rcaevalissue43}, missing logs or traces in some cases, and repeated injections; we report per-fault-class results and list the known issues.
 
 \paragraph{Conclusion validity}
-Power is low: about 7 points of AC@1 can be detected on 270 cases and about 14 on 90~\cite{hussain2026prereg}, and clustering raises both, so many per-system comparisons will be inconclusive; we use clustered paired tests with Holm correction and the words ``not detected''.
+Power is low: according to a pre-registered preprint, about 7 points of AC@1 can be detected on 270 cases and about 14 on 90~\cite{hussain2026prereg}, and clustering raises both, so many per-system comparisons will be inconclusive; we use clustered paired tests with Holm correction and the words ``not detected''.
 Split conformal needs at least $1/\alpha - 1 = 9$ calibration cases per stratum, so we calibrate per benchmark family, not per family and telemetry modality.
 
 \paragraph{LLM-specific threats}
 LLM inference is not bit-exactly reproducible across machines~\cite{thinkingmachinesnondeterminism}; Tier-1 replay from recorded cassettes guarantees the verdict, Tier-2 regeneration is measured, and three seeds expose seed variance.
 RCAEval and Nezha have been public since 2023--2024 and may be in pretraining data; no study we found measures this directly.
-Anonymising service names cost one LLM pipeline 0.20--0.21 AC@1 on RE3 in prior work~\cite{hussain2026prereg}; our probe is optional and exploratory, and the verdict is decided by code in any case.
+Anonymising service names cost one LLM pipeline 0.20--0.21 AC@1 on RE3 in a pre-registered preprint~\cite{hussain2026prereg}; our probe (H4d) is optional, exploratory and has no pre-registered experiment, and the verdict is decided by code in any case.
 Scores published for the model are vendor-reported, so we report only our own measurements and pin the weights, quantisation and runtime.
 
 \paragraph{Hardware and process}
 CPU speed differs across the team's laptops, so cost numbers are hardware-specific; verdicts do not depend on speed, and we report timings per laptop with its specification.
-The code was written by three people, each working with a different AI coding agent; in one study of agent-written pull requests, pairs from different agents conflicted 41.7\% of the time against 19.8\% for pairs from the same agent~\cite{xu2026agentprs}.
-Agent-written code may contain subtle bugs, so every change went through ownership lanes, versioned contracts, golden fixtures, tests written first, a determinism gate and human review.
-We report this as a process note, not a result, and make no claim about agent productivity.
+Three people, each owning one lane of the code, wrote the system with the same AI coding agent, Claude Code.
+The lead's agent sessions drafted most pull requests, including draft pull requests in the other two lanes, which the lane owners then reviewed.
+Not every change had a second human reviewer: in the weeks before the results freeze, the lead merged several pull requests after their own review, with a posted note asking the lane owner to review after the merge.
+Agent-written code may contain subtle bugs, and one agent drafting most of the system makes review less independent; the checks that every change passed are ownership lanes, versioned contracts, golden fixtures, tests written first and a continuous-integration determinism gate.
+We report this as a threat to validity, not a result, and make no claim about agent productivity.
