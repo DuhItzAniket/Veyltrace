@@ -35,6 +35,8 @@ PROTOCOL_KEYS = (
     "infralume.events.overlay_path",
 )
 OVERLAY_KEY = PROTOCOL_KEYS[3]
+#: Relentra keys bench sets from a method's `ai` block (`ai_arms`, #397; 08 §3.8).
+AI_KEYS = ("relentra.mode", "relentra.sampler.seed_index")
 #: Config keys bench sets to choose each run's calibration file (04 §5.4; `calibrated`, #376).
 CALIBRATION_KEYS = (
     "causentra.calibration.family",
@@ -117,6 +119,21 @@ class AISpec(_Strict):
     relentra_mode: Literal["brief", "investigate"] | None = None
     model: str | None = None
     seeds: tuple[int, ...] = ()  # empty: a deterministic method (bench_result.seed null)
+
+    @model_validator(mode="after")
+    def _an_arm_is_complete(self) -> AISpec:
+        """AI off has no Relentra mode or seeds; an AI arm names its mode and distinct seeds (04 §8:
+        at least 3 in the matrix, not enforced here). `replay` is bench's choice (ai_arms), not a
+        method's."""
+        if self.mode == "off" and (self.relentra_mode is not None or self.seeds):
+            raise ValueError("ai.mode off has no relentra_mode or seeds")
+        if self.mode == "replay":
+            raise ValueError("ai.mode replay: methods record; bench replays a kept record run itself")
+        if self.mode == "record" and (self.relentra_mode is None or not self.seeds):
+            raise ValueError("ai.mode record needs relentra_mode and seeds")
+        if len(set(self.seeds)) != len(self.seeds) or any(s < 0 for s in self.seeds):
+            raise ValueError(f"ai.seeds must be distinct seed indexes >= 0, got {list(self.seeds)}")
+        return self
 
 
 class MethodSpec(_Strict):
@@ -214,6 +231,8 @@ class Experiment(_Strict):
         for m in self.methods:
             if clash := sorted(set(m.overrides) & set(PROTOCOL_KEYS)):
                 raise ValueError(f"method {m.id} overrides {clash}: set them in `protocol`")
+            if m.ai.mode != "off" and (clash := sorted(set(m.overrides) & set(AI_KEYS))):
+                raise ValueError(f"method {m.id} overrides {clash}: bench sets them from `ai`")
             if clash := sorted(set(m.overrides) & set(CALIBRATION_KEYS)):
                 raise ValueError(f"method {m.id} overrides {clash}: bench sets them from `split`")
         return self
@@ -255,8 +274,8 @@ def unsupported(exp: Experiment) -> list[str]:
             todo.append("methods chance: chance is analytic; list the `chance` metric instead (04 §7)")
         elif m.kind == "internal_baseline" and m.id not in INTERNAL_BASELINES:
             todo.append(f"methods {m.id}: internal baseline not built (v0 has {sorted(INTERNAL_BASELINES)})")
-        elif m.ai.mode != "off" or m.ai.seeds:
-            todo.append(f"methods {m.id}: AI arms (ai.mode {m.ai.mode}, seeds)")
+        elif m.ai.mode != "off" and m.kind != "veyltrace":
+            todo.append(f"methods {m.id}: AI arms run as kind veyltrace (agent_only: #398)")
     return todo
 
 
