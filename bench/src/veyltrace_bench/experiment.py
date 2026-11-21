@@ -268,14 +268,12 @@ def unsupported(exp: Experiment) -> list[str]:
     todo = [what for bad, what in checks if bad]
     todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
     for m in exp.methods:
-        if m.kind == "agent_only":
-            todo.append(f"methods {m.id}: kind agent_only (RQ2 arms)")
-        elif m.kind == "internal_baseline" and m.id == "chance":
+        if m.kind == "internal_baseline" and m.id == "chance":
             todo.append("methods chance: chance is analytic; list the `chance` metric instead (04 §7)")
         elif m.kind == "internal_baseline" and m.id not in INTERNAL_BASELINES:
             todo.append(f"methods {m.id}: internal baseline not built (v0 has {sorted(INTERNAL_BASELINES)})")
-        elif m.ai.mode != "off" and m.kind != "veyltrace":
-            todo.append(f"methods {m.id}: AI arms run as kind veyltrace (agent_only: #398)")
+        elif m.ai.mode != "off" and m.kind not in ("veyltrace", "agent_only"):
+            todo.append(f"methods {m.id}: AI arms run as kind veyltrace or agent_only")
     return todo
 
 
