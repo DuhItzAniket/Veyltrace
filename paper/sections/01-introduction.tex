@@ -1,0 +1,58 @@
+% §1 Introduction (lead). Sources: docs/01 §1 and §6, docs/02 §2, docs/11 §2 and §11.
+% Every literature number below is context from the cited work, not a comparison.
+\section{Introduction}
+\label{sec:intro}
+
+When a microservice system degrades, an on-call engineer has to work out which service, resource or change caused it, from metrics, logs, traces and change events that usually live in different tools.
+One vendor survey puts the median cost of a high-impact outage at USD~2M per hour~\cite{newrelic2025forecast}; every cost figure we found is vendor-run or vendor-sponsored.
+Most outages follow a change: in Google's 2010--2017 postmortems, binary and configuration pushes triggered 68\% of outages~\cite{googlesre2017postmortem}.
+Yet the public benchmarks on which research methods are scored, such as RCAEval, PetShop and OpenRCA, carry no deploy, configuration or feature-flag events~\cite{rcaeval2024,petshop2024,openrca2025}.
+
+Root-cause analysis (RCA) research has moved quickly towards large language model (LLM) agents.
+On one 90-case benchmark, simple harnesses around frontier cloud models reach a mean PR@1 of 72.8\% (an SQL agent) and 77.2\% (a Codex harness) over three models, against 38.9\% for the best non-LLM method~\cite{rcatlas2026}.
+Stricter tasks tell a different story.
+Across eleven LLMs, the exact root-cause set is recovered in 20.7\% of OpenRCA~2.0 cases on average~\cite{openrca2026v2}; the best model solves 25.3\% of medium and 10.0\% of hard ORCA-bench tasks~\cite{orcabench2026}; and on SREGym one agent's end-to-end success falls from 63.7\% on problems ported from earlier benchmarks to 17.9\% on failures new to SREGym~\cite{sregym2026}.
+Agents can also be steered: in a pre-registered preprint, one planted false sentence made models name a decoy service first in 21--42\% of flagged RCAEval RE2 cases~\cite{hussain2026prereg}.
+Explicit verification helps: an LLM-based verifier and grounder raised Acc@1 by 3.5--35.1 points in all 14 configurations of one study, but did not reduce errors in which the model misread the meaning of the telemetry~\cite{diagguard2026}.
+We found no paper that isolates a purely deterministic verifier over LLM proposals.
+
+The field's own measurements are fragile as well.
+The same method on the same cases scores differently in different harnesses: BARO's AC@1 on RE2-TT is 0.67 in RCAEval's harness and 0.32 in PRISM's~\cite{rcaeval2024,prism2026}.
+In the same pre-registered preprint, shifting the assumed fault onset two minutes late dropped N-Sigma from 0.80 to 0.07 AC@1 on RE2~\cite{hussain2026prereg}.
+Simple alert counting matches or beats state-of-the-art methods on Nezha, Eadro and RCAEval~\cite{fang2026rethinking}.
+Selecting a method by leave-one-system-out evaluation picks the worse method on up to 5 of 11 held-out subsystems, and none of 23 audited RCA papers released per-case outputs~\cite{hu2026audit}.
+
+Three properties that an engineer needs before acting on an automated diagnosis are therefore missing together.
+First, an LLM should be able to contribute without being trusted: its claims should count only after code has checked them, and it should not be able to argue for its favourite candidate.
+Second, the system should say when it does not know: every method evaluated on PetShop named false root causes during normal operation~\cite{petshop2024}, and a recent LLM benchmark scores abstention as a wrong answer~\cite{rcatlas2026}.
+Third, a verdict should be reproducible by someone else, which LLM inference does not give for free: 1,000 temperature-zero runs of one prompt produced 80 distinct outputs in one report~\cite{thinkingmachinesnondeterminism}.
+Put together, we found no open, laptop-runnable RCA engine that ranks candidates with cheap deterministic methods, lets an LLM contribute without being trusted, says when it does not know, lets anyone replay a verdict, and publishes per-case accuracy on public benchmarks against honest baselines.
+
+We present \sys, an RCA engine built on one rule: \emph{AI proposes, code decides}.
+Six deterministic rankers and a local open-weight LLM of at most 10B parameters propose hypotheses; a deterministic verifier decides.
+The LLM never asserts evidence.
+It may only request named predicates from a fixed library, and code evaluates each requested predicate for \emph{every} candidate in the pool, so a check the LLM asks for can help whichever candidate it actually supports.
+The verifier runs ten fixed trials on each candidate, combines them with the code-checked claims in a fixed scoring rule, and returns a split-conformal candidate set together with a status that may be \st{INCONCLUSIVE} or \NOFAULT.
+Each verdict is sealed in a receipt from which anyone can replay it to the same hash.
+The deterministic pipeline needs neither a GPU nor a cloud service and is built for a 16\,GB laptop; the proposer runs a local open-weight model, and Section~\ref{sec:rq5} reports the cost on the team's laptops, whose specifications it lists.
+
+This paper makes four contributions.
+\begin{itemize}
+\item \textbf{C1, a propose--verify architecture with symmetric claim evaluation and replayable receipts} (\S\ref{sec:design}). Rankers and an LLM propose; a fixed decision function over code-recomputed predicates decides; every predicate the LLM requests is evaluated for every candidate; and verdicts replay from a receipt and a recording of the LLM calls.
+\item \textbf{C2, conformal, set-valued RCA with a no-fault answer and abstention} (\S\ref{sec:conformal}). To our knowledge, based on searches up to October 2026, no microservice RCA work outputs conformal candidate sets with a no-fault option. Close work calibrates the confidence of LLM root-cause answers~\cite{lmpace2024}, gives distribution-free confidence sets for which stream changed first~\cite{conch2026}, or abstains in RCA for network fabrics~\cite{abstention2026osdi}. We report coverage, set size and risk--coverage curves.
+\leadq{docs/11 §11: CONCH/CROC and the OSDI'26 abstention paper were seen only as snippets; read both in full before keeping this sentence.}
+\item \textbf{C3, a decomposed, onset-robust, per-system evaluation with released per-case outputs} (\S\ref{sec:eval}). We separate retrieval from re-ranking~\cite{decomprca2026}, report every result per system next to chance, a prior-only ranker, N-Sigma, BARO and an alert-count baseline, test with clustered paired statistics, compare oracle and detected alert times, and froze all of it as the git tag \code{prereg-v1} before the first test-split run of any \sys arm.
+\item \textbf{C4, a change-aware evidence channel stress-tested with decoy changes} (\S\ref{sec:rq4}). Change proximity and changed-versus-peer contrast enter as evidence, and RCAEval-C adds a true change with probability~$\pi$ plus decoy changes to RCAEval RE2. Its change logs are synthetic, so we report it as a test of how gullible the channel is, not as evidence of real-world gains.
+\end{itemize}
+
+% Headline results: neutral sentences until bench/results/ exists; the wording
+% ("not worse", "better") is chosen only after the numbers are known.
+\leadq{headline results, one sentence per RQ, written at M4 from the generated numbers.}
+Pooled over RE2, the paired AC@1 difference between the AI-off pipeline and the best reproduced simple baseline (the highest AC@1 among N-Sigma, BARO and alert counting on the same cases; \S\ref{sec:baselines}) is \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} (95\% CI \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}).
+Code-verified proposals change AC@1 by \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference}, and planted decoy proposals change the top-1 candidate in \resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/decoy_top1_change} of cases.
+Held-out coverage of the candidate sets at $\alpha = 0.10$ is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/coverage} with a mean set size of \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/set_size.mean}.
+
+The rest of the paper is organised as follows.
+Section~\ref{sec:related} places \sys among statistical, causal and LLM-based RCA methods.
+Section~\ref{sec:design} describes the design, Section~\ref{sec:eval} the pre-registered evaluation and Section~\ref{sec:results} the results.
+Section~\ref{sec:discussion} discusses what the verifier and the LLM each contribute, and Section~\ref{sec:threats} the threats to validity.
