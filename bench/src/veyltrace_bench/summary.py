@@ -23,7 +23,7 @@ from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import replace
 from types import MappingProxyType
 
-from veyltrace_bench.metrics import AC_KS, CaseScore, chance_at, coarse_service
+from veyltrace_bench.metrics import AC_KS, OK, CaseScore, chance_at, coarse_service
 
 #: per_case.csv cost columns summarised by the cost metric, and its percentiles (03 §13.3, #316).
 COST_COLUMNS = ("wall_ms", "peak_rss_mb", "tokens_in", "tokens_out")
@@ -166,14 +166,19 @@ def _optional_str(value: object) -> str | None:
 def with_rows(scores: Sequence[CaseScore], rows: Sequence[Mapping[str, object]]) -> list[CaseScore]:
     """The group's scores with their per_case rows' case_id, seed, variant, fold, status and
     verdict_hash (03 §13.2), which the calibration and proposal entries read. Row i is score i's row,
-    as the runner appends both together; a row whose scored columns differ from its score's is
-    refused, so a misaligned pair never yields a number."""
+    as the runner appends both together. A count mismatch, or a row whose run_outcome or scored
+    columns differ from its score's, is refused; rows that agree on all of those (two timeouts, say)
+    cannot be told apart, so the pairing relies on the runner's order. A run that is not ``ok`` (04
+    §7 "Failed runs") has no status or verdict hash here, even when it wrote a verdict before bench
+    demoted it to failed: it never counts as a declared NO_FAULT or CONFIRMED."""
     if len(scores) != len(rows):
         raise ValueError(f"{len(scores)} scores but {len(rows)} per_case rows")
     out: list[CaseScore] = []
     for score, row in zip(scores, rows, strict=True):
-        if any(row.get(column) != value for column, value in score.columns().items()):
+        scored = score.columns() | {"run_outcome": score.outcome}
+        if any(row.get(column) != value for column, value in scored.items()):
             raise ValueError(f"per_case row of case {row.get('case_id')!r} is not its score's row")
+        ran = score.outcome == OK
         seed = row.get("seed")
         out.append(
             replace(
@@ -182,8 +187,8 @@ def with_rows(scores: Sequence[CaseScore], rows: Sequence[Mapping[str, object]])
                 seed=seed if isinstance(seed, int) else None,
                 variant=_optional_str(row.get("variant")),
                 fold=_optional_str(row.get("fold")),
-                status=_optional_str(row.get("status")),
-                verdict_hash=_optional_str(row.get("verdict_hash")),
+                status=_optional_str(row.get("status")) if ran else None,
+                verdict_hash=_optional_str(row.get("verdict_hash")) if ran else None,
             )
         )
     return out

@@ -202,7 +202,13 @@ def test_scores_take_their_rows_columns_and_a_misaligned_row_is_refused() -> Non
     )  # fmt: skip
     score = score_case(Truth("cart"), out)
     assert (score.has_verdict, score.margin, score.leader_fused_score) == (True, 0.4, 0.7)
-    row = score.columns() | {"case_id": "c1", "seed": 3, "variant": "perm-1", "fold": "foldA"}
+    row = score.columns() | {
+        "case_id": "c1",
+        "seed": 3,
+        "variant": "perm-1",
+        "fold": "foldA",
+        "run_outcome": "ok",
+    }
     row |= {"status": "CONFIRMED", "verdict_hash": H1}
     (keyed,) = with_rows([score], [row])
     assert (keyed.case_id, keyed.seed, keyed.variant, keyed.fold) == ("c1", 3, "perm-1", "foldA")
@@ -211,5 +217,11 @@ def test_scores_take_their_rows_columns_and_a_misaligned_row_is_refused() -> Non
         with_rows([score], [row | {"hit_at_1": False}])
     with pytest.raises(ValueError, match="per_case rows"):
         with_rows([score, score], [row])
+    with pytest.raises(ValueError, match="not its score's row"):
+        with_rows([score], [row | {"run_outcome": "timeout"}])  # same columns, another run
     failed = score_case(Truth("cart"), replace(out, outcome="failed"))
     assert (failed.has_verdict, failed.margin, failed.leader_fused_score) == (True, None, None)
+    # a run demoted to failed after writing its verdict keeps the row's status column, not here
+    failed_row = failed.columns() | row | {"run_outcome": "failed", **failed.columns()}
+    (demoted,) = with_rows([failed], [failed_row])
+    assert (demoted.status, demoted.verdict_hash, demoted.fold) == (None, None, "foldA")
