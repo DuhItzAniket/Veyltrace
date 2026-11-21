@@ -1,14 +1,9 @@
-"""X-00 stub of Relentra: the real wiring of pipeline step 7 with no model call yet.
+"""Relentra's outputs when no model is called: `status = skipped` (08 §2.2).
 
-Why: AI-on runs (record, replay, the determinism gate's FakeProvider arm) need a `proposals.json`
-and an `agent_trace.jsonl` that are honest about what happened. Relentra did not call the model, so
-`status = skipped` (08 §2.2), `model` is null (03 §9.1) and the trace has no lines (no state
-machine ran), which makes the receipt's `agent_trace_head` null (#20 spec note). X-07 replaces the
-body with brief mode; reading the inputs, checking the config and writing the outputs stay.
-
-What it claims: nothing about the case. It reads `case_manifest` (the case id, 08 §2.2) and the
-slate (the input brief mode will use) only through the run context, and reports why it skipped:
-`relentra.enabled = false`, an empty slate (08 §3.1 step 4), or brief mode not built yet.
+AI-on runs need a `proposals.json` and an `agent_trace.jsonl` that are honest about what happened.
+No model was called, so `model` is null (03 §9.1) and no state machine ran, so the trace has no lines
+and the receipt's `agent_trace_head` is null. The reasons: `relentra.enabled = false`, an empty slate
+(08 §3.1 step 4), or `investigate` mode, which X-08 adds.
 """
 
 from __future__ import annotations
@@ -35,13 +30,13 @@ __all__ = [
 ]
 
 ENGINE: Final = "relentra"
-#: EngineResult.notes entry of this stub, so bench and reviewers can tell stub runs apart.
-STUB_NOTE: Final = "stub: X-00 Relentra (no model call; X-07 adds brief mode)"
+#: EngineResult.notes entry of a run without a model call, so bench and reviewers can tell them apart.
+STUB_NOTE: Final = "stub: Relentra called no model"
 #: proposals.mode values Relentra itself writes; `external` is only for MCP hypotheses (03 §9.1).
 MODES: Final = ("brief", "investigate")
 REASON_DISABLED: Final = "relentra.enabled is false"
 REASON_EMPTY_SLATE: Final = "slate has no candidates (08 §3.1 step 4)"
-REASON_NOT_BUILT: Final = "brief mode is not built yet (X-07)"
+REASON_NOT_BUILT: Final = "investigate mode is not built yet (X-08)"
 
 
 @dataclass(frozen=True)

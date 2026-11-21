@@ -9,3 +9,54 @@ enabled: true
 # pipeline mode (08-relentra §3.9). With AI on, core uses it as the calibration ai_arm when building
 # the family_id (03 §12.1).
 mode: brief
+
+cards:
+  # Atoms per candidate on the evidence cards (08-relentra §4; a priori, compact cards).
+  k: 6
+  # The floor when shrinking the cards to fit the prompt budget (08-relentra §3.2; a priori).
+  k_min: 3
+  # Services after the slate listed by fused score, so the model can add one (08-relentra §3.5; a priori).
+  pool_context_n: 10
+
+brief:
+  # Proposals the schema allows in one reply (08-relentra §4; a priori, output tokens on CPU).
+  max_proposals: 3
+  # Repair calls after an invalid reply (02 §6.8: one or two LLM calls).
+  max_repairs: 1
+
+budget:
+  # Proposals kept after merging (02 §6.8).
+  max_hypotheses: 5
+  # Claims per proposal (08-relentra §4; a priori).
+  max_claims_per_proposal: 4
+  # Prompt size limit in estimated tokens, leaving room for output (08-relentra §4; a priori).
+  max_prompt_tokens: 12288
+
+schema:
+  # Signals offered to the model, keeping the grammar small (08-relentra §4; a priori).
+  max_signal_enum: 64
+  # A larger case schema is a configuration error (08-relentra §3.4; a priori).
+  max_bytes: 16384
+  # Proposing "unknown" carries no information (08-relentra §3.1).
+  exclude_fault_classes: ["unknown"]
+
+prompt:
+  # Conservative characters per token for the size estimate (08-relentra §4; a priori).
+  chars_per_token: 3.5
+  # Include the system description; the switch is an ablation (08-relentra §9).
+  include_brief: true
+  # Shuffle the cards in a case-seeded order; the switch is an ablation (08-relentra §9).
+  permute_slate: false
+
+sampler:
+  # Qwen3.5 card recommendation (08-relentra §3.8). Null means "do not send" (03 §9.1).
+  temperature: 0.7
+  top_p: 0.8
+  top_k: 20
+  presence_penalty: 1.5
+  thinking: false
+  # Bench sweeps 0-4 (08-relentra §3.8); each value gives its own run id.
+  seed_index: 0
+  max_tokens:
+    # Output limit of a brief-mode call (08-relentra §4; a priori).
+    brief: 1024

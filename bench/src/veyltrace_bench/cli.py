@@ -1,4 +1,4 @@
-"""`veyltrace bench run`: bench's `veyltrace.commands:bench` entry point.
+"""`veyltrace bench run` and `veyltrace bench tables`: bench's `veyltrace.commands:bench` entry point.
 
 Core's CLI delegates `veyltrace bench run <experiment.yaml> [options]` here as
 `main(["run", <experiment.yaml>, *options])`, so core never imports bench (core_api_spec §9).
@@ -9,6 +9,10 @@ Exit codes reuse core's diagnose vocabulary (`veyltrace_core.errors`), so script
 - 2: usage (bad arguments; `--table` on a dirty work tree or synth; synth without an out-of-repo `--out`).
 - 3: input missing (experiment file, case list, answer keys: `veyltrace data fetch <dataset>`).
 - 4: config (invalid experiment YAML or unknown key, a feature v0 cannot run yet, a bad override).
+
+`tables` (R-17) exits 0 when the tables are written, or with `--check` when they already match; 2
+when `--check` finds a difference (the paths are printed), so a CI job tells "regenerate" from
+an error (1, as for `run`).
 """
 
 from __future__ import annotations
@@ -19,7 +23,9 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from veyltrace_bench.answer_keys import ANSWER_KEY
-from veyltrace_bench.runner import run_experiment
+from veyltrace_bench.runner import RESULTS_DIR, run_experiment
+from veyltrace_bench.tables import generate
+from veyltrace_core.config import find_config_dir
 from veyltrace_core.errors import ArtifactMissing, DiagnoseExit, VeyltraceError, exit_code_for
 
 
@@ -37,7 +43,31 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--table", action="store_true", help="results for a table: refuse a dirty work tree and synth"
     )
+    tables = commands.add_parser(
+        "tables", help="regenerate bench/results/tables from committed results (R-17)"
+    )
+    tables.add_argument("--results", type=Path, help="results root (default bench/results)")
+    tables.add_argument("--experiments", type=Path, help="experiment YAMLs (default bench/experiments)")
+    tables.add_argument("--check", action="store_true", help="write nothing; exit 2 if a file differs")
     return parser
+
+
+CHECK_DIFFERS = 2  # `tables --check`: a generated file differs from the committed one (review, 21 Nov)
+
+
+def _tables(args: argparse.Namespace) -> int:
+    repo = find_config_dir().parent
+    results = args.results if args.results is not None else repo.joinpath(*RESULTS_DIR)
+    experiments = args.experiments if args.experiments is not None else repo / "bench" / "experiments"
+    files = generate.outputs(results, experiments)
+    if args.check:
+        stale = generate.differences(files, results)
+        for path in stale:
+            print(f"differs: {path}", file=sys.stderr)
+        return CHECK_DIFFERS if stale else int(DiagnoseExit.OK)
+    changed = generate.write(files, results)
+    print(f"tables: {len(files)} files, {len(changed)} changed")
+    return int(DiagnoseExit.OK)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -46,10 +76,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = _parser().parse_args(argv)
     except SystemExit as exc:  # argparse exits 2 on a usage error and 0 after --help
         return exc.code if isinstance(exc.code, int) else int(DiagnoseExit.USAGE)
-    # Resolved here, against the caller's directory: the run children start in the repository root,
-    # and the manifest's calibrations re-open each run's lock under this root (#412).
-    runs_root = args.runs_root.resolve() if args.runs_root is not None else None
     try:
+        if args.command == "tables":
+            return _tables(args)
+        # Resolved here, against the caller's directory: the run children start in the repository
+        # root, and the manifest's calibrations re-open each run's lock under this root (#412).
+        runs_root = args.runs_root.resolve() if args.runs_root is not None else None
         out_dir, _ = run_experiment(args.experiment, out_root=args.out, runs_root=runs_root, table=args.table)
     except VeyltraceError as exc:
         print(f"error: {exc}", file=sys.stderr)

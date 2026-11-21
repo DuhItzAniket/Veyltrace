@@ -18,7 +18,7 @@ Reads `config/*.yaml`, `config/calibration/*.json`, run-directory contracts, rec
 - Allowed deps: stdlib, `pyarrow`, `numpy`, `duckdb`, `pyyaml`, `jsonschema`, `typer`, `veyltrace_contracts`. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, `pandas`.
 - The alert step is the only reader of `case_manifest.t_alert_hint_ns`; it writes `alert.json` ([03 §2.6](../../docs/03-contracts.md)). Calibration is loaded from `config/calibration/` only; core never reads `bench/` or `lab/`.
 - End of run ([03 §12](../../docs/03-contracts.md)): Causivra writes `card` (step 10a) → core writes `config.lock.json` and `run_manifest.json` (`outputs` = every artifact except `run_manifest.json` and `receipt.json`) → Causivra writes `receipt` (step 10b). `--ai record` refuses to overwrite an existing `run_id` unless `--force-record` is given.
-- `veyltrace_core.synth` registers the adapter `synth` (dataset `synth`). It writes answer keys only to `${VEYLTRACE_DATA}/answer_keys/`; nothing in core reads them. The CLI delegates `bench run` to `bench` and `replay` to Causivra.
+- `veyltrace_core.synth` registers the adapter `synth` (dataset `synth`). It writes answer keys only to `${VEYLTRACE_DATA}/answer_keys/`; nothing in core reads them. The CLI delegates `bench run` and `bench tables` to `bench` and `replay` to Causivra.
 
 ## Commands
 | Task | Command |
