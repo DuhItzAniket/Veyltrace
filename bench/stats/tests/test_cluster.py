@@ -11,7 +11,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_stats.cluster import cluster_bootstrap, sign_flip_test
+from veyltrace_stats.cluster import cluster_bootstrap, sign_flip_test, stratified_cluster_bootstrap
 
 rows = st.lists(
     st.tuples(st.sampled_from([0.0, 1 / 3, 0.5, 1.0, -1.0]), st.integers(0, 6)), min_size=1, max_size=40
@@ -134,3 +134,66 @@ def test_same_seed_same_result_and_bad_input_is_refused() -> None:
             cluster_bootstrap(*bad, seed=1)
         with pytest.raises(ValueError):
             sign_flip_test(*bad, seed=1)
+
+
+# --- system-stratified bootstrap (04 §8 "pooled numbers: case-weighted, system as stratum") ---
+
+
+def test_stratified_bootstrap_keeps_every_stratum_at_its_own_size() -> None:
+    # One cluster per stratum: each resample redraws the same data, so the interval is a point.
+    values, clusters, strata = [1.0, 1.0, 0.0, 0.0, 0.0, 0.0], ["a", "a", "b", "b", "b", "b"], list("xxyyyy")
+    got = stratified_cluster_bootstrap(values, clusters, strata, seed=1)
+    assert (got.estimate, got.low, got.high) == pytest.approx((1 / 3, 1 / 3, 1 / 3))
+    assert (got.n_cases, got.n_clusters, got.resamples) == (6, 2, 2000)
+    plain = cluster_bootstrap(values, clusters, seed=1)  # unstratified: may draw "a" twice
+    assert plain.low < 1 / 3 < plain.high
+
+
+def test_stratified_bootstrap_with_one_stratum_is_the_cluster_bootstrap() -> None:
+    values = [float(i % 3 == 0) for i in range(30)]
+    clusters = [i // 3 for i in range(30)]
+    assert stratified_cluster_bootstrap(values, clusters, ["ob"] * 30, seed=7) == cluster_bootstrap(
+        values, clusters, seed=7
+    )
+
+
+def test_stratified_bootstrap_varies_only_within_strata() -> None:
+    # Stratum x is constant (0.0), stratum y has two equal-size clusters at 0 and 1: the pooled
+    # mean over 8 cases can only be 0, 0.25 or 0.5, whatever is drawn.
+    values = [0.0] * 4 + [0.0, 0.0, 1.0, 1.0]
+    clusters = ["x1", "x1", "x2", "x2", "y1", "y1", "y2", "y2"]
+    got = stratified_cluster_bootstrap(values, clusters, list("xxxxyyyy"), seed=3, level=0.999)
+    assert got.estimate == pytest.approx(0.25) and (got.low, got.high) == pytest.approx((0.0, 0.5))
+
+
+def test_stratified_bootstrap_refuses_bad_input() -> None:
+    with pytest.raises(ValueError, match="more than one stratum"):
+        stratified_cluster_bootstrap([0.0, 1.0], ["a", "a"], ["x", "y"], seed=1)
+    with pytest.raises(ValueError, match="equal length"):
+        stratified_cluster_bootstrap([0.0, 1.0], ["a", "b"], ["x"], seed=1)
+    with pytest.raises(ValueError, match="resamples"):
+        stratified_cluster_bootstrap([0.0], ["a"], ["x"], seed=1, resamples=0)
+    with pytest.raises(ValueError, match="finite"):
+        stratified_cluster_bootstrap([math.nan], ["a"], ["x"], seed=1)
+
+
+@given(rows, st.randoms())
+def test_stratified_bootstrap_ignores_row_order_and_brackets_sanely(
+    pairs: list[tuple[float, int]], rnd: random.Random
+) -> None:
+    values, clusters = _split(pairs)
+    strata = [c % 3 for c in clusters]  # a cluster never straddles strata
+    got = stratified_cluster_bootstrap(values, clusters, strata, seed=5, resamples=200)
+    order = list(range(len(values)))
+    rnd.shuffle(order)
+    again = stratified_cluster_bootstrap(
+        [values[i] for i in order],
+        [clusters[i] for i in order],
+        [strata[i] for i in order],
+        seed=5,
+        resamples=200,
+    )
+    assert again == got
+    assert got.estimate == pytest.approx(math.fsum(values) / len(values))
+    assert min(values) - 1e-12 <= got.low <= got.high <= max(values) + 1e-12
+    assert got.n_clusters == len(set(clusters))
