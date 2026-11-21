@@ -1,6 +1,6 @@
 % §5.5 RQ5 structure: the lead's draft (R-18). docs/11 §5 assigns 5.5 to the Observe lane;
 % sections/observe-rq5.tex replaces this file when it exists.
-\resulttable{tab:rq5}{RQ5 cost per RE2 case: p50 and p95 wall time and peak memory of the deterministic path, the time and tokens the AI path adds, and each laptop's specification.}{re2-oracle-rq1-v1 (solo run), re2-oracle-rq2-v1, docs/team/*.md}{rq5-cost}
-H5 holds if the deterministic path takes at most 30\,s and 3\,GB at p95 per RE2 case on the slowest laptop and the AI path adds at most 180\,s (proposer) plus 60\,s (narration).
-The deterministic p95 is \resnum{re2-oracle-rq1-v1}{pooled: p95 wall_ms, veyltrace:off} with a p95 peak memory of \resnum{re2-oracle-rq1-v1}{pooled: p95 peak_rss_mb, veyltrace:off}, and the proposer adds \resnum{re2-oracle-rq2-v1}{pooled: p95 added wall time, veyltrace:brief} at p95 (Table~\ref{tab:rq5}).
-\leadq{state which runs shared the machine (R-16 plan, decision 3) and quote published agent costs only as context.}
+\resulttable{tab:rq5}{RQ5 cost per RE2 case: p50 and p95 wall time (ms) and peak memory (MB) of the deterministic path, and the time and tokens the AI path adds; Table~\ref{tab:costall} gives every experiment.}{re2-oracle-rq1-v1 (solo run), re2-oracle-rq2-v1}{t08-rq5-cost}
+H5 holds if the deterministic path takes at most 30{,}000\,ms and 3{,}000\,MB at p95 per RE2 case on the slowest laptop and the AI path adds at most 180{,}000\,ms (proposer) plus 60{,}000\,ms (narration).
+The deterministic p95 is \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off/cost.wall_ms_p95}\,ms with a p95 peak memory of \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off/cost.peak_rss_mb_p95}\,MB, and the proposer adds \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/cost.wall_ms_p95/difference}\,ms at p95 (Table~\ref{tab:rq5}).
+\leadq{state which runs shared the machine (R-16 plan, decision 3), give each laptop's specification, and quote published agent costs only as context.}
