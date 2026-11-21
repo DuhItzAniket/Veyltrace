@@ -35,6 +35,12 @@ PROTOCOL_KEYS = (
     "infralume.events.overlay_path",
 )
 OVERLAY_KEY = PROTOCOL_KEYS[3]
+#: Config keys bench sets to choose each run's calibration file (04 §5.4; `calibrated`, #376).
+CALIBRATION_KEYS = (
+    "causentra.calibration.family",
+    "causentra.calibration.family_map",
+    "causentra.calibration.fold",
+)
 RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method runs alone (04 §3, §9)
 CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
 #: internal_baseline ids v0 runs (04 §4); `chance` is the `chance` metric of every group (04 §7).
@@ -208,6 +214,8 @@ class Experiment(_Strict):
         for m in self.methods:
             if clash := sorted(set(m.overrides) & set(PROTOCOL_KEYS)):
                 raise ValueError(f"method {m.id} overrides {clash}: set them in `protocol`")
+            if clash := sorted(set(m.overrides) & set(CALIBRATION_KEYS)):
+                raise ValueError(f"method {m.id} overrides {clash}: bench sets them from `split`")
         return self
 
 
@@ -230,9 +238,10 @@ def unsupported(exp: Experiment) -> list[str]:
     """What `exp` asks for that the v0 runner cannot run yet, with the adding task or reason if known."""
     p, r = exp.protocol, exp.resources
     checks = (
-        (exp.dataset.normal_windows != "none", "dataset.normal_windows (R-13)"),
-        (exp.split.scheme != "none", f"split.scheme {exp.split.scheme} (R-13)"),
-        (exp.calibration.fit, "calibration.fit (R-13)"),
+        (
+            exp.dataset.normal_windows == "veyllab",
+            "dataset.normal_windows veyllab (not run: no VeylLab captures yet, X-11, O-07)",
+        ),
         (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),

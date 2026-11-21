@@ -1,4 +1,4 @@
-"""The X-00 Relentra stub: config checks, skip reasons, outputs and goldens (08 §2.2, §3.1)."""
+"""Relentra without a model call: config checks, skip reasons, and the fake golden (08 §2.2, §3.1)."""
 
 from __future__ import annotations
 
@@ -66,33 +66,18 @@ def test_skip_reason_order() -> None:
 
 def test_fake_variant_matches_golden(tmp_path: Path) -> None:
     run_dir = _fake_dir(tmp_path)
-    result = api.run(_fake_ctx(run_dir))
-    assert result.status == "ok"
-    assert result.notes[0] == STUB_NOTE
+    result = api.run(_fake_ctx(run_dir))  # the unscripted fake provider behaves like a model that is down
+    assert result.status == "degraded"
     assert_golden(io.read("proposals", run_dir), "proposals", FAKE_CASE)
-    assert io.path_of("agent_trace", run_dir).read_bytes() == b""
     proposals = io.read_model("proposals", run_dir, models.Proposals, validate=True)
-    assert proposals.status == "skipped" and proposals.model is None and proposals.proposals == []
+    assert proposals.status == "failed" and proposals.model is not None and proposals.proposals == []
 
 
-def test_slate_with_candidates_reports_brief_mode_missing(tmp_path: Path) -> None:
-    # Builds its own one-candidate slate: the synth fixture slate is empty once #164 lands (R4, #227).
+def test_investigate_mode_is_skipped_until_it_exists(tmp_path: Path) -> None:
     run_dir = _fake_dir(tmp_path)
-    slate = io.read_model("slate", run_dir, models.Slate)
-    candidate = models.SlateCandidate(
-        rank=1,
-        service="payment",
-        component=None,
-        indicator="cpu",
-        mode="resource",
-        fault_class="cpu",
-        fused_score=1.0,
-        ranker_ranks={},
-        ranker_scores={},
-    )
-    io.write("slate", slate.model_copy(update={"candidates": [candidate]}), run_dir)
-    assert io.read_model("slate", run_dir, models.Slate).candidates
-    assert REASON_NOT_BUILT in api.run(_fake_ctx(run_dir)).notes
+    result = api.run(_fake_ctx(run_dir, **{"relentra.mode": "investigate"}))
+    assert result.status == "ok" and STUB_NOTE in result.notes and REASON_NOT_BUILT in result.notes
+    assert io.path_of("agent_trace", run_dir).read_bytes() == b""
 
 
 def test_disabled_and_mode_come_from_config(tmp_path: Path) -> None:

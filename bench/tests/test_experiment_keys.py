@@ -31,7 +31,7 @@ def _load(tmp_path: Path, text: str) -> Experiment:
 def test_transfer_split_names_the_family_it_calibrates_from(tmp_path: Path) -> None:
     exp = _load(tmp_path, BASE + "metrics: [mrr]\nsplit: {scheme: transfer, calibrate_from: rcaeval-re2}\n")
     assert (exp.split.scheme, exp.split.calibrate_from) == ("transfer", "rcaeval-re2")
-    assert "split.scheme transfer (R-13)" in unsupported(exp)
+    assert not any("split" in todo for todo in unsupported(exp))  # runs since #391 (splits.check_split)
     for split in ("{scheme: transfer}", "{scheme: crossfit2, calibrate_from: rcaeval-re2}"):
         with pytest.raises(ConfigError, match="calibrate_from"):
             _load(tmp_path, BASE + f"metrics: [mrr]\nsplit: {split}\n")

@@ -1,0 +1,25 @@
+% Appendix (all authors). Planned content from docs/11 §5. The generated tables below give
+% every pre-registered experiment a slot: Table A0 lists all 55 with their status (a cut
+% experiment appears there as not run, with its reason and ADR, docs/04 §10).
+\section{Appendix}
+\label{sec:appendix}
+
+\leadq{still to write: the predicate library; configuration defaults with their sources; prompts and JSON schemas; hardware per laptop; the pinned RCAEval commit.}
+
+\resulttable*{tab:index}{Results index: every experiment configuration (synthetic smoke runs excluded) with its research questions, whether it is pre-registered, its status (run, or not run with the reason), its result groups and its statistics.}{every non-synthetic configuration in bench/experiments/, including all 55 pre-registered ones}{a0-results-index}
+\leadq{docs/04 §10 asks for each not-run cell's decision record (ADR), and §10.2 for the code commit and result hashes behind every number; R-17's index has neither column yet.}
+
+\resulttable*{tab:costall}{Cost of every experiment: p50 and p95 wall time, peak memory and tokens per case.}{every experiment in bench/results/}{a1-cost-all}
+\leadq{which runs shared the machine (R-16 plan, decision 3) is not in R-17's table; add it there or state it in §5.5.}
+
+\resulttable*{tab:rq1det}{RQ1 accuracy on RE2 under the detected alert.}{re2-detected-rq1-v1}{t05-rq1-re2-detected}
+\resulttable*{tab:rq1re3}{RQ1 accuracy on RE3 (code faults) under the oracle alert.}{re3-oracle-rq1-v1, re3-oracle-prior-only-v1}{t05-rq1-re3-oracle}
+\resulttable*{tab:rq1nezha}{RQ1 accuracy on Nezha under the oracle alert.}{nezha-oracle-rq1-v1}{t05-rq1-nezha-oracle}
+\resulttable*{tab:rq1lab}{RQ1 accuracy on VeylLab under the oracle alert.}{veyllab-oracle-rq1-v1}{t05-rq1-veyllab-oracle}
+\resulttable*{tab:rq1fse}{RQ1 accuracy on the FSE'26 Train Ticket set (stretch) under the oracle alert.}{fse26-oracle-rq1-v1}{t05-rq1-fse26-oracle}
+
+\resulttable*{tab:rq2det}{RQ2 on RE2 under the detected alert.}{re2-detected-rq2-v1}{t06-rq2-re2-detected-rq2-v1}
+\resulttable*{tab:rq2re3}{RQ2 on RE3.}{re3-oracle-rq2-v1}{t06-rq2-re3-oracle-rq2-v1}
+\resulttable*{tab:rq2inv}{RQ2 exploratory: \code{veyltrace:investigate} on the 90-case RE2 subset.}{re2-oracle-investigate-v1}{t06-rq2-re2-oracle-investigate-v1}
+\resulttable*{tab:rq2nezha}{RQ2 on Nezha.}{nezha-oracle-brief-v1}{t06-rq2-nezha-oracle-brief-v1}
+\resulttable*{tab:rq2lab}{RQ2 on VeylLab.}{veyllab-oracle-rq2-v1}{t06-rq2-veyllab-oracle-rq2-v1}

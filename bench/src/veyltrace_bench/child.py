@@ -3,7 +3,8 @@ runner can kill a hung run at `resources.timeout_s` (04 §9: a timeout is a miss
 run's peak resident set size (03 §13.2 `peak_rss_mb`, 04 §6 "Cost").
 
 `python -m veyltrace_bench.child REQUEST RESULT`. REQUEST is a JSON object {dataset, case_id,
-ai_mode, overrides, runs_root} and, for a baseline (R-05), {to_step, baseline, export}: the run
+ai_mode, overrides, runs_root}, {from_step, reuse_dir} for a calibrated restart (#376) and, for a
+baseline (R-05), {to_step, baseline, export}: the run
 stops after `to_step` (the alert step: Infralume's tables and alert.json), then `baseline`
 (`simplerca`, `naive-change`) ranks the case or `export` names the directory for RCAEval's input. The child
 resolves the config from it exactly as the in-process runner does (`resolve_config(overrides,
@@ -85,6 +86,13 @@ def after_run(request: dict[str, Any], summary: RunSummary) -> list[str] | None:
     return None
 
 
+def restart(request: dict[str, Any]) -> dict[str, Any]:
+    """A held-out calibrated run restarts at `from_step` on `reuse_dir`'s outputs (R-13, #376)."""
+    if (reuse := request.get("reuse_dir")) is None:
+        return {}
+    return {"from_step": request["from_step"], "reuse_dir": Path(reuse)}
+
+
 def main(argv: list[str]) -> int:
     """Run the requested case and write RESULT; 0 when RESULT holds a summary, 1 on an error."""
     request_path, result_path = (Path(a) for a in argv)
@@ -100,6 +108,7 @@ def main(argv: list[str]) -> int:
             config=cfg,
             runs_root=Path(request["runs_root"]),
             to_step=request.get("to_step", LAST_STEP),
+            **restart(request),
         )
         ranks = after_run(request, summary)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
