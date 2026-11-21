@@ -8,14 +8,18 @@ It cannot restart later: a finished run's `evidence.parquet` is the claim-pass v
 refuses as FaultLoom's main output. The planted run is the row with variant `plant-<n>`; H2b's
 `decoy_top1_change` compares its top-1 with the source row's.
 
-A priori choices (04 names none): a **healthy** service is any of the case's services other than
-the answer key's root (coarse names; no-fault cases: any), drawn without replacement by numpy's
-generator seeded with (seed, case id). Its hypothesis is a CPU fault, and its two claims are false
-for a healthy service: its onset precedes the root's (`onset_before`) and its CPU robust z is at
-least 3 (`zscore_above`, k = the 3-sigma rule of `core.thresholds.anomaly_z`). FaultLoom's claim
-pass evaluates them like any proposal's; whether they hold is measured, never assumed. Proposal ids
-follow 08 §2.2 (P + 8 hex of the hypothesis and claims without ids), and the derived proposals are
-sorted as 03 §9.1 requires, so they pass the contract writer.
+A priori choices (04 names none; ADR 20261121-ak-rq2-arms-conventions): a **healthy** service is
+any of the case's services other than the answer key's root (coarse names; no-fault cases: any),
+drawn without replacement by numpy's generator seeded with (seed, case id); the answer key only
+picks the decoy, it never enters a claim. Its hypothesis is a CPU fault, and its two claims are
+false for a healthy service: its onset precedes that of the source run's slate top-1 (the next one
+if that is the decoy; `onset_before`, a pipeline-derived service), and its CPU robust z is at least
+3 (`zscore_above`, k = the 3-sigma rule of `core.thresholds.anomaly_z`). FaultLoom's claim pass
+evaluates them like any proposal's; whether they hold is measured, never assumed. The derived file
+keeps the source's `status`, with a zero `budget_used` (no model call). Once proposals carry `rank`
+(1.1, #409) a planted proposal is rank 1 and the recorded ones follow (worst case: an adversary
+controls the proposal channel). Proposal ids follow 08 §2.2, and the proposals are sorted as 03
+§9.1 requires, so they pass the contract writer.
 """
 
 from __future__ import annotations
@@ -27,7 +31,7 @@ import numpy as np
 
 from veyltrace_bench.experiment import ProposalDraw
 from veyltrace_bench.metrics import coarse_service
-from veyltrace_contracts.models import Proposals
+from veyltrace_contracts.models import Proposal, Proposals
 from veyltrace_core.context import EXTERNAL_PROPOSALS_MODE
 from veyltrace_core.hashing import sha256_json
 
@@ -36,6 +40,7 @@ RESTART_STEP = "faultloom"  # the last step whose inputs a finished run still ho
 DECOY_FAULT = {"fault_class": "cpu", "indicator": "cpu"}  # a priori: the most common RCAEval fault
 ZSCORE_K = 3.0  # a priori: core.thresholds.anomaly_z, the 3-sigma rule (02 §6.3)
 RATIONALE = "planted decoy proposal (bench, 04 §5.2 H2b)"
+RANK = "rank"  # proposals[].rank (proposals 1.1, CCR #409)
 
 
 def variant(draw: ProposalDraw) -> str:
@@ -50,12 +55,12 @@ def decoys(services: Sequence[str], root: str | None, case_id: str, draw: Propos
     return [healthy[int(i)] for i in picks]
 
 
-def _proposal(service: str, root: str | None) -> dict[str, Any]:
+def _proposal(service: str, other: str | None) -> dict[str, Any]:
     claims: list[dict[str, Any]] = [
         {"predicate": "zscore_above", "args": {"k": ZSCORE_K, "signal": "cpu"}, "cites": []}
     ]
-    if root is not None:
-        claims.insert(0, {"predicate": "onset_before", "args": {"other_service": root}, "cites": []})
+    if other is not None:
+        claims.insert(0, {"predicate": "onset_before", "args": {"other_service": other}, "cites": []})
     hypothesis = {"service": service, "component": None, **DECOY_FAULT}
     pid = "P" + sha256_json({"hypothesis": hypothesis, "claims": claims})[:8]
     numbered = [{"claim_id": f"{pid}-{i}", **c} for i, c in enumerate(claims, 1)]
@@ -64,11 +69,22 @@ def _proposal(service: str, root: str | None) -> dict[str, Any]:
 
 
 def planted(
-    recorded: Proposals, services: Sequence[str], root: str | None, draw: ProposalDraw
+    recorded: Proposals,
+    services: Sequence[str],
+    root: str | None,
+    draw: ProposalDraw,
+    slate_order: Sequence[str] = (),
 ) -> dict[str, Any]:
     """The derived run's proposals: the recorded ones plus the planted, as external proposals."""
     base = recorded.model_dump(mode="json")
-    added = [_proposal(s, root) for s in decoys(services, root, recorded.case_id, draw)]
+    chosen = decoys(services, root, recorded.case_id, draw)
+    added = [_proposal(s, next((o for o in slate_order if o != s), None)) for s in chosen]
+    if RANK in Proposal.model_fields:  # planted first, the recorded ones after them in their order
+        for i, p in enumerate(added, 1):
+            p[RANK] = i
+        for p in base["proposals"]:
+            p[RANK] = p[RANK] + len(added) if isinstance(p.get(RANK), int) else None
     every = [*base["proposals"], *added]
     every.sort(key=lambda p: (p["hypothesis"]["service"], p["hypothesis"]["fault_class"], p["proposal_id"]))
-    return base | {"mode": EXTERNAL_PROPOSALS_MODE, "model": None, "status": "complete", "proposals": every}
+    zero = {"turns": 0, "tokens_in": 0, "tokens_out": 0, "wall_ms": 0.0}  # no model call
+    return base | {"mode": EXTERNAL_PROPOSALS_MODE, "model": None, "budget_used": zero, "proposals": every}

@@ -11,8 +11,8 @@ from typing import cast
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import agent_only, runner
-from veyltrace_bench.experiment import load_experiment
+from veyltrace_bench import agent_only, experiment, runner
+from veyltrace_bench.experiment import load_experiment, unsupported
 from veyltrace_bench.runner import slate_ranks
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, testing, textio
@@ -78,8 +78,19 @@ def test_an_agent_only_method_needs_its_source_before_it(tmp_path: Path, text: s
         agent_only.source_of(exp, agent)
 
 
+def test_agent_only_is_refused_until_proposals_carry_a_rank(tmp_path: Path) -> None:
+    """Without proposals[].rank every case would be a silent miss (#407 review, CCR #409)."""
+    path = tmp_path / "exp.yaml"
+    textio.write_bytes(path, BOTH.encode())
+    todo = unsupported(load_experiment(path))
+    if experiment.RANK_FIELD:
+        assert not any("agent_only" in t for t in todo)
+    else:
+        assert "methods agent-only:brief: kind agent_only needs proposals 1.1 rank (#409)" in todo
+
+
 def test_agent_only_rows_score_the_brief_runs_without_runs_of_their_own(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     config = tmp_path / "repo" / "config"
     shutil.copytree(REPO / "config", config)
@@ -87,9 +98,11 @@ def test_agent_only_rows_score_the_brief_runs_without_runs_of_their_own(
     relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     monkeypatch.setattr(runner, "IN_PROCESS", True)
+    monkeypatch.setattr(experiment, "RANK_FIELD", True)  # as once proposals 1.1 (#409) lands
     assert cli.main(["data", "fetch", "synth"]) == 0
     exp = tmp_path / "exp.yaml"
     textio.write_bytes(exp, BOTH.encode())
+    caplog.set_level("INFO")
     out, _ = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
     table = io.read_path("bench_result", out / "per_case.csv", validate=True)
     assert isinstance(table, pa.Table)
@@ -101,7 +114,10 @@ def test_agent_only_rows_score_the_brief_runs_without_runs_of_their_own(
         assert (row["seed"], row["ai_mode"], row["status"], row["verdict_hash"]) == (1, "record", None, None)
         shared = (brief[case]["wall_ms"], brief[case]["tokens_in"])
         assert (row["wall_ms"], row["tokens_in"]) == shared  # the source's run and cost
+    # The stub proposes nothing: agent-only ranks by the slate (04 §4), and the rows are counted.
+    assert [r.getMessage() for r in caplog.records].count("bench.agent_only_slate_fallback") == 1
     kept = list((tmp_path / "runs" / "bench-ai").rglob("receipt.json"))
+
     assert len(kept) == 5  # one record run per case: agent_only made none
     runs = json.loads(textio.read_text(out / "manifest.json"))["runs"]
     assert {r["run_id"] for r in runs if r["method"] == "agent-only:brief"} == {
