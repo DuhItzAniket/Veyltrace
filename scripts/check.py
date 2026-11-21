@@ -102,6 +102,7 @@ FAKE_ARM_CASE = "synth-01"
 FAKE_OVERRIDES: Mapping[str, object] = {"llm.provider": "fake"}
 #: What the record/replay arm compares (check_ci §4: proposals, agent_trace, cassette, verdict).
 AI_COMPARED_STEPS = frozenset({"relentra", "causentra"})
+#: Run-dir prefix of the LLM cassette (02 §4.1); the fake arm checks it through run_manifest.ai.
 CASSETTE_PREFIX = "cassette/"
 #: The two arms differ in hash seed, run root and Infralume cache state (cold, then warm), and
 #: in everything a team laptop and CI may differ in (ARM_ENVIRONMENTS, working directory, data
@@ -638,7 +639,9 @@ def _gate_case(
 
 def _fake_arm(work: Path, data_root: str) -> list[str]:
     """Record with FakeProvider, then replay that cassette under the record's run_id; compare the
-    AI outputs (Relentra's step files, cassette, verdict) byte for byte (check_ci §4)."""
+    AI outputs (Relentra's step files, verdict) byte for byte (check_ci §4). The replay reads the
+    record's cassette through `cassette_dir`, so it writes none of its own; both run manifests must
+    name the same non-null `ai.cassette_sha256` instead, so both runs used one recording."""
     base = {"dataset": SYNTH_DATASET, "case": FAKE_ARM_CASE, "overrides": dict(FAKE_OVERRIDES)}
     env = child_env({"PYTHONHASHSEED": HASH_SEEDS[0], DATA_ENV: data_root})
     record = run_arm("fake/record", {**base, "ai_mode": "record"}, work / "fake-record" / "run", env)
@@ -654,9 +657,27 @@ def _fake_arm(work: Path, data_root: str) -> list[str]:
     )
     if replay.error or replay.outcome != "ok":
         return [f"fake/replay: {replay.error or replay.outcome}"]
-    ai_files = [p for p, (_, step) in record.step_of.items() if step in AI_COMPARED_STEPS]
-    diffs = compare_arms(record, replay, only=[*ai_files, CASSETTE_PREFIX])
-    return [f"fake: {len(diffs)} file(s) differ; first: {diffs[0]}"] if diffs else []
+    ai_files = [
+        p
+        for p, (_, step) in record.step_of.items()
+        if step in AI_COMPARED_STEPS and not p.startswith(CASSETTE_PREFIX)
+    ]  # the replay reads the record's cassette, so it has none of its own
+    diffs = compare_arms(record, replay, only=ai_files)
+    problems = [f"fake: {len(diffs)} file(s) differ; first: {diffs[0]}"] if diffs else []
+    recorded, replayed = (_cassette_sha256(arm) for arm in (record, replay))
+    if recorded is None or recorded != replayed:
+        problems.append(
+            f"fake: run_manifest.ai.cassette_sha256 is {recorded} in record and {replayed} in replay;"
+            " both must name the same recording"
+        )
+    return problems
+
+
+def _cassette_sha256(arm: Arm) -> str | None:
+    """`run_manifest.ai.cassette_sha256` of one arm's run dir (None when absent)."""
+    manifest = json.loads((arm.run_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    value = manifest.get("ai", {}).get("cassette_sha256")
+    return value if isinstance(value, str) else None
 
 
 def _file_sha256(path: Path) -> str:

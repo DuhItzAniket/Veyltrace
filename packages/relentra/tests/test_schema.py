@@ -16,12 +16,23 @@ from veyltrace_contracts.predicates import PREDICATES
 from veyltrace_core.canonical import canonical_json
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_bytes
+from veyltrace_core.ids import case_id
+from veyltrace_core.rng import SEED_INT_MODULUS
 from veyltrace_relentra.schema import EMPTY, build_enums, build_schema, schema_sha256
-from veyltrace_relentra.settings import BriefSettings, brief_settings
+from veyltrace_relentra.settings import BriefSettings, brief_settings, sampler_params
 
 CONFIG: dict[str, Any] = {  # the defaults of 08 §4
-    "brief": {"max_proposals": 3},
+    "brief": {"max_proposals": 3, "max_repairs": 1},
     "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5, "max_prompt_tokens": 12288},
+    "sampler": {
+        "temperature": 0.7,
+        "top_p": 0.8,
+        "top_k": 20,
+        "presence_penalty": 1.5,
+        "thinking": False,
+        "seed_index": 0,
+        "max_tokens": {"brief": 1024},
+    },
     "schema": {"max_signal_enum": 64, "max_bytes": 16384, "exclude_fault_classes": ["unknown"]},
     "cards": {"k": 6, "k_min": 3, "pool_context_n": 10},
     "prompt": {"chars_per_token": 3.5, "include_brief": True, "permute_slate": False},
@@ -138,6 +149,12 @@ def test_schema_and_hash_do_not_depend_on_input_order(
         ("cards.pool_context_n", -1),
         ("prompt.chars_per_token", 0),
         ("prompt.include_brief", "yes"),
+        ("brief.max_repairs", -1),
+        ("sampler.temperature", -0.1),
+        ("sampler.temperature", None),
+        ("sampler.top_k", 1.5),
+        ("sampler.thinking", "off"),
+        ("sampler.max_tokens.brief", 0),
     ],
 )
 def test_bad_settings_are_config_errors(dotted: str, value: object) -> None:
@@ -150,3 +167,23 @@ def test_a_missing_key_is_a_config_error() -> None:
     del config["brief"]["max_proposals"]
     with pytest.raises(ConfigError, match=r"brief\.max_proposals"):
         brief_settings(config)
+
+
+def test_sampler_params_are_the_seven_contract_keys(settings: BriefSettings) -> None:
+    case = case_id("synth-01")
+    params = sampler_params(settings.sampler, case)
+    assert set(params) == set(models.SamplerParams.model_fields)
+    models.SamplerParams.model_validate(params)
+    assert 0 <= params["seed"] < SEED_INT_MODULUS and params["max_tokens"] == 1024
+    other = brief_settings(_with("sampler.seed_index", 1))
+    assert sampler_params(other.sampler, case)["seed"] != params["seed"]  # bench sweeps seeds by config
+    nulls = brief_settings(_with("sampler.top_k", None))
+    assert sampler_params(nulls.sampler, case)["top_k"] is None  # null means "not sent" (03 §9.1)
+
+
+def test_the_shipped_config_is_valid() -> None:
+    from veyltrace_core.config import load_section_file
+    from veyltrace_core.testing import repo_root
+
+    settings = brief_settings(load_section_file("relentra", config_dir=repo_root() / "config"))
+    assert (settings.cards_k, settings.max_repairs, settings.sampler.temperature) == (6, 1, 0.7)
