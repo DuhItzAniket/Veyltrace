@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pyarrow as pa
 import pytest
@@ -31,17 +33,28 @@ metrics: [ac_at_k, cost]
 """
 
 
-def test_the_proposals_lead_then_the_slate_without_them() -> None:
+def test_proposals_lead_in_rank_order_and_a_null_rank_is_unranked() -> None:
+    """The model's order (proposals[].rank, CCR #409), not the file's A-Z order; unknown order is
+    unranked. Until #409 lands the models have no rank, so a stand-in carries it here."""
     slate = testing.golden("slate", "synth-01")
     assert isinstance(slate, models.Slate)
     example = json.loads(textio.read_text(REPO / "contracts" / "examples" / "proposals.example.json"))
     proposals = models.Proposals.model_validate(example)
     ranking = slate_ranks(slate)
-    got = agent_only.ranks(proposals, ranking, slate)
-    services = [p.hypothesis.service for p in proposals.proposals]  # file order: service A→Z (03 §9.1)
-    heads = list(dict.fromkeys(services))
-    assert [r.split("_")[0] for r in got[: len(heads)]] == heads
-    assert got[len(heads) :] == tuple(r for r in ranking if r.split("_")[0] not in heads)
+    assert agent_only.ranks(proposals, ranking, slate) is None  # 1.0 file: no rank, order unknown
+    first, second = proposals.proposals[0], proposals.proposals[1]  # file order: A-Z by service
+    stand_in = SimpleNamespace(
+        case_id=proposals.case_id,
+        proposals=[
+            SimpleNamespace(hypothesis=first.hypothesis, rank=2),
+            SimpleNamespace(hypothesis=second.hypothesis, rank=1),
+        ],
+    )
+    got = agent_only.ranks(cast("models.Proposals", stand_in), ranking, slate)
+    assert got is not None
+    heads = [second.hypothesis.service, first.hypothesis.service]  # rank 1 first
+    assert [r.split("_")[0] for r in got[:2]] == heads
+    assert got[2:] == tuple(r for r in ranking if r.split("_")[0] not in heads)
     assert agent_only.ranks(None, ranking, slate) == ranking  # no proposals: the slate's ranking
 
 
