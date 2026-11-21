@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.1.0",
+  "schema_version": "1.2.0",
   "excluded": {
     "synth": []
   },
@@ -27,7 +27,15 @@
           "chance_at_5": 0.833333333
         },
         "cost": null,
+        "coverage": {
+          "by_fold": [],
+          "coverage": 0.0,
+          "coverage_gap": -0.9,
+          "n_fault": 4,
+          "pool_coverage": null
+        },
         "decoy_ranked_first": null,
+        "decoy_top1_change": null,
         "fine_ac_at_k": {
           "fine_ac_at_1": 0.0,
           "fine_ac_at_2": 0.0,
@@ -50,7 +58,17 @@
         "mrr": {
           "mrr": 0.0
         },
+        "no_fault_rates": {
+          "by_fold": [],
+          "false_alarm_rate": 0.0,
+          "n_fault": 4,
+          "n_normal": 1,
+          "no_fault_precision": 1.0,
+          "no_fault_recall": 1.0,
+          "wrong_no_fault_rate": 0.0
+        },
         "onset_error": null,
+        "permutation_invariance": null,
         "rerank_at_1": null,
         "retrieval_at_k": {
           "pool_retrieval": 0.0,
@@ -58,6 +76,24 @@
           "retrieval_k": [
             5
           ]
+        },
+        "risk_coverage": {
+          "aurc_fused": 1.0,
+          "aurc_verdict": 1.0,
+          "n_fault": 4
+        },
+        "selective_accuracy": {
+          "ac_at_1_confirmed": null,
+          "ac_at_1_likely_or_better": null,
+          "answer_rate_confirmed": 0.0,
+          "answer_rate_likely_or_better": 0.0,
+          "n_fault": 4
+        },
+        "set_size": {
+          "n_set": 0,
+          "set_size_mean": null,
+          "set_size_median": null,
+          "singleton_share": null
         }
       },
       "n_chance": 4,

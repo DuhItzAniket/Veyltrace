@@ -1,0 +1,43 @@
+% Veyltrace paper, draft v1 (R-18, #47). Build: README.md. Owner: the lead.
+% Template: acmart sigconf, because KDD 2027 cycle 2 is the primary target (docs/11 §7);
+% the venue and its template are fixed at M4. `review` numbers the lines for comments.
+\documentclass[sigconf,review,anonymous]{acmart}
+\input{preamble}
+
+\begin{document}
+
+% Working title 1 of docs/11 §1; titles 2 and 3 are the alternatives, chosen at M4.
+\title{Propose Freely, Decide Deterministically: Verifiable and Calibrated Root-Cause Analysis for Microservices on a Laptop}
+
+% Author order is to be decided at the M4 retrospective (docs/11 §9).
+\author{Aniket Kumar}
+\affiliation{\institution{[affiliation]}\country{[country]}}
+\author{Annapurna S}
+\affiliation{\institution{[affiliation]}\country{[country]}}
+\author{C Lakshanaa}
+\affiliation{\institution{[affiliation]}\country{[country]}}
+
+\begin{abstract}
+\input{sections/00-abstract}
+\end{abstract}
+
+\keywords{root-cause analysis, microservices, verification, conformal prediction, abstention, large language models, reproducibility}
+
+\maketitle
+
+\input{sections/01-introduction}
+\input{sections/02-related-work}
+\input{sections/03-design}
+\input{sections/04-evaluation}
+\input{sections/05-results}
+\input{sections/06-discussion}
+\input{sections/07-threats}
+\input{sections/08-conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{\vtbibfiles}
+
+\appendix
+\input{sections/09-appendix}
+
+\end{document}

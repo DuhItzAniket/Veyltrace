@@ -107,6 +107,12 @@ DECOY_RUNS = "decoys"  # <bench runs>/decoys/: Infralume-only runs giving each c
 SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws decoy entities from
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
+#: bench_summary 1.2 metric entries v0 writes as null: an experiment listing one is refused by
+#: experiment.unsupported() until the runner computes it (#404, #405).
+UNCOMPUTED_ENTRIES = (
+    "coverage", "set_size", "no_fault_rates", "risk_coverage", "selective_accuracy",
+    "decoy_top1_change", "permutation_invariance",
+)  # fmt: skip
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
 #: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
 IN_PROCESS = False
@@ -759,7 +765,7 @@ def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[st
     entries = {
         name: {k: flat.pop(k) for k in keys} if name in metrics else None
         for name, keys in METRIC_KEYS.items()
-    }
+    } | dict.fromkeys(UNCOMPUTED_ENTRIES)
     dataset, system, method = key
     outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
     return {
@@ -964,6 +970,7 @@ def run_experiment(
         "configs": configs,
         "seeds": sorted({seed for m in exp.methods for seed in m.ai.seeds}),
         "runs": runs,
+        "calibrations": None,  # not recorded yet (bench_manifest 1.1, 03 §13.4; #405)
     }
     io.write_path("bench_manifest", manifest, out_dir / "manifest.json")  # last: marks a whole result
     return out_dir, summary
