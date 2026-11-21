@@ -86,6 +86,12 @@
      "id": "T8",
      "reason": "intervention_unavailable",
      "result": "untestable"
+    },
+    {
+     "atoms": [],
+     "id": "T9",
+     "reason": null,
+     "result": "pass"
     }
    ],
    "v": 1.0
@@ -150,6 +156,12 @@
      "id": "T8",
      "reason": "intervention_unavailable",
      "result": "untestable"
+    },
+    {
+     "atoms": [],
+     "id": "T9",
+     "reason": null,
+     "result": "pass"
     }
    ],
    "v": 0.245967744
@@ -212,6 +224,12 @@
      "id": "T8",
      "reason": "intervention_unavailable",
      "result": "untestable"
+    },
+    {
+     "atoms": [],
+     "id": "T9",
+     "reason": null,
+     "result": "pass"
     }
    ],
    "v": 0.205753968
@@ -231,5 +249,5 @@
  },
  "schema_version": "1.0.0",
  "status": "CONFIRMED",
- "verdict_hash": "67c7275dbc7c7cd1390cc7c171cf4c1b2bbb9744fe750f6a5ea0f6aa528755da"
+ "verdict_hash": "f257796616ee8c3b109da50be0111083a16d677f95109293b995d675889c74b9"
 }

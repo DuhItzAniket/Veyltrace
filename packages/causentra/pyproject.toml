@@ -17,7 +17,7 @@ dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-causatrix", 
 [project.entry-points."veyltrace.engines"]
 causentra = "veyltrace_causentra.api:run"
 
-# Trials T1-T8 (09 §3.4, §5); T10 is decision.claim_check, applied to proposal-origin candidates only.
+# Trials T1-T9 (09 §3.4, §5); T10 is decision.claim_check, applied to proposal-origin candidates only.
 [project.entry-points."veyltrace.trials"]
 T1 = "veyltrace_causentra.trials:T1"
 T2 = "veyltrace_causentra.trials:T2"
@@ -27,6 +27,7 @@ T5 = "veyltrace_causentra.trials:T5"
 T6 = "veyltrace_causentra.trials:T6"
 T7 = "veyltrace_causentra.trials:T7"
 T8 = "veyltrace_causentra.trials:T8"
+T9 = "veyltrace_causentra.trials:T9"
 
 [tool.uv.sources]
 veyltrace-core = { workspace = true }

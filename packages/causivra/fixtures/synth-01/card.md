@@ -4,9 +4,9 @@
 
 ## Summary
 
-- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, Ea68f29528f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
+- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 - Its strongest internal signal was checkout cpu anomaly (incident) at 33.8 z. (cites: Ec2738c422e)
-- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec2738c422e, Ea68f29528f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 
 ## Candidate set
 
@@ -18,7 +18,6 @@
 |---|---|---|---|
 | Eb2a1231709 | cart mem anomaly (incident) | 0.822 | z |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
-| Ea68f29528f | checkout anomaly not explained by parents (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E8aa8de679c | checkout onset precedence over dependents (onset) | 1 |  |
 | E586a046788 | checkout propagation to entry (incident) | 1 |  |
@@ -46,8 +45,8 @@ checkout → frontend
 ## Why not
 
 - **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
-- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 - **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E106e938451, Efd34e2ffcd)
+- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 
 ## Asks
 
@@ -64,6 +63,6 @@ prose: template
 
 ---
 
-verdict_hash: `5324305c65eb2a40fdbde7a2cb6e8386191357165526876324ec5b6acdbee802`  
-card_hash: `63383b59758f86373413ef3eb5b4bce529a7eb542010ef01415c361c33fc16c3`  
+verdict_hash: `627731ed413ea0005470014c1f7729af8c0971df20da331cc96aa8b2b7e69f33`  
+card_hash: `cf483ead45e594e73a52fe632faa14133507cd9d952fc7f79eb055d37b97cc0c`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

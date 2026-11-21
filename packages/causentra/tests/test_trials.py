@@ -16,6 +16,7 @@ from veyltrace_causentra.trials import (
     change_alignment,
     intervention,
     latency_accounting,
+    leave_one_source_out,
     origin,
     peer_contrast,
     precedence,
@@ -44,13 +45,30 @@ def _onset(cand: str, ms: float, scope: str = "self") -> Atom:
 
 
 def _t(
-    atoms: list[Atom], calls: list[tuple[str, str]], tol_ms: float = 0.0, sources: Sources = ALL
+    atoms: list[Atom],
+    calls: list[tuple[str, str]],
+    tol_ms: float = 0.0,
+    sources: Sources = ALL,
+    ablations: tuple[tuple[str, tuple[str, ...]], ...] = (),
+    top_k: frozenset[str] = frozenset({"c"}),
 ) -> TrialInputs:
     members = sorted({a.candidate for a in atoms} | {s for c in calls for s in c} | {"c"})
     edges = [{"src": s, "dst": d, "weight": 1.0, "provenance": ["traces"]} for s, d in calls]
     graph = graph_view(members, [], edges, include_external=False)
     return TrialInputs(
-        evidence_view(atoms, members), graph, sources, tol_ms, 3.0, 1.0, 0.5, 0.30, 0.36787944, 3.0
+        evidence_view(atoms, members),
+        graph,
+        sources,
+        tol_ms,
+        3.0,
+        1.0,
+        0.5,
+        0.30,
+        0.36787944,
+        3.0,
+        2,
+        ablations,
+        top_k,
     )
 
 
@@ -186,6 +204,20 @@ def test_t8_intervention() -> None:
     assert _r(intervention("c", _t([_ci(3.0)], []))) == ("pass", None)  # stat_resid ≥ k_anom
     explained = intervention("c", _t([_ci(1.5)], []))
     assert _r(explained) == ("fail", "explained_by_parents") and len(explained.atoms) == 1
+
+
+def test_t9_leave_one_source_out() -> None:
+    # k = 2 in _t: c must stay in the first two places of every re-ranking.
+    kept = (("logs", ("a", "c", "b")), ("metrics", ("c", "a", "b")))
+    assert _r(leave_one_source_out("c", _t([], [], ablations=kept))) == ("pass", None)
+    lost = (("events", ("c", "a")), ("logs", ("a", "b", "c")), ("traces", ("a", "b")))
+    result = leave_one_source_out("c", _t([], [], ablations=lost))
+    assert _r(result) == ("fail", "drops_out_without:logs") and result.atoms == ()  # first source, sorted
+    assert "T9" not in [r.id for r in run_trials("c", _t([], []))]  # < 2 sources: no re-rankings
+    assert [r.id for r in run_trials("c", _t([], [], ablations=kept))][-1] == "T9"
+    # Outside the unablated top K (e.g. proposal origin): not applicable, so no T9 entry (#364 review).
+    outside = _t([], [], ablations=kept, top_k=frozenset({"a", "b"}))
+    assert "T9" not in [r.id for r in run_trials("c", outside)]
 
 
 def test_applicability_and_order() -> None:

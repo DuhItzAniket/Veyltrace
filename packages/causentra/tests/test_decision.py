@@ -1,24 +1,33 @@
-"""Tests of decision steps 1–3, 6 and the uncalibrated set (09 §3.2–§3.7, the §3.14 example)."""
+"""Tests of decision steps 1–3, 6 and the set (09 §3.2–§3.7, the §3.14 example) and the 09 §7
+property tests: order invariance, AI cannot remove, monotone claims, clip, and the conformal rule.
+
+The coverage check runs Causentra's own membership rule (`decision.in_set`) on simulated
+exchangeable scores, with q̂ from the 09 §3.7 finite-sample rule. It checks the rule's
+implementation, not the R-12 acceptance, which bench measures on held-out RE2 cases once R-13
+has fitted q̂."""
 
 from __future__ import annotations
 
 import itertools
 import json
+import math
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from veyltrace_causatrix.views import Atom, evidence_view, graph_view
 from veyltrace_causentra.config import config_from
-from veyltrace_causentra.decision import claim_sum, decide, trial_factor, verified
-from veyltrace_causentra.inputs import CausentraInputs, Claim, load_inputs
+from veyltrace_causentra.decision import claim_sum, decide, in_set, trial_factor, verified
+from veyltrace_causentra.inputs import DECIMALS, CausentraInputs, Claim, load_inputs
 from veyltrace_causentra.trials import TrialResult
 from veyltrace_contracts import models
 from veyltrace_core.config import load_section_file
+from veyltrace_core.rng import rng
 from veyltrace_core.testing import make_context, repo_root
 
 CFG = config_from(load_section_file("causentra"), load_section_file("core"))
@@ -213,6 +222,19 @@ def test_admission_needs_a_supporting_claim_that_holds(base: CausentraInputs) ->
     assert not decide(_case(base, _i("c", 5.0), proposals=proposals, claims=claims), budget).admitted
 
 
+def test_t9_skips_a_proposal_origin_candidate_outside_the_top_k(base: CausentraInputs) -> None:
+    """T9 presupposes the unablated top K: c, admitted from outside the slate, gets no T9 entry and
+    no T9 factor, while the slate candidates are tested (#364 lead review)."""
+    args = '{"k":4.0,"signal":"cpu"}'
+    proposals = _proposals(("P00000001", "c", "zscore_above", {"k": 4.0, "signal": "cpu"}))
+    claims = tuple(_claim(s, "zscore_above", True, args) for s in ("a", "b", "c"))
+    inp = _case(base, [*_i("a", 9.0), *_i("b", 4.0), *_i("c", 5.0)], proposals=proposals, claims=claims)
+    assert sum(getattr(inp.manifest.sources, s) for s in ("metrics", "logs", "traces", "events")) >= 2
+    trials = {c.service: [t.id for t in c.trials] for c in decide(inp, CFG).ranked}
+    assert "T9" not in trials["c"] and "T10" in trials["c"]
+    assert all("T9" in trials[s] for s in ("a", "b"))
+
+
 def test_claims_match_on_validated_args(base: CausentraInputs) -> None:
     # The claim pass stores validate()'s canonical args (06 §3.5 step 4): an int k finds the atom
     # of 4.0 (#216). A claim validate() rejects (a `subject` key, an unknown signal) never holds.
@@ -256,3 +278,110 @@ def test_proposal_and_claim_order_never_matter(base: CausentraInputs, data: st.D
         claims=tuple(data.draw(st.permutations(claims))),
     )
     assert decide(shuffled, CFG) == decide(inp, CFG)
+
+
+PREDICATES = ("zscore_above", "silent", "onset_before", "edge_anomalous", "error_rate_above")
+SERVICES = ("a", "b", "c")
+_SLOW = settings(suppress_health_check=[HealthCheck.function_scoped_fixture], max_examples=25)
+
+
+def _claims(draw: Any) -> list[Any]:
+    rows = draw(
+        st.lists(
+            st.tuples(
+                st.sampled_from(SERVICES), st.sampled_from(PREDICATES), st.integers(0, 3), st.booleans()
+            ),
+            max_size=12,
+            unique_by=lambda r: r[:3],
+        )
+    )
+    return [_claim(s, p, holds, f'{{"k":{k}}}') for s, p, k, holds in rows]
+
+
+def _v(inp: CausentraInputs) -> dict[str, float]:
+    return {c.service: c.v for c in decide(inp, CFG).ranked}
+
+
+@_SLOW
+@given(data=st.data())
+def test_ai_cannot_remove_a_slate_candidate(base: CausentraInputs, data: st.DataObject) -> None:
+    """Proposals and claims only add to the decision pool (09 §3.2; AGENTS Never 5)."""
+    specs = data.draw(
+        st.lists(
+            st.tuples(
+                st.sampled_from(("P00000001", "P00000002", "P00000003")),
+                st.sampled_from((*SERVICES, "unknown")),
+                st.sampled_from(PREDICATES),
+            ),
+            max_size=3,
+            unique_by=lambda s: s[0],
+        )
+    )
+    proposals = _proposals(*((pid, svc, pred, {}) for pid, svc, pred in specs))
+    inp = _case(base, [*_i("a", 9.0), *_i("b", 4.0)], proposals=proposals, claims=tuple(_claims(data.draw)))
+    ranked = {c.service for c in decide(inp, CFG).ranked}
+    assert {c.service for c in inp.slate.candidates} <= ranked
+
+
+@_SLOW
+@given(data=st.data(), k=st.integers(4, 9))
+def test_a_supporting_claim_that_holds_only_for_c_is_monotone(
+    base: CausentraInputs, data: st.DataObject, k: int
+) -> None:
+    """Adding a holding supporting claim for c never lowers V(c) and leaves every other V alone."""
+    claims = _claims(data.draw)
+    inp = _case(base, [*_i("a", 9.0), *_i("b", 4.0), *_i("c", 5.0)], k=3, claims=tuple(claims))
+    target = data.draw(st.sampled_from(SERVICES))
+    extra = _claim(target, "zscore_above", True, f'{{"k":{k}}}')  # k ≥ 4: a pair not drawn above
+    before, after = _v(inp), _v(replace(inp, claims=(*inp.claims, extra)))
+    assert after[target] >= before[target]
+    assert {s: v for s, v in after.items() if s != target} == {s: v for s, v in before.items() if s != target}
+
+
+@_SLOW
+@given(data=st.data())
+def test_the_claim_term_never_moves_v_beyond_the_clip(base: CausentraInputs, data: st.DataObject) -> None:
+    """V(c) / V_without_claims(c) stays within [1 + clip_low, 1 + clip_high] (09 §3.5)."""
+    atoms = [*_i("a", 9.0), *_i("b", 4.0), *_i("c", 5.0)]
+    plain = _v(_case(base, atoms, k=3))
+    claimed = _v(_case(base, atoms, k=3, claims=tuple(_claims(data.draw))))
+    for s, v in plain.items():
+        low = round(v * (1.0 + CFG.clip_low), DECIMALS)
+        high = round(v * (1.0 + CFG.clip_high), DECIMALS)
+        assert low <= claimed[s] <= high
+
+
+def reference_q_hat(scores: np.ndarray, alpha: float) -> float:
+    """The 09 §3.7 fitting rule: the ⌈(n + 1)(1 − alpha)⌉-th smallest score, +∞ if that index > n.
+
+    Bench owns fitting (R-13); this copy only drives the coverage check of the set rule."""
+    n = scores.size
+    index = math.ceil((n + 1) * (1.0 - alpha))
+    return math.inf if index > n else float(np.sort(scores)[index - 1])
+
+
+def test_q_hat_index_arithmetic() -> None:
+    """09 §7: n = 8 → index 9 > n → q̂ = +∞ (serialised null); n = 89 → the 81st smallest."""
+    assert reference_q_hat(np.arange(8, dtype=float), 0.10) == math.inf
+    assert reference_q_hat(np.arange(1, 90, dtype=float), 0.10) == 81.0
+    assert not in_set(1.0, 0.0) and in_set(0.0, 0.0) and in_set(1.0, None)  # None is +∞ (03 §10)
+
+
+@pytest.mark.parametrize(("alpha", "n"), [(0.10, 89), (0.10, 20), (0.05, 40), (0.20, 15)])
+def test_conformal_set_covers_exchangeable_roots(alpha: float, n: int) -> None:
+    """Marginal coverage of {s ≤ q̂} over 2,000 simulated cases is ≥ 1 − alpha − 0.02 (09 §7).
+
+    Each simulated case draws n calibration scores and one test score from the same law: a root
+    outside the decision pool (score +∞, never covered) with probability 0.02, else a 9-decimal s
+    in [0, 1] with a point mass at 0 (the root leads)."""
+    gen = rng(CASE, f"conformal-coverage alpha={alpha} n={n}")
+    trials = 2000
+    raw = gen.beta(0.7, 2.0, size=(trials, n + 1)).round(DECIMALS)
+    raw[gen.random(size=raw.shape) < 0.30] = 0.0
+    raw[gen.random(size=raw.shape) < 0.02] = math.inf
+    covered = 0
+    for row in raw:
+        q = reference_q_hat(row[:n], alpha)
+        q_hat = None if math.isinf(q) else round(q, DECIMALS)  # +∞ reads as None, as load_inputs does
+        covered += bool(math.isfinite(row[n]) and in_set(float(row[n]), q_hat))
+    assert covered / trials >= 1.0 - alpha - 0.02

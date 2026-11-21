@@ -47,9 +47,10 @@ def test_proposal_perturbations_are_seeded_draws(tmp_path: Path) -> None:
 
 
 def test_new_metric_ids_are_tasks_and_cost_is_computed(tmp_path: Path) -> None:
-    ids = ["selective_accuracy", "decoy_top1_change", "decoy_ranked_first", "permutation_invariance"]
+    ids = ["selective_accuracy", "decoy_top1_change", "permutation_invariance"]
     exp = _load(tmp_path, BASE + f"metrics: [mrr, cost, {', '.join(ids)}]\n")
     todo = " | ".join(unsupported(exp))
     assert all(f"metrics {m} ({METRIC_TASKS[m]})" in todo for m in ids)
     assert "cost" not in todo and "cost" in METRIC_KEYS and "cost" not in METRIC_TASKS  # #316
+    assert "decoy_ranked_first" in METRIC_KEYS and "decoy_ranked_first" not in METRIC_TASKS  # #357
     assert set(summarize([], ["mrr", "cost"])) >= {"mrr", "n_cost", "wall_ms_p95"}
