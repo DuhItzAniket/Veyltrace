@@ -102,6 +102,8 @@ FAKE_ARM_CASE = "synth-01"
 FAKE_OVERRIDES: Mapping[str, object] = {"llm.provider": "fake"}
 #: What the record/replay arm compares (check_ci §4: proposals, agent_trace, cassette, verdict).
 AI_COMPARED_STEPS = frozenset({"relentra", "causentra"})
+#: Run-dir prefix of the LLM cassette (02 §4.1); the fake arm checks it through run_manifest.ai.
+CASSETTE_PREFIX = "cassette/"
 #: The two arms differ in hash seed, run root and Infralume cache state (cold, then warm), and
 #: in everything a team laptop and CI may differ in (ARM_ENVIRONMENTS, working directory, data
 #: root path), so an artefact that embeds a path, a time zone or a locale shows up as a diff.
@@ -655,7 +657,11 @@ def _fake_arm(work: Path, data_root: str) -> list[str]:
     )
     if replay.error or replay.outcome != "ok":
         return [f"fake/replay: {replay.error or replay.outcome}"]
-    ai_files = [p for p, (_, step) in record.step_of.items() if step in AI_COMPARED_STEPS]
+    ai_files = [
+        p
+        for p, (_, step) in record.step_of.items()
+        if step in AI_COMPARED_STEPS and not p.startswith(CASSETTE_PREFIX)
+    ]  # the replay reads the record's cassette, so it has none of its own
     diffs = compare_arms(record, replay, only=ai_files)
     problems = [f"fake: {len(diffs)} file(s) differ; first: {diffs[0]}"] if diffs else []
     recorded, replayed = (_cassette_sha256(arm) for arm in (record, replay))
