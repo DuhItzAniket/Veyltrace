@@ -68,6 +68,7 @@ class Context:
     cells: Mapping[str, str] = field(default_factory=dict[str, str])  # 04 §6 cell -> not-run reason
     revises: Mapping[str, str] = field(default_factory=dict[str, str])  # revised id -> pre-registered id
     dev_cases: tuple[str, ...] | None = None  # bench/dev_cases.yaml; None when the file is absent
+    root: Path | None = None  # the repo root: a YAML's `dataset.cases` path is relative to it (04 §9)
 
     def get(self, experiment_id: str) -> Results:
         if experiment_id not in self.results:
@@ -151,4 +152,5 @@ def context(results_root: Path, experiments_dir: Path) -> Context:
         role = PRE_REGISTERED if exp.experiment_id in register.revises.values() else None
         results[exp.experiment_id] = replace(res, protocol=protocol(spec), role=role)
     cells = {k: v for k, v in register.reasons.items() if k in CELLS and k not in ids}
-    return Context(tuple(e for e, _ in keep), results, specs, cells, register.revises, dev)
+    root = experiments_dir.resolve().parents[1]  # bench/experiments -> the repo
+    return Context(tuple(e for e, _ in keep), results, specs, cells, register.revises, dev, root)

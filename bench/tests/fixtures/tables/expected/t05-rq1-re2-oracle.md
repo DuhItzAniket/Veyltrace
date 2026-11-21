@@ -70,7 +70,7 @@ Notes:
 9. not applicable: deterministic method: one run per case
 10. no interval: summary.json statistics has no `avg_at_5` interval for this group
 11. no interval: summary.json statistics has no `mrr` interval for this group
-12. null in summary.json: undefined for this group, e.g. no fault case (03 §13.3)
+12. null in summary.json: undefined for this group, as no row has the value (no fault case, no slate, no LLM tokens; 03 §13.3)
 13. no interval: summary.json statistics has no `chance_diff_at_1` interval for this group
 14. not run: its summary.json has no group for this dataset, system and method
 15. no interval: summary.json statistics has no `retrieval_at_k` interval for this group

@@ -91,6 +91,8 @@ class Results:
     manifest: BenchManifest | None = None  # dataset parts and case counts (Table 3)
     role: str | None = None  # "pre-registered" or "revises <id>" when the register pairs them
     protocol: str = ""  # the 04 §10.4 protocol statement printed in a table's sources
+    path: Path | None = None  # bench/results/<id>/, for the per_case.csv a subset point reads (H1)
+    interval_note: str | None = None  # why values recomputed outside summary.json have no interval
     _groups: dict[tuple[str, str, str], SummaryGroup] = field(
         default_factory=dict[tuple[str, str, str], SummaryGroup]
     )
@@ -142,6 +144,8 @@ class Results:
         group = self.group(dataset, system, method)
         assert group is not None  # missing() returned None
         values = getattr(group.metrics, entry)
+        if values is None and self.interval_note is not None:  # recomputed from per_case.csv (H1)
+            return cells.not_run(f"per_case.csv cannot give `{entry}` (it needs the answer key or services)")
         if values is None:
             return cells.not_run(f"the experiment does not list the metric `{entry}`")
         value = getattr(values, key)
@@ -161,6 +165,8 @@ class Results:
         interval = self._intervals.get((dataset, system, method, key))
         if interval is not None:
             return cells.rate(value, (interval.low, interval.high))
+        if self.interval_note is not None:
+            return cells.rate(value, note=self.interval_note)
         why = self.stats_reason or f"summary.json statistics has no `{key}` interval for this group"
         return cells.rate(value, note=f"no interval: {why}")
 
@@ -182,7 +188,9 @@ class Results:
             return cells.rate(interval.estimate, (interval.low, interval.high))
         if (why := self.stats_reason) is not None:
             return cells.not_run(why)
-        assert self.summary is not None and not isinstance(self.summary.statistics, str)
+        if self.summary is None:  # values recomputed from per_case.csv: no pooled interval either
+            return cells.not_run(f"no pooled value ({self.role})" if self.role else "no summary.json")
+        assert not isinstance(self.summary.statistics, str)
         scope = f"{bench} pooled intervals"
         for item in self.summary.statistics.not_run:
             if item.scope == scope:
@@ -236,6 +244,7 @@ def load(
         hashes=tuple((name, sha256_file(out / name)) for name in FILES),
         summary=summary,
         manifest=manifest,
+        path=out,
         _groups={(g.dataset, g.system, g.method): g for g in summary.groups},
         _intervals=intervals,
     )
