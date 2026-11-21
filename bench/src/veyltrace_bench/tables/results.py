@@ -31,7 +31,10 @@ FILES = (MANIFEST, PER_CASE, SUMMARY)  # sorted: the order of the hashes in a ta
 #: `reason` when the revision itself is not run.
 REGISTER = "not_run.yaml"
 REVISES, REASON = "revises", "reason"
-SUMMARY_VERSION = "1.1."  # the bench_summary minor the generator reads (03 §13.3)
+SUMMARY_VERSIONS = ("1.1.", "1.2.")  # the bench_summary minors the generator reads (03 §13.3)
+#: Entries bench_summary 1.2 added (CCR #404): a 1.1 file has them null although they are listed.
+NEW_IN_1_2 = frozenset({"coverage", "set_size", "no_fault_rates", "risk_coverage", "selective_accuracy",
+                        "decoy_top1_change", "permutation_invariance"})  # fmt: skip
 NO_RESULTS = "no committed results in bench/results"  # the row names the experiment
 NO_GROUP = "its summary.json has no group for this dataset, system and method"
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
@@ -104,6 +107,7 @@ class Results:
     protocol: str = ""  # the 04 §10.4 protocol statement printed in a table's sources
     path: Path | None = None  # bench/results/<id>/, for the per_case.csv a subset point reads (H1)
     interval_note: str | None = None  # why values recomputed outside summary.json have no interval
+    file_version: str = ""  # schema_version as summary.json records it (io reads an older minor as current)
     _groups: dict[tuple[str, str, str], SummaryGroup] = field(
         default_factory=dict[tuple[str, str, str], SummaryGroup]
     )
@@ -157,6 +161,8 @@ class Results:
         values = getattr(group.metrics, entry)
         if values is None and self.interval_note is not None:  # recomputed from per_case.csv (H1)
             return cells.not_run(f"per_case.csv cannot give `{entry}` (it needs the answer key or services)")
+        if values is None and entry in NEW_IN_1_2 and self.file_version.startswith("1.1."):
+            return cells.not_run(f"summary.json is bench_summary 1.1, which has no `{entry}` entry (re-run)")
         if values is None:
             return cells.not_run(f"the experiment does not list the metric `{entry}`")
         value = getattr(values, key)
@@ -243,8 +249,10 @@ def load(
     for name in FILES:
         if not (out / name).is_file():
             return Results(experiment_id, f"incomplete result: no {name} (bench writes {MANIFEST} last)")
-    if not (version := _version(out / SUMMARY)).startswith(SUMMARY_VERSION):
-        return Results(experiment_id, f"summary.json is bench_summary {version}; tables read 1.1 (re-run)")
+    if not (version := _version(out / SUMMARY)).startswith(SUMMARY_VERSIONS):
+        return Results(
+            experiment_id, f"summary.json is bench_summary {version}; tables read 1.1 and 1.2 (re-run)"
+        )
     manifest = io.read_path("bench_manifest", out / MANIFEST, validate=True)
     summary = io.read_path("bench_summary", out / SUMMARY, validate=True)
     assert isinstance(manifest, BenchManifest) and isinstance(summary, BenchSummary)
@@ -271,6 +279,7 @@ def load(
         summary=summary,
         manifest=manifest,
         path=out,
+        file_version=version,
         _groups={(g.dataset, g.system, g.method): g for g in summary.groups},
         _intervals=intervals,
     )
