@@ -1,5 +1,6 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
+  "calibrations": [],
   "code": {
     "bench_dirty": false,
     "commit": "fixture",
