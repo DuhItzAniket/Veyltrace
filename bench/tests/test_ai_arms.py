@@ -15,10 +15,11 @@ from typing import Any
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import runner
+from veyltrace_bench import answer_keys, runner, splits
 from veyltrace_bench.experiment import load_experiment
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
+from veyltrace_core.calibration import load_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 
@@ -86,6 +87,7 @@ def test_each_seed_is_a_kept_record_run_and_a_second_run_replays_it(tmp_path: Pa
     again, _ = runner.run_experiment(exp, out_root=tmp_path / "results2", runs_root=tmp_path / "runs")
     replayed = _rows(again)
     assert {r["ai_mode"] for r in replayed} == {"replay"} and _kept(tmp_path) == kept  # no new record run
+    assert all(r["wall_ms"] is None and r["tokens_in"] is None for r in replayed)  # a replay has no cost
     by_key = {(r["case_id"], r["seed"]): r["verdict_hash"] for r in rows}
     assert {(r["case_id"], r["seed"]): r["verdict_hash"] for r in replayed} == by_key
     manifest = json.loads(textio.read_text(again / "manifest.json"))
@@ -133,11 +135,20 @@ def test_a_fitted_ai_arm_writes_its_own_arms_files(
     """The calibration ai_arm is the Relentra mode (03 §12.1); seeds pool into one file per fold."""
     monkeypatch.setattr(runner, "IN_PROCESS", True)
     text = BRIEF.replace("split: {family: null, scheme: none}", "split: {family: synth, scheme: crossfit2}")
-    text = text.replace("calibration: {fit: false}", "calibration: {fit: true}").replace("[1, 2]", "[3]")
+    text = text.replace("calibration: {fit: false}", "calibration: {fit: true}").replace("[1, 2]", "[3, 4]")
     out, _ = runner.run_experiment(
         _yaml(tmp_path, text), out_root=tmp_path / "results", runs_root=tmp_path / "runs"
     )
     names = sorted(p.name for p in (ai_config / "calibration").glob("*.json"))
     assert names == ["synth.brief.oracle.foldA.json", "synth.brief.oracle.foldB.json"]
     rows = _rows(out)
-    assert {(r["seed"], r["ai_mode"]) for r in rows} == {(3, "record")} and all(r["fold"] for r in rows)
+    assert {(r["seed"], r["ai_mode"]) for r in rows} == {(3, "record"), (4, "record")} and all(
+        r["fold"] for r in rows
+    )
+    keys = {
+        c: k for c, k in answer_keys.load_answer_keys("synth").items() if c in {r["case_id"] for r in rows}
+    }
+    plan = splits.crossfit2(keys, 20261108)
+    for fold in splits.FOLDS:  # fitted on the first seed only: n = fault cases, not cases x seeds
+        content = load_calibration(ai_config / "calibration" / f"synth.brief.oracle.{fold}.json").content
+        assert content.n == sum(not keys[c].is_no_fault for c in plan.fits[fold])

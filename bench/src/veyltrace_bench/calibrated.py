@@ -170,11 +170,6 @@ def _check_file(exp: Experiment, split: Split, family: str) -> None:
         )
 
 
-def _arm_of(method: MethodSpec) -> str:
-    """A method's calibration arm from its YAML alone (core's ai_arm_for with relentra enabled)."""
-    return "off" if method.ai.mode == "off" else str(method.ai.relentra_mode)
-
-
 def transfer_keys(exp: Experiment, repo: Path) -> dict[str, AnswerKeyRow]:
     """The calibration cases of a transfer fit: every case of the file's source parts except the
     experiment's exclusions (04 §5.4 item 7: all RE2-OB and RE2-TT cases but the development ones)."""
