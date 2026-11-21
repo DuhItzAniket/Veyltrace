@@ -5,7 +5,7 @@
 - **Author:** Aniket Kumar (AK)
 - **Deciders:** the lead
 - **Consulted:** Observe (FYI: O-14 `bench/stats` may add intervals for the proportions later), Explain (none)
-- **Issue / CCR:** #404 (CCR), #405 (implementation); #37 (R-12 acceptance), #45 (R-16 full matrix)
+- **Issue / CCR:** #404 (CCR), #405 (entries), #412 (manifest calibrations); #37 (R-12 acceptance), #45 (R-16 full matrix)
 - **Supersedes:** none · **Superseded by:** none
 
 ## Context
@@ -52,7 +52,7 @@ We choose **option 1**. It keeps one `summary.json` per experiment as the only t
 - **`bench_manifest` 1.1.0**: `calibrations` = `[{family_id, sha256, fitted}] | null`, sorted by `family_id`, then `sha256`.
   - It lists every calibration file a recorded run read: its `config.lock.json` `calibration`, read through core io.
   - `fitted` is true when this experiment wrote the file: `calibration.fit` is true and the file's `experiment_id` is the experiment's own.
-  - The list is `[]` when no run read a file. It is null when bench did not record the files: in every 1.0 file read as an older minor, and from the schema PR's runner until #405.
+  - The list is `[]` when no run read a file. It is null when bench did not record the files: in every 1.0 file read as an older minor, and from the schema PR's runner until #412.
 - **Clarifications of the approved draft.** The lead delegates design choices; each one below only pins down what the draft left open.
   - *Channel nulls.* Coverage is null when no fault row has a set (baselines, `causatrix:*`). The status-based rates, both AURCs and selective accuracy are null when the group's method has no verdict. This is Retrieval@K's rule, "None for a channel that no row has". A failed veyltrace run keeps its channels, so it stays a miss.
   - *`set_size` is over fault rows* with a set size, not all rows. Normal windows declared NO_FAULT have an empty set by design, and including them would pull H3b's mean set size down. 04 §7 indexes C_i over F, as for coverage.
@@ -64,7 +64,7 @@ We choose **option 1**. It keeps one `summary.json` per experiment as the only t
   - *The leader's fused score* is the rank-1 entry of `verdict.ranked`, the verdict's top-1 and its leader whenever one exists (09 §3.6). Rows without one, and failed runs, order last.
   - The draft's `"x-order": "fold"` is written `"x-sort": [{"pointer": "fold", "order": "asc"}]`, because CONVENTIONS §3.4 allows only `"semantic"` for `x-order`.
 - **The schema PR ships the schema only.** The runner writes the seven entries and `calibrations` as null. An experiment listing a new metric is still refused by `unsupported()` until the implementation PR.
-- **The implementation PR (#405)** computes the entries in `veyltrace_bench.summary`. It adds them to `summary.METRIC_KEYS` and removes them from `experiment.METRIC_TASKS`. It reads the margin and the leader's fused score from each run's verdict, and writes `calibrations` from the recorded runs.
+- **The implementation PR (#405)** computes the entries in `veyltrace_bench.summary`. It adds them to `summary.METRIC_KEYS` and removes them from `experiment.METRIC_TASKS`. It reads the margin and the leader's fused score from each run's verdict. #412 then writes `calibrations` from the recorded runs.
 
 ## Alternatives considered
 
@@ -85,9 +85,9 @@ We choose **option 1**. It keeps one `summary.json` per experiment as the only t
   - The pretty-printed summary schema grows by about 330 lines.
   - The proportions have no cluster-bootstrap interval yet. 04 §8 asks for one: an O-14 follow-up for `bench/stats`.
 - **Follow-ups.**
-  - #405, the implementation.
+  - #405 (the entries) and #412 (the manifest calibrations).
   - Intervals for coverage, false-alarm rate and decoy flips (Observe, O-14) need the `summary_case_metric` enum to grow: a later minor.
-  - The runner that plants and permutes proposals must name its variants `plant-<i>` and `perm-<i>`.
+  - The runner that plants and permutes proposals must name its variants `plant-<i>` and `perm-<i>`, and must also write each case's unperturbed row (variant null) in the same experiment. Otherwise `n_pairs` and `n_cases` stay 0. re2-oracle-planted-v1 describes its baseline as the rows of re2-oracle-rq2-v1, so that runner copies or re-runs them.
 
 ## Confirmation
 

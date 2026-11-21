@@ -1169,7 +1169,7 @@
       }
     },
     "summary_metric_decoy_top1_change": {
-      "description": "Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals (variant plant-<i>) differs from the unplanted run's (04 §7 Decoy metrics; H2b); null when n_pairs is 0.",
+      "description": "Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals (variant plant-<i>) differs from the unplanted run's, a planted run with no ranks counting as changed (04 §7 Decoy metrics; H2b); null when n_pairs is 0.",
       "type": "object",
       "additionalProperties": false,
       "required": [

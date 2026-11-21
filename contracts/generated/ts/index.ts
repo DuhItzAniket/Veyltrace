@@ -955,7 +955,7 @@ export interface SummaryMetricDecoyRankedFirst {
   n_decoy: number;
 }
 
-/** Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals (variant plant-<i>) differs from the unplanted run's (04 §7 Decoy metrics; H2b); null when n_pairs is 0. */
+/** Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals (variant plant-<i>) differs from the unplanted run's, a planted run with no ranks counting as changed (04 §7 Decoy metrics; H2b); null when n_pairs is 0. */
 export interface SummaryMetricDecoyTop1Change {
   decoy_top1_change: number | null;
   n_pairs: number;
