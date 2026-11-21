@@ -34,7 +34,7 @@ The LLM never asserts evidence.
 It may only request named predicates from a fixed library, and code evaluates each requested predicate for \emph{every} candidate in the pool, so a check the LLM asks for can help whichever candidate it actually supports.
 The verifier runs ten fixed trials on each candidate, combines them with the code-checked claims in a fixed scoring rule, and returns a split-conformal candidate set together with a status that may be \st{INCONCLUSIVE} or \NOFAULT.
 Each verdict is sealed in a receipt from which anyone can replay it to the same hash.
-The whole pipeline is built to run on a 16\,GB laptop without a GPU or a cloud service; Section~\ref{sec:rq5} measures what it costs there.
+The deterministic pipeline needs neither a GPU nor a cloud service and is built for a 16\,GB laptop; the proposer runs a local open-weight model, and Section~\ref{sec:rq5} reports the cost on the team's laptops, whose specifications it lists.
 
 This paper makes four contributions.
 \begin{itemize}
