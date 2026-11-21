@@ -1,0 +1,10 @@
+% §5.4 RQ4 alert shifts and telemetry ablation: the lead's draft of the structure (R-18).
+% docs/11 §5 assigns these to the Observe lane; sections/observe-rq4.tex replaces this file.
+\paragraph{Alert-time shifts}
+\resultfigure{fig:shift}{AC@1 per RE2 system against the shift of the alert time ($-120$ to $+120$\,s; $\pm 30$\,s exploratory) for \code{veyltrace:off}, N-Sigma, BARO and the alert-count baseline.}{re2-oracle-rq1-v1 (no shift), re2-shift-m120-v1, re2-shift-m60-v1, re2-shift-m30-v1, re2-shift-p30-v1, re2-shift-p60-v1, re2-shift-p120-v1}{rq4-shift}
+H4a holds if AC@1 drops by at most 10 points per RE2 system under $\pm 60$ and $\pm 120$\,s shifts.
+The largest drop over those four shifts is \resnum{re2-shift-{m120,m60,p60,p120}-v1}{ob: largest AC@1 drop vs no shift, veyltrace:off} on OB, \resnum{re2-shift-{m120,m60,p60,p120}-v1}{ss: largest AC@1 drop vs no shift, veyltrace:off} on SS and \resnum{re2-shift-{m120,m60,p60,p120}-v1}{tt: largest AC@1 drop vs no shift, veyltrace:off} on TT (Figure~\ref{fig:shift}).
+
+\paragraph{Missing telemetry}
+\resultfigure{fig:ablation}{Telemetry ablation on RE2: AC@1 and the mix of statuses per cell (drop metrics, logs, traces or events; metrics only).}{re2-drop-metrics-v1, re2-drop-logs-v1, re2-drop-traces-v1, re2-drop-events-v1, re2-metrics-only-v1}{rq4-ablation}
+H4b holds if, in every ablation cell, at least 90\% of \st{CONFIRMED} verdicts are correct; the lowest share over the cells is \resnum{re2-drop-{metrics,logs,traces,events}-v1, re2-metrics-only-v1}{lowest share of correct CONFIRMED verdicts over cells} (Figure~\ref{fig:ablation}).

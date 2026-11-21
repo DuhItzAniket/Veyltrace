@@ -1,0 +1,7 @@
+% §5.6 RQ6 structure: the lead's draft (R-18). docs/11 §5 assigns 5.6 to the Explain lane;
+% sections/explain-rq6.tex replaces this file when it exists.
+\resulttable{tab:rq6}{RQ6 replay: Tier-1 rate (same laptop, a second laptop, CI) with the exit-code histogram, and the Tier-2 regeneration match rate on 50 recorded cases, with exact binomial intervals.}{replays of the recorded cases of re2-oracle-rq2-v1 (no experiment configuration yet)}{rq6-replay}
+H6a holds if Tier-1 replay reproduces \code{verdict_hash} on all recorded cases.
+Tier-1 replay reproduced it on \resnum{replays of re2-oracle-rq2-v1}{Tier-1 share, second laptop} of recorded cases on a second laptop and \resnum{replays of re2-oracle-rq2-v1}{Tier-1 share, CI} in CI.
+For H6b, Tier-2 regeneration matched the recording byte for byte on \resnum{replays of re2-oracle-rq2-v1}{Tier-2 share} of the regenerated cases (Table~\ref{tab:rq6}).
+\leadq{RQ6 has no experiment configuration and no \code{summary.json}; decide how its numbers are produced and traced (a bench experiment or a committed replay log).}

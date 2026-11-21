@@ -1,0 +1,13 @@
+% §5.2 RQ2 structure: the lead's draft (R-18). docs/11 §5 assigns 5.2 to the Explain lane;
+% sections/explain-rq2.tex replaces this file when it exists.
+\resulttable*{tab:rq2}{RQ2 proposer: AC@1 of \code{veyltrace:off}, \code{veyltrace:brief} (per seed, mean and SD) and \code{agent-only:brief}, proposer lift with 95\% cluster-bootstrap intervals per RE2 system and pooled, proposal outcomes, decoy top-1 changes and permutation invariance with exact binomial intervals.}{re2-oracle-rq2-v1, re2-oracle-planted-v1, re2-oracle-permute-v1, re2-detected-rq2-v1, re3-oracle-rq2-v1}{rq2-proposer}
+
+H2a holds if the 95\% interval of proposer lift is not entirely below zero.
+Pooled over RE2 and three seeds, the lift is \resnum{re2-oracle-rq2-v1}{pooled: AC@1 lift, veyltrace:brief minus veyltrace:off} (95\% CI \resnum{re2-oracle-rq2-v1}{pooled: lift CI}), and per system \resnum{re2-oracle-rq2-v1}{ob: lift}, \resnum{re2-oracle-rq2-v1}{ss: lift} and \resnum{re2-oracle-rq2-v1}{tt: lift} on OB, SS and TT (Table~\ref{tab:rq2}).
+For H2b (target at most 5\%), one planted decoy proposal per case changed the top-1 candidate in \resnum{re2-oracle-planted-v1}{decoy_top1_change} of cases (exact 95\% CI \resnum{re2-oracle-planted-v1}{decoy_top1_change CI}).
+For H2c (target 100\%), the verdict hash was identical across seeded permutations of the proposals in \resnum{re2-oracle-permute-v1}{permutation_invariance} of cases.
+Exploratory: without the verifier, the same model's hypotheses reach AC@1 \resnum{re2-oracle-rq2-v1}{pooled: AC@1, agent-only:brief}.
+\leadq{verdict on H2a--H2c; \code{investigate} and 9B-versus-4B comparisons are cut or not pre-registered.}
+
+\resultfigure{fig:predicates}{Which predicates the proposer requested, and how often each held for its own candidate, for a rival, or for no pool candidate in the claim pass.}{re2-oracle-rq2-v1}{rq2-predicates}
+\leadq{Figure~\ref{fig:predicates} needs data that \code{summary.json} does not hold (\code{proposals.json} and \code{claim_check} atoms); decide whether R-17 or the Explain lane produces it.}
