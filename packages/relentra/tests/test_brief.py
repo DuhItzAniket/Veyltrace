@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from veyltrace_core.hashing import verify_chain
 from veyltrace_core.testing import VARIANTS, fixture_run_dir, make_context
 from veyltrace_llm.cassette import CassetteMiss
 from veyltrace_llm.fake import FakeProvider, FakeReply
+from veyltrace_relentra import api
 from veyltrace_relentra.brief import PURPOSE, run_brief
 
 CASE = "synth-01@fake"
@@ -157,3 +159,10 @@ def test_replay_without_the_recording_is_a_cassette_miss(tmp_path: Path) -> None
     context = dataclasses.replace(context, cassette_dir=first / "cassette")
     with pytest.raises(CassetteMiss):
         run_brief(context)
+
+
+def test_the_engine_entry_runs_brief_mode_and_writes_valid_json(tmp_path: Path) -> None:
+    run_dir = _run_dir(tmp_path)
+    result = api.run(_ctx(run_dir))  # the configured fake provider answers `unscripted`
+    assert result.status == "degraded" and _proposals(run_dir).status == "failed"
+    assert json.loads(io.path_of("proposals", run_dir).read_text("utf-8"))["model"]["params"]["seed"] >= 0
