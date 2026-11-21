@@ -91,7 +91,10 @@ def restart(request: dict[str, Any]) -> dict[str, Any]:
     """A held-out calibrated run restarts at `from_step` on `reuse_dir`'s outputs (R-13, #376)."""
     if (reuse := request.get("reuse_dir")) is None:
         return {}
-    return {"from_step": request["from_step"], "reuse_dir": Path(reuse)}
+    got: dict[str, Any] = {"from_step": request["from_step"], "reuse_dir": Path(reuse)}
+    if (proposals := request.get("external_proposals")) is not None:  # a planted run (#399)
+        got["external_proposals"] = proposals
+    return got
 
 
 def ai_run(request: dict[str, Any]) -> dict[str, Any]:

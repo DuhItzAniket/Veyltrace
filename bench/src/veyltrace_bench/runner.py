@@ -46,6 +46,7 @@ from veyltrace_bench import (
     decoy_runs,
     naive_change,
     normal_windows,
+    planted,
     rcaeval,
     simplerca,
     splits,
@@ -109,6 +110,7 @@ INPUT_STEP = "alert"  # baselines read Infralume's tables and alert.json (03 §2
 DECOY_RUNS = "decoys"  # <bench runs>/decoys/: Infralume-only runs giving each case's services (#326)
 SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws decoy entities from
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
+DECOY_TOP1 = "decoy_top1_change"  # 04 §9 metric: planted rows paired with their source rows (H2b)
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
 #: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
@@ -400,6 +402,38 @@ def _restart(
     )
 
 
+def _plant(
+    exp: Experiment,
+    method: MethodSpec,
+    key: AnswerKeyRow,
+    source: Executed,
+    split: calibrated.Split | None,
+    root: Path,
+    overlay: str | None,
+    seed: int | None,
+) -> Executed:
+    """The planted run of a case and seed (`planted`): the source run's proposals plus the decoys,
+    from FaultLoom on, no model call; a source without proposals gives its own outcome."""
+    draw = exp.protocol.inject_proposals
+    ok = run_outcome(source.outcome, source.wall_ms, exp.resources.timeout_s) == "ok"
+    recorded = _read("proposals", source.run_dir, Proposals) if ok else None
+    case = _read("case_manifest", source.run_dir, CaseManifest)
+    if draw is None or recorded is None or case is None or source.run_dir is None:
+        return source if not ok else replace(source, outcome="failed")
+    root_service = None if key.is_no_fault else key.root_service  # to pick healthy decoys only
+    slate = _read("slate", source.run_dir, Slate)
+    order = [r.partition("_")[0] for r in slate_ranks(slate)] if slate is not None else []
+    proposals = planted.planted(recorded, case.services, root_service, draw, order)
+    over = overrides_for(exp, method, overlay, calibrated.first_run(split, key.case_id), None, seed)
+    extra = {
+        "from_step": planted.RESTART_STEP,
+        "reuse_dir": str(source.run_dir),
+        "external_proposals": proposals,
+    }
+    ai = ai_arms.AiRun(source.ai_mode, root, source.cassette_dir)
+    return _execute(key, method, over, root, exp.resources.timeout_s, extra, ai)
+
+
 def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[str, object]:
     """The manifest entry of one executed run (03 §13.4 runs[])."""
     case = _read("case_manifest", done.run_dir, CaseManifest)
@@ -495,7 +529,7 @@ def _run_method(
     windows: list[AnswerKeyRow] | None = None,
     dropped: list[dict[str, object]] | None = None,
     sources: dict[tuple[str, str], Executed] | None = None,
-    ai_runs: dict[tuple[str, str, int | None], Executed] | None = None,
+    ai_runs: dict[tuple[str, str, int | None, str | None], Executed] | None = None,
 ) -> list[Scored]:
     """Every case of one dataset with one method, each run once, then its normal `windows`; a window
     with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
@@ -521,7 +555,13 @@ def _run_method(
         if sources is not None and plain and method.kind == upstream.SOURCE_KIND and method.ai.mode == "off":
             sources[(method.id, key.case_id)] = done
         if ai_runs is not None and variant is None and method.ai.mode != "off":
-            ai_runs[(method.id, key.case_id, seed)] = done  # what an agent_only method scores (04 §4)
+            ai_runs[(method.id, key.case_id, seed, None)] = done  # what an agent_only method scores (04 §4)
+            if (draw := exp.protocol.inject_proposals) is not None:  # H2b (#399)
+                plant = _plant(exp, method, key, done, split, root, overlays.get(key.case_id), seed)
+                ai_runs[(method.id, key.case_id, seed, planted.variant(draw))] = plant
+                out.append(
+                    _record(exp, method, key, plant, _fold(split, key.case_id), planted.variant(draw), seed)
+                )
         if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
@@ -773,16 +813,22 @@ def _group(
     exp: Experiment,
     rows: list[dict[str, object]],
     no_cost: bool = False,
+    unplanted: list[tuple[CaseScore, dict[str, object]]] | None = None,
 ) -> dict[str, object]:
     """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
     one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9).
-    `rows` are all per_case rows; the group's, in run order, pair with `scores` (summary.with_rows).
+    `rows` are the group's per_case rows, in run order, one per score (summary.with_rows).
     `no_cost` nulls the cost entry of a group whose wall times are not end to end (slate-scored
-    methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413)."""
+    methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413).
+    `unplanted` are the source rows left out of a planted group (#408): only `decoy_top1_change`
+    reads them, pairing each planted row with its source run's (04 §7 Decoy metrics)."""
     flat = summarize(scores, ())  # the counts
     counted = cast("dict[str, int]", flat.pop("outcomes"))
-    mine = [r for r in rows if (r["dataset"], str(r["system"]), r["method"]) == key]
-    entries = summary_entries(with_rows(scores, mine), exp.metrics, alpha=exp.calibration.alpha)
+    entries = summary_entries(with_rows(scores, rows), exp.metrics, alpha=exp.calibration.alpha)
+    if unplanted and DECOY_TOP1 in exp.metrics:
+        both = [*(s for s, _ in unplanted), *scores], [*(r for _, r in unplanted), *rows]
+        paired = summary_entries(with_rows(*both), (DECOY_TOP1,), alpha=exp.calibration.alpha)
+        entries[DECOY_TOP1] = paired[DECOY_TOP1]
     if no_cost:
         entries["cost"] = None
     dataset, system, method = key
@@ -866,7 +912,13 @@ def run_experiment(
     reports: dict[tuple[str, str], str] = {}
     first: dict[str, list[tuple[Unit, Executed]]] = {}  # a fitting method's calibration runs
     sources: dict[tuple[str, str], Executed] = {}  # (method, case): runs causatrix:<ranker> reuses (#413)
-    ai_runs: dict[tuple[str, str, int | None], Executed] = {}  # (method, case, seed): AI-arm runs
+    ai_runs: dict[tuple[str, str, int | None, str | None], Executed] = {}  # (method, case, seed, variant)
+
+    draw = exp.protocol.inject_proposals
+    plant = planted.variant(draw) if draw is not None else None
+    planted_methods = {m.id for m in exp.methods if m.ai.mode != "off"}  # the arms that get planted rows
+    group_rows: dict[tuple[str, str, str], list[dict[str, object]]] = {}  # aligned with `groups`
+    unplanted: dict[tuple[str, str, str], list[tuple[CaseScore, dict[str, object]]]] = {}
 
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
@@ -874,7 +926,12 @@ def run_experiment(
         if listed:  # False: the run is already in the manifest (a calibration run kept as the row)
             runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
-        groups.setdefault((dataset, k_sys, method_id), []).append(score)
+        key = (dataset, k_sys, method_id)
+        if plant is not None and method_id in planted_methods and row["variant"] != plant:
+            unplanted.setdefault(key, []).append((score, row))  # decoy_top1_change's pairs only
+            return  # H2b: the summary and statistics hold only the planted rows (#408 review)
+        groups.setdefault(key, []).append(score)
+        group_rows.setdefault(key, []).append(row)
         k = keys[dataset][str(row["case_id"])]
         cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
         seed = row["seed"] if isinstance(row["seed"], int) else None  # seeded arms pair on case means
@@ -901,17 +958,19 @@ def run_experiment(
                     if v is None and s is None and method.ai.mode == "off":
                         sources[(method.id, k.case_id)] = done  # what causatrix:<ranker> reuses (#413)
                     if v is None and method.ai.mode != "off":
-                        ai_runs[(method.id, k.case_id, s)] = done
+                        ai_runs[(method.id, k.case_id, s, None)] = done
                 continue
             if method.kind == agent_only.KIND:  # no run of its own: its source's, per case and seed
                 source = agent_only.source_of(exp, method)
+                draw = exp.protocol.inject_proposals
                 fallback: dict[str, int] = {}  # system -> rows with no hypotheses: the slate ranking
                 for k, _, s in _units(method, rows_keys, []):
-                    shared = ai_runs[(source.id, k.case_id, s)]
-                    proposals = _read("proposals", shared.run_dir, Proposals)
-                    if proposals is None or not proposals.proposals:
-                        fallback[str(k.system)] = fallback.get(str(k.system), 0) + 1
-                    keep(_record(exp, method, k, shared, _fold(split, k.case_id), None, s))
+                    for v in (None, planted.variant(draw)) if draw is not None else (None,):
+                        shared = ai_runs[(source.id, k.case_id, s, v)]
+                        proposals = _read("proposals", shared.run_dir, Proposals)
+                        if proposals is None or not proposals.proposals:
+                            fallback[str(k.system)] = fallback.get(str(k.system), 0) + 1
+                        keep(_record(exp, method, k, shared, _fold(split, k.case_id), v, s))
                 for system, n in sorted(fallback.items()):  # 04 §4: no hypotheses -> the slate order
                     _log.info(
                         "bench.agent_only_slate_fallback",
@@ -965,7 +1024,7 @@ def run_experiment(
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            _group(k, scores, exp, rows, k[2] in slate_scored)
+            _group(k, scores, exp, group_rows[k], k[2] in slate_scored, unplanted.get(k))
             for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
