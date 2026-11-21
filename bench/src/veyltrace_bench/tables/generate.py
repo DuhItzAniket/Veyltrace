@@ -14,7 +14,7 @@ from pathlib import Path
 
 from veyltrace_bench.tables.context import Context, context
 from veyltrace_bench.tables.index import development_cases, results_index
-from veyltrace_bench.tables.render import Table, latex, markdown
+from veyltrace_bench.tables.render import Row, Table, latex, markdown
 from veyltrace_bench.tables.rq1 import accuracy, datasets, rq1_comparisons
 from veyltrace_bench.tables.rq4 import ablation, decoys, shift
 from veyltrace_bench.tables.rq23 import calibration, proposer
@@ -30,27 +30,44 @@ BUILDERS: tuple[Builder, ...] = (
     results_index, development_cases, datasets, accuracy, rq1_comparisons,
     proposer, calibration, cost, replay, shift, ablation, decoys,
 )  # fmt: skip
+REVISES = "revises "  # the role of a revision's results (Context.revised)
 UNPAIRED: frozenset[Builder] = frozenset({results_index, development_cases})  # list every experiment once
 
 
+def _revision(row: Row) -> bool:
+    """Whether the row cites a revision: its source or a second source (`also`) says "revises"."""
+    return any(s.role.startswith(REVISES) for s in (row.source, *row.also) if s is not None and s.role)
+
+
+def _key(table: Table, row: Row) -> tuple[str, ...]:
+    return tuple(row.cells[i].text for i in table.key)
+
+
 def paired(build: Builder, ctx: Context) -> list[Table]:
-    """`build`'s tables; where the register pairs a revised experiment with the pre-registered one
-    (04 §12), each row from the pre-registered experiment is followed by the same row built from
-    the revision, both labelled by their source cell (M1 of the R-17 review)."""
+    """`build`'s tables; where the register pairs revisions with a pre-registered experiment (04
+    §12), the builder runs again once per revision (sorted by id), and each row citing that
+    revision goes right after the last pre-registered row with the same key (`Table.key`, e.g.
+    system and method), both labelled by their source cell; a revised row whose key the
+    pre-registered table lacks (a method the revision added) goes at the end (M1 of the review)."""
     tables = build(ctx)
     if not ctx.revises or build in UNPAIRED:
         return tables
-    revised_ids = set(ctx.revises)
+    twins = [build(ctx.revised(new)) for new in sorted(ctx.revises)]
     out: list[Table] = []
-    for table, twin in zip(tables, build(ctx.revised()), strict=True):
-        extra = [r if r.source and r.source.experiment_id in revised_ids else None for r in twin.rows]
-        rows = [
-            row
-            for i, base in enumerate(table.rows)
-            for row in (base, extra[i] if i < len(extra) else None)
-            if row
-        ]
-        rows += [r for r in extra[len(table.rows) :] if r]
+    for i, table in enumerate(tables):
+        revised: dict[tuple[str, ...], list[Row]] = {}
+        for twin in twins:
+            if twin[i].name != table.name:
+                raise ConfigError(f"the revised pass of {table.name!r} built {twin[i].name!r} instead")
+            for row in filter(_revision, twin[i].rows):
+                revised.setdefault(_key(table, row), []).append(row)
+        last = {_key(table, row): n for n, row in enumerate(table.rows)}
+        rows: list[Row] = []
+        for n, row in enumerate(table.rows):
+            rows.append(row)
+            if last[_key(table, row)] == n:
+                rows += revised.pop(_key(table, row), [])
+        rows += [row for key in sorted(revised) for row in revised[key]]
         out.append(replace(table, rows=tuple(rows)))
     return out
 

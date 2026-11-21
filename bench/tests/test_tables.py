@@ -154,3 +154,34 @@ def test_a_revision_prints_next_to_the_pre_registered_rows(results: Path) -> Non
     textio.write_text(results / "not_run.yaml", "re2-oracle-prior-only-v1: {revises: re2-typo-v1}\n")
     with pytest.raises(ConfigError, match="revises unknown experiments"):
         context.context(results, EXPERIMENTS)
+
+
+def test_revised_rows_follow_the_last_row_of_their_key(results: Path) -> None:
+    textio.write_text(
+        results / "not_run.yaml",
+        f"re2-oracle-prior-only-v1: {{revises: {RQ1}}}\nre2-oracle-rq3-v1: {{revises: {RQ1}}}\n",
+    )
+    ctx = context.context(results, EXPERIMENTS)
+
+    def build(c: context.Context) -> list[Table]:  # the revisions report one row per part, rq1 two
+        res = c.get(RQ1)
+        labels = ["a", "b"] if res.role == "pre-registered" else ["r"]
+        rows = [Row((cells.text(p), cells.text(m)), res) for p in c.spec(RQ1).dataset.parts for m in labels]
+        return [Table("t", "T", "c", ("Part", "Method"), tuple(rows))]
+
+    (table,) = generate.paired(build, ctx)
+    got = [(r.cells[0].text, r.cells[1].text, r.source.experiment_id if r.source else "") for r in table.rows]
+    assert got[:4] == [
+        ("re2-ob", "a", RQ1), ("re2-ob", "b", RQ1),
+        ("re2-ob", "r", "re2-oracle-prior-only-v1"), ("re2-ob", "r", "re2-oracle-rq3-v1"),
+    ]  # fmt: skip
+    assert len(got) == 12 and got[-1] == ("re2-tt", "r", "re2-oracle-rq3-v1")
+
+
+def test_a_revision_must_name_a_pre_registered_experiment_directly(results: Path) -> None:
+    chain = "re2-oracle-rq3-v1: {revises: re2-oracle-prior-only-v1}\n"
+    chain += f"re2-oracle-prior-only-v1: {{revises: {RQ1}}}\n"
+    for register in (chain, "re2-oracle-rq3-v1: {revises: re2-oracle-baselines-r05}\n"):
+        textio.write_text(results / "not_run.yaml", register)
+        with pytest.raises(ConfigError, match="no chain"):
+            context.context(results, EXPERIMENTS)

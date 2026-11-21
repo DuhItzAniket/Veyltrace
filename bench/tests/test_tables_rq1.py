@@ -113,3 +113,25 @@ def test_cli_writes_then_checks(results: Path) -> None:
     assert bench_cli.main([*argv, "--check"]) == 2
     textio.write_text(results / "not_run.yaml", "not a mapping\n")
     assert bench_cli.main([*argv, "--check"]) == 4  # a config error, not "differs"
+
+
+def test_mcnemar_says_why_it_is_missing(results: Path) -> None:
+    path = results / "re2-oracle-rq1-v1" / "summary.json"
+    doc = json.loads(textio.read_text(path))
+    doc["statistics"]["comparisons"][1].update(
+        n_pairs=0, mcnemar_only_a=None, mcnemar_only_b=None, mcnemar_p=None
+    )
+    textio.write_text(path, json.dumps(doc))
+    table = generate.outputs(results, EXPERIMENTS)["tables/t05c-rq1-comparisons.md"].decode()
+    assert "not applicable: no paired cases" in table and "McNemar is off" not in table
+
+
+def test_table_3_pairs_a_revision_of_its_second_source(results: Path) -> None:
+    textio.write_text(results / "not_run.yaml", "re2-oracle-loso-v1: {revises: re2-oracle-rq3-v1}\n")
+    t3 = generate.outputs(results, EXPERIMENTS)["tables/t03-datasets.md"].decode().splitlines()
+    base = next(n for n, line in enumerate(t3) if line.startswith("| re2-ob | ob |"))
+    assert "4 normal windows (from re2-oracle-rq3-v1)" in t3[base]
+    assert (
+        t3[base + 1].startswith("| re2-ob | ob |") and "not run<sup>" in t3[base + 1]
+    )  # the revision, not run
+    assert any(line.startswith("- re2-oracle-loso-v1 (revises re2-oracle-rq3-v1): not run") for line in t3)
