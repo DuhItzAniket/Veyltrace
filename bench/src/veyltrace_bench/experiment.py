@@ -53,16 +53,9 @@ MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "onset_error", "coverage", "set_size", "risk_coverage", "selective_accuracy", "no_fault_rates",
     "decoy_top1_change", "decoy_ranked_first", "permutation_invariance", "cost",
 ]  # fmt: skip
-#: The 04 §9 metrics v0 does not compute (summary.METRIC_KEYS has the rest), with the adding task.
-METRIC_TASKS = {
-    "coverage": "R-13 held-out folds",
-    "set_size": "R-12 conformal sets",
-    "risk_coverage": "R-12 statuses",
-    "no_fault_rates": "R-13 normal windows",
-    "selective_accuracy": "R-12 statuses (04 §7 Selective accuracy, H4b)",
-    "decoy_top1_change": "RQ2 planted decoy proposals (H2b, M4)",
-    "permutation_invariance": "RQ2 proposal permutations (H2c, M4)",
-}
+#: The 04 §9 metrics v0 does not compute (summary.METRIC_KEYS has the rest), with the adding task:
+#: none since bench_summary 1.2 (#404, #405).
+METRIC_TASKS: dict[str, str] = {}
 
 
 class _Strict(BaseModel):

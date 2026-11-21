@@ -79,9 +79,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "tables":
             return _tables(args)
-        out_dir, _ = run_experiment(
-            args.experiment, out_root=args.out, runs_root=args.runs_root, table=args.table
-        )
+        # Resolved here, against the caller's directory: the run children start in the repository
+        # root, and the manifest's calibrations re-open each run's lock under this root (#412).
+        runs_root = args.runs_root.resolve() if args.runs_root is not None else None
+        out_dir, _ = run_experiment(args.experiment, out_root=args.out, runs_root=runs_root, table=args.table)
     except VeyltraceError as exc:
         print(f"error: {exc}", file=sys.stderr)
         if isinstance(exc, ArtifactMissing) and exc.name == ANSWER_KEY:
