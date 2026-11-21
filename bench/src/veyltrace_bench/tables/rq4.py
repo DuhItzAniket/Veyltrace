@@ -13,7 +13,6 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from veyltrace_bench.experiment import Experiment
-from veyltrace_bench.summary import ALL_METRICS
 from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.cells import Cell
 from veyltrace_bench.tables.context import Context
@@ -35,6 +34,7 @@ from veyltrace_bench.tables.rq1 import (
     seeded,
 )  # fmt: skip
 from veyltrace_bench.tables.subset import COMPUTED, case_list, on_subset
+from veyltrace_contracts.models import SummaryGroupMetrics
 
 RQ1, RQ2, PRIOR = "re2-oracle-rq1-v1", "re2-oracle-rq2-v1", "re2-oracle-prior-only-v1"
 BRIEF = "veyltrace:brief"
@@ -46,7 +46,13 @@ ACCURACY: tuple[Metric, ...] = (("AC@1", "ac_at_k", "ac_at_1"), ("AC@3", "ac_at_
 DECOY: tuple[Metric, ...] = (ACCURACY[0], *LIFT,
                              ("Decoy ranked first", "decoy_ranked_first", "decoy_ranked_first"),
                              ("Decoy cases", "decoy_ranked_first", "n_decoy"))  # fmt: skip
-NO_POOL = frozenset({"n_decoy", "lift_at_1"})  # a count and a ratio: bench_summary pools case means only
+SELECTIVE: tuple[Metric, ...] = (  # H4b, bench_summary 1.2 (CCR #404)
+    ("AC@1 among CONFIRMED", "selective_accuracy", "ac_at_1_confirmed"),
+    ("Answer rate CONFIRMED", "selective_accuracy", "answer_rate_confirmed"),
+    ("AC@1 among CONFIRMED or LIKELY", "selective_accuracy", "ac_at_1_likely_or_better"),
+)
+#: Keys bench_summary pools no interval for: a count, a ratio, and the 1.2 selective rates.
+NO_POOL = frozenset({"n_decoy", "lift_at_1", *(key for _, _, key in SELECTIVE)})
 PERTURBED: dict[str, Callable[[Experiment], bool]] = {
     "shift": lambda e: e.protocol.shift_s != 0,
     "drop": lambda e: bool(e.protocol.sources_drop) and e.protocol.decoys is None,
@@ -77,7 +83,7 @@ def listed(exp: Experiment, res: Results, metric: str) -> Cell | None:
     """None when the summary can hold `metric`; else its not-run cell (unlisted or no entry)."""
     if metric not in exp.metrics:
         return cells.not_run(res.reason or f"the experiment does not list the metric `{metric}`")
-    return None if metric in ALL_METRICS else absent(res, metric)
+    return None if metric in SummaryGroupMetrics.model_fields else absent(res, metric)
 
 
 def perturbed(ctx: Context, test: str) -> list[Experiment]:
@@ -202,7 +208,7 @@ def ablation(ctx: Context) -> list[Table]:
     points = [Point("none", RQ1), *(Point(label, eid) for label, eid in drops)]
     caption = "RE2, oracle alert, no shift, the named sources dropped before ingest (04 §5.2)."
     title = "Table 11: RQ4 telemetry ablation (H4b)"
-    return _table("t11-rq4-ablation", title, caption, "Sources", points, ctx, extra=("selective_accuracy",))
+    return _table("t11-rq4-ablation", title, caption, "Sources", points, ctx, (*ACCURACY, *SELECTIVE))
 
 
 def decoy_point(e: Experiment) -> tuple[float, float]:

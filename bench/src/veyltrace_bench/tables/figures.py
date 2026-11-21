@@ -150,18 +150,39 @@ def fig9(ctx: Context) -> dict[str, bytes]:
     return _heatmaps(ctx, "fig9-rcaevalc", "Fig. 9: AC@1 over the RCAEval-C grid", cells)
 
 
+def fig6(ctx: Context) -> dict[str, bytes]:
+    """Fig 6 (H3c): AURC of the verified score V against the fused score F per method and RE2 system
+    (bench_summary 1.2 `risk_coverage`, 03 §13.3; lower is better). bench_summary keeps the areas,
+    not the curves, so the figure shows the two areas side by side."""
+    eid = "re2-oracle-rq3-v1"
+    cols = (
+        ("AURC verifier", ("risk_coverage", "aurc_verdict")),
+        ("AURC fused", ("risk_coverage", "aurc_fused")),
+    )
+    rows = [d for m in methods(ctx.spec(eid)) for c, ek in cols for d in data(ctx, eid, m, ek, m, c)]
+    files = {"fig6-risk-coverage.csv": to_csv(rows)}
+    labels = list(dict.fromkeys(d.series for d in rows))
+    for panel in sorted({d.panel for d in rows}):
+        mine = [d for d in rows if d.panel == panel]
+        found = {(d.series, d.x): d.point.value for d in mine}
+        values = [[found.get((r, c)) for c, _ in cols] for r in labels]
+        title = f"Fig. 6: risk-coverage AURC, verifier vs fused score, RE2-{panel.upper()}"
+        files[f"fig6-risk-coverage-{panel}.svg"] = svg.heatmap(
+            title, labels, [c for c, _ in cols], values, _note(mine)
+        ).encode()
+    return files
+
+
 GAPS = (
     ("fig5-predicate-requests", "Fig. 5: predicate requests vs claim-pass outcome",
-     "predicate requests live in each run's proposals.json; bench_summary 1.1 has no entry for them"),
-    ("fig6-risk-coverage", "Fig. 6: risk-coverage, ranker vs verifier",
-     "bench_summary 1.1 has no `risk_coverage` entry (03 §13.3); it needs a contract change"),
+     "predicate requests live in each run's proposals.json; bench_summary has no entry for them"),
 )  # fmt: skip
 
 
 def figures(ctx: Context) -> dict[str, bytes]:
     """Every figure file, as {path relative to the results root: bytes}."""
     files: dict[str, bytes] = {}
-    for build in (fig4, fig7, fig8, fig9):
+    for build in (fig4, fig6, fig7, fig8, fig9):
         files |= build(ctx)
     for name, title, reason in GAPS:
         files[f"{name}.svg"] = svg.placeholder(title, reason).encode()

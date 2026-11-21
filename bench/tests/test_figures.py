@@ -36,7 +36,8 @@ def test_figures_regenerate_identically_and_parse(results: Path, tmp_path: Path)
     assert generate.outputs(shutil.copytree(results, tmp_path / "copy"), EXPERIMENTS) == files
     names = {Path(k).name for k in figures}
     assert {"fig4-retrieval-rerank.svg", "fig7-shift-ob.svg", "fig8-ablation-ob.svg", "fig9-rcaevalc-ob.svg",
-            "fig5-predicate-requests.svg", "fig6-risk-coverage.svg", "fig7-shift.csv"} <= names  # fmt: skip
+            "fig5-predicate-requests.svg", "fig6-risk-coverage-ob.svg",
+            "fig7-shift.csv"} <= names  # fmt: skip
     for path, data in figures.items():
         if path.endswith(".svg"):
             ET.fromstring(data)  # well-formed XML
@@ -64,10 +65,9 @@ def test_not_run_points_are_listed_not_drawn(results: Path) -> None:
     drawn = image.count("<circle")
     assert drawn == sum(1 for r in shift if r["panel"] == "ob" and r["status"] == "ok")
     assert "points not run or undefined; see the CSV" in image
-    assert (
-        "not run: bench_summary 1.1 has no `risk_coverage` entry"
-        in files["figures/fig6-risk-coverage.svg"].decode()
-    )
+    aurc = _rows(files["figures/fig6-risk-coverage.csv"])
+    ob = {(r["series"], r["x"]): r["value"] for r in aurc if r["panel"] == "ob"}
+    assert ob[("veyltrace:off", "AURC verifier")] == "0.25" and ob[("veyltrace:off", "AURC fused")] == "0.375"
 
 
 def test_heatmap_marks_missing_cells_grey() -> None:
