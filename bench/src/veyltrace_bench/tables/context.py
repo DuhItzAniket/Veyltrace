@@ -81,13 +81,15 @@ class Context:
             e for e in self.experiments if e.experiment_id == experiment_id
         )
 
-    def revised(self) -> Context:
-        """This context with each pre-registered experiment's results and spec replaced by those of
-        the experiment that revises it, so a builder's second pass yields the revised rows."""
+    def revised(self, new: str) -> Context:
+        """This context with the results and spec of the experiment `new` revises replaced by
+        `new`'s, so a builder's pass on it yields the revised rows. The spec keeps the
+        pre-registered id, so a builder looking it up by id gets the revision's results, which say
+        "revises <id>" in their source cell."""
+        old = self.revises[new]
         results, specs = dict(self.results), dict(self.specs)
-        for new, old in self.revises.items():
-            results[old] = replace(self.results[new], role=f"revises {old}")
-            specs[old] = self.spec(new)
+        results[old] = replace(self.results[new], role=f"revises {old}")
+        specs[old] = self.spec(new).model_copy(update={"experiment_id": old})
         return replace(self, results=results, specs=specs)
 
 
@@ -120,6 +122,13 @@ def context(results_root: Path, experiments_dir: Path) -> Context:
         )
     if bad := sorted(f"{k} -> {v}" for k, v in register.revises.items() if not {k, v} <= ids or k == v):
         raise ConfigError(f"{REGISTER} revises unknown experiments: {', '.join(bad)}")
+    prereg = {e.experiment_id for e, _ in keep if e.prereg}
+    if bad := sorted(
+        f"{k} -> {v}" for k, v in register.revises.items() if v in register.revises or v not in prereg
+    ):
+        raise ConfigError(
+            f"{REGISTER}: a revision names a pre-registered experiment directly, no chain: {', '.join(bad)}"
+        )
     results: dict[str, Results] = {}
     specs: dict[str, Experiment] = {}
     dev = _dev_cases(experiments_dir.parent / DEV_CASES)
