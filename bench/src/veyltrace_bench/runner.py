@@ -110,6 +110,7 @@ INPUT_STEP = "alert"  # baselines read Infralume's tables and alert.json (03 §2
 DECOY_RUNS = "decoys"  # <bench runs>/decoys/: Infralume-only runs giving each case's services (#326)
 SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws decoy entities from
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
+DECOY_TOP1 = "decoy_top1_change"  # 04 §9 metric: planted rows paired with their source rows (H2b)
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
 #: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
@@ -812,16 +813,22 @@ def _group(
     exp: Experiment,
     rows: list[dict[str, object]],
     no_cost: bool = False,
+    unplanted: list[tuple[CaseScore, dict[str, object]]] | None = None,
 ) -> dict[str, object]:
     """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
     one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9).
-    `rows` are all per_case rows; the group's, in run order, pair with `scores` (summary.with_rows).
+    `rows` are the group's per_case rows, in run order, one per score (summary.with_rows).
     `no_cost` nulls the cost entry of a group whose wall times are not end to end (slate-scored
-    methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413)."""
+    methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413).
+    `unplanted` are the source rows left out of a planted group (#408): only `decoy_top1_change`
+    reads them, pairing each planted row with its source run's (04 §7 Decoy metrics)."""
     flat = summarize(scores, ())  # the counts
     counted = cast("dict[str, int]", flat.pop("outcomes"))
-    mine = [r for r in rows if (r["dataset"], str(r["system"]), r["method"]) == key]
-    entries = summary_entries(with_rows(scores, mine), exp.metrics, alpha=exp.calibration.alpha)
+    entries = summary_entries(with_rows(scores, rows), exp.metrics, alpha=exp.calibration.alpha)
+    if unplanted and DECOY_TOP1 in exp.metrics:
+        both = [*(s for s, _ in unplanted), *scores], [*(r for _, r in unplanted), *rows]
+        paired = summary_entries(with_rows(*both), (DECOY_TOP1,), alpha=exp.calibration.alpha)
+        entries[DECOY_TOP1] = paired[DECOY_TOP1]
     if no_cost:
         entries["cost"] = None
     dataset, system, method = key
@@ -910,6 +917,8 @@ def run_experiment(
     draw = exp.protocol.inject_proposals
     plant = planted.variant(draw) if draw is not None else None
     planted_methods = {m.id for m in exp.methods if m.ai.mode != "off"}  # the arms that get planted rows
+    group_rows: dict[tuple[str, str, str], list[dict[str, object]]] = {}  # aligned with `groups`
+    unplanted: dict[tuple[str, str, str], list[tuple[CaseScore, dict[str, object]]]] = {}
 
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
@@ -917,9 +926,12 @@ def run_experiment(
         if listed:  # False: the run is already in the manifest (a calibration run kept as the row)
             runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
+        key = (dataset, k_sys, method_id)
         if plant is not None and method_id in planted_methods and row["variant"] != plant:
+            unplanted.setdefault(key, []).append((score, row))  # decoy_top1_change's pairs only
             return  # H2b: the summary and statistics hold only the planted rows (#408 review)
-        groups.setdefault((dataset, k_sys, method_id), []).append(score)
+        groups.setdefault(key, []).append(score)
+        group_rows.setdefault(key, []).append(row)
         k = keys[dataset][str(row["case_id"])]
         cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
         seed = row["seed"] if isinstance(row["seed"], int) else None  # seeded arms pair on case means
@@ -1012,7 +1024,7 @@ def run_experiment(
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            _group(k, scores, exp, rows, k[2] in slate_scored)
+            _group(k, scores, exp, group_rows[k], k[2] in slate_scored, unplanted.get(k))
             for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
