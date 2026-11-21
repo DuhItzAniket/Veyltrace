@@ -263,8 +263,9 @@ def unsupported(exp: Experiment) -> list[str]:
         ),
         (p.anonymize_services, "protocol.anonymize_services (optional, not built)"),
         (
-            p.permute_proposals is not None,
-            "protocol.permute_proposals (#399: the permutation level is the lead's)",
+            p.permute_proposals is not None
+            and (exp.calibration.fit or not any(m.ai.mode != "off" for m in exp.methods)),
+            "protocol.permute_proposals needs an AI arm and calibration.fit false (it permutes proposals)",
         ),
         (
             p.inject_proposals is not None

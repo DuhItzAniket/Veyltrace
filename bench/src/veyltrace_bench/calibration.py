@@ -27,8 +27,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from veyltrace_bench.metrics import coarse_service
-from veyltrace_causentra.config import config_from
-from veyltrace_causentra.inputs import DECIMALS, load_inputs
+from veyltrace_causentra.config import CausentraConfig, config_from
+from veyltrace_causentra.inputs import DECIMALS, CausentraInputs, load_inputs
 from veyltrace_causentra.outcome import no_fault_statistic, silent_service
 from veyltrace_contracts.models import Calibration, RunManifest, Verdict
 from veyltrace_core import io
@@ -108,9 +108,9 @@ def never_counts(runs: Iterable[CalibrationRun]) -> dict[str, int]:
     return {f"n_{reason}": got.count(reason) for reason in (FAILED, NO_M, SILENT)}
 
 
-def run_statistic(run_dir: Path) -> tuple[float | None, bool]:
-    """(M, a silent service) of a finished run, by Causentra's code over the run's own inputs and
-    locked config; M is None when no robust_z atom exists."""
+def causentra_inputs(run_dir: Path) -> tuple[RunContext, CausentraConfig, CausentraInputs]:
+    """Causentra's context, config and inputs of a finished run, from its own files and locked
+    config (no file outside the run), as its step read them."""
     manifest = io.read_model("run_manifest", run_dir, RunManifest)
     resolved = ResolvedConfig.from_lock(run_dir / LOCK)
     engine = resolved.engine(CAUSENTRA)
@@ -125,7 +125,14 @@ def run_statistic(run_dir: Path) -> tuple[float | None, bool]:
         step=CAUSENTRA,
         resolved=resolved,
     )
-    inp = load_inputs(ctx, config_from(engine, engine.core))
+    cfg = config_from(engine, engine.core)
+    return ctx, cfg, load_inputs(ctx, cfg)
+
+
+def run_statistic(run_dir: Path) -> tuple[float | None, bool]:
+    """(M, a silent service) of a finished run, by Causentra's code over the run's own inputs and
+    locked config; M is None when no robust_z atom exists."""
+    _, _, inp = causentra_inputs(run_dir)
     return no_fault_statistic(inp), silent_service(inp)
 
 
