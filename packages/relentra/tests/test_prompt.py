@@ -25,8 +25,17 @@ from veyltrace_relentra.settings import brief_settings
 
 SETTINGS = brief_settings(
     {
-        "brief": {"max_proposals": 3},
+        "brief": {"max_proposals": 3, "max_repairs": 1},
         "budget": {"max_claims_per_proposal": 4, "max_hypotheses": 5, "max_prompt_tokens": 100},
+        "sampler": {
+            "temperature": 0.7,
+            "top_p": 0.8,
+            "top_k": 20,
+            "presence_penalty": 1.5,
+            "thinking": False,
+            "seed_index": 0,
+            "max_tokens": {"brief": 1024},
+        },
         "schema": {"max_signal_enum": 64, "max_bytes": 16384, "exclude_fault_classes": ["unknown"]},
         "cards": {"k": 6, "k_min": 3, "pool_context_n": 2},
         "prompt": {"chars_per_token": 4, "include_brief": True, "permute_slate": False},

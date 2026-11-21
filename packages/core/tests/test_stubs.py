@@ -128,14 +128,16 @@ def test_stub_manifest_hint_fits_the_default_windows(off_run: RunSummary) -> Non
         assert manifest.data_start_ns <= onsets.t_onset_ns <= manifest.data_end_ns
 
 
-def test_ai_on_stub_relentra_writes_skipped_proposals_and_empty_trace(tmp_path: Path) -> None:
+def test_ai_on_with_the_fake_provider_records_a_failed_brief_run(tmp_path: Path) -> None:
+    # The unscripted fake provider answers every call with a recorded error (08 §6: a model that
+    # is down), so the run finishes with failed proposals, a trace and a trace head in the receipt.
     summary = _run(tmp_path, "record", {"llm.provider": "fake"})
     assert summary.outcome == "ok", summary.reason
     proposals = io.read_model("proposals", summary.run_dir, models.Proposals)
-    assert proposals.status == "skipped" and proposals.model is None and proposals.proposals == []
-    assert io.read("agent_trace", summary.run_dir) == []
+    assert proposals.status == "failed" and proposals.model is not None and proposals.proposals == []
+    assert io.read("agent_trace", summary.run_dir) != []
     receipt = io.read_model("receipt", summary.run_dir, models.Receipt)
-    assert receipt.predicate.agent_trace_head is None
+    assert receipt.predicate.agent_trace_head is not None
 
 
 def _hide_alert_detectors(monkeypatch: pytest.MonkeyPatch) -> None:

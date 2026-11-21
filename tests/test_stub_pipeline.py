@@ -198,7 +198,9 @@ def test_stub_pipeline_end_to_end(tmp_path: Path, fake_adapter: FakeAdapter, ai_
     assert [r.name for r in summary.steps] == [s.name for s in STEPS]  # all 14 sub-steps ran
     assert len(STEPS) == 14
     relentra = {r.name: r.status for r in summary.steps}["relentra"]
-    assert relentra == ("skipped" if ai_mode == "off" else "ok")
+    # With AI on, Relentra calls the unscripted fake provider: a recorded error, so the step is
+    # degraded and the run goes on, as for a model that is down (08 §6).
+    assert relentra == ("skipped" if ai_mode == "off" else "degraded")
 
     run_dir = summary.run_dir
     expected = RUN_DIR_LAYOUT + (AI_ONLY_LAYOUT if ai_mode != "off" else ())
