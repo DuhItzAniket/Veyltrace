@@ -23,7 +23,7 @@ The Explain engines hold every LLM call: \eng{Relentra} proposes (\S\ref{sec:pro
 With the AI switched off, Relentra emits no proposals and Causivra falls back to template prose, and the verdict path is unchanged.
 
 One case runs in a fixed order: ingest; the alert step, which fixes the alert time $t_\text{alert}$ and the analysis windows; signals; anomalies and onsets; alignment, changes and the graph; the evidence pass; the slate; the proposer; the \emph{claim pass}, in which FaultLoom checks the proposer's claims; the verdict; and the card and receipt.
-Engines never see the fault-injection time.
+Apart from the oracle alert time described next, engines never see the fault-injection time.
 Under the oracle-alert protocol $t_\text{alert}$ is the dataset's published injection time, as in RCAEval's own protocol~\cite{rcaeval2024}, passed as a hint that is the only place the injection time crosses into engine-visible data and is never stored under that name; under the detected-alert protocol it is the first sustained breach of a latency or error objective on the entry services.
 The baseline window is $[t_\text{alert}-20\,\text{min}, t_\text{alert}-2\,\text{min}]$ and the incident window $[t_\text{alert}-2\,\text{min}, t_\text{alert}+8\,\text{min}]$, both clamped to the available data.
 Engines see only an opaque case identifier; answer keys live outside every engine's reach, fault-injection artefacts are scrubbed at ingest, and a test fails the build if an engine imports an LLM or network client or reads the folders that hold answer keys.
@@ -102,7 +102,9 @@ A fixed rule table labels each slate candidate with a mode (resource, network, c
 
 The verifier treats the proposer as untrusted.
 A proposal names a hypothesis (a service from the graph's nodes and a fault class from the taxonomy) and claims, each a library predicate with arguments and citations of evidence atoms; constrained decoding against closed enumerations makes a cause outside the case's services impossible to express.
-The verifier never reads a proposal's free text, so a planted sentence has nothing to act on; only the hypothesis and the claims' predicates and arguments enter, and at most five proposals are considered.
+The verifier never reads a proposal's free text, its rationale: only the proposed service and the claims' predicates and arguments enter, and at most five proposals are considered.
+The proposal's own fault class and indicator are ignored, because code, not the model, labels the fault.
+A planted sentence in the model's input can therefore act only through the service and the predicates it leads the model to propose, which code re-evaluates for every candidate; the planted-decoy protocol (H2b) measures how often that still changes the top-ranked candidate.
 
 \lanesection{explain-proposer}{Explain}{Relentra's \texttt{brief} and \texttt{investigate} modes, evidence cards, closed enums, budgets and the model (docs/02 §6.8).}
 
