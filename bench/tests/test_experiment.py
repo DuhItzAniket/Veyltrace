@@ -83,10 +83,10 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
         "workers",
         "agent_only",
         "AI arms",
-        "coverage (R-13",
     ):
         assert task in todo
-    assert len(unsupported(exp)) == 5 and "cost" not in todo  # cost is computed (#316)
+    assert len(unsupported(exp)) == 4 and "cost" not in todo  # cost is computed (#316)
+    assert "metrics" not in todo  # coverage and every other 04 §9 metric is computed (#405)
     assert "decoys" not in todo  # run since #326; the block is checked when the run starts
     assert sorted([*METRIC_KEYS, *METRIC_TASKS]) == sorted(get_args(MetricName))  # each: computed or a task
 
