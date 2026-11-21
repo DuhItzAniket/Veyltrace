@@ -64,7 +64,8 @@ from veyltrace_bench.experiment import (
 )
 from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
 from veyltrace_bench.stats_summary import Case, statistics
-from veyltrace_bench.summary import METRIC_KEYS, summarize
+from veyltrace_bench.summary import entries as summary_entries
+from veyltrace_bench.summary import summarize, with_rows
 from veyltrace_contracts.models import (
     AnswerKeyRow,
     BenchResultRow,
@@ -104,12 +105,6 @@ DECOY_RUNS = "decoys"  # <bench runs>/decoys/: Infralume-only runs giving each c
 SERVICES_STEP = "infralume"  # case_manifest.services, which RCAEval-C draws decoy entities from
 BASELINE_KINDS = frozenset({"internal_baseline", "rcaeval"})
 DETECTED = "detected"  # the alert protocol whose onset error is scored (04 §7 "Onset error")
-#: bench_summary 1.2 metric entries v0 writes as null: an experiment listing one is refused by
-#: experiment.unsupported() until the runner computes it (#404, #405).
-UNCOMPUTED_ENTRIES = (
-    "coverage", "set_size", "no_fault_rates", "risk_coverage", "selective_accuracy",
-    "decoy_top1_change", "permutation_invariance",
-)  # fmt: skip
 #: Run each case in this process instead of a child: for tests that substitute `run_case` or
 #: plugins here, which a child would not see. Such runs have no peak RSS and cannot be killed.
 IN_PROCESS = False
@@ -285,6 +280,8 @@ def method_output(
         root_fault_class=root.fault_class if root is not None else None,
         root_mode=root.mode if root is not None else None,
         slate_k=slate.k,
+        margin=verdict.confidence.margin,  # with the leader's fused score: risk-coverage (#405)
+        leader_fused_score=verdict.ranked[0].fused_score if verdict.ranked else None,
     )
 
 
@@ -704,18 +701,21 @@ def _prepare_decoys(
 
 
 def _group(
-    key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...], no_cost: bool = False
+    key: tuple[str, str, str],
+    scores: list[CaseScore],
+    exp: Experiment,
+    rows: list[dict[str, object]],
+    no_cost: bool = False,
 ) -> dict[str, object]:
     """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
     one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9).
+    `rows` are all per_case rows; the group's, in run order, pair with `scores` (summary.with_rows).
     `no_cost` nulls the cost entry of a group whose wall times are not end to end (slate-scored
     methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413)."""
-    flat = summarize(scores, metrics)
+    flat = summarize(scores, ())  # the counts
     counted = cast("dict[str, int]", flat.pop("outcomes"))
-    entries = {
-        name: {k: flat.pop(k) for k in keys} if name in metrics else None
-        for name, keys in METRIC_KEYS.items()
-    } | dict.fromkeys(UNCOMPUTED_ENTRIES)
+    mine = [r for r in rows if (r["dataset"], str(r["system"]), r["method"]) == key]
+    entries = summary_entries(with_rows(scores, mine), exp.metrics, alpha=exp.calibration.alpha)
     if no_cost:
         entries["cost"] = None
     dataset, system, method = key
@@ -856,7 +856,7 @@ def run_experiment(
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            _group(k, scores, exp.metrics, k[2] in slate_scored)
+            _group(k, scores, exp, rows, k[2] in slate_scored)
             for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
@@ -894,7 +894,7 @@ def run_experiment(
         "configs": configs,
         "seeds": sorted({seed for m in exp.methods for seed in m.ai.seeds}),
         "runs": runs,
-        "calibrations": None,  # not recorded yet (bench_manifest 1.1, 03 §13.4; #405)
+        "calibrations": None,  # not recorded yet (bench_manifest 1.1, 03 §13.4; #412)
     }
     io.write_path("bench_manifest", manifest, out_dir / "manifest.json")  # last: marks a whole result
     return out_dir, summary
