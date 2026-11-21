@@ -182,11 +182,11 @@ def test_the_slice_gives_the_whole_table_result_for_every_node(case: str, tmp_pa
     assert tested > 0  # some results are testable, not only untestable ones
 
 
-def test_a_series_is_kept_whole_and_a_foreign_target_stays_untestable() -> None:
+def test_a_series_is_kept_whole_with_all_its_rows() -> None:
     def rows(sid: str, service: str, signal: str, n: int) -> list[dict[str, object]]:
+        base: dict[str, object] = {"series_id": sid, "service": service, "signal": signal, "family": "cpu"}
         return [
-            {"series_id": sid, "service": service, "signal": signal, "family": "cpu", "source": "metrics"}
-            | {"unit": None, "t_ns": t * 1_000_000_000, "value": float(t % 7)}
+            base | {"source": "metrics", "unit": None, "t_ns": t * 1_000_000_000, "value": float(t % 7)}
             for t in range(n)
         ]
 
