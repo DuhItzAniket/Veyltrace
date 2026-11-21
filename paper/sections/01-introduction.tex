@@ -12,15 +12,15 @@ Root-cause analysis (RCA) research has moved quickly towards large language mode
 On one 90-case benchmark, simple harnesses around frontier cloud models reach a mean PR@1 of 72.8\% (an SQL agent) and 77.2\% (a Codex harness) over three models, against 38.9\% for the best non-LLM method~\cite{rcatlas2026}.
 Stricter tasks tell a different story.
 Across eleven LLMs, the exact root-cause set is recovered in 20.7\% of OpenRCA~2.0 cases on average~\cite{openrca2026v2}; the best model solves 25.3\% of medium and 10.0\% of hard ORCA-bench tasks~\cite{orcabench2026}; and on SREGym one agent's end-to-end success falls from 63.7\% on problems ported from earlier benchmarks to 17.9\% on failures new to SREGym~\cite{sregym2026}.
-Agents can also be steered: one planted false sentence made models name a decoy service first in 21--42\% of flagged RCAEval RE2 cases~\cite{hussain2026prereg}.
+Agents can also be steered: in a pre-registered preprint, one planted false sentence made models name a decoy service first in 21--42\% of flagged RCAEval RE2 cases~\cite{hussain2026prereg}.
 Explicit verification helps: an LLM-based verifier and grounder raised Acc@1 by 3.5--35.1 points in all 14 configurations of one study, but did not reduce errors in which the model misread the meaning of the telemetry~\cite{diagguard2026}.
 We found no paper that isolates a purely deterministic verifier over LLM proposals.
 
 The field's own measurements are fragile as well.
 The same method on the same cases scores differently in different harnesses: BARO's AC@1 on RE2-TT is 0.67 in RCAEval's harness and 0.32 in PRISM's~\cite{rcaeval2024,prism2026}.
-Shifting the assumed fault onset two minutes late dropped N-Sigma from 0.80 to 0.07 AC@1 on RE2~\cite{hussain2026prereg}.
+In the same pre-registered preprint, shifting the assumed fault onset two minutes late dropped N-Sigma from 0.80 to 0.07 AC@1 on RE2~\cite{hussain2026prereg}.
 Simple alert counting matches or beats state-of-the-art methods on Nezha, Eadro and RCAEval~\cite{fang2026rethinking}.
-Pooled leaderboards pick the worse method on up to 5 of 11 subsystems, and none of 23 audited RCA papers released per-case outputs~\cite{hu2026audit}.
+Selecting a method by leave-one-system-out evaluation picks the worse method on up to 5 of 11 held-out subsystems, and none of 23 audited RCA papers released per-case outputs~\cite{hu2026audit}.
 
 Three properties that an engineer needs before acting on an automated diagnosis are therefore missing together.
 First, an LLM should be able to contribute without being trusted: its claims should count only after code has checked them, and it should not be able to argue for its favourite candidate.
@@ -34,7 +34,7 @@ The LLM never asserts evidence.
 It may only request named predicates from a fixed library, and code evaluates each requested predicate for \emph{every} candidate in the pool, so a check the LLM asks for can help whichever candidate it actually supports.
 The verifier runs ten fixed trials on each candidate, combines them with the code-checked claims in a fixed scoring rule, and returns a split-conformal candidate set together with a status that may be \st{INCONCLUSIVE} or \NOFAULT.
 Each verdict is sealed in a receipt from which anyone can replay it to the same hash.
-The whole pipeline runs on a 16\,GB laptop without a GPU or a cloud service.
+The whole pipeline is built to run on a 16\,GB laptop without a GPU or a cloud service; Section~\ref{sec:rq5} measures what it costs there.
 
 This paper makes four contributions.
 \begin{itemize}
@@ -48,9 +48,9 @@ This paper makes four contributions.
 % Headline results: neutral sentences until bench/results/ exists; the wording
 % ("not worse", "better") is chosen only after the numbers are known.
 \leadq{headline results, one sentence per RQ, written at M4 from the generated numbers.}
-Pooled over RE2, the paired AC@1 difference between the AI-off pipeline and the best reproduced simple baseline is \resnum{re2-oracle-rq1-v1}{pooled AC@1 difference, veyltrace:off minus best simple baseline} (95\% CI \resnum{re2-oracle-rq1-v1}{pooled AC@1 difference CI}).
-Code-verified proposals change AC@1 by \resnum{re2-oracle-rq2-v1}{pooled proposer lift, veyltrace:brief minus veyltrace:off}, and planted decoy proposals change the top-1 candidate in \resnum{re2-oracle-planted-v1}{decoy_top1_change} of cases.
-Held-out coverage of the candidate sets at a 90\% target is \resnum{re2-oracle-rq3-v1}{coverage, veyltrace:off} with a mean set size of \resnum{re2-oracle-rq3-v1}{mean set size, veyltrace:off}.
+Pooled over RE2, the paired AC@1 difference between the AI-off pipeline and the best reproduced simple baseline (the highest AC@1 among N-Sigma, BARO and alert counting on the same cases; \S\ref{sec:baselines}) is \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} (95\% CI \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}).
+Code-verified proposals change AC@1 by \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference}, and planted decoy proposals change the top-1 candidate in \resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/decoy_top1_change} of cases.
+Held-out coverage of the candidate sets at $\alpha = 0.10$ is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/coverage} with a mean set size of \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/set_size.mean}.
 
 The rest of the paper is organised as follows.
 Section~\ref{sec:related} places \sys among statistical, causal and LLM-based RCA methods.
