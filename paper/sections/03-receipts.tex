@@ -9,7 +9,7 @@ The verdict carries \code{verdict_hash}, the SHA-256 of its canonical JSON witho
 \paragraph{Recording the LLM}
 Bit-exact regeneration of LLM output is not portable across machines~\cite{thinkingmachinesnondeterminism}, so \sys records rather than regenerates.
 In recording mode every LLM call is written to a \emph{cassette} keyed by the SHA-256 of the canonicalised request, and the investigation trace is a hash chain in which each line's hash covers the previous hash and the line's canonical JSON, as in an IETF draft on attesting agent tool calls~\cite{ietfwca2026}.
-The trace records a subset of what PROV-AGENT, an extension of W3C PROV to agent prompts, responses and tool calls, describes~\cite{provagent2025}; combining such a trace with a hash chain and an attestation envelope into an inference receipt is our design choice, not established practice.
+The trace records a subset of what PROV-AGENT, an extension of W3C PROV \citeneeded{W3C PROV; the notes give no identifier (docs/11 §4.7)} to agent prompts, responses and tool calls, describes~\cite{provagent2025}; combining such a trace with a hash chain and an attestation envelope into an inference receipt is our design choice, not established practice.
 In replay mode the proposer reads the cassette and fails on any call that was not recorded.
 
 \paragraph{The receipt}
