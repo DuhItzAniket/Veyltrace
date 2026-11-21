@@ -163,7 +163,13 @@ def _floors(ctx: Context, point: Point, part: str, metrics: Sequence[Metric]) ->
     reads_same_input = p.shift_s == 0 and not p.sources_drop
     base = RQ1 if reads_same_input or not same_cases(ctx, eid, RQ1) else None
     omitted = "not run under this protocol (the experiment omits this floor)"
-    return floor_lines(ctx, eid, part, metrics, prior=PRIOR, base=base, per_seed=False, omitted=omitted)
+    lines = floor_lines(ctx, eid, part, metrics, prior=PRIOR, base=base, per_seed=False, omitted=omitted)
+    if p.decoys is None or eid == RQ1:
+        return lines
+    # Manager decision (21 Nov): a borrowed floor says where it comes from and why it may be borrowed;
+    # floor_lines already gives a subset point (the AI decoy cells) "different case set" instead.
+    borrowed = f"from {RQ1} (baselines ignore events)"
+    return [(f"{m} ({borrowed})" if src is ctx.get(RQ1) else m, src, body) for m, src, body in lines]
 
 
 def _table(name: str, title: str, caption: str, point: str, points: Sequence[Point], ctx: Context,
