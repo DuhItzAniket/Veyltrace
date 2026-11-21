@@ -87,7 +87,9 @@ def test_a_source_that_differs_upstream_is_not_reused(tmp_path: Path, synth: Pat
     over = runner.overrides_for(exp, method)
     lock = resolve_config(over, dataset="synth", ai_mode="off").lock_bytes()
     assert upstream.mismatch(s.run_dir, lock) is None  # off's run serves causatrix:baro_rs
-    other = resolve_config(over | {"faultloom.cards.max_tokens": 1499}, dataset="synth", ai_mode="off").lock_bytes()
+    other = resolve_config(
+        over | {"faultloom.cards.max_tokens": 1499}, dataset="synth", ai_mode="off"
+    ).lock_bytes()
     assert upstream.mismatch(s.run_dir, other) == "config sections ['faultloom'] differ"
     anomalies = s.run_dir / "anomalies.parquet"
     anomalies.write_bytes(anomalies.read_bytes() + b"\0")  # a reused output edited after the run
