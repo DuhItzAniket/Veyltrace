@@ -5,14 +5,14 @@ manifest gives the provenance every row prints (experiment id, code commit, dirt
 SHA-256 of all three result files traces each number back to them (04 §10.2). An experiment
 without usable results is still a `Results`, holding the reason it is "not run": a missing
 directory (with the reason from the R-16 cut list in `<results>/not_run.yaml` when it has one),
-an incomplete result, an older summary version, or a dirty work tree. A file that claims the
-current version but breaks its contract is an error, never a silent "not run".
+an incomplete result, an older summary version, a dirty work tree, or results of another version
+of the experiment YAML than the committed one. A file that claims the current version but breaks
+its contract is an error, never a silent "not run".
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -26,11 +26,16 @@ from veyltrace_core.yaml12 import load_yaml_bytes
 
 SUMMARY, PER_CASE, MANIFEST = "summary.json", "per_case.csv", "manifest.json"
 FILES = (MANIFEST, PER_CASE, SUMMARY)  # sorted: the order of the hashes in a table's sources
-REGISTER = "not_run.yaml"  # <results>/not_run.yaml: {experiment_id: reason}, the R-16 cut list
+#: <results>/not_run.yaml, the R-16 cut list: `<id>: <reason>`, or `<id>: {revises: <id>}` for a
+#: revised experiment (04 §12) printed next to the pre-registered one it revises, with an optional
+#: `reason` when the revision itself is not run.
+REGISTER = "not_run.yaml"
+REVISES, REASON = "revises", "reason"
 SUMMARY_VERSION = "1.1."  # the bench_summary minor the generator reads (03 §13.3)
 NO_RESULTS = "no committed results in bench/results"  # the row names the experiment
 NO_GROUP = "its summary.json has no group for this dataset, system and method"
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
+SHORT_SHA = 12  # experiment_sha256 prefix in a not-run reason
 
 #: Case-mean summary keys, the ones bench_summary 1.1 gives a bootstrap interval (03 §13.3).
 CASE_MEAN = frozenset(
@@ -39,20 +44,39 @@ CASE_MEAN = frozenset(
 )
 
 
-def read_register(results_root: Path) -> dict[str, str]:
-    """The not-run reasons of `<results>/not_run.yaml` ({} when the file is absent)."""
+@dataclass(frozen=True)
+class Register:
+    """The parsed not_run.yaml: not-run reasons by id, and revised → pre-registered ids."""
+
+    reasons: dict[str, str] = field(default_factory=dict[str, str])
+    revises: dict[str, str] = field(default_factory=dict[str, str])
+
+
+def read_register(results_root: Path) -> Register:
+    """`<results>/not_run.yaml` (empty when the file is absent); a malformed entry is an error."""
     path = results_root / REGISTER
     if not path.is_file():
-        return {}
+        return Register()
     data = load_yaml_bytes(textio.read_bytes(path), source=REGISTER)
     if not isinstance(data, dict):
         raise ConfigError(f"{REGISTER}: expected a mapping of experiment id to reason")
-    register: dict[str, str] = {}
-    for key, value in data.items():
-        if not isinstance(key, str) or not isinstance(value, str) or not value:
-            raise ConfigError(f"{REGISTER}: {key!r} needs a non-empty reason string")
-        register[key] = value
-    return dict(sorted(register.items()))
+    reasons: dict[str, str] = {}
+    revises: dict[str, str] = {}
+    for key, entry in data.items():
+        reason: object = entry
+        if (
+            isinstance(entry, dict)
+            and isinstance(entry.get(REVISES), str)
+            and set(entry) <= {REVISES, REASON}
+        ):
+            revises[str(key)] = str(entry[REVISES])
+            reason = entry.get(REASON)  # a revision without a reason is run, or will be
+            if reason is None:
+                continue
+        if not isinstance(key, str) or not isinstance(reason, str) or not reason:
+            raise ConfigError(f"{REGISTER}: {key!r} needs a non-empty reason string or {{revises: <id>}}")
+        reasons[key] = reason
+    return Register(dict(sorted(reasons.items())), dict(sorted(revises.items())))
 
 
 @dataclass(frozen=True)
@@ -65,6 +89,8 @@ class Results:
     hashes: tuple[tuple[str, str], ...] = ()  # (file name, sha256) in FILES order
     summary: BenchSummary | None = None
     manifest: BenchManifest | None = None  # dataset parts and case counts (Table 3)
+    role: str | None = None  # "pre-registered" or "revises <id>" when the register pairs them
+    protocol: str = ""  # the 04 §10.4 protocol statement printed in a table's sources
     _groups: dict[tuple[str, str, str], SummaryGroup] = field(
         default_factory=dict[tuple[str, str, str], SummaryGroup]
     )
@@ -74,10 +100,13 @@ class Results:
 
     @property
     def label(self) -> str:
-        """The source cell of a row: experiment id and short commit, or "(not run)"."""
-        if self.commit is None:
-            return f"{self.experiment_id} (not run)"
-        return f"{self.experiment_id} @ {self.commit[:SHORT_COMMIT]}"
+        """The source cell of a row: experiment id and short commit, or "(not run)", and its role."""
+        base = (
+            f"{self.experiment_id} (not run)"
+            if self.commit is None
+            else f"{self.experiment_id} @ {self.commit[:SHORT_COMMIT]}"
+        )
+        return f"{base} ({self.role})" if self.role else base
 
     @property
     def stats_reason(self) -> str | None:
@@ -86,6 +115,12 @@ class Results:
             return self.reason
         stats = self.summary.statistics
         return stats if isinstance(stats, str) else None
+
+    def system_of(self, part: str) -> str:
+        """The system of a dataset part as the summary's groups record it; the part's suffix
+        (`re2-ob` → `ob`, 03 §2.1) only when no group has that part."""
+        found = sorted({system for dataset, system, _ in self._groups if dataset == part})
+        return found[0] if len(found) == 1 else part.split("-", 1)[1]
 
     def group(self, dataset: str, system: str, method: str) -> SummaryGroup | None:
         return self._groups.get((dataset, system, method))
@@ -100,7 +135,8 @@ class Results:
 
     def metric(self, dataset: str, system: str, method: str, entry: str, key: str) -> Cell:
         """The summary value `metrics[entry][key]` of one group, with its interval when the key is
-        a case mean; a rate-like value (cells.rate) unless the key is a count or percentile."""
+        a case mean; a rate-like value (cells.rate) unless the key is a count or percentile.
+        Retrieval@K also names its K, the slate sizes of the group's runs (`retrieval_k`)."""
         if (why := self.missing(dataset, system, method)) is not None:
             return cells.not_run(why)
         group = self.group(dataset, system, method)
@@ -113,7 +149,14 @@ class Results:
             return cells.text(";".join(str(v) for v in value))
         if key.startswith("n_") or key.endswith(("_p50", "_p95", "_ms")):
             return cells.count(value)
-        if key not in CASE_MEAN or value is None:
+        cell = self._case_mean(dataset, system, method, key, value) if key in CASE_MEAN else cells.rate(value)
+        ks = getattr(values, "retrieval_k", None) if key == "retrieval_at_k" else None
+        return (
+            Cell(f"{cell.text} (K={';'.join(map(str, ks))})", cell.note) if ks and value is not None else cell
+        )
+
+    def _case_mean(self, dataset: str, system: str, method: str, key: str, value: float | None) -> Cell:
+        if value is None:
             return cells.rate(value)
         interval = self._intervals.get((dataset, system, method, key))
         if interval is not None:
@@ -154,12 +197,15 @@ def _version(path: Path) -> str:
     return str(data.get("schema_version")) if isinstance(data, dict) else "unknown"
 
 
-def load(results_root: Path, experiment_id: str, register: Mapping[str, str]) -> Results:
-    """The committed results of `experiment_id` under `results_root`, or why it has none."""
+def load(
+    results_root: Path, experiment_id: str, register: Register, yaml_sha256: str | None = None
+) -> Results:
+    """The committed results of `experiment_id` under `results_root`, or why it has none.
+    `yaml_sha256` is `sha256_text_lf` of the committed experiment YAML: results whose manifest
+    records another hash ran another version of the experiment and are not used."""
     out = results_root / experiment_id
     if not out.is_dir():
-        reason = register.get(experiment_id, NO_RESULTS)
-        return Results(experiment_id, reason)
+        return Results(experiment_id, register.reasons.get(experiment_id, NO_RESULTS))
     for name in FILES:
         if not (out / name).is_file():
             return Results(experiment_id, f"incomplete result: no {name} (bench writes {MANIFEST} last)")
@@ -173,6 +219,11 @@ def load(results_root: Path, experiment_id: str, register: Mapping[str, str]) ->
             raise ConfigError(f"bench/results/{experiment_id}/ holds results of {found!r}")
     if manifest.code.dirty or manifest.code.bench_dirty:
         return Results(experiment_id, "results from a dirty work tree are never used (04 §10.2)")
+    if yaml_sha256 is not None and manifest.experiment_sha256 != yaml_sha256:
+        ran, now = manifest.experiment_sha256[:SHORT_SHA], yaml_sha256[:SHORT_SHA]
+        return Results(
+            experiment_id, f"results are from another version of the YAML (sha {ran}…, committed {now}…)"
+        )
     stats = summary.statistics
     intervals = (
         {}

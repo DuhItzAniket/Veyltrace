@@ -10,8 +10,9 @@ Exit codes reuse core's diagnose vocabulary (`veyltrace_core.errors`), so script
 - 3: input missing (experiment file, case list, answer keys: `veyltrace data fetch <dataset>`).
 - 4: config (invalid experiment YAML or unknown key, a feature v0 cannot run yet, a bad override).
 
-`tables` (R-17) exits 0 when the tables are written, or with `--check` when they already match; 1
-when `--check` finds a difference (the paths are printed).
+`tables` (R-17) exits 0 when the tables are written, or with `--check` when they already match; 2
+when `--check` finds a difference (the paths are printed), so a CI job tells "regenerate" from
+an error (1, as for `run`).
 """
 
 from __future__ import annotations
@@ -47,8 +48,11 @@ def _parser() -> argparse.ArgumentParser:
     )
     tables.add_argument("--results", type=Path, help="results root (default bench/results)")
     tables.add_argument("--experiments", type=Path, help="experiment YAMLs (default bench/experiments)")
-    tables.add_argument("--check", action="store_true", help="write nothing; exit 1 if a file differs")
+    tables.add_argument("--check", action="store_true", help="write nothing; exit 2 if a file differs")
     return parser
+
+
+CHECK_DIFFERS = 2  # `tables --check`: a generated file differs from the committed one (review, 21 Nov)
 
 
 def _tables(args: argparse.Namespace) -> int:
@@ -60,7 +64,7 @@ def _tables(args: argparse.Namespace) -> int:
         stale = generate.differences(files, results)
         for path in stale:
             print(f"differs: {path}", file=sys.stderr)
-        return 1 if stale else int(DiagnoseExit.OK)
+        return CHECK_DIFFERS if stale else int(DiagnoseExit.OK)
     changed = generate.write(files, results)
     print(f"tables: {len(files)} files, {len(changed)} changed")
     return int(DiagnoseExit.OK)

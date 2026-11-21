@@ -2,7 +2,7 @@
 
 # Table A0: results index
 
-Every experiment YAML in bench/experiments (synth smoke excluded) and the state of its committed results.
+Every experiment YAML in bench/experiments (synth smoke excluded) and the state of its committed results, then the 04 §6 matrix cells that only bench/results/not_run.yaml names.
 
 | Experiment | RQ | Pre-registered | Status | Groups | Statistics | Source |
 |---|---|---|---|---|---|---|
@@ -41,9 +41,9 @@ Every experiment YAML in bench/experiments (synth smoke excluded) and the state 
 | re2-oracle-planted-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
 | re2-oracle-prior-only-v1 | RQ1 | yes | run | 3 | not run<sup>5</sup> | re2-oracle-prior-only-v1 @ fixture |
 | re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run | re2-oracle-rq1-v1 @ fixture |
-| re2-oracle-rq2-v1 | RQ2 | yes | not run<sup>6</sup> | not run<sup>6</sup> | not run<sup>6</sup> | re2-oracle-rq2-v1 (not run) |
+| re2-oracle-rq2-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq2-v1 (not run) |
 | re2-oracle-rq3-investigate-v1 | RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-investigate-v1 (not run) |
-| re2-oracle-rq3-v1 | RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-v1 (not run) |
+| re2-oracle-rq3-v1 | RQ3 | yes | run | 6 | not run<sup>5</sup> | re2-oracle-rq3-v1 @ fixture |
 | re2-shift-m120-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m120-brief-v1 (not run) |
 | re2-shift-m120-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m120-v1 (not run) |
 | re2-shift-m30-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m30-brief-v1 (not run) |
@@ -59,7 +59,7 @@ Every experiment YAML in bench/experiments (synth smoke excluded) and the state 
 | re2-to-nezha-transfer-v1 | RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-to-nezha-transfer-v1 (not run) |
 | re3-oracle-prior-only-v1 | RQ1 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-prior-only-v1 (not run) |
 | re3-oracle-rq1-v1 | RQ1, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-rq1-v1 (not run) |
-| re3-oracle-rq2-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-rq2-v1 (not run) |
+| re3-oracle-rq2-v1 | RQ2 | yes | not run<sup>6</sup> | not run<sup>6</sup> | not run<sup>6</sup> | re3-oracle-rq2-v1 (not run) |
 | veyllab-oracle-rq1-v1 | RQ1, RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | veyllab-oracle-rq1-v1 (not run) |
 | veyllab-oracle-rq2-v1 | RQ2, RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | veyllab-oracle-rq2-v1 (not run) |
 
@@ -74,59 +74,59 @@ Notes:
 
 Sources:
 
-- fse26-oracle-rq1-v1: not run: stretch dataset not verified (07 §1.1 cut item 2)
-- nezha-oracle-brief-v1: not run: no committed results in bench/results
-- nezha-oracle-rq1-v1: not run: no committed results in bench/results
-- rcaevalc-pi0-l0-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi0-l0-v1: not run: no committed results in bench/results
-- rcaevalc-pi0-l2-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi0-l2-v1: not run: no committed results in bench/results
-- rcaevalc-pi0-l6-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi0-l6-v1: not run: no committed results in bench/results
-- rcaevalc-pi05-l0-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi05-l0-v1: not run: no committed results in bench/results
-- rcaevalc-pi05-l2-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi05-l2-v1: not run: no committed results in bench/results
-- rcaevalc-pi05-l6-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi05-l6-v1: not run: no committed results in bench/results
-- rcaevalc-pi1-l0-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi1-l0-v1: not run: no committed results in bench/results
-- rcaevalc-pi1-l2-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi1-l2-v1: not run: no committed results in bench/results
-- rcaevalc-pi1-l6-ai-v1: not run: no committed results in bench/results
-- rcaevalc-pi1-l6-v1: not run: no committed results in bench/results
-- re2-detected-rq1-v1: not run: results from a dirty work tree are never used (04 §10.2)
-- re2-detected-rq2-v1: not run: no committed results in bench/results
-- re2-drop-events-v1: not run: no committed results in bench/results
-- re2-drop-logs-v1: not run: no committed results in bench/results
-- re2-drop-metrics-v1: not run: no committed results in bench/results
-- re2-drop-traces-v1: not run: no committed results in bench/results
-- re2-metrics-only-v1: not run: no committed results in bench/results
-- re2-oracle-baselines-r05: not run: summary.json is bench_summary 0.1.0; tables read 1.1 (re-run)
-- re2-oracle-investigate-v1: not run: no committed results in bench/results
-- re2-oracle-loso-v1: not run: no committed results in bench/results
-- re2-oracle-permute-v1: not run: no committed results in bench/results
-- re2-oracle-planted-v1: not run: no committed results in bench/results
-- re2-oracle-prior-only-v1: commit fixture; sha256 manifest.json cdd600186d3a94d53c9b3dcdb5863e5d8449001473926578980607c9b2b53c84, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json 4bb2e5c54796dee2b032306f74c49d73b3fd7b094e176fec771167359ccaa9c1
-- re2-oracle-rq1-v1: commit fixture; sha256 manifest.json 13c27191f38ea000eda5bc31c81ad187ce2ac7b5d3fd02a471d0a5b30ecde3bf, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json ce8e692f3660d5a83765c56152dfc6badb6de0b401b6ac6325c96fd2d5afb1d7
-- re2-oracle-rq2-v1: not run: incomplete result: no summary.json (bench writes manifest.json last)
-- re2-oracle-rq3-investigate-v1: not run: no committed results in bench/results
-- re2-oracle-rq3-v1: not run: no committed results in bench/results
-- re2-shift-m120-brief-v1: not run: no committed results in bench/results
-- re2-shift-m120-v1: not run: no committed results in bench/results
-- re2-shift-m30-brief-v1: not run: no committed results in bench/results
-- re2-shift-m30-v1: not run: no committed results in bench/results
-- re2-shift-m60-brief-v1: not run: no committed results in bench/results
-- re2-shift-m60-v1: not run: no committed results in bench/results
-- re2-shift-p120-brief-v1: not run: no committed results in bench/results
-- re2-shift-p120-v1: not run: no committed results in bench/results
-- re2-shift-p30-brief-v1: not run: no committed results in bench/results
-- re2-shift-p30-v1: not run: no committed results in bench/results
-- re2-shift-p60-brief-v1: not run: no committed results in bench/results
-- re2-shift-p60-v1: not run: no committed results in bench/results
-- re2-to-nezha-transfer-v1: not run: no committed results in bench/results
-- re3-oracle-prior-only-v1: not run: no committed results in bench/results
-- re3-oracle-rq1-v1: not run: no committed results in bench/results
-- re3-oracle-rq2-v1: not run: no committed results in bench/results
-- veyllab-oracle-rq1-v1: not run: no committed results in bench/results
-- veyllab-oracle-rq2-v1: not run: no committed results in bench/results
+- fse26-oracle-rq1-v1: not run: stretch dataset not verified (07 §1.1 cut item 2); protocol: fse26-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI off
+- nezha-oracle-brief-v1: not run: no committed results in bench/results; protocol: nezha-ob, nezha-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- nezha-oracle-rq1-v1: not run: no committed results in bench/results; protocol: nezha-ob, nezha-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI off
+- rcaevalc-pi0-l0-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.0, rate_per_h=0, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi0-l0-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.0, rate_per_h=0, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi0-l2-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.0, rate_per_h=2, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi0-l2-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.0, rate_per_h=2, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi0-l6-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.0, rate_per_h=6, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi0-l6-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.0, rate_per_h=6, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi05-l0-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.5, rate_per_h=0, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi05-l0-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.5, rate_per_h=0, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi05-l2-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.5, rate_per_h=2, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi05-l2-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.5, rate_per_h=2, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi05-l6-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.5, rate_per_h=6, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi05-l6-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=0.5, rate_per_h=6, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi1-l0-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=1.0, rate_per_h=0, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi1-l0-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=1.0, rate_per_h=0, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi1-l2-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=1.0, rate_per_h=2, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi1-l2-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=1.0, rate_per_h=2, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- rcaevalc-pi1-l6-ai-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=1.0, rate_per_h=6, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- rcaevalc-pi1-l6-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; decoys pi=1.0, rate_per_h=6, window_s=[-1800, 300]; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-detected-rq1-v1: not run: results from a dirty work tree are never used (04 §10.2); protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); detected alert; no shift; all sources; AI off
+- re2-detected-rq2-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); detected alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-drop-events-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped events; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-drop-logs-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped logs; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-drop-metrics-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped metrics; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-drop-traces-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped traces; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-metrics-only-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped events;logs;traces; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-oracle-baselines-r05: not run: summary.json is bench_summary 0.1.0; tables read 1.1 (re-run); protocol: re2-ob, re2-ss, re2-tt (all cases); oracle alert; no shift; all sources; AI off
+- re2-oracle-investigate-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:investigate qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-oracle-loso-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split loso, calibration rcaeval-re2, alpha 0.1; normal windows rcaeval_pre_injection; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-oracle-permute-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-oracle-planted-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-oracle-prior-only-v1: commit fixture; sha256 manifest.json 0c2b0712d011396e76cb76b40c93ad8e00478c6614b819066a25e6dea939acc3, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json 4bb2e5c54796dee2b032306f74c49d73b3fd7b094e176fec771167359ccaa9c1; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-oracle-rq1-v1: commit fixture; sha256 manifest.json d1c2860cb4328c539ed46a528cb95788d46ab5e41f162f02a4f7a6c7ba6474cd, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json ce8e692f3660d5a83765c56152dfc6badb6de0b401b6ac6325c96fd2d5afb1d7; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI off
+- re2-oracle-rq2-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-oracle-rq3-investigate-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; normal windows rcaeval_pre_injection; AI: veyltrace:investigate qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-oracle-rq3-v1: commit fixture; sha256 manifest.json 32a10b101034c8ba4c231ec8f5ce0dca26bbccd581063e501d0cb550f372a7e2, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json cef73aa37864f18bacedfecf3c98ec442154e1dc56660a69444ffdfa793f1cf0; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; normal windows rcaeval_pre_injection; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-m120-brief-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; shift -120 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-m120-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; shift -120 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-shift-m30-brief-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; shift -30 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-m30-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; shift -30 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-shift-m60-brief-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; shift -60 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-m60-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; shift -60 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-shift-p120-brief-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; shift +120 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-p120-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; shift +120 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-shift-p30-brief-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; shift +30 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-p30-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; shift +30 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-shift-p60-brief-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; shift +60 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- re2-shift-p60-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; shift +60 s; all sources; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
+- re2-to-nezha-transfer-v1: not run: no committed results in bench/results; protocol: nezha-ob, nezha-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split transfer, calibration rcaeval-re2, alpha 0.1; AI off
+- re3-oracle-prior-only-v1: not run: no committed results in bench/results; protocol: re3-ob, re3-ss, re3-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration rcaeval-re3, alpha 0.1; AI off
+- re3-oracle-rq1-v1: not run: no committed results in bench/results; protocol: re3-ob, re3-ss, re3-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI off
+- re3-oracle-rq2-v1: not run: incomplete result: no summary.json (bench writes manifest.json last); protocol: re3-ob, re3-ss, re3-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- veyllab-oracle-rq1-v1: not run: no committed results in bench/results; protocol: veyllab-ob, veyllab-otel (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration veyllab, alpha 0.1; normal windows veyllab; AI off
+- veyllab-oracle-rq2-v1: not run: no committed results in bench/results; protocol: veyllab-ob, veyllab-otel (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration veyllab, alpha 0.1; normal windows veyllab; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
