@@ -103,6 +103,9 @@ export type SpanKind = "server" | "client" | "internal" | "producer" | "consumer
 /** Span status (03 §2.4). */
 export type SpanStatus = "ok" | "error" | "unset";
 
+/** A metric that is a mean over cases, so it has a cluster-bootstrap interval (04 §8); ratios (lift_at_k, rerank_at_1), cost percentiles and onset medians have none. */
+export type SummaryCaseMetric = "ac_at_1" | "ac_at_2" | "ac_at_3" | "ac_at_4" | "ac_at_5" | "avg_at_5" | "chance_at_1" | "chance_at_2" | "chance_at_3" | "chance_at_4" | "chance_at_5" | "chance_diff_at_1" | "chance_diff_at_2" | "chance_diff_at_3" | "chance_diff_at_4" | "chance_diff_at_5" | "decoy_ranked_first" | "fine_ac_at_1" | "fine_ac_at_2" | "fine_ac_at_3" | "fine_ac_at_4" | "fine_ac_at_5" | "mrr" | "pool_retrieval" | "retrieval_at_k";
+
 /** Benchmark system of a case (03 §2.1); live is a dataset, not a system. */
 export type System = "ob" | "ss" | "tt" | "otel" | "other";
 
@@ -844,6 +847,41 @@ export interface CaseManifest {
   scrub: CaseManifestScrub;
 }
 
+/** One paired difference A − B on one metric over the cases both methods scored (04 §8). */
+export interface SummaryComparison {
+  dataset: Dataset;
+  system: System | null;
+  metric: SummaryCaseMetric;
+  method_a: string;
+  method_b: string;
+  kind: "exploratory" | "noninferiority" | "superiority";
+  family: string | null;
+  margin: number | null;
+  n_pairs: number;
+  n_clusters: number;
+  difference: number | null;
+  low: number | null;
+  high: number | null;
+  sign_flip_p: number | null;
+  mcnemar_only_a: number | null;
+  mcnemar_only_b: number | null;
+  mcnemar_p: number | null;
+  holm_p: number | null;
+}
+
+/** The 95% percentile cluster-bootstrap interval of one case-mean metric of one group (04 §8). */
+export interface SummaryInterval {
+  dataset: Dataset;
+  system: System | null;
+  method: string;
+  metric: SummaryCaseMetric;
+  estimate: number;
+  low: number;
+  high: number;
+  n_cases: number;
+  n_clusters: number;
+}
+
 /** AC@1..5 over the fault cases F (04 §7); null with no fault case. */
 export interface SummaryMetricAcAtK {
   ac_at_1: number | null;
@@ -878,6 +916,12 @@ export interface SummaryMetricCost {
   tokens_out_p50: number | null;
   tokens_out_p95: number | null;
   n_cost: number;
+}
+
+/** Share of the group's rows with decoy_present whose top-1 is a decoy-changed service (04 §7 Decoy metrics, RCAEval-C, H4c); null when n_decoy is 0. */
+export interface SummaryMetricDecoyRankedFirst {
+  decoy_ranked_first: number | null;
+  n_decoy: number;
 }
 
 /** Indicator-level AC@1..5 over the fault cases with an indicator (04 §7). */
@@ -939,6 +983,7 @@ export interface SummaryGroupMetrics {
   lift: SummaryMetricLift | null;
   onset_error: SummaryMetricOnsetError | null;
   cost: SummaryMetricCost | null;
+  decoy_ranked_first: SummaryMetricDecoyRankedFirst | null;
 }
 
 /** Rows per bench_result.run_outcome; every outcome is present, 0 when none. */
@@ -966,6 +1011,30 @@ export interface SummaryGroup {
   metrics: SummaryGroupMetrics;
 }
 
+/** `bench_summary` #/$defs/summary_statistics/properties/not_run/items. */
+export interface SummaryStatisticsNotRun {
+  scope: string;
+  reason: string;
+}
+
+/** The experiment's statistics settings (04 §8, §9). */
+export interface SummaryStatisticsParams {
+  level: number;
+  resamples: number;
+  bootstrap_seed: number;
+  flips: number;
+  permutation_seed: number;
+  cluster_by: "system/root_service/fault";
+}
+
+/** 04 §8 statistics of the experiment: intervals per group, paired comparisons, and what is not run and why. */
+export interface SummaryStatistics {
+  params: SummaryStatisticsParams;
+  intervals: SummaryInterval[];
+  comparisons: SummaryComparison[];
+  not_run: SummaryStatisticsNotRun[];
+}
+
 /** bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only. */
 export interface BenchSummary {
   schema_version: string;
@@ -973,7 +1042,7 @@ export interface BenchSummary {
   experiment_id: string;
   groups: SummaryGroup[];
   excluded: Record<string, CaseId[]>;
-  statistics: string;
+  statistics: SummaryStatistics | string;
 }
 
 /** One change or platform event (deploy, config, flag, scale, restart, k8s event, commit) over the full available span, plus the events overlay (01 §3.10), whose rows may lie outside the case's data span (03 §2.1, §2.5). Written by Infralume; the key is not unique. */

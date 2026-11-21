@@ -130,6 +130,9 @@ class CaseScore:
     peak_rss_mb: float | None = None
     tokens_in: int | None = None
     tokens_out: int | None = None
+    # per_case.csv decoy columns (decoy_runs.decoy_columns), set by the runner (#357).
+    decoy_present: bool | None = None
+    decoy_ranked_first: bool | None = None
 
     def hit_at(self, k: int) -> bool | None:
         """1[r_i ∈ R_i[:k]]; None without a truth."""

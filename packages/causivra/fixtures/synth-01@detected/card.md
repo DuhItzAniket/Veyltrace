@@ -1,12 +1,12 @@
 # CONFIRMED · checkout · cpu
 
-**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.76
+**CONFIRMED** · confidence: high · candidate set size: 1 · margin: 0.78
 
 ## Summary
 
-- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, E69dec80d43)
+- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, Ea68f29528f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 - Its strongest internal signal was checkout cpu anomaly (incident) at 33.8 z. (cites: Ec2738c422e)
-- Confidence is high; its verified score leads frontend by a relative margin of 0.76. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, E69dec80d43)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec2738c422e, Ea68f29528f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 
 ## Candidate set
 
@@ -18,10 +18,12 @@
 |---|---|---|---|
 | Eb2a1231709 | cart mem anomaly (incident) | 0.844 | z |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
+| Ea68f29528f | checkout anomaly not explained by parents (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E8aa8de679c | checkout onset precedence over dependents (onset) | 1 |  |
 | E586a046788 | checkout propagation to entry (incident) | 1 |  |
 | Ee33689c27e | checkout propagation to path (incident) | 1 |  |
+| Ec64c7d2ef8 | checkout self-time share at p50 (incident) | 0.992 |  |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
 | E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
 | E2a9591ce1a | frontend silence (incident) | 0 |  |
@@ -44,8 +46,8 @@ checkout → frontend
 ## Why not
 
 - **frontend**: frontend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E2a9591ce1a, E58335ef082)
-- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 - **recommend**: recommend showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E106e938451, Efd34e2ffcd)
+- **payment**: payment showed no internal anomaly that its callees do not explain (failed T1, origin). (cites: E23c811e2ae, E89d6468c5f)
 
 ## Asks
 
@@ -62,6 +64,6 @@ prose: template
 
 ---
 
-verdict_hash: `3105e97f133f869d7b3fc4e6230c4fb4be220de58284c74ad342466ec41759a3`  
-card_hash: `75ffb70abdf25a2bd9b86bd929c24a26fedf577c2610da322aa78e084f83bf3d`  
+verdict_hash: `fb54166aa01760a9282f6778ba68010a12ee7bc1728ae2167dc362925479b34d`  
+card_hash: `b8c077a315728f4558b97aa856eaaa0895b64eaa9c177c002591f4322015e0e1`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

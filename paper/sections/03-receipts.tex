@@ -1,0 +1,23 @@
+% §3.7 Receipts and replay: the lead's draft (R-18). docs/11 §5 assigns 3.7 to the Explain
+% lane; when sections/explain-receipts.tex exists it replaces this file (preamble.tex,
+% \lanesectionor). Sources: docs/02 §4.1, §5.2, §6.8, §6.10; engines 09 §3.13.
+Replay is a property of the design, not an afterthought.
+Every engine except the proposer and the narrator is a pure function of its inputs and configuration, and a run is identified by the first 16 hex digits of the SHA-256 of its case identifier, configuration hash, code commit and AI mode, never by a timestamp.
+The configuration hash covers the LLM's seed and sampler settings, so a different seed is a different run, and each run directory stores the fully resolved configuration it used.
+The verdict carries \code{verdict_hash}, the SHA-256 of its canonical JSON without the hash itself and the run identifier.
+
+\paragraph{Recording the LLM}
+Bit-exact regeneration of LLM output is not portable across machines~\cite{thinkingmachinesnondeterminism}, so \sys records rather than regenerates.
+In recording mode every LLM call is written to a \emph{cassette} keyed by the SHA-256 of the canonicalised request, and the investigation trace is a hash chain in which each line's hash covers the previous hash and the line's canonical JSON, as in an IETF draft on attesting agent tool calls~\cite{ietfwca2026}.
+The trace records a subset of what PROV-AGENT, an extension of W3C PROV \citeneeded{W3C PROV; the notes give no identifier (docs/11 §4.7)} to agent prompts, responses and tool calls, describes~\cite{provagent2025}; combining such a trace with a hash chain and an attestation envelope into an inference receipt is our design choice, not established practice.
+In replay mode the proposer reads the cassette and fails on any call that was not recorded.
+
+\paragraph{The receipt}
+At the end of a run, a \emph{receipt} binds the run manifest (hashes of the inputs, the configuration, the code commit, the lock file of the Python environment, the model weights, the prompts and schemas, and the calibration file) to the head hash of the trace and to \code{verdict_hash}.
+It is wrapped as an in-toto Statement~\cite{intoto}, whose subjects are matched by digest; we found no precedent for using this supply-chain format for inference receipts, and the receipt can be signed locally.
+
+\paragraph{Replay tiers}
+\emph{Tier~1} replay re-hashes the stored outputs of the deterministic steps up to the graph, the resolved configuration, the calibration file and the cassette, then re-runs evidence, slate, proposer (from the cassette), claim pass, verdict and card, and compares every hash; a full mode re-runs the whole pipeline from the raw inputs.
+Its exit code separates a verdict mismatch from changed inputs, an invalid configuration, a drifted environment and a mismatch in the narrative only.
+\emph{Tier~2} regenerates the LLM output with a pinned model, a single server slot, prompt caching off and a fixed seed, and we report how often it matches the recording byte for byte; we measure this rate rather than promise it.
+Section~\ref{sec:rq6} reports both tiers.

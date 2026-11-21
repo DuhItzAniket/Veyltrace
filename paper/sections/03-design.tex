@@ -1,0 +1,189 @@
+% §3 Veyltrace design. Lead writes the overview, 3.2, 3.3, 3.5, 3.6 and a draft of 3.7;
+% Observe writes the Observe part of 3.1, Explain writes 3.4 and 3.7 (docs/11 §5).
+% Sources: docs/02 (wins), engines 06 FaultLoom, 07 Causatrix, 09 Causentra.
+% Every constant below is a design default fixed a priori in config/ and frozen at prereg-v1.
+\section{Design}
+\label{sec:design}
+
+\sys diagnoses one incident window at a time.
+It reads metrics, logs, traces and change events and returns a \emph{verdict}: a root-cause service with its component, indicator and fault class, a conformal candidate set, a status that may be \st{INCONCLUSIVE} or \NOFAULT, the evidence behind it, and a receipt that replays it.
+Two rules shape every component.
+\emph{AI proposes, code decides}: only the verifier sets the verdict, through a fixed decision function, and model outputs enter only as proposals or as evidence that code recomputed.
+\emph{AI can buy evidence, never assert it}: a claim from the LLM counts only after code has re-evaluated its predicate on stored data, and that predicate is evaluated for every candidate in the pool.
+
+\diagram*{fig:pipeline}{The propose--verify pipeline. Observe engines turn telemetry into facts, the Reason engines turn facts into a verdict, and every LLM call sits in the Explain engines; the only path from the LLM to the verdict runs through code-recomputed predicates.}{fig1-pipeline}{the ten engines in three lanes (Observe 1--5, Reason 6, 7, 9, Explain 8, 10), colour-coded by trust class: deterministic code, code-recomputed evidence, untrusted LLM output; the claim pass (step~8) as the only edge from Relentra into the verdict.}
+
+\subsection{Pipeline and engine boundaries}
+\label{sec:pipeline}
+
+The pipeline has ten engines, each writing one versioned contract (Figure~\ref{fig:pipeline}); every engine except the proposer and the narrator is a pure function of its declared inputs and configuration.
+The Observe engines (1--5) ingest and scrub telemetry, derive typed signals, score anomalies and onsets, align clocks and build the change timeline, and build the dependency graph; none of them ranks services.
+The Reason engines turn these facts into a decision: \eng{FaultLoom} creates all evidence (\S\ref{sec:evidence}), \eng{Causatrix} ranks (\S\ref{sec:slate}) and \eng{Causentra} decides (\S\ref{sec:verifier}).
+The Explain engines hold every LLM call: \eng{Relentra} proposes (\S\ref{sec:proposer}) and \eng{Causivra} writes the incident card and the receipt (\S\ref{sec:receipts}).
+With the AI switched off, Relentra emits no proposals and Causivra falls back to template prose, and the verdict path is unchanged.
+
+One case runs in a fixed order: ingest; the alert step, which fixes the alert time $t_\text{alert}$ and the analysis windows; signals; anomalies and onsets; alignment, changes and the graph; the evidence pass; the slate; the proposer; the \emph{claim pass}, in which FaultLoom checks the proposer's claims; the verdict; and the card and receipt.
+Apart from the oracle alert time described next, engines never see the fault-injection time.
+Under the oracle-alert protocol $t_\text{alert}$ is the dataset's published injection time, as in RCAEval's own protocol~\cite{rcaeval2024}, passed as a hint that is the only place the injection time crosses into engine-visible data and is never stored under that name; under the detected-alert protocol it is the first sustained breach of a latency or error objective on the entry services.
+The baseline window is $[t_\text{alert}-20\,\text{min}, t_\text{alert}-2\,\text{min}]$ and the incident window $[t_\text{alert}-2\,\text{min}, t_\text{alert}+8\,\text{min}]$, both clamped to the available data.
+Engines see only an opaque case identifier; answer keys live outside every engine's reach, fault-injection artefacts are scrubbed at ingest, and a test fails the build if an engine imports an LLM or network client or reads the folders that hold answer keys.
+Analysis code reads no clock and no unseeded randomness, sorts every output by its key and rounds floats in JSON to nine decimals, and a CI gate runs the pipeline twice and compares every output hash.
+
+\lanesection{observe-pipeline}{Observe}{ingest and leakage scrubbing, signals, anomalies and onsets, clock alignment and the change timeline, the dependency graph (docs/02 §6.1--§6.5).}
+
+\subsection{Evidence atoms and predicates}
+\label{sec:evidence}
+
+FaultLoom is the only engine that creates evidence for the decision.
+An \emph{evidence atom} is one row per (candidate service, kind, defining arguments) with a value, a unit, a window (baseline, incident or onset), references to the source rows it came from, and an origin (\code{engine} or \code{claim_check}).
+Its identifier is \code{E} followed by the first ten hex digits of the SHA-256 of the canonical JSON of its kind, candidate and arguments, so the same inputs give the same identifiers on every machine; the incident card cites atoms by these identifiers, and replay matches them.
+Every atom kind is computed the same way for every service in the case, including healthy ones, and a missing channel yields no atom rather than a zero that would look like a healthy measurement.
+
+The atom kinds cover the evidence channels named in \S\ref{sec:pipeline}.
+\emph{Internal} and \emph{external} anomaly atoms hold the maximum deviation score per signal family, source and detector, following PRISM's split between a service's internal metrics (CPU, memory, disk, socket) and the external ones its callers see (latency, errors)~\cite{prism2026}; PRISM uses metrics only, and we extend the internal side to a service's self time and its own logs.
+\emph{Onset precedence} atoms hold a service's onset relative to the incident onset, the fraction of its anomalous transitive callers whose onset it precedes or ties, within a tolerance equal to the coarsest source step, and the gap between its internal and external onsets.
+\emph{Propagation} atoms hold the fraction of anomalous entry services, and of other anomalous services, reachable from the candidate along the reversed call graph.
+\emph{Change-proximity} atoms hold $\exp(-\Delta t/\tau_\text{change})$ for a change on the candidate before its onset, and \emph{peer-contrast} atoms the gap between an affected replica and its healthy peers, the changed-versus-control idea behind Meta's service health checks~\cite{metahealth2026}.
+For traces, the \emph{spectrum} atom is an Ochiai score (the coefficient that did best in an industrial study of spectrum-based fault localisation~\cite{abreu2009ochiai}) in which each trace counts by the share of its critical path spent in the candidate's own work, a combination of spectrum-based localisation~\cite{tracerca} with critical-path analysis~\cite{crisp2022}:
+\begin{equation}
+\text{SP}(c) = \frac{e_f(c)}{\sqrt{F \cdot \text{cov}(c)}},
+\end{equation}
+where $e_f(c)$ sums the candidate's critical-path share over slow incident traces, $\text{cov}(c)$ sums it over all incident traces, and $F$ is the number of slow traces, so $\text{SP}(c) \in [0,1]$.
+The \emph{self-time share} atom is the candidate's share of the total positive increase in critical-path self time.
+Log atoms count error templates that are new in the incident window and the change in error lines per second; edge-gap atoms hold the widening of caller--callee latency gaps, which we expect a network fault to produce while the faulty service's own work stays flat (an assumption not yet tested on RCAEval); a \emph{silence} atom marks a service that stopped reporting, which is never read as healthy, because reading silence as health is a common failure of LLM agents~\cite{diagguard2026}.
+Finally, \emph{intervention} atoms hold the residual deviation of a candidate's top internal series after regressing it on its parents' series, a restricted conditional-independence test in the spirit of in-distribution interventions~\cite{idi2025}; they are computed only for the first five decision-pool candidates, because we do not attempt full causal discovery, which reached F1 of only 0.1--0.54 on 10--50-node graphs in one study~\cite{causalinference2024ase}.
+
+\paragraph{Predicates}
+{\sloppy
+Every claim the proposer may make is a named \emph{predicate} in a fixed library: \code{zscore_above}, \code{onset_before}, \code{edge_anomalous}, \code{self_time_share_above}, \code{change_before_onset}, \code{template_new_in_incident}, \code{error_rate_above}, \code{silent}, \code{on_critical_path} and \code{peer_gap_above} (Appendix~\ref{sec:appendix}).
+Each has a fixed signature with typed, range-checked arguments after an implied subject, a fixed polarity (it supports or refutes the subject being the root), and a fixed weight held by the verifier.
+A predicate returns a value and \code{holds} $\in \{\text{true}, \text{false}, \text{null}\}$, where null means it cannot be evaluated on this case, for example a trace predicate on a case without traces.
+Predicates reuse the atom functions, so a claim is valid only if FaultLoom's own code can recompute it.
+A claim naming a predicate outside the library, carrying a malformed argument or an explicit subject, or naming an unknown service is rejected before evaluation.
+\par}
+
+\paragraph{The claim pass: symmetric evaluation}
+After the proposer runs, FaultLoom forms the \emph{claim-pass pool}: the slate plus every proposed service that exists in the dependency graph.
+It collects the distinct valid (predicate, arguments) pairs from all proposals and evaluates each pair with \emph{every} member of the pool substituted as the subject, writing one \code{claim_check} atom per pair and candidate (Figure~\ref{fig:claimpass}).
+The subject substitution is the whole mechanism: the model chooses \emph{which} checks run, code runs each check for every candidate, and the result does not depend on which proposal asked for it, in what order, or with what wording.
+A model that requests a check to support its favourite therefore also produces that check's result for every rival, and the check helps whichever candidate it actually holds for.
+With the AI off there are no claims, and the engine atoms are byte-identical to those of a run with the AI on.
+
+\diagram{fig:claimpass}{The claim pass. Each distinct predicate requested by any proposal is evaluated for every candidate in the pool; only these code results, with fixed weights, can move the verified score.}{fig2-claim-pass}{a grid with proposals' requested predicates as rows and pool candidates (slate and proposed) as columns, each cell a \texttt{claim\_check} atom (true / false / null); arrows from the proposals to the rows only, not to the cells.}
+
+\subsection{Rankers and the fused slate}
+\label{sec:slate}
+
+Causatrix orders every service with six deterministic rankers, fuses them and writes the \emph{slate}: the top $K=5$ candidates plus a fused score for every service.
+Its design is recall first.
+The verifier can only confirm candidates in its decision pool: with the AI off that pool is the slate, so the share of cases whose root is in the slate (Retrieval@K) caps everything downstream, and with the AI on decision-pool retrieval does; on RCAEval RE1, deviation ranking already holds the root within the top 15 for 98--100\% of faults~\cite{decomprca2026}, while in one cross-benchmark re-run DecompRCA's own candidate pool held the true cause in only 57.8\% of cases, which capped its accuracy~\cite{rcatlas2026}.
+Each ranker is a pure function of the evidence atoms and the graph, and each is also evaluated alone as a baseline.
+
+\begin{itemize}
+\item \code{prism_m} scores $I + E - \ln(1 + I + E)$ over the maximum internal deviation $I$ (a silent service counts as a large internal deviation) and the maximum external deviation $E$, PRISM's additive combination, re-implemented~\cite{prism2026}.
+\item \code{baro_rs} and \code{nsigma} score the maximum robust-scaled and N-sigma deviation per service~\cite{baro2024,rcaeval2024}. Both are two-sided: the reference implementations score only upward deviations, so a root whose traffic drops ranks last~\cite{rcatlas2026}.
+\item \code{cp_sbfl} scores the critical-path-weighted spectrum $\text{SP}(c)$.
+\item \code{change_prox} scores change proximity for services that show any anomaly.
+\item \code{graph_walk} is a personalised PageRank in the MicroRank family~\cite{microrank} that walks from symptoms towards the dependencies they call, against the direction in which anomalies propagate, personalised by anomaly scores. A node passes mass to each callee in proportion to the edge share and the callee's anomaly, keeps part of the remainder in proportion to its own internal anomaly, and restarts the rest, so no node absorbs mass merely for being a leaf; we run exactly 200 iterations with damping 0.85.
+\end{itemize}
+
+Scores are quantised and turned into competition ranks, so tied services share a rank and nothing about name order leaks into a vote.
+The fused score is gated reciprocal rank fusion,
+\begin{equation}
+F(s) = \sum_{r \in \text{active}} \frac{w_r}{k + \text{rank}_r(s)}, \qquad k = 60,\; w_r = 1,
+\end{equation}
+where a ranker is \emph{active} only if its channel exists for the case and its scores are not constant: without traces \code{cp_sbfl} abstains, and without change events \code{change_prox} abstains, so a missing channel never injects a vote.
+The constant $k=60$ is the usual choice \citeneeded{Cormack et al.\ 2009, reciprocal rank fusion; the notes name it without an identifier}, also used by GALA+~\cite{galaplus2026}; the weights are fixed and the fusion rule is an ablation, never tuned.
+Services are ordered by fused score, then services with an internal anomaly first, then earliest onset, then name.
+A fixed rule table labels each slate candidate with a mode (resource, network, code, change or dependency), a fault class and an indicator; it answers ``if this service were the root, which fault would it be'', and its accuracy is measured, not assumed.
+
+\subsection{The proposer}
+\label{sec:proposer}
+
+The verifier treats the proposer as untrusted.
+A proposal names a hypothesis (a service from the graph's nodes and a fault class from the taxonomy) and claims, each a library predicate with arguments and citations of evidence atoms; constrained decoding against closed enumerations makes a cause outside the case's services impossible to express.
+The verifier never reads a proposal's free text, its rationale: only the proposed service and the claims' predicates and arguments enter, and at most five proposals are considered.
+The proposal's own fault class and indicator are ignored, because code, not the model, labels the fault.
+A planted sentence in the model's input can therefore act only through the service and the predicates it leads the model to propose, which code re-evaluates for every candidate; the planted-decoy protocol (H2b) measures how often that still changes the top-ranked candidate.
+
+\lanesection{explain-proposer}{Explain}{Relentra's \texttt{brief} and \texttt{investigate} modes, evidence cards, closed enums, budgets and the model (docs/02 §6.8).}
+
+\subsection{The verifier}
+\label{sec:verifier}
+
+Causentra is the only engine that sets the verdict.
+It first forms the \emph{decision pool}: the slate plus each proposed service that exists in the graph and has at least one supporting claim that holds for it in the claim pass.
+A service already in the slate keeps its slate origin even when a proposal names it, so switching the AI on can add candidates but never remove one.
+The base score of a pool candidate is its fused score divided by the pool maximum, $S_0(c) = F(c)/\max_{c'} F(c')$.
+
+Each pool candidate then faces ten fixed trials (Table~\ref{tab:trials}), each returning \emph{pass}, \emph{fail} or \emph{untestable} with the atoms it used.
+Trials T1--T4 are mandatory for every candidate, and T10 is mandatory for candidates that only a proposal brought into the pool.
+The trials encode the failure modes of unverified agents: a victim mistaken for the culprit (T1), a late symptom (T2), an untested edge (T3), and silence read as health (T4), which accounted for 30\% and 44.2\% of two models' failed runs in one taxonomy~\cite{diagguard2026}.
+T10 is never applied to slate candidates: a false claim must not lower a candidate the rankers found without the AI.
+
+\begin{table}[t]
+\caption{Verifier trials. Mandatory trials cost more when they fail or cannot be tested; supporting trials never cost more when untestable than when failed.}
+\label{tab:trials}
+\small
+\begin{tabularx}{\linewidth}{@{}lXll@{}}
+\toprule
+ID & Trial: the candidate \dots & Mand. & Catches \\
+\midrule
+T1 & has an internal anomaly not explained by its callees & yes & victim as culprit \\
+T2 & has an onset no later than its dependents' & yes & late symptom \\
+T3 & reaches the anomalous upstream services & yes & untested edge \\
+T4 & is not judged healthy because a callee is silent & yes & silence as health \\
+T5 & owns $\geq 30\%$ of the latency increase (traces) & no & wrong layer \\
+T6 & had a change within $\tau$ before onset & no & change faults \\
+T7 & differs from its healthy peers & no & node-local faults \\
+T8 & is anomalous given its parents (restricted CI) & no & confounding \\
+T9 & stays in the top $K$ when any one source is dropped & no & one-channel artefacts \\
+T10 & has all its proposal claims hold & proposals & hallucinated support \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The \emph{verified score} combines the base score, the trial outcomes and the code-checked claims:
+\begin{equation}
+V(c) = S_0(c) \prod_{t} \phi_t(c) \Bigl(1 + \operatorname{clip}\bigl(\textstyle\sum_{p} w_p\, \rho_p\, h_p(c), -0.3, 0.3\bigr)\Bigr).
+\end{equation}
+The trial factor $\phi_t$ is 1 for a pass; 0.85 for an untestable and 0.25 for a failed mandatory trial; and 1 for an untestable and 0.9 for a failed supporting trial, so a missing supporting check never costs more than a failed one.
+The sum runs over the distinct predicates evaluated in the claim pass, with fixed weight $w_p$ (0.10 by default, 0.05 for \code{template_new_in_incident}, \code{error_rate_above} and \code{on_critical_path}), polarity $\rho_p \in \{+1,-1\}$ and $h_p(c) = 1$ if the predicate holds \emph{for candidate $c$}.
+With the AI off the sum is empty, so every difference between the AI-on and AI-off verdicts is attributable to code-verified evidence that the AI chose to request.
+Candidates are ordered by $V$ rounded to nine decimals, then internal anomaly first, earliest onset and name; every later comparison uses the rounded value, so the decision equals what the stored verdict shows.
+
+These choices give properties that we test with property-based tests rather than assume: the verdict is identical under any permutation of the proposals and their claims; no proposal removes a slate candidate; and adding a supporting claim that holds only for $c$ never lowers $V(c)$ and never raises a rival's score.
+All parameters are fixed a priori in configuration with a cited source or the note ``a priori'', and none was tuned on a test split.
+
+\subsection{Candidate sets, \NOFAULT and statuses}
+\label{sec:conformal}
+
+\paragraph{Conformal candidate set}
+The nonconformity of a pool candidate is $s(c) = 1 - V(c)/V(c^\ast)$, where $c^\ast$ is the leader, so the leader scores 0.
+On each calibration case we record the nonconformity of the true root, or $+\infty$ if the root is not in the decision pool.
+With $n$ calibration scores and level $\alpha = 0.10$, $\hat{q}$ is the $\lceil (n+1)(1-\alpha) \rceil$-th smallest score ($+\infty$ if that index exceeds $n$), and the candidate set is
+\begin{equation}
+C = \{\, c \in \text{decision pool} : s(c) \leq \hat{q} \,\}.
+\end{equation}
+If calibration and test cases are exchangeable and $\hat{q}$ is finite, the root is in $C$ with probability at least $1-\alpha$, marginally over cases \citeneeded{a split-conformal reference; the notes name Angelopoulos \& Bates without an identifier and cite only conformal work on rankings~\cite{conformalranking2025,conformalretrieval2024}}.
+A finite score at most $\hat{q}$ implies the root is in the pool, so decision-pool retrieval bounds coverage and we report it next to coverage.
+Calibration is fitted only on calibration folds, separately per benchmark family, AI arm, alert protocol and fold (\S\ref{sec:splits}), and reaches the verifier as configuration; exchangeability fails across systems, so leave-one-system-out coverage is an empirical result, not a guarantee.
+
+\paragraph{No fault}
+Every method evaluated on PetShop named false root causes during normal operation~\cite{petshop2024}, so \sys may answer \NOFAULT.
+The statistic is $M = \log(1 + \max(\max_{e} E(e), \max_{s} I(s)))$ over the entry services' external and all services' internal robust deviations.
+The verdict is \NOFAULT, with an empty set and no root, if no service is silent and $M \leq \tau_\text{nf}$, where $\tau_\text{nf}$ is the $\lceil (m+1)(1-\beta) \rceil$-th smallest $M$ over $m$ \emph{normal windows} of the calibration fold, with $\beta = 0.10$, so at most about 10\% of exchangeable normal windows are flagged as faults.
+With fewer than nine normal windows the threshold falls back to the three-sigma rule, $\log(1+3)$, and is marked uncalibrated.
+The rate of wrong \NOFAULT answers on fault cases is measured, not guaranteed.
+
+\paragraph{Statuses}
+Let the margin be $m = (V_\text{top} - V_\text{runner-up})/V_\text{top}$.
+The verdict is \st{CONFIRMED} if the set has one member, the leader passes every mandatory trial and $m \geq 0.30$; \st{LIKELY} if the leader passes every mandatory trial, the set has at most three members and $m \geq 0.15$; and \st{INCONCLUSIVE} otherwise.
+Untestable is not a pass, so missing telemetry pushes a verdict towards \st{INCONCLUSIVE}.
+\st{LIKELY} and \st{INCONCLUSIVE} verdicts carry \emph{asks}, generated by code from a fixed template table, that name the failed trial, the missing source or the close runner-up that would settle the case.
+The ranking is written for every status, so abstaining cannot raise accuracy; abstention is scored separately through coverage, risk--coverage curves and the \NOFAULT rates (\S\ref{sec:metrics}).
+
+\subsection{Receipts and replay}
+\label{sec:receipts}
+
+\lanesectionor{explain-receipts}{03-receipts}
