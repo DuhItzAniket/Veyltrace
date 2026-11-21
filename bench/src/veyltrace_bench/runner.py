@@ -46,6 +46,7 @@ from veyltrace_bench import (
     decoy_runs,
     naive_change,
     normal_windows,
+    permuted,
     planted,
     rcaeval,
     simplerca,
@@ -450,8 +451,10 @@ def _record(
     fold: str | None = None,
     variant: str | None = None,
     seed: int | None = None,
+    rebuilt: Verdict | None = None,
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
-    """Score one executed run: (per_case row, score, manifest run entry). n_i (its `services`) and
+    """Score one executed run: (per_case row, score, manifest run entry); `rebuilt` replaces its
+    verdict with one Causentra rebuilt in memory (a proposal permutation, #399). n_i (its `services`) and
     the input hashes come from the run's case_manifest (Infralume, step 0): the case's own, the
     same for every method and for every outcome that got that far. A baseline is scored on its
     ranks alone: it has no slate, pool, set or fault type (metrics.MethodOutput)."""
@@ -460,7 +463,9 @@ def _record(
     slate_scored, baseline = method.kind == "causatrix", method.kind in BASELINE_KINDS
     agent = method.kind == agent_only.KIND  # the proposals of its source's run (04 §4)
     verdict = (
-        _read("verdict", done.run_dir, Verdict) if outcome == "ok" and method.kind == "veyltrace" else None
+        (rebuilt or _read("verdict", done.run_dir, Verdict))
+        if outcome == "ok" and method.kind == "veyltrace"
+        else None
     )
     slate = _read("slate", done.run_dir, Slate) if outcome == "ok" and not baseline else None
     if outcome == "ok" and (
@@ -562,6 +567,12 @@ def _run_method(
                 out.append(
                     _record(exp, method, key, plant, _fold(split, key.case_id), planted.variant(draw), seed)
                 )
+            ok = run_outcome(done.outcome, done.wall_ms, exp.resources.timeout_s) == "ok" and done.run_dir
+            if (perm := exp.protocol.permute_proposals) is not None and ok and done.run_dir is not None:
+                for i, verdict in enumerate(permuted.verdicts(done.run_dir, perm, seed), 1):  # H2c, in memory
+                    fold = _fold(split, key.case_id)
+                    row, score, _ = _record(exp, method, key, done, fold, permuted.variant(i), seed, verdict)
+                    out.append((row, score, {}))  # not a run of its own: no manifest entry
         if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
@@ -923,7 +934,7 @@ def run_experiment(
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
         rows.append(row)
-        if listed:  # False: the run is already in the manifest (a calibration run kept as the row)
+        if listed and run:  # False: already listed (a calibration run kept as the row); {}: no run
             runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
         key = (dataset, k_sys, method_id)

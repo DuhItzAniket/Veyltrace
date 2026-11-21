@@ -7,11 +7,11 @@ compute V, order, set and status, and write `verdict.json` with its `verdict_has
 
 from __future__ import annotations
 
-from typing import Final
+from typing import Any, Final
 
-from veyltrace_causentra.config import ENGINE, config_from
-from veyltrace_causentra.decision import decide
-from veyltrace_causentra.inputs import DECIMALS, load_inputs
+from veyltrace_causentra.config import ENGINE, CausentraConfig, config_from
+from veyltrace_causentra.decision import Decision, decide
+from veyltrace_causentra.inputs import DECIMALS, CausentraInputs, load_inputs
 from veyltrace_causentra.outcome import no_fault, status_of
 from veyltrace_causentra.verdict import build_verdict
 from veyltrace_core.context import EngineResult, RunContext
@@ -42,6 +42,26 @@ def _calibration_mismatch(ctx: RunContext, alpha: float, beta: float) -> str | N
     return None
 
 
+def verdict_for(
+    ctx: RunContext, cfg: CausentraConfig, inp: CausentraInputs
+) -> tuple[Decision, dict[str, Any]]:
+    """The decision and the verdict mapping of one run's inputs (pure; no I/O). Bench calls it on
+    permuted proposals to measure order invariance in memory (04 §5.2 H2c, #399)."""
+    d = decide(inp, cfg)
+    status, level = status_of(d, no_fault(inp), cfg)
+    verdict = build_verdict(
+        run_id=ctx.run_id,
+        inp=inp,
+        cfg=cfg,
+        d=d,
+        status=status,
+        level=level,
+        calibration={"family": ctx.config.calibration_family, "sha256": ctx.config.calibration_sha256},
+        params_sha256=sha256_json(dict(ctx.config)),  # 09 §2.2: the effective causentra section
+    )
+    return d, verdict
+
+
 def run(ctx: RunContext) -> EngineResult:
     """Pipeline step 9: the verdict (09 §6: no slate or evidence fails; so does a calibration fitted at
     another alpha or beta)."""
@@ -60,18 +80,7 @@ def run(ctx: RunContext) -> EngineResult:
     if mismatch is not None:
         return EngineResult(engine=ENGINE, status="failed", notes=(mismatch,))
     inp = load_inputs(ctx, cfg)
-    d = decide(inp, cfg)
-    status, level = status_of(d, no_fault(inp), cfg)
-    verdict = build_verdict(
-        run_id=ctx.run_id,
-        inp=inp,
-        cfg=cfg,
-        d=d,
-        status=status,
-        level=level,
-        calibration={"family": ctx.config.calibration_family, "sha256": ctx.config.calibration_sha256},
-        params_sha256=sha256_json(dict(ctx.config)),  # 09 §2.2: the effective causentra section
-    )
+    d, verdict = verdict_for(ctx, cfg, inp)
     digest = ctx.write("verdict", verdict)
     metrics: dict[str, int | float] = {
         "decision_pool": len(d.ranked),
