@@ -65,7 +65,12 @@ def proposer(ctx: Context) -> list[Table]:
     title = "Table 6d: RQ2 planted and permuted proposals"
     tables.append(
         Table(
-            "t06d-rq2-proposal-arms", title, caption, ("Experiment", "Method", "Metric", "Value"), tuple(rows)
+            "t06d-rq2-proposal-arms",
+            title,
+            caption,
+            ("Experiment", "Method", "Metric", "Value"),
+            tuple(rows),
+            key=(0, 1, 2),
         )
     )
     return tables
@@ -108,4 +113,5 @@ def calibration(ctx: Context) -> list[Table]:
         "coverage, set size, risk-coverage and NO_FAULT rates need bench_summary entries that 1.1 does not "
         "have. Protocol of each experiment: see Sources."
     )
-    return [Table("t07-rq3-calibration", "Table 7: RQ3 calibration", caption, COLUMNS7, tuple(rows))]
+    title = "Table 7: RQ3 calibration"
+    return [Table("t07-rq3-calibration", title, caption, COLUMNS7, tuple(rows), key=(0, 3, 4))]

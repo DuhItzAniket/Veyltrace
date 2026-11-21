@@ -42,15 +42,11 @@ def cost(ctx: Context) -> list[Table]:
         "docs/team/*.md."
     )
     every = tuple(e.experiment_id for e in ctx.experiments if "cost" in e.metrics)
+    key = (0, 1, 2)  # experiment, system, method
+    main, all_ = tuple(_cost_rows(ctx, MAIN)), tuple(_cost_rows(ctx, every))
     return [
-        Table("t08-rq5-cost", "Table 8: RQ5 cost on RE2", caption, COLUMNS8, tuple(_cost_rows(ctx, MAIN))),
-        Table(
-            "a1-cost-all",
-            "Table A1: cost of every experiment",
-            caption,
-            COLUMNS8,
-            tuple(_cost_rows(ctx, every)),
-        ),
+        Table("t08-rq5-cost", "Table 8: RQ5 cost on RE2", caption, COLUMNS8, main, key=key),
+        Table("a1-cost-all", "Table A1: cost of every experiment", caption, COLUMNS8, all_, key=key),
     ]
 
 
