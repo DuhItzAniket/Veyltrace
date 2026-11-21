@@ -141,6 +141,8 @@ Statistic ([02 §6.9](../02-architecture.md) step 5): `M` = the maximum of the e
 
 `NO_FAULT` iff no service is silent (`Sil(s) = 1` for no *s* ∈ U, i.e. no `silence` atom above threshold) and `M ≤ τ_nf`. `τ_nf` is the (1 − β)-quantile of `M` over **normal windows** of the calibration split, β = 0.10, so at most about 10% of normal windows are expected to be flagged as faults. Normal windows come from `synth-05`, VeylLab no-fault captures and RCAEval pre-injection segments (alert placed before injection, windows clamped; [04 §5.4](../04-evaluation-protocol.md)). Finite-sample rule: with `m` normal windows, `τ_nf` = the ⌈(m + 1)(1 − β)⌉-th smallest `M`, which keeps the false-alarm rate on exchangeable new normal windows ≤ β. If that index exceeds `m` (m < 9), `τ_nf` is not fitted: `τ_nf = no_fault.default_tau = log1p(3.0) = 1.386294361` (the 3-sigma rule, the same as `k_anom`) and `no_fault.calibrated = false`.
 
+How bench scores windows that can never be `NO_FAULT` (failed, no M, a silent service: +∞, kept in m) is in [ADR 20261121-ak-calibration-fit-conventions](../adr/20261121-ak-calibration-fit-conventions.md).
+
 When `NO_FAULT` holds, the candidate set is empty and `root` is null. The rate of wrong `NO_FAULT` on fault cases is measured, not guaranteed ([04 §7](../04-evaluation-protocol.md)). All published methods named false root causes during normal operation in PetShop, which is why the option exists [novel_building_blocks §Q7][nbb].
 
 ### 3.9 Decision step 5 — status, root, confidence
