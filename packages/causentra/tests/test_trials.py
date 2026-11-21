@@ -1,4 +1,4 @@
-"""Tests of trials T1–T4 and the fact-fixed T5/T6/T8 results: every row of the 09 §3.4 table."""
+"""Tests of trials T1–T8: every row of the 09 §3.4 table, including non-applicability."""
 
 from __future__ import annotations
 
@@ -13,8 +13,12 @@ from veyltrace_causatrix.views import Atom, evidence_view, graph_view
 from veyltrace_causentra.trials import (
     EVALUATED,
     TrialInputs,
+    change_alignment,
+    intervention,
+    latency_accounting,
+    leave_one_source_out,
     origin,
-    pending,
+    peer_contrast,
     precedence,
     propagation,
     run_trials,
@@ -41,12 +45,31 @@ def _onset(cand: str, ms: float, scope: str = "self") -> Atom:
 
 
 def _t(
-    atoms: list[Atom], calls: list[tuple[str, str]], tol_ms: float = 0.0, sources: Sources = ALL
+    atoms: list[Atom],
+    calls: list[tuple[str, str]],
+    tol_ms: float = 0.0,
+    sources: Sources = ALL,
+    ablations: tuple[tuple[str, tuple[str, ...]], ...] = (),
+    top_k: frozenset[str] = frozenset({"c"}),
 ) -> TrialInputs:
     members = sorted({a.candidate for a in atoms} | {s for c in calls for s in c} | {"c"})
     edges = [{"src": s, "dst": d, "weight": 1.0, "provenance": ["traces"]} for s, d in calls]
     graph = graph_view(members, [], edges, include_external=False)
-    return TrialInputs(evidence_view(atoms, members), graph, sources, tol_ms, 3.0, 1.0, 0.5)
+    return TrialInputs(
+        evidence_view(atoms, members),
+        graph,
+        sources,
+        tol_ms,
+        3.0,
+        1.0,
+        0.5,
+        0.30,
+        0.36787944,
+        3.0,
+        2,
+        ablations,
+        top_k,
+    )
 
 
 def _r(result: Any) -> tuple[str, str | None]:
@@ -119,17 +142,92 @@ def test_t4_silence_check() -> None:
     )  # c itself is not a descendant
 
 
-def test_pending_facts_and_order() -> None:
-    none = Sources(metrics=True, logs=True, traces=False, events=False)
-    assert [(r.id, r.reason) for r in pending("c", _t([], [], sources=none))] == [
-        ("T6", "no_events"),
-        ("T8", "intervention_unavailable"),
+NO_TRACES = Sources(metrics=True, logs=True, traces=False, events=True)
+NO_EVENTS = Sources(metrics=True, logs=True, traces=True, events=False)
+
+
+def _share(value: float) -> Atom:
+    return _a("c", "self_time_share", value, quantile="p50", window="incident")
+
+
+def test_t5_latency_accounting() -> None:
+    assert _r(latency_accounting("c", _t([], []))) == ("untestable", "no_latency_increase")
+    assert _r(latency_accounting("c", _t([_share(0.30)], []))) == ("pass", None)  # 0.30 itself passes
+    assert _r(latency_accounting("c", _t([_share(0.2999999996)], []))) == ("pass", None)  # read at 9 decimals
+    low = latency_accounting("c", _t([_share(0.29), _share(0.1)], []))
+    assert _r(low) == ("fail", "share_below_min") and len(low.atoms) == 2
+    assert "T5" not in [r.id for r in run_trials("c", _t([_share(0.9)], [], sources=NO_TRACES))]
+
+
+def _change(value: float) -> Atom:
+    return _a("c", "change_proximity", value, change_id="ch1", event_kind="deploy", window="onset")
+
+
+def test_t6_change_alignment() -> None:
+    assert _r(change_alignment("c", _t([_change(0.9)], [], sources=NO_EVENTS))) == ("untestable", "no_events")
+    assert _r(change_alignment("c", _t([], []))) == ("fail", "no_recent_change")  # events, no change on c
+    assert _r(change_alignment("c", _t([_change(0.2)], []))) == ("fail", "no_recent_change")
+    at_tau = math.exp(-1.0)  # Δt = τ_change exactly: proximity e⁻¹ passes (09 §3.4)
+    assert _r(change_alignment("c", _t([_change(0.2), _change(at_tau)], []))) == ("pass", None)
+    other = _a("d", "change_proximity", 0.9, change_id="ch2", event_kind="deploy", window="onset")
+    assert _r(change_alignment("c", _t([other], []))) == ("fail", "no_recent_change")  # d's change is not c's
+
+
+def _peer(value: float, source: str = "anomalies") -> Atom:
+    return _a("c", "peer_contrast", value, source=source, window="incident")
+
+
+def test_t7_peer_contrast() -> None:
+    assert "T7" not in [r.id for r in run_trials("c", _t([], []))]  # no peer_contrast atom: not applicable
+    assert _r(peer_contrast("c", _t([_peer(3.0)], []))) == ("pass", None)
+    assert _r(peer_contrast("c", _t([_peer(1.0), _peer(4.0, "changes")], []))) == (
+        "pass",
+        None,
+    )  # both sources
+    assert _r(peer_contrast("c", _t([_peer(2.9)], []))) == ("fail", "peers_alike")
+    assert [r.id for r in run_trials("c", _t([_peer(2.9)], []))].count("T7") == 1
+
+
+def _ci(value: float) -> Atom:
+    return _a(
+        "c",
+        "intervention",
+        value,
+        parents_hash="0123456789ab",
+        series_id="c|c|cpu|metrics",
+        window="incident",
+    )
+
+
+def test_t8_intervention() -> None:
+    assert _r(intervention("c", _t([], []))) == ("untestable", "intervention_unavailable")
+    assert _r(intervention("c", _t([_ci(3.0)], []))) == ("pass", None)  # stat_resid ≥ k_anom
+    explained = intervention("c", _t([_ci(1.5)], []))
+    assert _r(explained) == ("fail", "explained_by_parents") and len(explained.atoms) == 1
+
+
+def test_t9_leave_one_source_out() -> None:
+    # k = 2 in _t: c must stay in the first two places of every re-ranking.
+    kept = (("logs", ("a", "c", "b")), ("metrics", ("c", "a", "b")))
+    assert _r(leave_one_source_out("c", _t([], [], ablations=kept))) == ("pass", None)
+    lost = (("events", ("c", "a")), ("logs", ("a", "b", "c")), ("traces", ("a", "b")))
+    result = leave_one_source_out("c", _t([], [], ablations=lost))
+    assert _r(result) == ("fail", "drops_out_without:logs") and result.atoms == ()  # first source, sorted
+    assert "T9" not in [r.id for r in run_trials("c", _t([], []))]  # < 2 sources: no re-rankings
+    assert [r.id for r in run_trials("c", _t([], [], ablations=kept))][-1] == "T9"
+    # Outside the unablated top K (e.g. proposal origin): not applicable, so no T9 entry (#364 review).
+    outside = _t([], [], ablations=kept, top_k=frozenset({"a", "b"}))
+    assert "T9" not in [r.id for r in run_trials("c", outside)]
+
+
+def test_applicability_and_order() -> None:
+    assert [r.id for r in run_trials("c", _t([], []))] == ["T1", "T2", "T3", "T4", "T5", "T6", "T8"]
+    bare = Sources(metrics=True, logs=False, traces=False, events=False)
+    assert [(r.id, r.result) for r in run_trials("c", _t([_peer(5.0)], [], sources=bare))][4:] == [
+        ("T6", "untestable"),
+        ("T7", "pass"),
+        ("T8", "untestable"),
     ]
-    assert [r.id for r in pending("c", _t([], []))] == ["T5", "T8"]
-    with_share = _t([_a("c", "self_time_share", 0.4, quantile="p50", window="incident")], [])
-    assert [r.id for r in pending("c", with_share)] == ["T8"]  # T5 with a share atom is R-12's
-    ids = [r.id for r in run_trials("c", _t([], []))]
-    assert ids == ["T1", "T2", "T3", "T4", "T5", "T8"]
     assert all(
         r.as_json()["reason"] is None for r in run_trials("c", _t([_i("c", 9.0)], [])) if r.result == "pass"
     )

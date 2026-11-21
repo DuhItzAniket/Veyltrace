@@ -1,4 +1,4 @@
-"""Causentra configuration: the 09 §4 keys of the v1 decision, validated once per run.
+"""Causentra configuration: the 09 §4 keys of the decision, validated once per run.
 
 Values are fixed a priori in `config/causentra.yaml` (02 §6.9); predicate weights are only read.
 A bad or missing value is a ConfigError naming the key."""
@@ -42,7 +42,7 @@ class Factors:
 
 @dataclass(frozen=True)
 class CausentraConfig:
-    """The effective causentra keys of R-10 (09 §4) and core's k_anom."""
+    """The effective causentra keys (09 §4) and core's k_anom."""
 
     alpha: float
     factors: Factors
@@ -57,7 +57,11 @@ class CausentraConfig:
     likely_max_set: int
     t2_min_fraction: float
     t3_min_path_fraction: float
+    t5_min_share: float
+    t6_min_proximity: float
+    t7_min_gap: float
     uncalibrated_q_hat: float
+    beta: float
     default_tau: float
     asks_max: int
     k_anom: float
@@ -134,7 +138,11 @@ def config_from(cfg: Mapping[str, Any], core: Mapping[str, Any]) -> CausentraCon
         likely_max_set=_int(get("status.likely_max_set"), "causentra.status.likely_max_set", 1),
         t2_min_fraction=num("trials.T2.min_fraction", 0.0, 1.0),
         t3_min_path_fraction=num("trials.T3.min_path_anomalous_fraction", 0.0, 1.0),
+        t5_min_share=num("trials.T5.min_share", 0.0, 1.0),
+        t6_min_proximity=num("trials.T6.min_proximity", 0.0, 1.0),
+        t7_min_gap=num("trials.T7.min_gap", 0.0),
         uncalibrated_q_hat=num("calibration.uncalibrated_q_hat", 0.0),
+        beta=num("no_fault.beta", 0.0, 1.0),
         default_tau=num("no_fault.default_tau", 0.0),
         asks_max=_int(get("asks.max"), "causentra.asks.max", 1),  # ≥ 1: INCONCLUSIVE always asks (09 §3.11)
         k_anom=_number(_get(core, "core", "thresholds.anomaly_z"), "core.thresholds.anomaly_z"),
