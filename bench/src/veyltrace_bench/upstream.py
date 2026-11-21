@@ -3,17 +3,18 @@
 
 A `causatrix:<ranker>` method changes only `causatrix.*` keys, and no step before Causatrix reads
 that section, so its run of a case equals the experiment's `veyltrace:off` run of the same case up
-to and including FaultLoom. Bench therefore restarts it at `causatrix` on that run's outputs (core
+to and including Causalith. Bench therefore restarts it at `faultloom` on that run's outputs (core
 `from_step` + `reuse_dir`) and stops after Causatrix (`to_step`), which is all a slate-scored
-method is scored on (04 §3, §9). It reuses only when the source run finished `ok` and nothing it
+method is scored on (04 §3, §9). It cannot restart later: FaultLoom's claim pass rewrites
+`evidence.parquet` in every finished run (T8 intervention atoms, #368, AI off too), and core
+refuses that version as FaultLoom's main output. It reuses only when the source run finished `ok` and nothing it
 would reuse differs: the `config.lock.json` sections of every reused step's engine equal the
 method's resolved ones, the code commit is the same, and every file the reused steps wrote still
 holds the hash its `run_manifest` recorded (core re-checks the hashes itself). Otherwise the method
-runs in full, as before, and the reason is logged. With AI off FaultLoom's claim pass rewrites
-`evidence.parquet` byte-identically, so the restart passes core's evidence check.
+runs in full, as before, and the reason is logged.
 
-A reused row's `wall_ms` and `peak_rss_mb` cover the Causatrix step only (bench/README.md); the
-timeout applies to that step. RQ5 cost numbers come only from `veyltrace:off` runs. `causatrix:rrf`
+A reused row's `wall_ms` and `peak_rss_mb` cover the FaultLoom and Causatrix steps only
+(bench/README.md), and its timeout is what is left of `timeout_s` after the source's run. RQ5 cost numbers come only from `veyltrace:off` runs. `causatrix:rrf`
 has no override, so it shares `veyltrace:off`'s whole run as before (#172).
 """
 
@@ -33,11 +34,12 @@ from veyltrace_core.pipeline import code_commit, is_finished
 from veyltrace_core.steps import STEP_NAMES
 
 PREFIX: Final = "causatrix."  # the only keys a reusing method may override
-START: Final = "causatrix"  # restart here on the source run (and stop after it)
-#: The sub-steps a reusing method takes from its source: everything before Causatrix.
+START: Final = "faultloom"  # restart here on the source run ...
+STOP: Final = "causatrix"  # ... and stop after Causatrix
+#: The sub-steps a reusing method takes from its source: everything before FaultLoom.
 REUSED: Final = STEP_NAMES[: STEP_NAMES.index(START)]
 #: Their engines' config.lock sections (the alert step is core's), which must equal the method's.
-SECTIONS: Final = ("core", "infralume", "signalyth", "anomara", "causync", "causalith", "faultloom")
+SECTIONS: Final = ("core", "infralume", "signalyth", "anomara", "causync", "causalith")
 LOCK: Final = "config.lock.json"
 KIND, SOURCE_KIND = "causatrix", "veyltrace"
 
