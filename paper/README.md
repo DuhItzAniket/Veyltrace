@@ -37,6 +37,10 @@ The lead's sections include the lane files by name and show a stub (or the lead'
 | §3.1 Observe part of the pipeline | `sections/observe-pipeline.tex` | stub |
 | §3.4 The proposer | `sections/explain-proposer.tex` | stub |
 | §3.7 Receipts and replay | `sections/explain-receipts.tex` | the lead's draft, `sections/03-receipts.tex` |
+| §5.2 RQ2 proposer | `sections/explain-rq2.tex` | the lead's placeholders, `sections/05-rq2.tex` |
+| §5.4 RQ4 alert shifts and telemetry ablation | `sections/observe-rq4.tex` | the lead's placeholders, `sections/05-rq4-shift-ablation.tex` |
+| §5.5 RQ5 cost | `sections/observe-rq5.tex` | the lead's placeholders, `sections/05-rq5.tex` |
+| §5.6 RQ6 replay | `sections/explain-rq6.tex` | the lead's placeholders, `sections/05-rq6.tex` |
 
 ## Rules for text
 

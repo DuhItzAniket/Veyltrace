@@ -74,20 +74,21 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
     exp = _load(
         tmp_path,
         BASE.replace("[mrr]", "[mrr, coverage, cost]")
-        + "split: {scheme: crossfit2}\nprotocol: {decoys: {pi: 0.5}}\nresources: {workers: 2}\n"
+        + "split: {scheme: crossfit2}\ncalibration: {fit: true}\nprotocol: {decoys: {pi: 0.5}}\n"
+        + "resources: {workers: 2}\n"
         + "methods: [{id: b, kind: agent_only}, {id: v, kind: veyltrace, ai: {mode: record, seeds: [1]}}]\n",
     )
     todo = " | ".join(unsupported(exp))
     for task in (
-        "scheme crossfit2 (R-13)",
         "workers",
         "agent_only",
         "AI arms",
         "coverage (R-13",
     ):
         assert task in todo
-    assert len(unsupported(exp)) == 5 and "cost" not in todo  # cost is computed (#316)
+    assert len(unsupported(exp)) == 4 and "cost" not in todo  # cost is computed (#316)
     assert "decoys" not in todo  # run since #326; the block is checked when the run starts
+    assert "split" not in todo and "calibration" not in todo  # #391, #376
     assert sorted([*METRIC_KEYS, *METRIC_TASKS]) == sorted(get_args(MetricName))  # each: computed or a task
 
 
