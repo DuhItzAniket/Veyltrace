@@ -28,7 +28,7 @@ protocol: {{alert: oracle, shift_s: 0, sources_drop: [], inject_proposals: {{n: 
 methods:
   - {{id: "veyltrace:brief", kind: veyltrace, {ARM}}}
   - {{id: "agent-only:brief", kind: agent_only, {ARM}}}
-metrics: [ac_at_k]
+metrics: [ac_at_k, decoy_top1_change]
 """
 SERVICES = ("cart", "cart-db", "checkout", "frontend", "payment")
 
@@ -112,6 +112,8 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
     assert {g["method"]: (g["n_fault"], g["n_rows"]) for g in summary["groups"]} == {
         "agent-only:brief": (4, 5), "veyltrace:brief": (4, 5),
     }  # fmt: skip
+    for g in summary["groups"]:  # each planted row pairs with its source run's row (04 §7 Decoy metrics)
+        assert g["metrics"]["decoy_top1_change"]["n_pairs"] == 5
 
 
 def test_a_planted_proposal_is_rank_1_once_proposals_carry_ranks(monkeypatch: pytest.MonkeyPatch) -> None:
