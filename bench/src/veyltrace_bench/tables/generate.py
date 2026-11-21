@@ -1,9 +1,9 @@
-"""Generate every paper table from committed results, write them, or check them (R-17).
+"""Generate every paper table and figure from committed results, write them, or check them (R-17).
 
 Outputs are a sorted {path relative to the results root: bytes} map, so writing and checking
-compare the same bytes. `bench/results/tables/` is owned by the generator (11 §10: generated,
-never hand-edited): a `.md` or `.tex` there that the generator no longer writes is stale and is
-removed on write, and reported by a check.
+compare the same bytes. `bench/results/tables/` and `figures/` are owned by the generator (11
+§10: generated, never hand-edited): a `.md`/`.tex` (tables) or `.csv`/`.svg` (figures) there that
+the generator no longer writes is stale and is removed on write, and reported by a check.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from veyltrace_bench.tables.context import Context, context
+from veyltrace_bench.tables.figures import FIGURES_DIR, figures
 from veyltrace_bench.tables.index import development_cases, results_index
 from veyltrace_bench.tables.render import Row, Table, latex, markdown
 from veyltrace_bench.tables.rq1 import accuracy, datasets, rq1_comparisons
@@ -23,7 +24,8 @@ from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
 
 TABLES_DIR = "tables"
-GENERATED_SUFFIXES = (".md", ".tex")  # what TABLES_DIR may hold; anything else there is left alone
+#: What each generated directory holds; any other file there is left alone.
+GENERATED = {TABLES_DIR: (".md", ".tex"), FIGURES_DIR: (".csv", ".svg")}
 
 Builder = Callable[[Context], list[Table]]
 BUILDERS: tuple[Builder, ...] = (
@@ -85,15 +87,15 @@ def outputs(
                 if path in files:
                     raise ConfigError(f"two tables are named {table.name!r}")
                 files[path] = render(table).encode("utf-8")
-    return dict(sorted(files.items()))
+    return dict(sorted((files | figures(ctx)).items()))
 
 
 def _on_disk(root: Path) -> list[str]:
-    folder = root / TABLES_DIR
-    if not folder.is_dir():
-        return []
-    found = (p.name for p in folder.iterdir() if p.is_file() and p.suffix in GENERATED_SUFFIXES)
-    return sorted(f"{TABLES_DIR}/{name}" for name in found)
+    found: list[str] = []
+    for name, suffixes in GENERATED.items():
+        if (folder := root / name).is_dir():
+            found += [f"{name}/{p.name}" for p in folder.iterdir() if p.is_file() and p.suffix in suffixes]
+    return sorted(found)
 
 
 def differences(files: Mapping[str, bytes], root: Path) -> list[str]:

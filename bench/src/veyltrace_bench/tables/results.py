@@ -80,6 +80,17 @@ def read_register(results_root: Path) -> Register:
 
 
 @dataclass(frozen=True)
+class Point:
+    """A summary value as a figure plots it: `value` None when it is not plotted, and `status`
+    says why ("ok", "undefined: …" or "not run: …")."""
+
+    value: float | None
+    low: float | None = None
+    high: float | None = None
+    status: str = "ok"
+
+
+@dataclass(frozen=True)
 class Results:
     """One experiment's results, or the reason it has none (`reason` is then set)."""
 
@@ -169,6 +180,21 @@ class Results:
             return cells.rate(value, note=self.interval_note)
         why = self.stats_reason or f"summary.json statistics has no `{key}` interval for this group"
         return cells.rate(value, note=f"no interval: {why}")
+
+    def point(self, dataset: str, system: str, method: str, entry: str, key: str) -> Point:
+        """`metrics[entry][key]` of one group with its interval bounds, for a figure."""
+        if (why := self.missing(dataset, system, method)) is not None:
+            return Point(None, status=cells.not_run(why).note or "")
+        group = self.group(dataset, system, method)
+        assert group is not None
+        if (values := getattr(group.metrics, entry)) is None:
+            return Point(
+                None, status=cells.not_run(f"the experiment does not list the metric `{entry}`").note or ""
+            )
+        if (value := getattr(values, key)) is None:
+            return Point(None, status="undefined: " + cells.UNDEFINED_NOTE)
+        interval = self._intervals.get((dataset, system, method, key))
+        return Point(float(value), *((interval.low, interval.high) if interval else (None, None)))
 
     def count(self, dataset: str, system: str, method: str, key: str) -> Cell:
         """A group count (`n_fault`, `n_unranked`, …, or an `outcomes` entry)."""
