@@ -292,7 +292,7 @@ Synth (§3, Smoke) is never reported: bench refuses `--table` for it and require
 
 | Date | Change | Frozen item affected | Reason | Test results seen before change? | ADR |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| 2026-11-21 | Slate-scored `causatrix:<ranker>` methods reuse the `veyltrace:off` run's upstream steps (Infralume … Causalith) of the same case and experiment, then run FaultLoom and Causatrix; their `wall_ms` (and `peak_rss_mb`) cover those two steps only | §4 `causatrix:<ranker>` methods; §7 Cost (`wall_ms`, `peak_rss_mb`) of those rows | compute budget for R-16 (#45 §2 decision 4); results unchanged by construction (reuse only when the upstream config sections, code commit and output hashes match, else a full run) and tested (slates byte-identical to full runs on synth-01…05, #413); RQ5 cost numbers still come only from `veyltrace:off` runs | R-11 oracle at 9a0a8f73 (M2 milestone run, Causentra v1) was running; no RQ1 table had been read | [20261121-ak-slate-method-upstream-reuse](adr/20261121-ak-slate-method-upstream-reuse.md) |
 
 ## 13. Open questions (each with a default)
 

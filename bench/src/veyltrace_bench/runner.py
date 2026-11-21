@@ -24,6 +24,7 @@ every method's run of it names.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -46,6 +47,7 @@ from veyltrace_bench import (
     rcaeval,
     simplerca,
     splits,
+    upstream,
 )
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.child import after_run, restart
@@ -446,10 +448,13 @@ def _run_method(
     split: calibrated.Split | None,
     windows: list[AnswerKeyRow] | None = None,
     dropped: list[dict[str, object]] | None = None,
+    sources: dict[tuple[str, str], Executed] | None = None,
 ) -> list[Scored]:
     """Every case of one dataset with one method, each run once, then its normal `windows`; a window
     with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
-    directory, so its alert-step runs are executed and timed, never reused from another method."""
+    directory, so its alert-step runs are executed and timed, never reused from another method.
+    `sources` maps (method, case) to the AI-off veyltrace runs a causatrix:<ranker> method reuses
+    up to FaultLoom (`upstream`, #413); this call adds its own veyltrace runs to it."""
     if method.kind == "rcaeval":
         return _run_rcaeval(exp, method, cases, bench_runs, reports, overlays, split)
     root, extra = bench_runs, None
@@ -462,12 +467,61 @@ def _run_method(
     units = [(k, None) for k in cases] + [(k, normal_windows.VARIANT) for k in windows or []]
     for key, variant in units:
         keys = calibrated.first_run(split, key.case_id)
-        done = _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant)
+        reuse = (
+            _reused(exp, method, key, root, overlays.get(key.case_id), keys, sources)
+            if variant is None
+            else None
+        )
+        done = reuse or _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant)
+        if sources is not None and variant is None and method.kind == upstream.SOURCE_KIND:
+            sources[(method.id, key.case_id)] = done
         if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
         out.append(_record(exp, method, key, done, _fold(split, key.case_id), variant))
     return out
+
+
+def _reused(
+    exp: Experiment,
+    method: MethodSpec,
+    key: AnswerKeyRow,
+    root: Path,
+    overlay: str | None,
+    calibration_keys: Mapping[str, object],
+    sources: dict[tuple[str, str], Executed] | None,
+) -> Executed | None:
+    """A causatrix:<ranker> run of one case that reuses its source's steps up to Causalith and runs
+    FaultLoom and Causatrix (`upstream`); None when it does not apply, or the source cannot serve it."""
+    if sources is None or not upstream.applies(method) or (source := upstream.source_of(exp, method)) is None:
+        return None
+    src = sources.get((source.id, key.case_id))
+    if (
+        src is None
+        or src.run_dir is None
+        or run_outcome(src.outcome, src.wall_ms, exp.resources.timeout_s) != "ok"
+    ):
+        _log.info(
+            "bench.upstream_reuse",
+            case_id=key.case_id,
+            method=method.id,
+            reused=False,
+            why="no ok source run",
+        )
+        return None
+    over = overrides_for(exp, method, overlay, calibration_keys)
+    lock = resolve_config(over, dataset=key.dataset, ai_mode=method.ai.mode).lock_bytes()
+    if (why := upstream.mismatch(src.run_dir, lock)) is not None:
+        _log.info("bench.upstream_reuse", case_id=key.case_id, method=method.id, reused=False, why=why)
+        return None
+    _log.info("bench.upstream_reuse", case_id=key.case_id, method=method.id, reused=True, source=src.run_id)
+    extra = {"from_step": upstream.START, "reuse_dir": str(src.run_dir), "to_step": upstream.STOP}
+    # The run a full method would make includes the source's steps, so the timeout is what is left of
+    # timeout_s after them (results unchanged by construction, ADR slate-method-upstream-reuse).
+    left_ms = exp.resources.timeout_s * MS_PER_S - src.wall_ms
+    done = _execute(key, method, over, root, max(1, math.ceil(left_ms / MS_PER_S)), extra)
+    outcome = "timeout" if done.outcome == "timeout" or done.wall_ms > left_ms else done.outcome
+    return replace(done, outcome=outcome, judged=True)
 
 
 def _fold(split: calibrated.Split | None, case: str) -> str | None:
@@ -648,15 +702,23 @@ def _prepare_decoys(
 
 
 def _group(
-    key: tuple[str, str, str], scores: list[CaseScore], exp: Experiment, rows: list[dict[str, object]]
+    key: tuple[str, str, str],
+    scores: list[CaseScore],
+    exp: Experiment,
+    rows: list[dict[str, object]],
+    no_cost: bool = False,
 ) -> dict[str, object]:
     """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
     one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9).
-    `rows` are all per_case rows; the group's, in run order, pair with `scores` (summary.with_rows)."""
+    `rows` are all per_case rows; the group's, in run order, pair with `scores` (summary.with_rows).
+    `no_cost` nulls the cost entry of a group whose wall times are not end to end (slate-scored
+    methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413)."""
     flat = summarize(scores, ())  # the counts
     counted = cast("dict[str, int]", flat.pop("outcomes"))
     mine = [r for r in rows if (r["dataset"], str(r["system"]), r["method"]) == key]
     entries = summary_entries(with_rows(scores, mine), exp.metrics, alpha=exp.calibration.alpha)
+    if no_cost:
+        entries["cost"] = None
     dataset, system, method = key
     outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
     return {
@@ -731,6 +793,7 @@ def run_experiment(
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
     first: dict[str, list[tuple[AnswerKeyRow, str | None, Executed]]] = {}  # a fitting method's runs
+    sources: dict[tuple[str, str], Executed] = {}  # (method, case): runs causatrix:<ranker> reuses (#413)
 
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
@@ -755,28 +818,15 @@ def run_experiment(
             windows = normal_windows.windows_of(exp, rows_keys) if verdicts else []
             if split is not None and split.fit and verdicts:
                 units = [(k, None) for k in rows_keys] + [(k, normal_windows.VARIANT) for k in windows]
-                calibration_keys = calibrated.UNCALIBRATED
-                first.setdefault(method.id, []).extend(
-                    (
-                        k,
-                        v,
-                        _timed(
-                            exp,
-                            method,
-                            k,
-                            bench_runs,
-                            timed,
-                            None,
-                            overlays.get(k.case_id),
-                            calibration_keys,
-                            v,
-                        ),
-                    )
-                    for k, v in units
-                )
+                uncal = calibrated.UNCALIBRATED
+                for k, v in units:
+                    done = _timed(exp, method, k, bench_runs, timed, None, overlays.get(k.case_id), uncal, v)
+                    first.setdefault(method.id, []).append((k, v, done))
+                    if v is None and method.ai.mode == "off":
+                        sources[(method.id, k.case_id)] = done  # what causatrix:<ranker> reuses (#413)
                 continue
             ran = _run_method(
-                exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs
+                exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs, sources
             )
             for scored in ran:
                 keep(scored)
@@ -802,11 +852,13 @@ def run_experiment(
             _log.info(
                 "bench.held_out", **rates, alpha=exp.calibration.alpha, beta=exp.calibration.no_fault_beta
             )
+    slate_scored = {m.id for m in exp.methods if m.kind == upstream.KIND}
     summary: dict[str, object] = {
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            _group(k, scores, exp, rows) for k, scores in sorted(groups.items(), key=lambda item: item[0])
+            _group(k, scores, exp, rows, k[2] in slate_scored)
+            for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
         "statistics": statistics(exp, cases_scored),  # 04 §8 (#357)
