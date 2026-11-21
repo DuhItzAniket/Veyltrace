@@ -17,7 +17,7 @@ from veyltrace_core.testing import content_lines, make_context
 from veyltrace_core.testing.fixtures import repo_root
 from veyltrace_faultloom.api import run
 from veyltrace_faultloom.inputs import CLAIM_REQUIRED, MAIN_REQUIRED
-from veyltrace_faultloom.passes import INTERVENTION_NOTE, claim_pool
+from veyltrace_faultloom.passes import claim_pool
 
 
 def _example(name: str) -> Any:
@@ -53,7 +53,8 @@ def test_main_writes_schema_valid_evidence_on_stub_upstreams(main_dir: Path) -> 
 
 def test_claim_pass_notes_carry_no_stub_mark(claim_dir: Path) -> None:
     result = run(make_context("faultloom", claim_dir, phase="claim_pass"))
-    assert result.notes == (INTERVENTION_NOTE,) and not any(n.startswith(STUB_MARK) for n in result.notes)
+    assert result.notes == ()  # T8 intervention atoms are real now (R-12): no stub or pending note
+    assert not any(n.startswith(STUB_MARK) for n in result.notes)
 
 
 @pytest.mark.parametrize("name", MAIN_REQUIRED)
@@ -82,13 +83,23 @@ def test_main_output_does_not_depend_on_the_run_id(main_dir: Path) -> None:
 
 
 # --- claim pass -------------------------------------------------------------------------------
-def test_claim_pass_rewrites_the_main_evidence_byte_identical(claim_dir: Path) -> None:
-    before = sha256_file(io.path_of("evidence", claim_dir))
+def _lines_of(run_dir: Path, *, intervention: bool) -> list[str]:
+    rows = io.read_table("evidence", run_dir).to_pylist()
+    return sorted(str(sorted(r.items())) for r in rows if (r["kind"] == "intervention") == intervention)
+
+
+def test_claim_pass_without_claims_adds_only_intervention_atoms(claim_dir: Path) -> None:
+    """AI off: the engine-pass atoms are carried forward unchanged; the only rows added are the T8
+    intervention atoms (06 §3.6 steps 1 and 6), and re-running the step changes nothing."""
+    before = _lines_of(claim_dir, intervention=False)
     result = run(make_context("faultloom", claim_dir, phase="claim_pass"))
     assert result.status == "ok"
-    assert result.outputs == (("evidence", before),)
-    assert sha256_file(io.path_of("evidence", claim_dir)) == before
-    assert result.metrics["atoms.claim_check"] == 0 and result.metrics["claims.seen"] == 0
+    assert _lines_of(claim_dir, intervention=False) == before
+    m = result.metrics
+    assert (m["atoms.claim_check"], m["claims.seen"]) == (0, 0)
+    assert m["atoms"] == len(before) + m["atoms.intervention"]
+    again = run(make_context("faultloom", claim_dir, phase="claim_pass"))
+    assert again.outputs == result.outputs  # idempotent: intervention atoms are never carried twice
 
 
 def test_claim_pass_carries_engine_atoms_forward_unchanged(claim_dir: Path) -> None:
@@ -96,12 +107,11 @@ def test_claim_pass_carries_engine_atoms_forward_unchanged(claim_dir: Path) -> N
     # changes nothing (06 §2.2: engine atoms are read back, never recomputed).
     rows = [r for r in _example("evidence") if r["origin"] == "engine"]
     assert rows, "the evidence example should hold engine atoms"
-    before = io.write("evidence", rows, claim_dir)
-    expected = content_lines("evidence", io.path_of("evidence", claim_dir))
+    io.write("evidence", rows, claim_dir)
+    expected = _lines_of(claim_dir, intervention=False)
     result = run(make_context("faultloom", claim_dir, phase="claim_pass"))
-    assert result.outputs == (("evidence", before),)
-    assert content_lines("evidence", io.path_of("evidence", claim_dir)) == expected
-    assert result.metrics["atoms"] == len(rows)
+    assert _lines_of(claim_dir, intervention=False) == expected
+    assert result.metrics["atoms"] == len(rows) + result.metrics["atoms.intervention"]
 
 
 @pytest.mark.parametrize("name", sorted(set(CLAIM_REQUIRED) - set(MAIN_REQUIRED)))
@@ -149,11 +159,10 @@ def test_claim_pass_with_skipped_proposals_is_ok(claim_dir: Path) -> None:
 
 def test_schema_invalid_proposals_skip_the_claims_and_degrade(claim_dir: Path) -> None:
     textio.write_bytes(io.path_of("proposals", claim_dir), b'{"schema_version": "1.0.0"}\n')
-    before = sha256_file(io.path_of("evidence", claim_dir))
     result = run(make_context("faultloom", claim_dir, phase="claim_pass", ai_mode="record"))
     assert result.status == "degraded"
     assert any("schema-invalid" in note for note in result.notes)
-    assert result.outputs == (("evidence", before),)
+    assert result.metrics["atoms.claim_check"] == 0  # no claims: the slate's intervention atoms only
 
 
 def test_claim_pool_is_slate_plus_proposed_graph_nodes() -> None:

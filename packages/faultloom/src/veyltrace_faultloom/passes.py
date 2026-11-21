@@ -3,8 +3,8 @@
 Engine pass: every engine atom kind of 06 §3.4 for every service in U, minus `atoms.disabled`,
 written only through the contract writer (06 §3.1). Claim pass: the main-pass evidence is read back
 unchanged and the `claim_check` atoms of 06 §3.6 are appended, so engine atoms are byte-identical
-before and after (06 §2.2). `intervention` atoms (06 §3.6 step 6, trial T8) are R-12, so Causentra
-marks T8 untestable until then; every claim-pass result says so in a note.
+before and after (06 §2.2). The claim pass also writes the `intervention` atoms of 06 §3.6 step 6
+(Causalith's restricted CI test, for Causentra's trial T8), with AI on or off.
 """
 
 from __future__ import annotations
@@ -25,16 +25,25 @@ from veyltrace_faultloom.inputs import (
     load_inputs,
     missing_required,
 )
+from veyltrace_faultloom.intervention import KIND as INTERVENTION
+from veyltrace_faultloom.intervention import ci_config, decision_pool, intervention_atoms
 from veyltrace_faultloom.onset import silence_atoms
 from veyltrace_faultloom.predicates import ClaimView
 from veyltrace_faultloom.trace import critical_path_atoms, edge_gap_atoms, self_time_atoms, spectrum_atoms
-from veyltrace_faultloom.validation import domain_of
+from veyltrace_faultloom.validation import CaseDomain, domain_of
 
-__all__ = ["ENGINE", "INTERVENTION_NOTE", "claim_pool", "engine_atoms", "run_claim_pass", "run_main"]
+__all__ = [
+    "ENGINE",
+    "NO_CI_NOTE",
+    "claim_pool",
+    "engine_atoms",
+    "run_claim_pass",
+    "run_main",
+]
 
 ENGINE: Final = "faultloom"
-#: Note of every claim-pass result until R-12 adds the T8 intervention atoms (06 §3.6 step 6).
-INTERVENTION_NOTE: Final = "no intervention atoms yet (R-12): Causentra marks T8 untestable"
+#: Note when the CI test cannot run at all: Causentra then marks T8 untestable (06 §3.6 step 6, §6).
+NO_CI_NOTE: Final = "no intervention atoms: signal_cube.series or graph.edges absent (06 §3.6 step 6)"
 
 
 def _failed(missing: tuple[str, ...]) -> EngineResult:
@@ -130,6 +139,23 @@ def _read_proposals(ctx: RunContext) -> tuple[models.Proposals | None, tuple[str
         return None, (f"proposals.json is schema-invalid, claims skipped (06 §6): {exc}",)
 
 
+def _intervention(
+    ctx: RunContext,
+    slate: models.Slate,
+    proposals: models.Proposals | None,
+    engine: list[Atom],
+    claim_rows: list[Atom],
+    domain: CaseDomain,
+) -> tuple[list[Atom], tuple[str, ...]]:
+    """The T8 intervention atoms of decision pool D (06 §3.6 step 6), and a note when none can run."""
+    if not (ctx.exists("signal_cube.series") and ctx.exists("graph.edges")):
+        return [], (NO_CI_NOTE,)
+    pool = decision_pool(slate, proposals, claim_rows, domain, domain.nodes)
+    cfg = ci_config(ctx.with_config("causalith").config, ctx.with_config("anomara").config)
+    limit = int(ctx.config["intervention"]["max_candidates"])
+    return intervention_atoms(ctx, pool, engine, cfg, limit), ()
+
+
 def run_claim_pass(ctx: RunContext) -> EngineResult:
     """Claim pass (pipeline step 8): engine atoms carried forward, claim_check atoms appended.
 
@@ -146,17 +172,25 @@ def run_claim_pass(ctx: RunContext) -> EngineResult:
         raise ContractValidationError("slate", msg)
     proposals, problems = _read_proposals(ctx)
     pool = claim_pool(slate, proposals, view.node_names)
-    # Only engine rows are carried forward, so re-running the step never duplicates claim atoms.
-    engine: list[Atom] = [a for a in ctx.read_table("evidence").to_pylist() if a["origin"] == "engine"]
-    claims, rejected = valid_claims(proposals, domain_of(view, ctx.config))
+    # Only engine-pass rows are carried forward, so re-running the step never duplicates claim or
+    # intervention atoms (both are this pass's own; intervention atoms have origin "engine", 06 §2.2).
+    engine: list[Atom] = [
+        a
+        for a in ctx.read_table("evidence").to_pylist()
+        if a["origin"] == "engine" and a["kind"] != INTERVENTION
+    ]
+    domain = domain_of(view, ctx.config)
+    claims, rejected = valid_claims(proposals, domain)
     found = claim_atoms(ClaimView(view, tuple(engine)), pool, claims)
-    added = drop_disabled(found, (str(k) for k in ctx.config["atoms"]["disabled"]))
+    tested, ci_notes = _intervention(ctx, slate, proposals, engine, found, domain)
+    added = drop_disabled([*found, *tested], (str(k) for k in ctx.config["atoms"]["disabled"]))
     check_unique([*engine, *added])
     digest = ctx.write("evidence", [*engine, *added])
     metrics: dict[str, int | float] = {
         **_input_metrics(view),
         "atoms": len(engine) + len(added),
-        "atoms.claim_check": len(added),
+        "atoms.claim_check": sum(1 for a in added if a["kind"] == "claim_check"),
+        "atoms.intervention": sum(1 for a in added if a["kind"] == "intervention"),
         "claims.seen": sum(len(p.claims) for p in proposals.proposals) if proposals is not None else 0,
         "claims.valid": len(claims),
         "pool": len(pool),
@@ -167,5 +201,5 @@ def run_claim_pass(ctx: RunContext) -> EngineResult:
         status="degraded" if problems else "ok",
         outputs=(("evidence", digest),),
         metrics=metrics,
-        notes=_notes(view, *problems, INTERVENTION_NOTE),
+        notes=_notes(view, *problems, *ci_notes),
     )

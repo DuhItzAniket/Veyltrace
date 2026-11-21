@@ -4,9 +4,9 @@
 
 ## Summary
 
-- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
+- checkout is the only member of the candidate set and passed every mandatory trial. (cites: Ec2738c422e, Ea68f29528f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 - Its strongest internal signal was checkout cpu anomaly (incident) at 33.8 z. (cites: Ec2738c422e)
-- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec2738c422e, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
+- Confidence is high; its verified score leads frontend by a relative margin of 0.78. (cites: Ec2738c422e, Ea68f29528f, E39040cc71a, E8aa8de679c, E586a046788, Ee33689c27e, Ec64c7d2ef8, E69dec80d43)
 
 ## Candidate set
 
@@ -18,6 +18,7 @@
 |---|---|---|---|
 | Eb2a1231709 | cart mem anomaly (incident) | 0.822 | z |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
+| Ea68f29528f | checkout anomaly not explained by parents (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E8aa8de679c | checkout onset precedence over dependents (onset) | 1 |  |
 | E586a046788 | checkout propagation to entry (incident) | 1 |  |
@@ -63,6 +64,6 @@ prose: template
 
 ---
 
-verdict_hash: `bd95787cf988e13be652d921926e766bbf428f1c20d333039cd55c475eb4f4a1`  
-card_hash: `1a658614147caf597062d4143e83ce577ca30810e987668ce2d923207c89e98b`  
+verdict_hash: `a07e91b7039f584143328fb879a6fbec19e83455f7af85a772ad16fa9101b598`  
+card_hash: `e45f39a497747b8c2a7d1b89e628115a7a44815ae6bb145524337934994ecafb`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
