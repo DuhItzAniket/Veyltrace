@@ -83,12 +83,12 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
     todo = " | ".join(unsupported(exp))
     for task in (
         "workers",
-        "agent_only",
         "causatrix:rrf: AI arms run as kind veyltrace",  # a veyltrace AI arm runs since #397
         "coverage (R-13",
     ):
         assert task in todo
-    assert len(unsupported(exp)) == 4 and "cost" not in todo  # cost is computed (#316)
+    assert not any(t.startswith("methods b:") for t in unsupported(exp))  # agent_only runs since #398
+    assert len(unsupported(exp)) == 3 and "cost" not in todo  # cost is computed (#316)
     assert "decoys" not in todo  # run since #326; the block is checked when the run starts
     assert "split" not in todo and "calibration" not in todo  # #391, #376
     assert sorted([*METRIC_KEYS, *METRIC_TASKS]) == sorted(get_args(MetricName))  # each: computed or a task
