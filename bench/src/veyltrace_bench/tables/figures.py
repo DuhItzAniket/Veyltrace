@@ -16,11 +16,11 @@ from dataclasses import dataclass
 from veyltrace_bench.tables import svg
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.results import Point, Results
-from veyltrace_bench.tables.rq1 import system_of
-from veyltrace_bench.tables.rq4 import UNPERTURBED, decoy_point, perturbed
+from veyltrace_bench.tables.rq1 import methods
+from veyltrace_bench.tables.rq4 import BRIEF, RQ1, brief_zero, decoy_point, perturbed
 
 FIGURES_DIR = "figures"
-CSV_COLUMNS = ("panel", "series", "x", "value", "low", "high", "status", "experiment", "commit")
+CSV_COLUMNS = ("panel", "series", "x", "value", "low", "high", "status", "experiment", "commit", "source")
 OURS = "veyltrace:off"
 SHIFT_SERIES = ("rcaeval:nsigma", "rcaeval:baro", "simplerca", "causatrix:rrf", OURS, "veyltrace:brief")
 AC1 = ("ac_at_k", "ac_at_1")  # (summary entry, key)
@@ -37,13 +37,23 @@ class Datum:
     source: Results
 
 
-def data(ctx: Context, eid: str, method: str, entry_key: tuple[str, str], series: str, x: str) -> list[Datum]:
-    """One datum per dataset part of the experiment (from its YAML, so a part without results is
-    still listed), the panel being the part's system."""
-    res = ctx.get(eid)
+def data(
+    ctx: Context,
+    eid: str,
+    method: str,
+    entry_key: tuple[str, str],
+    series: str,
+    x: str,
+    res: Results | None = None,
+) -> list[Datum]:
+    """One datum per dataset part of the experiment (from its spec, so a part without results is
+    still listed), the panel being the part's system; `res` replaces the experiment's results for a
+    computed point (review H1)."""
+    res = res or ctx.get(eid)
     parts = ctx.spec(eid).dataset.parts
     return [
-        Datum(system_of(p), series, x, res.point(p, system_of(p), method, *entry_key), res) for p in parts
+        Datum(res.system_of(p), series, x, res.point(p, res.system_of(p), method, *entry_key), res)
+        for p in parts
     ]
 
 
@@ -53,9 +63,8 @@ def to_csv(rows: Sequence[Datum]) -> bytes:
     out.writerow(CSV_COLUMNS)
     for d in rows:
         nums = ["" if v is None else repr(v) for v in (d.point.value, d.point.low, d.point.high)]
-        out.writerow(
-            [d.panel, d.series, d.x, *nums, d.point.status, d.source.experiment_id, d.source.commit or ""]
-        )
+        source = (d.source.experiment_id, d.source.commit or "", d.source.label)
+        out.writerow([d.panel, d.series, d.x, *nums, d.point.status, *source])
     return buf.getvalue().encode("utf-8")
 
 
@@ -66,7 +75,7 @@ def _note(rows: Sequence[Datum]) -> str:
 
 def fig4(ctx: Context) -> dict[str, bytes]:
     """Fig 4: AC@1 = Retrieval@K × Rerank@1 per RE2 system (oracle, veyltrace:off)."""
-    eid = "re2-oracle-rq1-v1"
+    eid = RQ1
     metrics = (("Retrieval@K", ("retrieval_at_k", "retrieval_at_k")),
                ("Rerank@1", ("rerank_at_1", "rerank_at_1")), ("AC@1", AC1))  # fmt: skip
     rows = [d for c, ek in metrics for d in data(ctx, eid, OURS, ek, OURS, c)]
@@ -80,15 +89,18 @@ def fig4(ctx: Context) -> dict[str, bytes]:
 
 
 def fig7(ctx: Context) -> dict[str, bytes]:
-    """Fig 7: AC@1 against the alert shift, one panel per RE2 system."""
-    points = sorted(
-        [(e.protocol.shift_s, e.experiment_id) for e in perturbed(ctx, "shift")]
-        + [(0, u) for u in UNPERTURBED]
-    )
+    """Fig 7: AC@1 against the alert shift, one panel per RE2 system. The deterministic arms' 0 s
+    point is re2-oracle-rq1-v1; the brief arm's is computed on its subset (review H1), as Table 10."""
+    exps = perturbed(ctx, "shift")
+    det = [(e.protocol.shift_s, e.experiment_id) for e in exps if BRIEF not in methods(e)] + [(0, RQ1)]
     rows = [
-        d for s, eid in points for m in ctx.spec(eid).methods if m.id in SHIFT_SERIES
-        for d in data(ctx, eid, m.id, AC1, m.id, str(s))
+        d for s, eid in sorted(det) for m in methods(ctx.spec(eid)) if m in SHIFT_SERIES and m != BRIEF
+        for d in data(ctx, eid, m, AC1, m, str(s))
     ]  # fmt: skip
+    zero = brief_zero(ctx)
+    brief = sorted([(e.protocol.shift_s, e.experiment_id, None) for e in exps if BRIEF in methods(e)]
+                   + [(0, zero.experiment_id, zero.results)], key=lambda p: (p[0], p[1]))  # fmt: skip
+    rows += [d for s, eid, res in brief for d in data(ctx, eid, BRIEF, AC1, BRIEF, str(s), res)]
     files = {"fig7-shift.csv": to_csv(rows)}
     xs = sorted({float(d.x) for d in rows})
     for panel in sorted({d.panel for d in rows}):
@@ -99,9 +111,9 @@ def fig7(ctx: Context) -> dict[str, bytes]:
             for m in SHIFT_SERIES
         }
         title = f"Fig. 7: AC@1 vs alert shift, RE2-{panel.upper()}"
-        files[f"fig7-shift-{panel}.svg"] = svg.lines(
-            title, "shift (s)", "AC@1", xs, series, _note(mine)
-        ).encode()
+        computed = zero.results.role if zero.results and zero.results.role else None
+        note = _note(mine) + (f"; {BRIEF} at 0 s {computed}" if computed else "")
+        files[f"fig7-shift-{panel}.svg"] = svg.lines(title, "shift (s)", "AC@1", xs, series, note).encode()
     return files
 
 
@@ -125,7 +137,7 @@ def fig8(ctx: Context) -> dict[str, bytes]:
     drops = sorted(
         ("drop " + ";".join(e.protocol.sources_drop), e.experiment_id) for e in perturbed(ctx, "drop")
     )
-    cells = [("none", "AC@1", UNPERTURBED[0]), *((label, "AC@1", eid) for label, eid in drops)]
+    cells = [("none", "AC@1", RQ1), *((label, "AC@1", eid) for label, eid in drops)]
     return _heatmaps(ctx, "fig8-ablation", "Fig. 8: AC@1 under telemetry ablation", cells)
 
 
