@@ -46,17 +46,22 @@ def labels(service: str, inp: CausentraInputs) -> Labels:
     return Labels(got.component, got.indicator, got.fault_class, got.mode)
 
 
-def no_fault(inp: CausentraInputs) -> bool:
-    """09 §3.8: no silent service and M = log1p(max(E(entry), I(s))) ≤ τ_nf, from robust_z atoms.
-
-    M is a maximum over robust_z atoms, so it is undefined without any: a case with no robust_z
-    anomaly atom is never NO_FAULT (missing telemetry is not health, 02 §9).
-    """
+def no_fault_statistic(inp: CausentraInputs) -> float | None:
+    """09 §3.8's M = log1p(max(E(entry), I(s))) from robust_z atoms, the statistic bench fits τ_nf
+    on (04 §5.4 item 6). M is a maximum over robust_z atoms, so it is undefined (None) without any."""
+    if not inp.ev.has_robust_z:
+        return None
     services = inp.ev.universe
-    if not inp.ev.has_robust_z or any(inp.ev.of(s).silent == 1.0 for s in services):
-        return False
     entry = [inp.ev.of(e).external for e in inp.entry_services if e in services]
-    stat = math.log1p(max([*entry, *(inp.ev.of(s).internal for s in services)], default=0.0))
+    return math.log1p(max([*entry, *(inp.ev.of(s).internal for s in services)], default=0.0))
+
+
+def no_fault(inp: CausentraInputs) -> bool:
+    """09 §3.8: no silent service and M ≤ τ_nf. A case with no robust_z anomaly atom is never
+    NO_FAULT (missing telemetry is not health, 02 §9)."""
+    stat = no_fault_statistic(inp)
+    if stat is None or any(inp.ev.of(s).silent == 1.0 for s in inp.ev.universe):
+        return False
     return round(stat, DECIMALS) <= round(inp.tau_nf, DECIMALS)
 
 
