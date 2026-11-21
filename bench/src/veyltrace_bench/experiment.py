@@ -238,7 +238,10 @@ def unsupported(exp: Experiment) -> list[str]:
     """What `exp` asks for that the v0 runner cannot run yet, with the adding task or reason if known."""
     p, r = exp.protocol, exp.resources
     checks = (
-        (exp.dataset.normal_windows != "none", "dataset.normal_windows (R-13)"),
+        (
+            exp.dataset.normal_windows == "veyllab",
+            "dataset.normal_windows veyllab (not run: no VeylLab captures yet, X-11, O-07)",
+        ),
         (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
