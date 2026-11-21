@@ -7,14 +7,18 @@ to tmp_path; the experiment YAMLs are the committed ones, so the index covers th
 
 from __future__ import annotations
 
+import json
 import shutil
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from veyltrace_bench.tables import cells, context, generate
+from veyltrace_bench.tables.index import NO_DEV_REPORT
 from veyltrace_bench.tables.render import Row, Table, latex, markdown
-from veyltrace_bench.tables.results import NO_RESULTS, load
+from veyltrace_bench.tables.results import NO_RESULTS, Register, load
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
 
@@ -71,7 +75,7 @@ def test_a_register_naming_an_unknown_experiment_is_a_config_error(results: Path
 
 
 def test_renderers_escape_and_number_notes_once() -> None:
-    src = load(FIXTURES / "results", "re2-oracle-rq3-v1", {})
+    src = load(FIXTURES / "results", "re2-oracle-rq3-v1", Register())
     row = Row((cells.text("a|b_c"), cells.not_run("x ≥ 1 & y")), src)
     table = Table("t", "T", "Caption § 7.", ("Name", "Value"), (row, row))
     md = markdown(table)
@@ -86,3 +90,67 @@ def test_renderers_escape_and_number_notes_once() -> None:
     assert "| 0.5 | no bench experiment |" in orphan and orphan.endswith(
         "- none: every row has no bench experiment\n"
     )
+
+
+RQ1 = "re2-oracle-rq1-v1"
+
+
+def _edit_manifest(results: Path, experiment_id: str, edit: Callable[[dict[str, Any]], object]) -> None:
+    path = results / experiment_id / "manifest.json"
+    doc = json.loads(textio.read_text(path))
+    edit(doc)
+    textio.write_text(path, json.dumps(doc))
+
+
+def test_specs_come_from_the_manifest_and_must_match_the_committed_yaml(results: Path) -> None:
+    _edit_manifest(results, RQ1, lambda d: d["experiment"].update(description="as the manifest ran it"))
+    ctx = context.context(results, EXPERIMENTS)
+    assert ctx.spec(RQ1).description == "as the manifest ran it"  # the manifest, not the YAML
+    assert ctx.spec("re2-oracle-rq3-v1").description.startswith("RQ3")  # no results: the YAML
+    assert "; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert" in (
+        generate.outputs(results, EXPERIMENTS)[INDEX].decode()
+    )
+    _edit_manifest(results, RQ1, lambda d: d.update(experiment_sha256="0" * 64))
+    reason = context.context(results, EXPERIMENTS).get(RQ1).reason or ""
+    assert reason.startswith("results are from another version of the YAML")
+
+
+def test_a_development_case_in_a_prereg_re2_run_is_an_error(results: Path) -> None:
+    dev = context.context(results, EXPERIMENTS).dev_cases
+    assert dev is not None and len(dev) == 3
+    _edit_manifest(
+        results, RQ1, lambda d: d["datasets"][0].update(cases=sorted([*d["datasets"][0]["cases"], dev[0]]))
+    )
+    with pytest.raises(ConfigError, match="ran development cases"):
+        context.context(results, EXPERIMENTS)
+
+
+def test_the_development_cases_have_their_own_slot(results: Path) -> None:
+    a2 = generate.outputs(results, EXPERIMENTS)["tables/a2-development-cases.md"].decode()
+    assert "97bf1c72d29f" in a2 and f"not run: {NO_DEV_REPORT}" in a2
+
+
+def test_the_register_may_name_04_6_cells_without_a_yaml(results: Path) -> None:
+    textio.write_text(results / "not_run.yaml", "cloud-opsbench/agent-only: optional in 04 §3\n")
+    index = generate.outputs(results, EXPERIMENTS)[INDEX].decode()
+    assert "| 04 §6 cell cloud-opsbench/agent-only | - | - | not run<sup>" in index
+    textio.write_text(results / "not_run.yaml", "cloud-opsbench/brief: not a planned cell\n")
+    with pytest.raises(ConfigError, match="neither an experiment YAML nor a 04 §6 cell"):
+        generate.outputs(results, EXPERIMENTS)
+
+
+def test_a_revision_prints_next_to_the_pre_registered_rows(results: Path) -> None:
+    textio.write_text(results / "not_run.yaml", f"re2-oracle-prior-only-v1: {{revises: {RQ1}}}\n")
+    ctx = context.context(results, EXPERIMENTS)
+
+    def build(c: context.Context) -> list[Table]:
+        res = c.get(RQ1)
+        return [Table("t", "T", "c", ("Ran",), (Row((cells.text(res.experiment_id),), res),))]
+
+    (table,) = generate.paired(build, ctx)
+    md = markdown(table)
+    assert f"| {RQ1} | {RQ1} @ fixture (pre-registered) |" in md
+    assert f"| re2-oracle-prior-only-v1 | re2-oracle-prior-only-v1 @ fixture (revises {RQ1}) |" in md
+    textio.write_text(results / "not_run.yaml", "re2-oracle-prior-only-v1: {revises: re2-typo-v1}\n")
+    with pytest.raises(ConfigError, match="revises unknown experiments"):
+        context.context(results, EXPERIMENTS)

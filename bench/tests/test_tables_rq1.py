@@ -78,7 +78,7 @@ def test_table_3_and_the_comparisons(files: dict[str, str]) -> None:
     assert "| nezha-ob | ob | not run<sup>" in t3
     comparisons = files["tables/t05c-rq1-comparisons.md"]
     row = _row(comparisons, "re2-ob ob", "ac_at_1", "veyltrace:off − rcaeval:baro", "superiority (rq1)")
-    assert "| 0.125 [-0.125, 0.375] | 8 | 4 | 0.500 | 2/1 | 1.000 | <0.001 |" in row
+    assert "| 0.125 [-0.125, 0.375] | 8 | 4 | 0.5000 | 2/1 | 1.0000 | <0.001 |" in row
     noninferiority = _row(
         comparisons, "re2-ob ob", "ac_at_1", "veyltrace:off − rcaeval:baro", "noninferiority"
     )

@@ -22,11 +22,13 @@ SOURCE_COLUMN = "Source"
 
 @dataclass(frozen=True)
 class Row:
-    """One table row: its cells and the one experiment every value in it comes from (None for a
-    row of a measurement bench does not make, such as replay rates)."""
+    """One table row: its cells and the experiment its values come from (None for a row of a
+    measurement bench does not make, such as replay rates); `also` are experiments a cell names
+    explicitly as "(from <id>)", which the sources list then covers too."""
 
     cells: tuple[Cell, ...]
     source: Results | None
+    also: tuple[Results, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -46,12 +48,12 @@ class Table:
     @property
     def sources(self) -> tuple[Results, ...]:
         """The cited experiments, one each, sorted by id."""
-        cited = {r.source.experiment_id: r.source for r in self.rows if r.source is not None}
+        cited = {s.experiment_id: s for r in self.rows for s in (r.source, *r.also) if s is not None}
         return tuple(cited[k] for k in sorted(cited))
 
 
 class _Notes:
-    """Note numbers by first appearance; a cell's text gets the note's marker appended (a GFM
+    """Note numbers by first appearance; a cell's text gets the note's marker appended (a
     superscript in both, so it never reads as an interval; Markdown uses `<sup>`, not GFM
     footnotes, whose `[^n]: text` definitions link checkers read as broken links)."""
 
@@ -75,11 +77,13 @@ def _source_lines(table: Table, digits: int = 64) -> list[str]:
         return [f"none: every row has {NO_SOURCE}"]
     lines: list[str] = []
     for src in table.sources:
+        name = f"{src.experiment_id} ({src.role})" if src.role else src.experiment_id
         if src.reason is not None:
-            lines.append(f"{src.experiment_id}: not run: {src.reason.removeprefix('not run: ')}")
+            line = f"{name}: not run: {src.reason.removeprefix('not run: ')}"
         else:
-            files = ", ".join(f"{name} {sha[:digits]}" for name, sha in src.hashes)
-            lines.append(f"{src.experiment_id}: commit {src.commit}; sha256 {files}")
+            files = ", ".join(f"{file} {sha[:digits]}" for file, sha in src.hashes)
+            line = f"{name}: commit {src.commit}; sha256 {files}"
+        lines.append(f"{line}; protocol: {src.protocol}" if src.protocol else line)  # 04 §10.4
     return lines
 
 
