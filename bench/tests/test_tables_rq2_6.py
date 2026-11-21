@@ -117,9 +117,10 @@ def test_the_rq4_grids_take_their_coordinates_and_floors_from_the_specs(files: d
         in decoys
     )
     assert "not applicable: different case set" in decoys  # floors of the AI cells
-    assert (
-        "| pi=0, rate=0/h | all | ob | rcaeval:baro | 0.375 [0.250, 0.500] |" in decoys
-    )  # decoys: rq1's floor
+    borrowed = "rcaeval:baro (from re2-oracle-rq1-v1 (baselines ignore events))"
+    assert f"| pi=0, rate=0/h | all | ob | {borrowed} | 0.375 [0.250, 0.500] |" in decoys  # rq1's floor
+    ai = "| pi=0, rate=0/h | 90-case subset (bench/re2_investigate_cases.yaml) | ob | rcaeval:baro | n/a<sup>"
+    assert ai in decoys  # the AI cells are on the subset: no borrowed floor
     ablation = files["tables/t11-rq4-ablation.md"]
     assert (
         "not run under this protocol (the experiment omits this floor)" in ablation
