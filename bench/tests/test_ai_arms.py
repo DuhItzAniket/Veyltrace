@@ -1,8 +1,8 @@
 """AI arms in the runner (04 §8 "LLM arms"; #397): one run per seed, kept record runs, replay.
 
-On main Relentra is the X-00 stub (no model call, proposals `skipped`), so these tests drive the
-record/replay plumbing that brief mode (#354-#356) and FakeProvider runs go through unchanged. The
-config copy adds `relentra.sampler.seed_index`, the key #354 introduces.
+Relentra brief mode (#354-#356) runs against FakeProvider (the config copy sets llm.provider fake,
+08 §7): every model call is a recorded `unscripted` error, so runs record and replay real
+cassettes without a model server. relentra.sampler.seed_index (#354) carries each seed.
 """
 
 from __future__ import annotations
