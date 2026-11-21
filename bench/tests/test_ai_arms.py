@@ -46,7 +46,8 @@ def ai_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     config = tmp_path / "repo" / "config"
     shutil.copytree(REPO / "config", config)
     relentra = config / "relentra.yaml"
-    relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
+    if b"seed_index" not in relentra.read_bytes():  # once #354 is on main the key exists: keep it
+        relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     assert cli.main(["data", "fetch", "synth"]) == 0
     return config
