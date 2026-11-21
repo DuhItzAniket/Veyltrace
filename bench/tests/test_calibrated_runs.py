@@ -1,4 +1,4 @@
-"""The runner under a calibration split (04 §5.4; #376): fit, held-out restarts, file reuse.
+"""The runner under a calibration split (04 §5.4; #391, #376): fit, held-out restarts, reuse.
 
 Each test works on a copy of config/ (VEYLTRACE_CONFIG_DIR), so calibration files are written
 under tmp_path and never into the repository's config/calibration/.
@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import shutil
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -16,13 +17,15 @@ import pyarrow as pa
 import pytest
 
 from veyltrace_bench import answer_keys, calibrated, calibration, runner, splits
+from veyltrace_bench.experiment import load_experiment
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
 from veyltrace_core.calibration import load_calibration, write_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_file
-from veyltrace_core.ids import case_id
+from veyltrace_core.ids import AIMode, case_id
+from veyltrace_core.pipeline import RunSummary, run_case
 
 REPO = Path(__file__).resolve().parents[2]
 FILE: dict[str, Any] = {
@@ -69,6 +72,59 @@ def _rows(out: Path) -> list[dict[str, object]]:
 def _off_runs(out: Path) -> int:
     runs = json.loads(textio.read_text(out / "manifest.json"))["runs"]
     return sum(r["method"] == "veyltrace:off" for r in runs)
+
+
+def test_crossfit2_fits_both_folds_and_tests_each_case_on_the_other(
+    tmp_path: Path, config_root: Path
+) -> None:
+    exp = _yaml(tmp_path, FIT.replace("FIT", "true"), "fit")
+    experiments = config_root.parent / "bench" / "experiments"  # where fit: false finds its fitting plan
+    experiments.mkdir(parents=True)
+    shutil.copyfile(exp, experiments / "synth-crossfit.yaml")
+    out, _ = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    rows = _rows(out)
+    off = {str(r["case_id"]): r for r in rows if r["method"] == "veyltrace:off"}
+    keys = {c: k for c, k in answer_keys.load_answer_keys("synth").items() if c in off}  # the 5 listed
+    plan = splits.crossfit2(keys, 20261108)
+    files = {
+        f: load_calibration(config_root / "calibration" / f"synth.off.oracle.{f}.json") for f in splits.FOLDS
+    }
+    for fold, ref in files.items():  # each file is fitted on its own fold's cases only
+        faults = [c for c in plan.fits[fold] if not keys[c].is_no_fault]
+        assert (ref.content.n, ref.content.split.fold, ref.content.experiment_id) == (
+            len(faults),
+            fold,
+            "synth-crossfit",
+        )
+        windows = [c for c in plan.fits[fold] if keys[c].is_no_fault]
+        assert ref.content.no_fault.m == len(windows) and not ref.content.no_fault.calibrated  # m < 9
+        assert ref.content.no_fault.sources == (["synth-05"] if windows else [])
+    assert {c: r["fold"] for c, r in off.items()} == dict(plan.test_fold)  # one held-out row per case
+    assert all(r["fold"] == plan.test_fold[str(r["case_id"])] for r in rows)  # rrf rows too
+    assert _off_runs(out) == 2 * len(keys)  # calibration runs + held-out runs
+    listed = json.loads(textio.read_text(out / "manifest.json"))["runs"]
+    assert len({(r["method"], r["run_id"]) for r in listed}) == len(listed)  # each run listed once
+    for run_dir in (tmp_path / "runs").rglob("run_manifest.json"):
+        got = io.read_model("run_manifest", run_dir.parent, models.RunManifest)
+        verdict = io.read_model("verdict", run_dir.parent, models.Verdict)
+        if verdict.calibration.family == "uncalibrated":
+            continue  # a calibration run (also the run causatrix:rrf shares)
+        applied = plan.applied[got.case_id]
+        assert verdict.calibration.family == f"synth.off.oracle.{applied}"
+        assert got.calibration_sha256 == sha256_file(
+            config_root / "calibration" / f"synth.off.oracle.{applied}.json"
+        )
+    rates = {str(r["fold"]): r for r in calibration.held_out_rates(off.values())}
+    assert sorted(rates) == ["foldA", "foldB", "pooled"] and rates["pooled"]["n_fault"] == 4  # #37's check
+    assert rates["pooled"]["coverage"] == 1.0  # q_hat is +inf at n < 9: every set is the whole pool
+
+    again = _yaml(tmp_path, FIT.replace("FIT", "false").replace("synth-crossfit", "synth-reuse"), "reuse")
+    out2, _ = runner.run_experiment(again, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    reused = {str(r["case_id"]): r for r in _rows(out2) if r["method"] == "veyltrace:off"}
+    assert [(r["fold"], r["status"], r["verdict_hash"]) for r in reused.values()] == [
+        (off[c]["fold"], off[c]["status"], off[c]["verdict_hash"]) for c in reused
+    ]  # the same file applied in one run: the same held-out verdicts
+    assert _off_runs(out2) == len(keys)
 
 
 def _write_fold_files(config_root: Path, fitting: str | None = None) -> None:
@@ -203,3 +259,77 @@ def test_split_none_runs_stay_uncalibrated_whatever_files_exist(
         for p in (tmp_path / "runs").rglob("verdict.json")
     }
     assert families == {"uncalibrated"}
+
+
+def test_two_fitting_methods_may_not_share_a_family_id(tmp_path: Path, config_root: Path) -> None:
+    twin = (
+        '  - {id: "veyltrace:twin", kind: veyltrace, ai: {mode: "off"}, overrides: {causentra.asks.max: 4}}\n'
+    )
+    text = FIT.replace("FIT", "true").replace('  - {id: "causatrix:rrf"', twin + '  - {id: "causatrix:rrf"')
+    with pytest.raises(ConfigError, match="share a calibration arm"):
+        runner.run_experiment(
+            _yaml(tmp_path, text, "twin"), out_root=tmp_path / "results", runs_root=tmp_path / "runs"
+        )
+    assert not (tmp_path / "runs").exists()
+
+
+def test_a_held_out_restart_is_judged_per_run_and_costs_both(
+    tmp_path: Path, config_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """400 s + 300 s with timeout_s 600: both runs finished, so the row is ok, at 700 s of cost."""
+    exp = load_experiment(_yaml(tmp_path, FIT.replace("FIT", "true"), "fit"))
+    keys = {c: k for c, k in answer_keys.load_answer_keys("synth").items() if c == case_id("synth-01")}
+    split = calibrated.make_split(exp, keys, {})
+    assert split is not None
+    first = runner.Executed("ok", "0" * 16, tmp_path, False, 400_000.0, 10.0)
+    monkeypatch.setattr(
+        runner,
+        "_execute",
+        lambda *_a, **_k: runner.Executed("ok", "1" * 16, tmp_path, False, 300_000.0, 12.0),
+    )
+    key = keys[case_id("synth-01")]
+    got = runner._restart(exp, exp.methods[0], key, first, split, tmp_path, None)  # the unit under test
+    assert (got.outcome, got.judged, got.wall_ms, got.peak_rss_mb) == ("ok", True, 700_000.0, 12.0)
+    monkeypatch.setattr(
+        runner, "_execute", lambda *_a, **_k: runner.Executed("ok", "1" * 16, tmp_path, False, 601_000.0, 1.0)
+    )
+    assert runner._restart(exp, exp.methods[0], key, first, split, tmp_path, None).outcome == "timeout"
+
+
+def test_record_keeps_a_judged_outcome_whatever_the_summed_wall_time(
+    tmp_path: Path, config_root: Path
+) -> None:
+    """A held-out row costs both runs (700 s here) but each finished within timeout_s 600 (#376 review)."""
+    exp = load_experiment(_yaml(tmp_path, FIT.replace("FIT", "true"), "fit"))
+    s = run_case("synth", "synth-01", "off", runs_root=tmp_path / "runs")
+    done = runner.Executed("ok", s.run_id, s.run_dir, False, 700_000.0, 1.0, judged=True)
+    key = answer_keys.load_answer_keys("synth")[s.case_id]
+    row, _, _ = runner._record(exp, exp.methods[0], key, done, "foldA")  # the branch under test
+    assert (row["run_outcome"], row["wall_ms"]) == ("ok", 700_000.0)
+    unjudged, _, _ = runner._record(exp, exp.methods[0], key, replace(done, judged=False), "foldA")
+    assert unjudged["run_outcome"] == "timeout"  # the same wall time judged as one run
+
+
+def test_a_failed_calibration_run_is_listed_once(
+    tmp_path: Path, config_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its outcome is the held-out row's (no restart), so it is in manifest.runs once (#376 review)."""
+    failing = case_id("synth-02")
+
+    def flaky(dataset: str, case: str, ai_mode: AIMode, **kwargs: Any) -> RunSummary:
+        if case == failing:
+            return RunSummary(dataset, case, "0" * 16, tmp_path / "failed", "failed", "x", None, (), (), {})
+        return run_case(dataset, case, ai_mode, **kwargs)
+
+    monkeypatch.setattr(runner, "IN_PROCESS", True)
+    monkeypatch.setattr(runner, "run_case", flaky)
+    out, _ = runner.run_experiment(
+        _yaml(tmp_path, FIT.replace("FIT", "true"), "fit"),
+        out_root=tmp_path / "r",
+        runs_root=tmp_path / "runs",
+    )
+    runs = json.loads(textio.read_text(out / "manifest.json"))["runs"]
+    mine = [r for r in runs if r["method"] == "veyltrace:off" and r["case_id"] == failing]
+    assert len(mine) == 1 and _off_runs(out) == 2 * 5 - 1  # 5 calibration runs, 4 restarts
+    row = next(r for r in _rows(out) if r["method"] == "veyltrace:off" and r["case_id"] == failing)
+    assert row["run_outcome"] == "failed"

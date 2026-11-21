@@ -39,6 +39,7 @@ from veyltrace_bench import (
     ALGO_VERSION,
     baselines,
     calibrated,
+    calibration,
     decoy_runs,
     naive_change,
     rcaeval,
@@ -46,7 +47,7 @@ from veyltrace_bench import (
     splits,
 )
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
-from veyltrace_bench.child import after_run
+from veyltrace_bench.child import after_run, restart
 from veyltrace_bench.experiment import (
     OVERLAY_KEY,
     PROTOCOL_KEYS,
@@ -66,10 +67,12 @@ from veyltrace_contracts.models import (
     BenchResultRow,
     CaseManifest,
     Onsets,
+    RunManifest,
     Slate,
     Verdict,
 )
 from veyltrace_core import io, textio
+from veyltrace_core.calibration import write_calibration
 from veyltrace_core.cli import THREAD_ENV
 from veyltrace_core.config import ResolvedConfig, config_sha256, data_root, find_config_dir, resolve_config
 from veyltrace_core.errors import (
@@ -118,6 +121,7 @@ class Executed:
     wall_ms: float
     peak_rss_mb: float | None
     ranks: tuple[str, ...] | None = None  # a baseline's ranks (simplerca); None otherwise
+    judged: bool = False  # outcome already judged per run against timeout_s (a held-out restart)
 
 
 def slug(method_id: str) -> str:
@@ -139,7 +143,8 @@ def _execute(
     baseline: dict[str, Any] | None = None,
 ) -> Executed:
     """Diagnose one case, in a child killed at `timeout_s` (#68), or in process (IN_PROCESS).
-    `baseline` ({to_step, baseline?, export?}) stops the run early for a baseline (child.py)."""
+    `baseline` ({to_step, baseline?, export?}) stops the run early for a baseline, and
+    {from_step, reuse_dir} restarts a held-out run on its calibration run (child.py)."""
     extra = baseline or {}
     if IN_PROCESS:
         cfg = resolve_config(overrides, dataset=key.dataset, ai_mode=method.ai.mode)  # as the child does
@@ -152,6 +157,7 @@ def _execute(
             config=cfg,
             runs_root=runs_root,
             to_step=step,
+            **restart(extra),
         )
         ranks = after_run(extra, s)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
@@ -315,6 +321,32 @@ def _timed(
     return replace(done, wall_ms=wall_ms, peak_rss_mb=peak)
 
 
+def _restart(
+    exp: Experiment,
+    method: MethodSpec,
+    key: AnswerKeyRow,
+    first: Executed,
+    split: calibrated.Split,
+    root: Path,
+    overlay: str | None,
+) -> Executed:
+    """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Each
+    run is judged against `timeout_s` on its own and the worse outcome kept; the cost is both runs'
+    (wall times summed, the larger peak), since the prediction needed both (ADR
+    20261121-ak-calibration-fit-conventions)."""
+    if run_outcome(first.outcome, first.wall_ms, exp.resources.timeout_s) != "ok" or first.run_dir is None:
+        return first  # nothing to restart: the calibration run's outcome is the case's
+    over = overrides_for(exp, method, overlay, split.held_out(key.case_id))  # only the file differs
+    extra = {"from_step": calibrated.RESTART_STEP, "reuse_dir": str(first.run_dir)}
+    done = _execute(key, method, over, root, exp.resources.timeout_s, extra)
+    peaks = [p for p in (first.peak_rss_mb, done.peak_rss_mb) if p is not None]
+    outcome = run_outcome(done.outcome, done.wall_ms, exp.resources.timeout_s)  # the first was ok
+    total = first.wall_ms + done.wall_ms
+    return replace(
+        done, outcome=outcome, judged=True, wall_ms=total, peak_rss_mb=max(peaks) if peaks else None
+    )
+
+
 def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[str, object]:
     """The manifest entry of one executed run (03 §13.4 runs[])."""
     case = _read("case_manifest", done.run_dir, CaseManifest)
@@ -331,7 +363,7 @@ def _record(
     same for every method and for every outcome that got that far. A baseline is scored on its
     ranks alone: it has no slate, pool, set or fault type (metrics.MethodOutput)."""
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
-    outcome = run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
+    outcome = done.outcome if done.judged else run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
     slate_scored, baseline = method.kind == "causatrix", method.kind in BASELINE_KINDS
     verdict = (
         _read("verdict", done.run_dir, Verdict) if outcome == "ok" and method.kind == "veyltrace" else None
@@ -448,16 +480,89 @@ def _run_rcaeval(
     return [_record(exp, method, key, done[key.case_id], _fold(split, key.case_id)) for key in cases]
 
 
+def _calibration_run(key: AnswerKeyRow, done: Executed, timeout_s: int) -> calibration.CalibrationRun | None:
+    """A calibration run as the fit reads it: a fault case's root score (+inf without a verdict or
+    unranked), a no-fault case's window (synth-05, VeylLab: M, or +inf when it could never be
+    NO_FAULT), None for a no-fault case of another source (ADR 20261121-ak-calibration-fit-conventions)."""
+    ok = run_outcome(done.outcome, done.wall_ms, timeout_s) == "ok"
+    run_dir = done.run_dir if ok else None
+    if key.is_no_fault:
+        if (source := calibration.window_source(key.dataset)) is None:
+            return None
+        return calibration.window(key.case_id, None, source, run_dir)
+    verdict, slate = _read("verdict", run_dir, Verdict), _read("slate", run_dir, Slate)
+    unranked = not (verdict and verdict.ranks_rcaeval and slate and slate.rankers_active)  # 04 §7
+    score = calibration.root_score(verdict, str(key.root_service), unranked=unranked)
+    return calibration.CalibrationRun(key.case_id, None, score=score)
+
+
+def _fit(
+    exp: Experiment,
+    split: calibrated.Split,
+    method: MethodSpec,
+    ran: list[tuple[AnswerKeyRow, Executed]],
+    commit: str,
+) -> None:
+    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8)."""
+    cfg = resolve_config(overrides_for(exp, method), dataset=ran[0][0].dataset, ai_mode=method.ai.mode)
+    arm = calibrated.arm(method, cfg)
+    default_tau = float(cast("dict[str, Any]", cfg.engine("causentra"))["no_fault"]["default_tau"])
+    by_case = {key.case_id: (key, done) for key, done in ran}
+    for fold in sorted(split.plan.fits):
+        members = [by_case[c] for c in calibrated.fit_cases(split, fold, by_case)]
+        runs = [r for k, d in members if (r := _calibration_run(k, d, exp.resources.timeout_s)) is not None]
+        manifests = [_read_manifest(d.run_dir) for _, d in members]
+        content = calibration.fit(
+            runs,
+            family=split.family,
+            ai_arm=arm,
+            alert_protocol=exp.protocol.alert,
+            fold=fold,
+            alpha=exp.calibration.alpha,
+            beta=exp.calibration.no_fault_beta,
+            default_tau=default_tau,
+            seed=exp.split.seed,
+            config_sha256s=[m.config_sha256 for m in manifests if m is not None] or [config_sha256(cfg)],
+            code_commit=commit,
+            experiment_id=exp.experiment_id,
+        )
+        write_calibration(calibrated.calibration_dir(), content)
+        nf = content.no_fault
+        _log.info(
+            "bench.calibration.fit", family=content.family, n=content.n, q_hat=content.q_hat, m=nf.m,
+            tau_nf=nf.tau_nf, calibrated=nf.calibrated, **calibration.never_counts(runs),
+        )  # fmt: skip
+
+
+def _read_manifest(run_dir: Path | None) -> RunManifest | None:
+    if run_dir is None:
+        return None
+    try:
+        return io.read_model("run_manifest", run_dir, RunManifest)
+    except (ArtifactMissing, ContractValidationError):
+        return None
+
+
 def _split(
     exp: Experiment,
     keys: dict[str, dict[str, AnswerKeyRow]],
     selected: dict[str, tuple[list[str], list[str]]],
     repo: Path,
 ) -> calibrated.Split | None:
-    """The experiment's split over its selected cases."""
+    """The experiment's split over its selected cases; a fitting transfer also selects its
+    calibration cases from the file's source parts, development cases excluded (04 §5.4 item 7)."""
     splits.check_split(exp.split)
     chosen = {c: keys[d][c] for d, (cases, _) in selected.items() for c in cases}
-    return calibrated.make_split(exp, chosen, {})
+    outside: dict[str, AnswerKeyRow] = {}
+    if exp.split.scheme == "transfer" and exp.calibration.fit:
+        parts = splits.TRANSFER_SOURCES[str(exp.split.calibrate_from)]
+        source = exp.model_copy(
+            update={"dataset": exp.dataset.model_copy(update={"parts": parts, "cases": "all"})}
+        )
+        source_keys = {d: load_answer_keys(d) for d in parts}
+        picked = select_cases(source, repo)
+        outside = {c: source_keys[d][c] for d, (cases, _) in picked.items() for c in cases}
+    return calibrated.make_split(exp, chosen, outside)
 
 
 def check_baselines(exp: Experiment, repo: Path) -> None:
@@ -541,8 +646,9 @@ def run_experiment(
     dirty tree (bench/AGENTS.md Never 3). Synth is never reported (04 §3): it is refused with
     `table` and needs an explicit `out_root` outside the repository.
 
-    Under a calibration split (`calibrated`, #391) every row is the case's held-out prediction,
-    made with the file an earlier experiment fitted without its cluster, and `fold` its test fold.
+    Under a calibration split (#376, `calibrated`) every row is the case's held-out prediction and
+    `fold` its test fold; a fitting experiment writes `config/calibration/` before its held-out runs
+    and logs held-out coverage and NO_FAULT false-alarm rates per fold (`bench.held_out`).
 
     per_case.csv columns v0 leaves null: seed and variant (no AI arms, no perturbed variants),
     fold (split none), decoy_present and decoy_ranked_first (no protocol.decoys), peak_rss_mb of a
@@ -575,6 +681,12 @@ def run_experiment(
             if split is not None and method.kind == calibrated.CALIBRATED_KIND:
                 cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
                 calibrated.check(exp, split, method, cfg)
+    if split is not None and split.fit:  # one file per family id: two fitting methods may not share one
+        fitting = [m for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND]
+        arms = [calibrated.arm(m, resolve_config(overrides_for(exp, m), ai_mode=m.ai.mode)) for m in fitting]
+        if len(set(arms)) != len(arms):
+            pairs = [f"{m.id}: {a}" for m, a in zip(fitting, arms, strict=True)]
+            raise ConfigError(f"fitting methods share a calibration arm, so a family id: {pairs}")
     bench_runs = (runs_root or default_runs_root()) / BENCH_RUNS / exp.experiment_id
     if bench_runs.exists():  # bench's own directory: stale runs would be reused untimed
         shutil.rmtree(bench_runs)
@@ -586,11 +698,13 @@ def run_experiment(
     cases_scored: list[Case] = []
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
+    first: dict[str, list[tuple[AnswerKeyRow, Executed]]] = {}  # a fitting method's calibration runs
 
-    def keep(scored: Scored) -> None:
+    def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
         rows.append(row)
-        runs.append(run)
+        if listed:  # False: the run is already in the manifest (a calibration run kept as the row)
+            runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
         groups.setdefault((dataset, k_sys, method_id), []).append(score)
         k = keys[dataset][str(row["case_id"])]
@@ -605,8 +719,32 @@ def run_experiment(
                 {"dataset": dataset, "method": method.id, "config_sha256": method_config_sha256(method, cfg)}
             )
             rows_keys = [keys[dataset][c] for c in cases]
+            if split is not None and split.fit and method.kind == calibrated.CALIBRATED_KIND:
+                ran = [
+                    (k, _timed(exp, method, k, bench_runs, timed, None, overlays.get(k.case_id)))
+                    for k in rows_keys
+                ]
+                first.setdefault(method.id, []).extend(ran)
+                continue
             for scored in _run_method(exp, method, rows_keys, bench_runs, timed, reports, overlays, split):
                 keep(scored)
+    for method in exp.methods:  # fit on the calibration runs, then the held-out runs (04 §5.4 item 3)
+        if split is None or method.id not in first:
+            continue
+        outside = [
+            (k, _timed(exp, method, k, bench_runs, timed)) for k in split.fit_keys.values()
+        ]  # transfer
+        runs.extend(_run_entry(method, k, d) for k, d in [*first[method.id], *outside])
+        _fit(exp, split, method, [*first[method.id], *outside], str(code["commit"]))
+        for key, done in first[method.id]:
+            held_out = _restart(exp, method, key, done, split, bench_runs, overlays.get(key.case_id))
+            keep(_record(exp, method, key, held_out, _fold(split, key.case_id)), held_out is not done)
+    if split is not None:
+        verdicts = {m.id for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND}  # sets and statuses
+        for rates in calibration.held_out_rates(r for r in rows if r["method"] in verdicts):  # #37, per fold
+            _log.info(
+                "bench.held_out", **rates, alpha=exp.calibration.alpha, beta=exp.calibration.no_fault_beta
+            )
     summary: dict[str, object] = {
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,

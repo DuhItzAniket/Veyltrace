@@ -18,7 +18,7 @@ an error before the first case, never a silently uncalibrated run.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -32,6 +32,7 @@ from veyltrace_core.config import CALIBRATION_DIRNAME, ResolvedConfig, find_conf
 from veyltrace_core.errors import ConfigError
 
 FAMILY_KEY, FAMILY_MAP_KEY, FOLD_KEY = CALIBRATION_KEYS
+RESTART_STEP = "causentra"  # a held-out run re-runs from here on its calibration run (core reuse_dir)
 CALIBRATED_KIND = "veyltrace"  # the method kind whose verdict (set, status) the split serves
 UNCALIBRATED: Mapping[str, object] = {FAMILY_KEY: None, FAMILY_MAP_KEY: {}}
 
@@ -188,3 +189,8 @@ def transfer_keys(exp: Experiment, repo: Path) -> dict[str, AnswerKeyRow]:
     )
     source_keys = {d: load_answer_keys(d) for d in parts}
     return {c: source_keys[d][c] for d, (cases, _) in select_cases(source, repo).items() for c in cases}
+
+
+def fit_cases(split: Split, fold: str, ran: Iterable[str]) -> list[str]:
+    """The cases of the fit for `fold` among the ones that ran, sorted."""
+    return sorted(set(ran) & split.plan.fits[fold])
