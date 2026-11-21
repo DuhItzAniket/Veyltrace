@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/1.1/bench_summary.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.2/bench_summary.schema.json",
   "title": "BenchSummary",
   "description": "bench/results/<experiment_id>/summary.json: the requested metrics and their denominators per (dataset, system, method) of one experiment (04 §7, §9). Written by bench, committed with the results; tables are generated from it only (R-17). Evaluation-only.",
   "x-veyltrace": {
     "name": "bench_summary",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "kind": "json",
     "producer": "bench",
     "path": "bench/results/<experiment_id>/summary.json"
@@ -23,7 +23,7 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^1\\.1\\.[0-9]+$"
+      "pattern": "^1\\.2\\.[0-9]+$"
     },
     "producer": {
       "description": "bench@<ALGO_VERSION>: the bench code that scored the runs.",
@@ -163,13 +163,20 @@
             "avg_at_5",
             "chance",
             "cost",
+            "coverage",
             "decoy_ranked_first",
+            "decoy_top1_change",
             "fine_ac_at_k",
             "lift",
             "mrr",
+            "no_fault_rates",
             "onset_error",
+            "permutation_invariance",
             "rerank_at_1",
-            "retrieval_at_k"
+            "retrieval_at_k",
+            "risk_coverage",
+            "selective_accuracy",
+            "set_size"
           ],
           "properties": {
             "ac_at_k": {
@@ -287,6 +294,83 @@
               "anyOf": [
                 {
                   "$ref": "#/$defs/summary_metric_decoy_ranked_first"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "coverage": {
+              "description": "The 04 §9 metric `coverage`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_coverage"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "set_size": {
+              "description": "The 04 §9 metric `set_size`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_set_size"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "no_fault_rates": {
+              "description": "The 04 §9 metric `no_fault_rates`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_no_fault_rates"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "risk_coverage": {
+              "description": "The 04 §9 metric `risk_coverage`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_risk_coverage"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "selective_accuracy": {
+              "description": "The 04 §9 metric `selective_accuracy`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_selective_accuracy"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "decoy_top1_change": {
+              "description": "The 04 §9 metric `decoy_top1_change`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_decoy_top1_change"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "permutation_invariance": {
+              "description": "The 04 §9 metric `permutation_invariance`; null when the experiment's `metrics` does not list it.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/summary_metric_permutation_invariance"
                 },
                 {
                   "type": "null"
@@ -762,6 +846,371 @@
         },
         "n_decoy": {
           "description": "Rows with decoy_present = true.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_coverage": {
+      "description": "Conformal-set coverage over the group's fault rows (04 §7 Coverage; H3a, R-12): the share whose root is in the set (an empty in_set is a miss, failed runs count). Null when n_fault is 0 or no fault row has a set (a method without a verifier).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "by_fold",
+        "coverage",
+        "coverage_gap",
+        "n_fault",
+        "pool_coverage"
+      ],
+      "properties": {
+        "coverage": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "coverage_gap": {
+          "description": "coverage − (1 − α), α = the experiment's calibration.alpha; null with coverage.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": -1,
+          "maximum": 1
+        },
+        "pool_coverage": {
+          "description": "Coverage among the fault rows with pool_hit = true (coverage given decision-pool retrieval); null when there are none.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_fault": {
+          "description": "Fault rows of the group (rows with a truth).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "by_fold": {
+          "description": "Coverage per fold of the group's rows, sorted by fold; rows with a null fold are not held out and are not listed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary_fold_coverage"
+          },
+          "x-sort": [
+            {
+              "pointer": "fold",
+              "order": "asc"
+            }
+          ]
+        }
+      }
+    },
+    "summary_fold_coverage": {
+      "description": "Coverage over one fold's fault rows.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage",
+        "fold",
+        "n_fault"
+      ],
+      "properties": {
+        "fold": {
+          "description": "The fold, as bench_result.fold.",
+          "type": "string",
+          "minLength": 1
+        },
+        "coverage": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_fault": {
+          "description": "Fault rows of the fold.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_set_size": {
+      "description": "Mean, nearest-rank median and singleton share of the set size over the group's fault rows with a set_size (04 §7 Set size; H3b); each null when n_set is 0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_set",
+        "set_size_mean",
+        "set_size_median",
+        "singleton_share"
+      ],
+      "properties": {
+        "set_size_mean": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "set_size_median": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "singleton_share": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_set": {
+          "description": "Fault rows with a set_size.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_no_fault_rates": {
+      "description": "NO_FAULT rates (04 §7; R-12, SC-4): false alarms over the group's normal rows (no truth: normal windows, no-fault cases), wrong NO_FAULT over its fault rows, and precision and recall of NO_FAULT over all its rows. Each null when its denominator is 0 or the method has no verdict.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "by_fold",
+        "false_alarm_rate",
+        "n_fault",
+        "n_normal",
+        "no_fault_precision",
+        "no_fault_recall",
+        "wrong_no_fault_rate"
+      ],
+      "properties": {
+        "false_alarm_rate": {
+          "description": "Share of normal rows whose status is not NO_FAULT.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_normal": {
+          "description": "Normal rows of the group (rows without a truth).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "wrong_no_fault_rate": {
+          "description": "Share of fault rows whose status is NO_FAULT.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_fault": {
+          "description": "Fault rows of the group (rows with a truth).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_fault_precision": {
+          "description": "Share of normal rows among the rows declared NO_FAULT.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "no_fault_recall": {
+          "description": "Share of normal rows declared NO_FAULT (1 − false_alarm_rate).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "by_fold": {
+          "description": "False-alarm rate per fold of the group's rows, sorted by fold; rows with a null fold are not held out and are not listed.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/summary_fold_no_fault"
+          },
+          "x-sort": [
+            {
+              "pointer": "fold",
+              "order": "asc"
+            }
+          ]
+        }
+      }
+    },
+    "summary_fold_no_fault": {
+      "description": "The false-alarm rate over one fold's normal rows.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "false_alarm_rate",
+        "fold",
+        "n_normal"
+      ],
+      "properties": {
+        "fold": {
+          "description": "The fold, as bench_result.fold.",
+          "type": "string",
+          "minLength": 1
+        },
+        "false_alarm_rate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_normal": {
+          "description": "Normal rows of the fold.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_risk_coverage": {
+      "description": "Area under the risk–coverage curve over the group's fault rows (04 §7; H3c): the mean over prefixes of the error (1 − AC@1) among the answered, with the rows ordered by the verified score V (status CONFIRMED > LIKELY > INCONCLUSIVE > NO_FAULT > none, then confidence margin desc) or by the fused score F of the verdict's leader (desc). Ties count at their expectation over the tied orders. Each null when n_fault is 0 or the method has no verdict.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "aurc_fused",
+        "aurc_verdict",
+        "n_fault"
+      ],
+      "properties": {
+        "aurc_verdict": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "aurc_fused": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_fault": {
+          "description": "Fault rows of the group (rows with a truth).",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_selective_accuracy": {
+      "description": "AC@1 among the group's fault rows declared CONFIRMED, and among those declared CONFIRMED or LIKELY, with their shares of the fault rows (04 §7 Selective accuracy; H4b). The answer rates are null when n_fault is 0 or the method has no verdict, the accuracies also when no row has that status.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ac_at_1_confirmed",
+        "ac_at_1_likely_or_better",
+        "answer_rate_confirmed",
+        "answer_rate_likely_or_better",
+        "n_fault"
+      ],
+      "properties": {
+        "ac_at_1_confirmed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "answer_rate_confirmed": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ac_at_1_likely_or_better": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "answer_rate_likely_or_better": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_fault": {
+          "description": "Fault rows of the group (rows with a truth).",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_decoy_top1_change": {
+      "description": "Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals (variant plant-<i>) differs from the unplanted run's (04 §7 Decoy metrics; H2b); null when n_pairs is 0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decoy_top1_change",
+        "n_pairs"
+      ],
+      "properties": {
+        "decoy_top1_change": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_pairs": {
+          "description": "(case, seed) with an unplanted row and at least one plant-<i> row.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "summary_metric_permutation_invariance": {
+      "description": "Share of the group's (case, seed) whose verdict_hash is one value across the unpermuted run and every perm-<i> variant, a missing hash breaking it (04 §7; H2c); null when n_cases is 0.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "n_cases",
+        "permutation_invariance"
+      ],
+      "properties": {
+        "permutation_invariance": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "n_cases": {
+          "description": "(case, seed) with an unpermuted row and at least one perm-<i> row.",
           "type": "integer",
           "minimum": 0
         }

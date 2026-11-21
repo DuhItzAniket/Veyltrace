@@ -63,6 +63,7 @@ __all__ = [
     "Hypothesis",
     "Indicator",
     "Klass",
+    "ManifestCalibration",
     "ManifestCode",
     "ManifestConfig",
     "ManifestDataset",
@@ -116,6 +117,8 @@ __all__ = [
     "Status",
     "SummaryCaseMetric",
     "SummaryComparison",
+    "SummaryFoldCoverage",
+    "SummaryFoldNoFault",
     "SummaryGroup",
     "SummaryGroupMetrics",
     "SummaryInterval",
@@ -123,13 +126,20 @@ __all__ = [
     "SummaryMetricAvgAt5",
     "SummaryMetricChance",
     "SummaryMetricCost",
+    "SummaryMetricCoverage",
     "SummaryMetricDecoyRankedFirst",
+    "SummaryMetricDecoyTop1Change",
     "SummaryMetricFineAcAtK",
     "SummaryMetricLift",
     "SummaryMetricMrr",
+    "SummaryMetricNoFaultRates",
     "SummaryMetricOnsetError",
+    "SummaryMetricPermutationInvariance",
     "SummaryMetricRerankAt1",
     "SummaryMetricRetrievalAtK",
+    "SummaryMetricRiskCoverage",
+    "SummaryMetricSelectiveAccuracy",
+    "SummaryMetricSetSize",
     "SummaryOutcomes",
     "SummaryStatistics",
     "SummaryStatisticsNotRun",
@@ -965,6 +975,16 @@ class Hypothesis(BaseModel):
     indicator: Indicator | None
 
 
+class ManifestCalibration(BaseModel):
+    """One calibration file behind the result (03 §12.1)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    family_id: FamilyId
+    sha256: Sha256
+    fitted: bool
+
+
 class ManifestCode(BaseModel):
     """Code state the results came from (04 §10.2)."""
 
@@ -1019,7 +1039,7 @@ class BenchManifest(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.1\.[0-9]+$")]
     producer: Annotated[str, StringConstraints(min_length=1)]
     experiment_id: Annotated[
         str,
@@ -1033,6 +1053,7 @@ class BenchManifest(BaseModel):
     configs: list[ManifestConfig]
     seeds: list[int]
     runs: list[ManifestRun]
+    calibrations: list[ManifestCalibration] | None
 
 
 class OnsetsPerService(BaseModel):
@@ -1570,6 +1591,26 @@ class SummaryComparison(BaseModel):
     holm_p: Annotated[float, Field(ge=0, le=1)] | None
 
 
+class SummaryFoldCoverage(BaseModel):
+    """Coverage over one fold's fault rows."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    fold: Annotated[str, StringConstraints(min_length=1)]
+    coverage: Annotated[float, Field(ge=0, le=1)] | None
+    n_fault: Annotated[int, Field(ge=0)]
+
+
+class SummaryFoldNoFault(BaseModel):
+    """The false-alarm rate over one fold's normal rows."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    fold: Annotated[str, StringConstraints(min_length=1)]
+    false_alarm_rate: Annotated[float, Field(ge=0, le=1)] | None
+    n_normal: Annotated[int, Field(ge=0)]
+
+
 class SummaryInterval(BaseModel):
     """The 95% percentile cluster-bootstrap interval of one case-mean metric of one
     group (04 §8).
@@ -1641,6 +1682,22 @@ class SummaryMetricCost(BaseModel):
     n_cost: Annotated[int, Field(ge=0)]
 
 
+class SummaryMetricCoverage(BaseModel):
+    """Conformal-set coverage over the group's fault rows (04 §7 Coverage; H3a, R-12):
+    the share whose root is in the set (an empty in_set is a miss, failed runs
+    count). Null when n_fault is 0 or no fault row has a set (a method without a
+    verifier).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    coverage: Annotated[float, Field(ge=0, le=1)] | None
+    coverage_gap: Annotated[float, Field(ge=-1, le=1)] | None
+    pool_coverage: Annotated[float, Field(ge=0, le=1)] | None
+    n_fault: Annotated[int, Field(ge=0)]
+    by_fold: list[SummaryFoldCoverage]
+
+
 class SummaryMetricDecoyRankedFirst(BaseModel):
     """Share of the group's rows with decoy_present whose top-1 is a decoy-changed
     service (04 §7 Decoy metrics, RCAEval-C, H4c); null when n_decoy is 0.
@@ -1650,6 +1707,18 @@ class SummaryMetricDecoyRankedFirst(BaseModel):
 
     decoy_ranked_first: Annotated[float, Field(ge=0, le=1)] | None
     n_decoy: Annotated[int, Field(ge=0)]
+
+
+class SummaryMetricDecoyTop1Change(BaseModel):
+    """Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals
+    (variant plant-<i>) differs from the unplanted run's (04 §7 Decoy metrics; H2b);
+    null when n_pairs is 0.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    decoy_top1_change: Annotated[float, Field(ge=0, le=1)] | None
+    n_pairs: Annotated[int, Field(ge=0)]
 
 
 class SummaryMetricFineAcAtK(BaseModel):
@@ -1689,6 +1758,24 @@ class SummaryMetricMrr(BaseModel):
     mrr: float | None
 
 
+class SummaryMetricNoFaultRates(BaseModel):
+    """NO_FAULT rates (04 §7; R-12, SC-4): false alarms over the group's normal rows (no
+    truth: normal windows, no-fault cases), wrong NO_FAULT over its fault rows, and
+    precision and recall of NO_FAULT over all its rows. Each null when its
+    denominator is 0 or the method has no verdict.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    false_alarm_rate: Annotated[float, Field(ge=0, le=1)] | None
+    n_normal: Annotated[int, Field(ge=0)]
+    wrong_no_fault_rate: Annotated[float, Field(ge=0, le=1)] | None
+    n_fault: Annotated[int, Field(ge=0)]
+    no_fault_precision: Annotated[float, Field(ge=0, le=1)] | None
+    no_fault_recall: Annotated[float, Field(ge=0, le=1)] | None
+    by_fold: list[SummaryFoldNoFault]
+
+
 class SummaryMetricOnsetError(BaseModel):
     """Median and max onset error in ms over the rows that have one (detected protocol;
     04 §7, #215), and how many rows had one.
@@ -1699,6 +1786,18 @@ class SummaryMetricOnsetError(BaseModel):
     onset_error_median_ms: Annotated[float, Field(ge=0)] | None
     onset_error_max_ms: Annotated[float, Field(ge=0)] | None
     n_onset: Annotated[int, Field(ge=0)]
+
+
+class SummaryMetricPermutationInvariance(BaseModel):
+    """Share of the group's (case, seed) whose verdict_hash is one value across the
+    unpermuted run and every perm-<i> variant, a missing hash breaking it (04 §7;
+    H2c); null when n_cases is 0.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    permutation_invariance: Annotated[float, Field(ge=0, le=1)] | None
+    n_cases: Annotated[int, Field(ge=0)]
 
 
 class SummaryMetricRerankAt1(BaseModel):
@@ -1721,6 +1820,51 @@ class SummaryMetricRetrievalAtK(BaseModel):
     pool_retrieval: float | None
 
 
+class SummaryMetricRiskCoverage(BaseModel):
+    """Area under the risk–coverage curve over the group's fault rows (04 §7; H3c): the
+    mean over prefixes of the error (1 − AC@1) among the answered, with the rows
+    ordered by the verified score V (status CONFIRMED > LIKELY > INCONCLUSIVE >
+    NO_FAULT > none, then confidence margin desc) or by the fused score F of the
+    verdict's leader (desc). Ties count at their expectation over the tied orders.
+    Each null when n_fault is 0 or the method has no verdict.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    aurc_verdict: Annotated[float, Field(ge=0, le=1)] | None
+    aurc_fused: Annotated[float, Field(ge=0, le=1)] | None
+    n_fault: Annotated[int, Field(ge=0)]
+
+
+class SummaryMetricSelectiveAccuracy(BaseModel):
+    """AC@1 among the group's fault rows declared CONFIRMED, and among those declared
+    CONFIRMED or LIKELY, with their shares of the fault rows (04 §7 Selective
+    accuracy; H4b). The answer rates are null when n_fault is 0 or the method has no
+    verdict, the accuracies also when no row has that status.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    ac_at_1_confirmed: Annotated[float, Field(ge=0, le=1)] | None
+    answer_rate_confirmed: Annotated[float, Field(ge=0, le=1)] | None
+    ac_at_1_likely_or_better: Annotated[float, Field(ge=0, le=1)] | None
+    answer_rate_likely_or_better: Annotated[float, Field(ge=0, le=1)] | None
+    n_fault: Annotated[int, Field(ge=0)]
+
+
+class SummaryMetricSetSize(BaseModel):
+    """Mean, nearest-rank median and singleton share of the set size over the group's
+    fault rows with a set_size (04 §7 Set size; H3b); each null when n_set is 0.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    set_size_mean: Annotated[float, Field(ge=0)] | None
+    set_size_median: Annotated[float, Field(ge=0)] | None
+    singleton_share: Annotated[float, Field(ge=0, le=1)] | None
+    n_set: Annotated[int, Field(ge=0)]
+
+
 class SummaryGroupMetrics(BaseModel):
     """One entry per 04 §9 metric name that bench computes; an entry the experiment did
     not list is null, so a null inside an entry always means undefined, never not
@@ -1740,6 +1884,13 @@ class SummaryGroupMetrics(BaseModel):
     onset_error: SummaryMetricOnsetError | None
     cost: SummaryMetricCost | None
     decoy_ranked_first: SummaryMetricDecoyRankedFirst | None
+    coverage: SummaryMetricCoverage | None
+    set_size: SummaryMetricSetSize | None
+    no_fault_rates: SummaryMetricNoFaultRates | None
+    risk_coverage: SummaryMetricRiskCoverage | None
+    selective_accuracy: SummaryMetricSelectiveAccuracy | None
+    decoy_top1_change: SummaryMetricDecoyTop1Change | None
+    permutation_invariance: SummaryMetricPermutationInvariance | None
 
 
 class SummaryOutcomes(BaseModel):
@@ -1817,7 +1968,7 @@ class BenchSummary(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.1\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.2\.[0-9]+$")]
     producer: Annotated[str, StringConstraints(min_length=1)]
     experiment_id: Annotated[
         str,
