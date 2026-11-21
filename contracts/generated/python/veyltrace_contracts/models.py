@@ -1711,8 +1711,8 @@ class SummaryMetricDecoyRankedFirst(BaseModel):
 
 class SummaryMetricDecoyTop1Change(BaseModel):
     """Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals
-    (variant plant-<i>) differs from the unplanted run's (04 §7 Decoy metrics; H2b);
-    null when n_pairs is 0.
+    (variant plant-<i>) differs from the unplanted run's, a planted run with no ranks
+    counting as changed (04 §7 Decoy metrics; H2b); null when n_pairs is 0.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
