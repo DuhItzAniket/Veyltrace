@@ -69,7 +69,7 @@ Notes:
 8. not run: the experiment does not list the metric `rerank_at_1`
 9. no interval: summary.json statistics has no `avg_at_5` interval for this group
 10. no interval: summary.json statistics has no `mrr` interval for this group
-11. null in summary.json: undefined for this group, e.g. no fault case (03 §13.3)
+11. null in summary.json: undefined for this group, as no row has the value (no fault case, no slate, no LLM tokens; 03 §13.3)
 12. not run: its summary.json has no group for this dataset, system and method
 13. no interval: summary.json statistics has no `retrieval_at_k` interval for this group
 14. no interval: summary.json statistics has no `ac_at_5` interval for this group

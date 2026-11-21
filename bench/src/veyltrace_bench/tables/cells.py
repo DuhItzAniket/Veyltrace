@@ -12,7 +12,10 @@ from dataclasses import dataclass
 NOT_RUN = "not run"
 NOT_RUN_PREFIX = "not run: "  # the bench_summary 1.1 `statistics` string form (03 §13.3)
 UNDEFINED = "n/a"
-UNDEFINED_NOTE = "null in summary.json: undefined for this group, e.g. no fault case (03 §13.3)"
+UNDEFINED_NOTE = (
+    "null in summary.json: undefined for this group, as no row has the value "
+    "(no fault case, no slate, no LLM tokens; 03 §13.3)"
+)
 RATE_DIGITS = 3  # a priori: 1/270 ≈ 0.004 is one RE2 case, so a third decimal resolves one case
 P_FLOOR = 0.001  # p-values below it print as "<0.001" (a priori presentation, as the paper's tables)
 

@@ -15,6 +15,9 @@ from veyltrace_bench.tables.context import Context, context
 from veyltrace_bench.tables.index import results_index
 from veyltrace_bench.tables.render import Table, latex, markdown
 from veyltrace_bench.tables.rq1 import accuracy, datasets, rq1_comparisons
+from veyltrace_bench.tables.rq4 import ablation, decoys, shift
+from veyltrace_bench.tables.rq23 import calibration, proposer
+from veyltrace_bench.tables.rq56 import cost, replay
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
 
@@ -22,7 +25,19 @@ TABLES_DIR = "tables"
 GENERATED_SUFFIXES = (".md", ".tex")  # what TABLES_DIR may hold; anything else there is left alone
 
 Builder = Callable[[Context], list[Table]]
-BUILDERS: tuple[Builder, ...] = (results_index, datasets, accuracy, rq1_comparisons)
+BUILDERS: tuple[Builder, ...] = (
+    results_index,
+    datasets,
+    accuracy,
+    rq1_comparisons,
+    proposer,
+    calibration,
+    cost,
+    replay,
+    shift,
+    ablation,
+    decoys,
+)
 
 
 def outputs(
