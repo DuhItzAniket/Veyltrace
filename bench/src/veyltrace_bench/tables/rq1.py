@@ -207,7 +207,7 @@ def accuracy_table(
         "intervals in brackets; failed, timed-out and unranked runs count as misses; a seeded arm's group "
         "pools its cases × seeds rows (04 §8)."
     )
-    return Table(name, title, caption, ("System", "Method", *columns(bool(arms))), tuple(rows))
+    return Table(name, title, caption, ("System", "Method", *columns(bool(arms))), tuple(rows), key=(0, 1))
 
 
 def accuracy(ctx: Context) -> list[Table]:
@@ -228,7 +228,9 @@ def _windows(ctx: Context, part: str) -> tuple[Cell, Results | None]:
     cell = res.count(part, res.system_of(part), method, "n_no_truth")
     kind = "no-fault cases" if bench in NO_FAULT_CASES else "normal windows"
     return (
-        cells.Cell(f"{cell.text} {kind} (from {eid})", cell.note) if cell.text != cells.NOT_RUN else cell
+        cells.Cell(f"{cell.text} {kind} (from {res.experiment_id})", cell.note)
+        if cell.text != cells.NOT_RUN
+        else cell
     ), res
 
 
@@ -264,7 +266,7 @@ def datasets(ctx: Context) -> list[Table]:
         f"{OURS}; normal windows (04 §5.4) come from the experiment that adds them. Development cases are "
         "excluded (04 §10.5)."
     )
-    return [Table("t03-datasets", "Table 3: datasets", caption, columns_, tuple(rows))]
+    return [Table("t03-datasets", "Table 3: datasets", caption, columns_, tuple(rows), key=(0, 1))]
 
 
 def _interval_note(c: SummaryComparison, skipped: dict[str, str]) -> str:
@@ -277,7 +279,22 @@ def _interval_note(c: SummaryComparison, skipped: dict[str, str]) -> str:
     return "no interval in summary.json"
 
 
-def _comparison_cells(res: Results, arms: frozenset[str]) -> list[tuple[Cell, ...]]:
+def _mcnemar(c: SummaryComparison, arms: frozenset[str], on: bool) -> tuple[Cell, Cell]:
+    """The McNemar counts and p of a comparison, or the reason it has none (verification, R-17)."""
+    if {c.method_a, c.method_b} & arms:
+        why = "a seeded arm's per-case hit is a mean over seeds, not boolean, so no McNemar (04 §8)"
+    elif not on:
+        why = "McNemar is off (the experiment's statistics.mcnemar is false)"
+    elif c.n_pairs == 0:
+        why = "no paired cases"
+    elif c.mcnemar_only_a is None or c.mcnemar_only_b is None:
+        why = "null in summary.json: the hits are not boolean (03 §13.3)"
+    else:
+        return cells.text(f"{c.mcnemar_only_a}/{c.mcnemar_only_b}"), cells.p_value(c.mcnemar_p)
+    return n_a(why), n_a(why)
+
+
+def _comparison_cells(res: Results, arms: frozenset[str], mcnemar_on: bool = True) -> list[tuple[Cell, ...]]:
     if res.summary is None or res.stats_reason is not None:
         return [
             tuple([cells.not_run(res.stats_reason or res.reason or "no results")] * len(COMPARISON_COLUMNS))
@@ -307,15 +324,7 @@ def _comparison_cells(res: Results, arms: frozenset[str]) -> list[tuple[Cell, ..
             sign_flip = n_a(
                 "non-inferiority is decided by the unadjusted 95% interval against the margin (04 §8)"
             )
-        if {c.method_a, c.method_b} & arms:
-            why = "a seeded arm's per-case hit is a mean over seeds, not boolean, so no McNemar (04 §8)"
-            mcnemar, mcnemar_p = n_a(why), n_a(why)
-        else:
-            pair = f"{c.mcnemar_only_a}/{c.mcnemar_only_b}" if c.mcnemar_only_a is not None else None
-            mcnemar, mcnemar_p = (
-                cells.text(pair) if pair else n_a("McNemar is off"),
-                cells.p_value(c.mcnemar_p),
-            )
+        mcnemar, mcnemar_p = _mcnemar(c, arms, mcnemar_on)
         out.append((
             cells.text(where), cells.text(c.metric), cells.text(f"{c.method_a} − {c.method_b}"),
             cells.text(c.kind + (f" ({c.family})" if c.family else "")),
@@ -335,14 +344,16 @@ COMPARISON_COLUMNS = (
 def comparisons(ctx: Context, name: str, title: str, experiment_ids: tuple[str, ...]) -> Table:
     """The paired comparisons of the experiments, as summary.json orders them (03 §13.3)."""
     rows = [
-        Row(c, ctx.get(i)) for i in experiment_ids for c in _comparison_cells(ctx.get(i), seeded(ctx.spec(i)))
+        Row(c, ctx.get(i))
+        for i in experiment_ids
+        for c in _comparison_cells(ctx.get(i), seeded(ctx.spec(i)), ctx.spec(i).statistics.mcnemar)
     ]
     caption = (
         "Paired differences A − B over the cases both methods scored: non-inferiority is decided by the "
         "unadjusted 95% interval against the margin, superiority by the Holm-adjusted sign-flip p within "
         "its family; McNemar counts discordant cases (04 §8). Protocol: see Sources."
     )
-    return Table(name, title, caption, COMPARISON_COLUMNS, tuple(rows))
+    return Table(name, title, caption, COMPARISON_COLUMNS, tuple(rows), key=(0, 1, 2, 3))
 
 
 def rq1_comparisons(ctx: Context) -> list[Table]:

@@ -66,8 +66,9 @@ def on_subset(
 ) -> Results:
     """`res` with one group per (dataset, system) of `method`, recomputed over its unperturbed
     per_case.csv rows whose case id is in `cases` and seed in `seeds`; `label` names the subset."""
+    tag = f"{COMPUTED}, {label}"
     if res.reason is not None or res.path is None:
-        return res
+        return replace(res, role=tag)
     table = io.read_path("bench_result", res.path / PER_CASE, validate=True)
     if not isinstance(table, pa.Table):  # bench_result is a CSV contract, so io returns a table
         raise ConfigError(f"{PER_CASE} of {res.experiment_id} did not read as a table")
@@ -76,11 +77,9 @@ def on_subset(
     for row in rows:
         if row["case_id"] in cases and row["seed"] in seeds:
             picked[(str(row["dataset"]), str(row["system"]))].append(_score(row))
-    tag = f"{COMPUTED}, {label}"
     if not picked:
-        return replace(
-            res, reason=f"its per_case.csv has no {method} rows for the {label}'s case ids and seeds"
-        )
+        why = f"its per_case.csv has no {method} rows for the {label}'s case ids and seeds"
+        return replace(res, reason=why, role=tag)
     groups: dict[tuple[str, str, str], SummaryGroup] = {}
     for (dataset, system), scores in sorted(picked.items()):
         flat = summarize(scores, LISTED)
