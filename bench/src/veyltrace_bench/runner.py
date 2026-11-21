@@ -47,6 +47,7 @@ from veyltrace_bench import (
     rcaeval,
     simplerca,
     splits,
+    upstream,
 )
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
 from veyltrace_bench.child import after_run, ai_run, restart
@@ -126,6 +127,8 @@ class Executed:
     ranks: tuple[str, ...] | None = None  # a baseline's ranks (simplerca); None otherwise
     ai_mode: str = "off"  # the mode it ran in: record, or replay of a kept record run (ai_arms)
     cassette_dir: Path | None = None  # the kept cassette a replay read
+    judged: bool = False  # outcome already judged per run against timeout_s (a held-out restart)
+    reason: str | None = None  # core's rejection reason (RunSummary.reason), e.g. empty_window
 
 
 def slug(method_id: str) -> str:
@@ -174,7 +177,18 @@ def _execute(
         ranks = after_run(extra, s)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
         got = tuple(ranks) if ranks is not None else None
-        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None, got, mode, ai.cassette_dir)
+        return Executed(
+            s.outcome,
+            s.run_id,
+            s.run_dir,
+            s.cached,
+            wall_ms,
+            None,
+            got,
+            mode,
+            ai.cassette_dir,
+            reason=s.reason,
+        )
     request = {
         "dataset": key.dataset,
         "case_id": key.case_id,
@@ -218,6 +232,7 @@ def _execute(
         tuple(ranks) if ranks is not None else None,
         mode,
         ai.cassette_dir,
+        reason=cast("str | None", s.get("reason")),
     )
 
 
@@ -360,8 +375,10 @@ def _restart(
     variant: str | None = None,
     seed: int | None = None,
 ) -> Executed:
-    """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Its
-    cost is both runs' (wall times summed, the larger peak): the prediction needed both."""
+    """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Each
+    run is judged against `timeout_s` on its own and the worse outcome kept; the cost is both runs'
+    (wall times summed, the larger peak), since the prediction needed both (ADR
+    20261121-ak-calibration-fit-conventions)."""
     if run_outcome(first.outcome, first.wall_ms, exp.resources.timeout_s) != "ok" or first.run_dir is None:
         return first  # nothing to restart: the calibration run's outcome is the case's
     over = overrides_for(exp, method, overlay, split.held_out(key.case_id), variant, seed)  # only the file
@@ -369,7 +386,11 @@ def _restart(
     ai = ai_arms.AiRun(first.ai_mode, root, first.cassette_dir)  # no model call after relentra
     done = _execute(key, method, over, root, exp.resources.timeout_s, extra, ai)
     peaks = [p for p in (first.peak_rss_mb, done.peak_rss_mb) if p is not None]
-    return replace(done, wall_ms=first.wall_ms + done.wall_ms, peak_rss_mb=max(peaks) if peaks else None)
+    outcome = run_outcome(done.outcome, done.wall_ms, exp.resources.timeout_s)  # the first was ok
+    total = first.wall_ms + done.wall_ms
+    return replace(
+        done, outcome=outcome, judged=True, wall_ms=total, peak_rss_mb=max(peaks) if peaks else None
+    )
 
 
 def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[str, object]:
@@ -394,7 +415,7 @@ def _record(
     same for every method and for every outcome that got that far. A baseline is scored on its
     ranks alone: it has no slate, pool, set or fault type (metrics.MethodOutput)."""
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
-    outcome = run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
+    outcome = done.outcome if done.judged else run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
     slate_scored, baseline = method.kind == "causatrix", method.kind in BASELINE_KINDS
     verdict = (
         _read("verdict", done.run_dir, Verdict) if outcome == "ok" and method.kind == "veyltrace" else None
@@ -413,7 +434,8 @@ def _record(
     else:
         out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
-    truth = Truth(None) if variant is not None else Truth.from_answer_key(key)  # a window: no truth
+    window = variant == normal_windows.VARIANT  # only a normal window has no truth (04 §5.4 item 6)
+    truth = Truth(None) if window else Truth.from_answer_key(key)
     score = score_case(truth, out, universe=universe)
     decoy = decoy_runs.decoy_columns(key, score.ranks)
     tokens_in, tokens_out = ai_arms.tokens(done.run_dir) if method.ai.mode != "off" else (None, None)
@@ -459,10 +481,13 @@ def _run_method(
     split: calibrated.Split | None,
     windows: list[AnswerKeyRow] | None = None,
     dropped: list[dict[str, object]] | None = None,
+    sources: dict[tuple[str, str], Executed] | None = None,
 ) -> list[Scored]:
     """Every case of one dataset with one method, each run once, then its normal `windows`; a window
     with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
-    directory, so its alert-step runs are executed and timed, never reused from another method."""
+    directory, so its alert-step runs are executed and timed, never reused from another method.
+    `sources` maps (method, case) to the AI-off veyltrace runs a causatrix:<ranker> method reuses
+    up to FaultLoom (`upstream`, #413); this call adds its own veyltrace runs to it."""
     if method.kind == "rcaeval":
         return _run_rcaeval(exp, method, cases, bench_runs, reports, overlays, split)
     root, extra = bench_runs, None
@@ -474,8 +499,14 @@ def _run_method(
     out: list[Scored] = []
     for key, variant, seed in _units(method, cases, windows or []):
         keys = calibrated.first_run(split, key.case_id)
-        done = _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed)
-        if variant is not None and normal_windows.too_short(done.run_dir):
+        plain = variant is None and seed is None  # the run a causatrix:<ranker> reuses or is (#413)
+        reuse = _reused(exp, method, key, root, overlays.get(key.case_id), keys, sources) if plain else None
+        done = reuse or _timed(
+            exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed
+        )
+        if sources is not None and plain and method.kind == upstream.SOURCE_KIND and method.ai.mode == "off":
+            sources[(method.id, key.case_id)] = done
+        if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
         out.append(_record(exp, method, key, done, _fold(split, key.case_id), variant, seed))
@@ -490,6 +521,43 @@ def _units(method: MethodSpec, cases: list[AnswerKeyRow], windows: list[AnswerKe
     seeds = ai_arms.seeds_of(method)
     units: list[Unit] = [(k, None, s) for k in cases for s in seeds]
     return units + [(k, normal_windows.VARIANT, s) for k in windows for s in seeds]
+
+
+def _reused(
+    exp: Experiment,
+    method: MethodSpec,
+    key: AnswerKeyRow,
+    root: Path,
+    overlay: str | None,
+    calibration_keys: Mapping[str, object],
+    sources: dict[tuple[str, str], Executed] | None,
+) -> Executed | None:
+    """A causatrix:<ranker> run of one case that reuses its source's steps up to FaultLoom and runs
+    Causatrix alone (`upstream`); None when it does not apply, or the source cannot serve it."""
+    if sources is None or not upstream.applies(method) or (source := upstream.source_of(exp, method)) is None:
+        return None
+    src = sources.get((source.id, key.case_id))
+    if (
+        src is None
+        or src.run_dir is None
+        or run_outcome(src.outcome, src.wall_ms, exp.resources.timeout_s) != "ok"
+    ):
+        _log.info(
+            "bench.upstream_reuse",
+            case_id=key.case_id,
+            method=method.id,
+            reused=False,
+            why="no ok source run",
+        )
+        return None
+    over = overrides_for(exp, method, overlay, calibration_keys)
+    lock = resolve_config(over, dataset=key.dataset, ai_mode=method.ai.mode).lock_bytes()
+    if (why := upstream.mismatch(src.run_dir, lock)) is not None:
+        _log.info("bench.upstream_reuse", case_id=key.case_id, method=method.id, reused=False, why=why)
+        return None
+    _log.info("bench.upstream_reuse", case_id=key.case_id, method=method.id, reused=True, source=src.run_id)
+    extra = {"from_step": upstream.START, "reuse_dir": str(src.run_dir), "to_step": upstream.START}
+    return _execute(key, method, over, root, exp.resources.timeout_s, extra)
 
 
 def _fold(split: calibrated.Split | None, case: str) -> str | None:
@@ -534,23 +602,24 @@ def _run_rcaeval(
 def _calibration_run(
     key: AnswerKeyRow, variant: str | None, done: Executed, timeout_s: int
 ) -> calibration.CalibrationRun | None:
-    """A calibration run as the fit reads it: a fault case's root score, a no-fault case's M (synth-05,
-    VeylLab), None for a no-fault case of another source. A non-ok run has no verdict (+inf) or M."""
-    ok = run_outcome(done.outcome, done.wall_ms, timeout_s) == "ok" and done.run_dir is not None
-    if variant is not None:  # an RCAEval pre-injection window (04 §5.4 item 6)
-        if normal_windows.too_short(done.run_dir):
+    """A calibration run as the fit reads it: a fault case's root score (+inf without a verdict or
+    unranked), a normal window (an RCAEval pre-injection window, or a no-fault case of synth-05 or
+    VeylLab: M, or +inf when it could never be NO_FAULT), None for a dropped window or a no-fault case
+    of another source (ADR 20261121-ak-calibration-fit-conventions)."""
+    ok = run_outcome(done.outcome, done.wall_ms, timeout_s) == "ok"
+    run_dir = done.run_dir if ok else None
+    if variant == normal_windows.VARIANT:  # 04 §5.4 item 6
+        if normal_windows.dropped(done.run_dir, done.reason):
             return None
-        m = calibration.run_statistic(done.run_dir) if ok and done.run_dir is not None else None
-        return calibration.CalibrationRun(key.case_id, variant, source=calibration.PRE_INJECTION, statistic=m)
+        return calibration.window(key.case_id, variant, calibration.PRE_INJECTION, run_dir)
     if key.is_no_fault:
         if (source := calibration.window_source(key.dataset)) is None:
             return None
-        m = calibration.run_statistic(done.run_dir) if ok and done.run_dir is not None else None
-        return calibration.CalibrationRun(key.case_id, None, source=source, statistic=m)
-    verdict = _read("verdict", done.run_dir, Verdict) if ok else None
-    return calibration.CalibrationRun(
-        key.case_id, None, score=calibration.root_score(verdict, str(key.root_service))
-    )
+        return calibration.window(key.case_id, None, source, run_dir)
+    verdict, slate = _read("verdict", run_dir, Verdict), _read("slate", run_dir, Slate)
+    unranked = not (verdict and verdict.ranks_rcaeval and slate and slate.rankers_active)  # 04 §7
+    score = calibration.root_score(verdict, str(key.root_service), unranked=unranked)
+    return calibration.CalibrationRun(key.case_id, None, score=score)
 
 
 def _fit(
@@ -566,10 +635,14 @@ def _fit(
     arm = calibrated.arm(method, cfg)
     default_tau = float(cast("dict[str, Any]", cfg.engine("causentra"))["no_fault"]["default_tau"])
     for fold in sorted(split.plan.fits):  # a window follows its case's fold (04 §5.4 item 1)
-        members = [(k, v, d) for (k, v, _), d in ran if k.case_id in split.plan.fits[fold]]
+        members = [(k, v, s, d) for (k, v, s), d in ran if k.case_id in split.plan.fits[fold]]  # seeds pooled
         timeout_s = exp.resources.timeout_s
-        runs = [r for k, v, d in members if (r := _calibration_run(k, v, d, timeout_s)) is not None]
-        manifests = [_read_manifest(d.run_dir) for _, _, d in members]
+        runs = [
+            replace(r, seed=s)
+            for k, v, s, d in members
+            if (r := _calibration_run(k, v, d, timeout_s)) is not None
+        ]
+        manifests = [_read_manifest(d.run_dir) for *_, d in members]
         content = calibration.fit(
             runs,
             family=split.family,
@@ -588,7 +661,7 @@ def _fit(
         nf = content.no_fault
         _log.info(
             "bench.calibration.fit", family=content.family, n=content.n, q_hat=content.q_hat, m=nf.m,
-            tau_nf=nf.tau_nf, calibrated=nf.calibrated,
+            tau_nf=nf.tau_nf, calibrated=nf.calibrated, **calibration.never_counts(runs),
         )  # fmt: skip
 
 
@@ -611,16 +684,19 @@ def _split(
     calibration cases from the file's source parts, development cases excluded (04 §5.4 item 7)."""
     splits.check_split(exp.split)
     chosen = {c: keys[d][c] for d, (cases, _) in selected.items() for c in cases}
-    outside: dict[str, AnswerKeyRow] = {}
-    if exp.split.scheme == "transfer" and exp.calibration.fit:
-        parts = splits.TRANSFER_SOURCES[str(exp.split.calibrate_from)]
-        source = exp.model_copy(
-            update={"dataset": exp.dataset.model_copy(update={"parts": parts, "cases": "all"})}
-        )
-        source_keys = {d: load_answer_keys(d) for d in parts}
-        picked = select_cases(source, repo)
-        outside = {c: source_keys[d][c] for d, (cases, _) in picked.items() for c in cases}
+    outside = transfer_keys(exp, repo) if exp.split.scheme == "transfer" and exp.calibration.fit else {}
     return calibrated.make_split(exp, chosen, outside)
+
+
+def transfer_keys(exp: Experiment, repo: Path) -> dict[str, AnswerKeyRow]:
+    """The calibration cases of a transfer fit: every case of the file's source parts except the
+    experiment's exclusions (04 §5.4 item 7: all RE2-OB and RE2-TT cases but the development ones)."""
+    parts = splits.TRANSFER_SOURCES[str(exp.split.calibrate_from)]
+    source = exp.model_copy(
+        update={"dataset": exp.dataset.model_copy(update={"parts": parts, "cases": "all"})}
+    )
+    source_keys = {d: load_answer_keys(d) for d in parts}
+    return {c: source_keys[d][c] for d, (cases, _) in select_cases(source, repo).items() for c in cases}
 
 
 def check_baselines(exp: Experiment, repo: Path) -> None:
@@ -743,6 +819,12 @@ def run_experiment(
             if split is not None and method.kind == calibrated.CALIBRATED_KIND:
                 cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
                 calibrated.check(exp, split, method, cfg)
+    if split is not None and split.fit:  # one file per family id: two fitting methods may not share one
+        fitting = [m for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND]
+        arms = [calibrated.arm(m, resolve_config(overrides_for(exp, m), ai_mode=m.ai.mode)) for m in fitting]
+        if len(set(arms)) != len(arms):
+            pairs = [f"{m.id}: {a}" for m, a in zip(fitting, arms, strict=True)]
+            raise ConfigError(f"fitting methods share a calibration arm, so a family id: {pairs}")
     bench_runs = (runs_root or default_runs_root()) / BENCH_RUNS / exp.experiment_id
     if bench_runs.exists():  # bench's own directory: stale runs would be reused untimed
         shutil.rmtree(bench_runs)
@@ -755,16 +837,19 @@ def run_experiment(
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
     first: dict[str, list[tuple[Unit, Executed]]] = {}  # a fitting method's calibration runs
+    sources: dict[tuple[str, str], Executed] = {}  # (method, case): runs causatrix:<ranker> reuses (#413)
 
-    def keep(scored: Scored) -> None:
+    def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
         rows.append(row)
-        runs.append(run)
+        if listed:  # False: the run is already in the manifest (a calibration run kept as the row)
+            runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
         groups.setdefault((dataset, k_sys, method_id), []).append(score)
         k = keys[dataset][str(row["case_id"])]
         cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
-        cases_scored.append(Case(k.case_id, dataset, k_sys, method_id, cluster, score))
+        seed = row["seed"] if isinstance(row["seed"], int) else None  # seeded arms pair on case means
+        cases_scored.append(Case(k.case_id, dataset, k_sys, method_id, cluster, score, seed))
 
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
@@ -784,9 +869,11 @@ def run_experiment(
                         exp, method, k, bench_runs, timed, None, overlays.get(k.case_id), uncal, v, s
                     )
                     first.setdefault(method.id, []).append((unit, done))
+                    if v is None and s is None and method.ai.mode == "off":
+                        sources[(method.id, k.case_id)] = done  # what causatrix:<ranker> reuses (#413)
                 continue
             ran = _run_method(
-                exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs
+                exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs, sources
             )
             for scored in ran:
                 keep(scored)
@@ -795,17 +882,18 @@ def run_experiment(
             continue
         outside_keys = list(split.fit_keys.values())  # transfer: its source parts, with their windows
         outside: list[tuple[Unit, Executed]] = []
-        for unit in _units(method, outside_keys, normal_windows.windows_of(exp, outside_keys)):
+        for unit in _units(method, outside_keys, normal_windows.pre_injection(outside_keys)):
             k, v, s = unit
             outside.append((unit, _timed(exp, method, k, bench_runs, timed, variant=v, seed=s)))
         runs.extend(_run_entry(method, k, d) for (k, _, _), d in [*first[method.id], *outside])
         _fit(exp, split, method, [*first[method.id], *outside], str(code["commit"]))
         for (key, variant, seed), done in first[method.id]:
-            if variant is not None and normal_windows.too_short(done.run_dir):
+            if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
                 continue  # dropped (04 §5.4 item 6); its calibration run is in the manifest
             overlay = overlays.get(key.case_id)
             held_out = _restart(exp, method, key, done, split, bench_runs, overlay, variant, seed)
-            keep(_record(exp, method, key, held_out, _fold(split, key.case_id), variant, seed))
+            row = _record(exp, method, key, held_out, _fold(split, key.case_id), variant, seed)
+            keep(row, held_out is not done)
     if split is not None:
         verdicts = {m.id for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND}  # sets and statuses
         for rates in calibration.held_out_rates(r for r in rows if r["method"] in verdicts):  # #37, per fold

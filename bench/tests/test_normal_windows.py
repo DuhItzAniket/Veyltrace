@@ -16,6 +16,7 @@ from veyltrace_core import cli, io, textio, yaml12
 from veyltrace_core.calibration import load_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
+from veyltrace_core.ids import case_id
 
 REPO = Path(__file__).resolve().parents[2]
 WINDOWS = """\
@@ -49,6 +50,11 @@ def test_a_window_needs_60_s_of_baseline(tmp_path: Path) -> None:
     assert normal_windows.too_short(_alert(tmp_path / "a", 59))
     assert not normal_windows.too_short(_alert(tmp_path / "b", 60))
     assert not normal_windows.too_short(tmp_path / "rejected") and not normal_windows.too_short(None)
+    # A window core rejects for having no data is dropped too, not counted as a false alarm (#393 review).
+    assert normal_windows.dropped(tmp_path / "rejected", normal_windows.EMPTY_WINDOW)
+    assert normal_windows.dropped(tmp_path / "a", None) and not normal_windows.dropped(
+        None, "unsupported_format"
+    )
 
 
 def _exp(text: str) -> Experiment:
@@ -133,3 +139,36 @@ def test_a_window_with_a_short_baseline_is_dropped_but_its_run_is_recorded(
         for p in (tmp_path / "repo" / "config" / "calibration").glob("*.json")
     ]
     assert sorted(n.m for n in nf) == [0, 1] and all("rcaeval_pre_injection" not in n.sources for n in nf)
+
+
+def test_a_transfer_fit_has_its_source_parts_windows(
+    tmp_path: Path, synth_windows: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """04 §5.4 item 7: the transfer file is fitted "with their normal windows", although the
+    experiment's own (test) parts ask for none (#393 review)."""
+    keys = answer_keys.load_answer_keys("synth")
+    test_cases = [case_id("synth-01"), case_id("synth-02")]
+    sources = {c: k for c, k in keys.items() if c in {case_id(f"synth-0{i}") for i in (3, 4, 5)}}
+    monkeypatch.setattr(splits, "TRANSFER_SOURCES", {"synth.transfer-x": ("synth",)})
+    monkeypatch.setattr(runner, "transfer_keys", lambda *_: sources)
+    repo = tmp_path / "repo"
+    textio.write_bytes(repo / "two.yaml", "".join(f'- "{c}"\n' for c in test_cases).encode())
+    text = WINDOWS.replace("cases: all", "cases: two.yaml").replace(
+        "normal_windows: rcaeval_pre_injection", "normal_windows: none"
+    )
+    text = text.replace("scheme: crossfit2", "scheme: transfer, calibrate_from: synth.transfer-x")
+    textio.write_bytes(synth_windows, text.encode())
+    rows, _ = _run(tmp_path, synth_windows)
+    content = load_calibration(repo / "config" / "calibration" / "synth.off.oracle.transfer-x.json").content
+    assert content.no_fault.m == 3 and content.no_fault.sources == [
+        "rcaeval_pre_injection",
+        "synth-05",
+    ]  # 2 + synth-05
+    assert content.n == 2  # synth-03 and synth-04, never a test case
+    assert sorted(str(r["case_id"]) for r in rows) == sorted(test_cases) and {r["fold"] for r in rows} == {
+        "transfer-x"
+    }
+    bad = text.replace("shift_s: 0", "shift_s: 30")
+    textio.write_bytes(synth_windows, bad.encode())
+    with pytest.raises(ConfigError, match="source windows need"):
+        _run(tmp_path, synth_windows)
