@@ -15,7 +15,8 @@ runs in full, as before, and the reason is logged.
 
 A reused row's `wall_ms` and `peak_rss_mb` cover the FaultLoom and Causatrix steps only
 (bench/README.md), and its timeout is what is left of `timeout_s` after the source's run. RQ5
-cost numbers come only from `veyltrace:off` runs. `causatrix:rrf` has no override, so it shares `veyltrace:off`'s whole run as before (#172).
+cost numbers come only from `veyltrace:off` runs. `causatrix:rrf` has no override, so it shares
+`veyltrace:off`'s whole run as before (#172).
 """
 
 from __future__ import annotations
