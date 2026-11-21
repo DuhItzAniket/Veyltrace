@@ -60,9 +60,16 @@ class CalibrationRun:
     statistic: float | None = None
     never: str | None = None  # FAILED, NO_M or SILENT for a +inf window
 
+    seed: int | None = None  # an AI arm's seed: its seeds' runs pool into one fit (n = cases x seeds)
+
     @property
     def key(self) -> str:
-        return self.case_id if self.variant is None else f"{self.case_id}/{self.variant}"
+        parts = [
+            self.case_id,
+            *([self.variant] if self.variant else []),
+            *([f"seed-{self.seed}"] if self.seed is not None else []),
+        ]
+        return "/".join(parts)
 
 
 def window_source(dataset: str) -> str | None:

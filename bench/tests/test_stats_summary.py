@@ -125,3 +125,30 @@ def test_decoy_ranked_first_is_the_share_over_decoyed_rows() -> None:
     rows += [replace(plain, decoy_present=False), plain]  # no decoy, no planted changes: outside the share
     got = summarize(rows, ["decoy_ranked_first"])
     assert (got["decoy_ranked_first"], got["n_decoy"]) == (0.25, 4)
+
+
+def test_a_seeded_arm_pairs_on_per_case_seed_means() -> None:
+    """04 §8 "LLM arms": brief (3 seeds) vs off is paired per case on the seed mean; n_pairs counts
+    cases, and McNemar is not run because the means are not binary (known answer below)."""
+    rq2 = load_experiment(REPO / "bench" / "experiments" / "re2-oracle-rq2-v1.yaml")
+    brief = {0: (1, 1, 0), 1: (0, 0, 0), 2: (1, 1, 1)}  # per-case seed hits: means 2/3, 0, 1
+    off = {0: 1, 1: 0, 2: 0}
+    cases: list[Case] = []
+    for i in range(3):
+        cid, cluster = f"ob{i:010d}", ("ob", f"svc{i}", "cpu")
+        cases.append(Case(cid, "re2-ob", "ob", "veyltrace:off", cluster, _score(off[i] == 1)))
+        for seed, hit in zip((1, 2, 3), brief[i], strict=True):
+            cases.append(Case(cid, "re2-ob", "ob", "veyltrace:brief", cluster, _score(hit == 1), seed))
+    got = statistics(rq2, cases)
+    row = next(r for r in got["comparisons"] if r["system"] == "ob" and r["kind"] == "noninferiority")
+    assert (row["method_a"], row["method_b"], row["n_pairs"], row["n_clusters"]) == (
+        "veyltrace:brief", "veyltrace:off", 3, 3,
+    )  # fmt: skip
+    assert abs(row["difference"] - (-1 / 3 + 0 + 1) / 3) < 1e-12  # mean of the per-case differences
+    assert (row["mcnemar_only_a"], row["mcnemar_p"]) == (None, None)
+    brief_ac = next(
+        i for i in got["intervals"] if i["method"] == "veyltrace:brief" and i["metric"] == "ac_at_1"
+    )
+    assert brief_ac["n_cases"] == 3 and abs(brief_ac["estimate"] - (2 / 3 + 0 + 1) / 3) < 1e-12  # case means
+    reasons = {r["reason"] for r in got["not_run"] if r["scope"].startswith("mcnemar ")}
+    assert reasons == {"seeded method: per-case seed means are not binary"}

@@ -38,6 +38,7 @@ from typing import Any, cast
 
 from veyltrace_bench import (
     ALGO_VERSION,
+    ai_arms,
     baselines,
     calibrated,
     calibration,
@@ -50,7 +51,7 @@ from veyltrace_bench import (
     upstream,
 )
 from veyltrace_bench.answer_keys import answer_key_path, load_answer_keys
-from veyltrace_bench.child import after_run, restart
+from veyltrace_bench.child import after_run, ai_run, restart
 from veyltrace_bench.experiment import (
     OVERLAY_KEY,
     PROTOCOL_KEYS,
@@ -88,6 +89,7 @@ from veyltrace_core.errors import (
     VeyltraceError,
 )
 from veyltrace_core.hashing import manifest_hash, sha256_file, sha256_text_lf
+from veyltrace_core.ids import AIMode
 from veyltrace_core.log import get_logger
 from veyltrace_core.pipeline import run_case, uv_lock_sha256
 from veyltrace_core.pipeline import runs_root as default_runs_root
@@ -126,6 +128,8 @@ class Executed:
     wall_ms: float
     peak_rss_mb: float | None
     ranks: tuple[str, ...] | None = None  # a baseline's ranks (simplerca); None otherwise
+    ai_mode: str = "off"  # the mode it ran in: record, or replay of a kept record run (ai_arms)
+    cassette_dir: Path | None = None  # the kept cassette a replay read
     judged: bool = False  # outcome already judged per run against timeout_s (a held-out restart)
     reason: str | None = None  # core's rejection reason (RunSummary.reason), e.g. empty_window
 
@@ -147,34 +151,53 @@ def _execute(
     runs_root: Path,
     timeout_s: int,
     baseline: dict[str, Any] | None = None,
+    ai: ai_arms.AiRun | None = None,
 ) -> Executed:
     """Diagnose one case, in a child killed at `timeout_s` (#68), or in process (IN_PROCESS).
     `baseline` ({to_step, baseline?, export?}) stops the run early for a baseline, and
-    {from_step, reuse_dir} restarts a held-out run on its calibration run (child.py)."""
+    {from_step, reuse_dir} restarts a held-out run on its calibration run (child.py); `ai` says how
+    an AI-arm run records or replays (ai_arms)."""
     extra = baseline or {}
+    ai = ai or ai_arms.AiRun(method.ai.mode, runs_root)
+    mode = cast("AIMode", ai.ai_mode)
+    if ai.cassette_dir is not None or ai.force_record:
+        extra = extra | {"cassette_dir": str(ai.cassette_dir) if ai.cassette_dir else None}
+        extra |= {"force_record": ai.force_record}
     if IN_PROCESS:
-        cfg = resolve_config(overrides, dataset=key.dataset, ai_mode=method.ai.mode)  # as the child does
+        cfg = resolve_config(overrides, dataset=key.dataset, ai_mode=mode)  # as the child does
         start = time.perf_counter()
         step = cast("str", extra.get("to_step", LAST_STEP))
         s = run_case(
             key.dataset,
             key.case_id,
-            method.ai.mode,
+            mode,
             config=cfg,
-            runs_root=runs_root,
+            runs_root=ai.runs_root,
             to_step=step,
             **restart(extra),
+            **ai_run(extra),
         )
         ranks = after_run(extra, s)
         wall_ms = (time.perf_counter() - start) * MS_PER_S
         got = tuple(ranks) if ranks is not None else None
-        return Executed(s.outcome, s.run_id, s.run_dir, s.cached, wall_ms, None, got, reason=s.reason)
+        return Executed(
+            s.outcome,
+            s.run_id,
+            s.run_dir,
+            s.cached,
+            wall_ms,
+            None,
+            got,
+            mode,
+            ai.cassette_dir,
+            reason=s.reason,
+        )
     request = {
         "dataset": key.dataset,
         "case_id": key.case_id,
-        "ai_mode": method.ai.mode,
+        "ai_mode": mode,
         "overrides": overrides,
-        "runs_root": str(runs_root),
+        "runs_root": str(ai.runs_root),
         **extra,
     }
     env = {**os.environ, **{v: os.environ.get(v, "1") for v in THREAD_ENV}}  # as the CLI pins them
@@ -193,7 +216,8 @@ def _execute(
                 check=False,
             )
         except subprocess.TimeoutExpired:
-            return Executed("timeout", None, None, False, (time.perf_counter() - start) * MS_PER_S, None)
+            wall_ms = (time.perf_counter() - start) * MS_PER_S
+            return Executed("timeout", None, None, False, wall_ms, None, None, mode, ai.cassette_dir)
         if not result_path.is_file():
             raise VeyltraceError(f"{key.case_id} ({method.id}): the bench child exited without a result")
         got = cast("dict[str, Any]", json.loads(textio.read_text(result_path)))
@@ -209,6 +233,8 @@ def _execute(
         float(got["wall_ms"]),
         float(got["peak_rss_mb"]),
         tuple(ranks) if ranks is not None else None,
+        mode,
+        ai.cassette_dir,
         reason=cast("str | None", s.get("reason")),
     )
 
@@ -231,10 +257,12 @@ def overrides_for(
     overlay: str | None = None,
     calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
     variant: str | None = None,
+    seed: int | None = None,
 ) -> dict[str, object]:
-    """The run's config overrides: the protocol hooks, the calibration choice (`calibrated`), then
-    the method's own keys (which may set neither)."""
-    return {**protocol_overrides(exp, overlay, variant), **calibration_keys, **method.overrides}
+    """The run's config overrides: the protocol hooks, the calibration choice (`calibrated`), the
+    AI arm's mode and seed (`ai_arms`), then the method's own keys (which may set none of them)."""
+    ai = ai_arms.overrides(method, seed)
+    return {**protocol_overrides(exp, overlay, variant), **calibration_keys, **ai, **method.overrides}
 
 
 def run_outcome(outcome: str, wall_ms: float, timeout_s: int) -> str:
@@ -320,10 +348,15 @@ def _timed(
     overlay: str | None = None,
     calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
     variant: str | None = None,
+    seed: int | None = None,
 ) -> Executed:
-    """Diagnose one case with one method; a run another kind already made keeps that run's cost."""
-    over = overrides_for(exp, method, overlay, calibration_keys, variant)
-    done = _execute(key, method, over, runs_root, exp.resources.timeout_s, baseline)
+    """Diagnose one case with one method; a run another kind already made keeps that run's cost. An
+    AI arm records into, or replays from, `<runs root>/bench-ai/` (`ai_arms`); `runs_root` is
+    bench's `<runs root>/bench/<experiment_id>` for every full-pipeline method."""
+    over = overrides_for(exp, method, overlay, calibration_keys, variant, seed)
+    kept = runs_root.parent.parent / ai_arms.KEPT
+    ai = ai_arms.plan(key, method.ai.mode, over, runs_root, kept) if baseline is None else None
+    done = _execute(key, method, over, runs_root, exp.resources.timeout_s, baseline, ai)
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
     kinds: frozenset[str] = frozenset()  # the method kinds that already scored this run
     if done.cached and done.run_id is not None:  # bench emptied its runs dir: another method ran it
@@ -345,6 +378,7 @@ def _restart(
     root: Path,
     overlay: str | None,
     variant: str | None = None,
+    seed: int | None = None,
 ) -> Executed:
     """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Each
     run is judged against `timeout_s` on its own and the worse outcome kept; the cost is both runs'
@@ -352,9 +386,10 @@ def _restart(
     20261121-ak-calibration-fit-conventions)."""
     if run_outcome(first.outcome, first.wall_ms, exp.resources.timeout_s) != "ok" or first.run_dir is None:
         return first  # nothing to restart: the calibration run's outcome is the case's
-    over = overrides_for(exp, method, overlay, split.held_out(key.case_id), variant)  # only the file differs
+    over = overrides_for(exp, method, overlay, split.held_out(key.case_id), variant, seed)  # only the file
     extra = {"from_step": calibrated.RESTART_STEP, "reuse_dir": str(first.run_dir)}
-    done = _execute(key, method, over, root, exp.resources.timeout_s, extra)
+    ai = ai_arms.AiRun(first.ai_mode, root, first.cassette_dir)  # no model call after relentra
+    done = _execute(key, method, over, root, exp.resources.timeout_s, extra, ai)
     peaks = [p for p in (first.peak_rss_mb, done.peak_rss_mb) if p is not None]
     outcome = run_outcome(done.outcome, done.wall_ms, exp.resources.timeout_s)  # the first was ok
     total = first.wall_ms + done.wall_ms
@@ -378,6 +413,7 @@ def _record(
     done: Executed,
     fold: str | None = None,
     variant: str | None = None,
+    seed: int | None = None,
 ) -> tuple[dict[str, object], CaseScore, dict[str, object]]:
     """Score one executed run: (per_case row, score, manifest run entry). n_i (its `services`) and
     the input hashes come from the run's case_manifest (Infralume, step 0): the case's own, the
@@ -407,7 +443,11 @@ def _record(
     truth = Truth(None) if window else Truth.from_answer_key(key)
     score = score_case(truth, out, universe=universe)
     decoy = decoy_runs.decoy_columns(key, score.ranks)
-    score = replace(score, wall_ms=wall_ms, peak_rss_mb=peak, **decoy)  # cost, decoy; no tokens (AI off)
+    tokens_in, tokens_out = ai_arms.tokens(done.run_dir) if method.ai.mode != "off" else (None, None)
+    cost = {"wall_ms": wall_ms, "peak_rss_mb": peak, "tokens_in": tokens_in, "tokens_out": tokens_out}
+    if done.ai_mode == ai_arms.REPLAY:  # a replay has no model time: its cost would mislead (#406 review)
+        cost = dict.fromkeys(cost)
+    score = replace(score, **cost, **decoy)  # cost (tokens: the proposals' budget, 03 §9.1) and decoys
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
     # Every column starts null; the ones v0 leaves null are listed in run_experiment's docstring.
@@ -417,7 +457,8 @@ def _record(
         "dataset": key.dataset,
         "system": key.system,
         "method": method.id,
-        "ai_mode": method.ai.mode,
+        "ai_mode": done.ai_mode,
+        "seed": seed,
         "variant": variant,
         "fold": fold,
         "protocol": p.alert,
@@ -426,8 +467,7 @@ def _record(
         "sources_dropped": sorted(p.sources_drop),
         "status": verdict.status if verdict is not None else None,
         "verdict_hash": verdict.verdict_hash if verdict is not None else None,
-        "wall_ms": wall_ms,
-        "peak_rss_mb": peak,
+        **cost,
         **score.columns(),
         **decoy,
     }
@@ -464,22 +504,30 @@ def _run_method(
             {"to_step": INPUT_STEP, "baseline": method.id},
         )
     out: list[Scored] = []
-    units = [(k, None) for k in cases] + [(k, normal_windows.VARIANT) for k in windows or []]
-    for key, variant in units:
+    for key, variant, seed in _units(method, cases, windows or []):
         keys = calibrated.first_run(split, key.case_id)
-        reuse = (
-            _reused(exp, method, key, root, overlays.get(key.case_id), keys, sources)
-            if variant is None
-            else None
+        plain = variant is None and seed is None  # the run a causatrix:<ranker> reuses or is (#413)
+        reuse = _reused(exp, method, key, root, overlays.get(key.case_id), keys, sources) if plain else None
+        done = reuse or _timed(
+            exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed
         )
-        done = reuse or _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant)
-        if sources is not None and variant is None and method.kind == upstream.SOURCE_KIND:
+        if sources is not None and plain and method.kind == upstream.SOURCE_KIND and method.ai.mode == "off":
             sources[(method.id, key.case_id)] = done
         if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
-        out.append(_record(exp, method, key, done, _fold(split, key.case_id), variant))
+        out.append(_record(exp, method, key, done, _fold(split, key.case_id), variant, seed))
     return out
+
+
+type Unit = tuple[AnswerKeyRow, str | None, int | None]  # (case, variant, seed): one run of a method
+
+
+def _units(method: MethodSpec, cases: list[AnswerKeyRow], windows: list[AnswerKeyRow]) -> list[Unit]:
+    """A method's runs of one dataset: each case, then each normal window, once per seed."""
+    seeds = ai_arms.seeds_of(method)
+    units: list[Unit] = [(k, None, s) for k in cases for s in seeds]
+    return units + [(k, normal_windows.VARIANT, s) for k in windows for s in seeds]
 
 
 def _reused(
@@ -590,17 +638,26 @@ def _fit(
     exp: Experiment,
     split: calibrated.Split,
     method: MethodSpec,
-    ran: list[tuple[AnswerKeyRow, str | None, Executed]],
+    ran: list[tuple[Unit, Executed]],
     commit: str,
 ) -> None:
-    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8)."""
-    cfg = resolve_config(overrides_for(exp, method), dataset=ran[0][0].dataset, ai_mode=method.ai.mode)
+    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8). An AI
+    arm is fitted on its first listed seed only (n = cases, m = windows) and the file serves every
+    seed, whose rows are exchangeable with it marginally (ADR 20261121-ak-calibration-fit-conventions)."""
+    cfg = resolve_config(overrides_for(exp, method), dataset=ran[0][0][0].dataset, ai_mode=method.ai.mode)
     arm = calibrated.arm(method, cfg)
     default_tau = float(cast("dict[str, Any]", cfg.engine("causentra"))["no_fault"]["default_tau"])
     for fold in sorted(split.plan.fits):  # a window follows its case's fold (04 §5.4 item 1)
-        members = [(k, v, d) for k, v, d in ran if k.case_id in split.plan.fits[fold]]
+        designated = ai_arms.seeds_of(method)[0]  # None for a deterministic method
+        members = [
+            (k, v, s, d) for (k, v, s), d in ran if k.case_id in split.plan.fits[fold] and s == designated
+        ]
         timeout_s = exp.resources.timeout_s
-        fitted = [(r, d) for k, v, d in members if (r := _calibration_run(k, v, d, timeout_s)) is not None]
+        fitted = [
+            (replace(r, seed=s), d)  # the designated seed's runs only
+            for k, v, s, d in members
+            if (r := _calibration_run(k, v, d, timeout_s)) is not None
+        ]
         runs = [r for r, _ in fitted]
         manifests = [_read_manifest(d.run_dir) for _, d in fitted]  # dropped windows are not in the fit
         content = calibration.fit(
@@ -743,6 +800,8 @@ def run_experiment(
     `fold` its test fold; a fitting experiment writes `config/calibration/` before its held-out runs
     and logs held-out coverage and NO_FAULT false-alarm rates per fold (`bench.held_out`).
 
+    An AI arm runs once per seed (`seed`, `tokens_in/out`, `ai_mode` record or replay; `ai_arms`).
+
     per_case.csv columns v0 leaves null: seed and variant (no AI arms, no perturbed variants),
     fold (split none), decoy_present and decoy_ranked_first (no protocol.decoys), peak_rss_mb of a
     run killed at the timeout (never reported) and tokens_in/out (AI off); onset_error_ms is filled
@@ -769,6 +828,7 @@ def run_experiment(
             Truth.from_answer_key(keys[d][c])  # refuse a fault row without a root before any run
     check_rankers(exp)
     normal_windows.check(exp)
+    ai_arms.check(exp)
     split = _split(exp, keys, selected, repo)
     for dataset in selected:  # every file a held-out run needs exists before the first case
         for method in exp.methods:
@@ -792,7 +852,7 @@ def run_experiment(
     cases_scored: list[Case] = []
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
-    first: dict[str, list[tuple[AnswerKeyRow, str | None, Executed]]] = {}  # a fitting method's runs
+    first: dict[str, list[tuple[Unit, Executed]]] = {}  # a fitting method's calibration runs
     sources: dict[tuple[str, str], Executed] = {}  # (method, case): runs causatrix:<ranker> reuses (#413)
 
     def keep(scored: Scored, listed: bool = True) -> None:
@@ -804,7 +864,8 @@ def run_experiment(
         groups.setdefault((dataset, k_sys, method_id), []).append(score)
         k = keys[dataset][str(row["case_id"])]
         cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
-        cases_scored.append(Case(k.case_id, dataset, k_sys, method_id, cluster, score))
+        seed = row["seed"] if isinstance(row["seed"], int) else None  # seeded arms pair on case means
+        cases_scored.append(Case(k.case_id, dataset, k_sys, method_id, cluster, score, seed))
 
     for dataset, (cases, _) in selected.items():
         for method in exp.methods:
@@ -817,12 +878,14 @@ def run_experiment(
             verdicts = method.kind == calibrated.CALIBRATED_KIND
             windows = normal_windows.windows_of(exp, rows_keys) if verdicts else []
             if split is not None and split.fit and verdicts:
-                units = [(k, None) for k in rows_keys] + [(k, normal_windows.VARIANT) for k in windows]
                 uncal = calibrated.UNCALIBRATED
-                for k, v in units:
-                    done = _timed(exp, method, k, bench_runs, timed, None, overlays.get(k.case_id), uncal, v)
-                    first.setdefault(method.id, []).append((k, v, done))
-                    if v is None and method.ai.mode == "off":
+                for unit in _units(method, rows_keys, windows):
+                    k, v, s = unit
+                    done = _timed(
+                        exp, method, k, bench_runs, timed, None, overlays.get(k.case_id), uncal, v, s
+                    )
+                    first.setdefault(method.id, []).append((unit, done))
+                    if v is None and s is None and method.ai.mode == "off":
                         sources[(method.id, k.case_id)] = done  # what causatrix:<ranker> reuses (#413)
                 continue
             ran = _run_method(
@@ -834,18 +897,19 @@ def run_experiment(
         if split is None or method.id not in first:
             continue
         outside_keys = list(split.fit_keys.values())  # transfer: its source parts, with their windows
-        outside_units = [(k, None) for k in outside_keys]
-        outside_units += [(k, normal_windows.VARIANT) for k in normal_windows.pre_injection(outside_keys)]
-        outside = [(k, v, _timed(exp, method, k, bench_runs, timed, variant=v)) for k, v in outside_units]
-        runs.extend(_run_entry(method, k, d) for k, _, d in [*first[method.id], *outside])
+        outside: list[tuple[Unit, Executed]] = []
+        for unit in _units(method, outside_keys, normal_windows.pre_injection(outside_keys)):
+            k, v, s = unit
+            outside.append((unit, _timed(exp, method, k, bench_runs, timed, variant=v, seed=s)))
+        runs.extend(_run_entry(method, k, d) for (k, _, _), d in [*first[method.id], *outside])
         _fit(exp, split, method, [*first[method.id], *outside], str(code["commit"]))
-        for key, variant, done in first[method.id]:
+        for (key, variant, seed), done in first[method.id]:
             if variant == normal_windows.VARIANT and normal_windows.dropped(done.run_dir, done.reason):
                 continue  # dropped (04 §5.4 item 6); its calibration run is in the manifest
-            held_out = _restart(exp, method, key, done, split, bench_runs, overlays.get(key.case_id), variant)
-            keep(
-                _record(exp, method, key, held_out, _fold(split, key.case_id), variant), held_out is not done
-            )
+            overlay = overlays.get(key.case_id)
+            held_out = _restart(exp, method, key, done, split, bench_runs, overlay, variant, seed)
+            row = _record(exp, method, key, held_out, _fold(split, key.case_id), variant, seed)
+            keep(row, held_out is not done)
     if split is not None:
         verdicts = {m.id for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND}  # sets and statuses
         for rates in calibration.held_out_rates(r for r in rows if r["method"] in verdicts):  # #37, per fold

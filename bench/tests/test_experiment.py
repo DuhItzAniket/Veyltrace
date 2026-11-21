@@ -76,13 +76,15 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
         BASE.replace("[mrr]", "[mrr, coverage, cost]")
         + "split: {scheme: crossfit2}\ncalibration: {fit: true}\nprotocol: {decoys: {pi: 0.5}}\n"
         + "resources: {workers: 2}\n"
-        + "methods: [{id: b, kind: agent_only}, {id: v, kind: veyltrace, ai: {mode: record, seeds: [1]}}]\n",
+        + "methods: [{id: b, kind: agent_only}, {id: v, kind: veyltrace,"
+        + " ai: {mode: record, relentra_mode: brief, seeds: [1]}}, {id: 'causatrix:rrf', kind: causatrix,"
+        + " ai: {mode: record, relentra_mode: brief, seeds: [1]}}]\n",
     )
     todo = " | ".join(unsupported(exp))
     for task in (
         "workers",
         "agent_only",
-        "AI arms",
+        "causatrix:rrf: AI arms run as kind veyltrace",  # a veyltrace AI arm runs since #397
     ):
         assert task in todo
     assert len(unsupported(exp)) == 3 and "metrics" not in todo  # cost (#316), coverage (#405): computed
