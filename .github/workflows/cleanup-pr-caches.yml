@@ -1,0 +1,43 @@
+# Delete a pull request's GitHub Actions caches when it closes (#422; lead decision on #45, comment
+# 7064502178). A PR's runs write caches under its merge ref `refs/pull/<number>/merge`, which no
+# later run can restore once the PR is closed. Left alone, they count against the repository's
+# 10 GB cache limit until GitHub evicts them; on 21 Nov 2026 the repo stood at 10.8 GB, and 70 stale
+# caches (8.4 GB) of closed PRs were deleted by hand. This is GitHub's documented "force deleting
+# cache entries" pattern: list the caches of the ref, delete each by id.
+#
+# No checkout and no code from the PR run here; the PR number reaches the shell only through
+# `env:` (see ci.yml on script injection). A cache that is already gone (evicted, or deleted by a
+# concurrent run) is not an error.
+
+name: Cleanup PR caches
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write  # delete caches
+  contents: read
+
+jobs:
+  cleanup:
+    name: cleanup-pr-caches
+    runs-on: ubuntu-24.04  # pinned like ci.yml
+    timeout-minutes: 5
+    steps:
+      - name: Delete the caches of refs/pull/<number>/merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ref="refs/pull/${PR_NUMBER}/merge"
+          ids=$(gh cache list --ref "$ref" --limit 1000 --json id --jq '.[].id')
+          if [ -z "$ids" ]; then
+            echo "no caches for $ref"
+            exit 0
+          fi
+          for id in $ids; do
+            gh cache delete "$id" || echo "cache $id already gone"
+          done
+          echo "deleted the caches of $ref"
