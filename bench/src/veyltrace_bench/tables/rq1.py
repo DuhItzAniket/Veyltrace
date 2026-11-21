@@ -42,6 +42,7 @@ METRICS: tuple[Metric, ...] = (
     ("Lift@1", "lift", "lift_at_1"), ("AC@1 − Chance@1", "lift", "chance_diff_at_1"),
 )  # fmt: skip
 OUTCOMES = ("ok", "failed", "timeout", "no_alert", "rejected")  # 03 §13.2 run_outcome order
+AC_KEYS = frozenset(f"ac_at_{k}" for k in range(1, 6))  # the keys the chance floor has a counterpart for
 PER_SEED = "Per-seed AC@1 (mean ± SD)"
 NO_PER_SEED = "bench_summary 1.1 has no per-seed groups"
 KIND_ORDER = ("rcaeval", "internal_baseline", "causatrix", "agent_only", "veyltrace")  # floors first
@@ -123,7 +124,7 @@ def chance_line(ctx: Context, eid: str, part: str, metrics: Sequence[Metric], pe
     sys = res.system_of(part)
     values = [
         res.metric(part, sys, method, "chance", key.replace("ac_", "chance_"))
-        if key.startswith("ac_at_") else n_a("the chance floor is defined for AC@k only (04 §7)")
+        if key in AC_KEYS else n_a("the chance floor is defined for AC@k only (04 §7)")
         for _, _, key in metrics
     ]  # fmt: skip
     rest = [n_a("chance is computed, not run")] * (1 if per_seed else 0)

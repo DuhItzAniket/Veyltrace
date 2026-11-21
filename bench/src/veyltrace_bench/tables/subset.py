@@ -23,7 +23,7 @@ import pyarrow as pa
 from veyltrace_bench.metrics import HIT_COLUMN_KS, OK, RUN_OUTCOMES, CaseScore
 from veyltrace_bench.summary import METRIC_KEYS, summarize
 from veyltrace_bench.tables.results import PER_CASE, Results
-from veyltrace_contracts.models import SummaryGroup
+from veyltrace_contracts.models import SummaryGroup, SummaryGroupMetrics
 from veyltrace_core import io, textio
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.yaml12 import load_yaml_bytes
@@ -85,9 +85,9 @@ def on_subset(
         flat = summarize(scores, LISTED)
         counted = flat.pop("outcomes")
         assert isinstance(counted, dict)
-        entries = {
-            name: {k: flat.pop(k) for k in keys} if name in LISTED else None
-            for name, keys in METRIC_KEYS.items()
+        entries = {  # every entry of the contract's group (null unless listed), as bench writes a group
+            name: {k: flat.pop(k) for k in METRIC_KEYS[name]} if name in LISTED else None
+            for name in SummaryGroupMetrics.model_fields
         }
         outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
         group = {
