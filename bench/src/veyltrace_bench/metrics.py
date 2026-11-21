@@ -102,6 +102,8 @@ class MethodOutput:
     root_mode: str | None = None
     slate_k: int | None = None
     t_onset_ns: int | None = None  # onsets.t_onset_ns, set by the runner only under the detected protocol
+    margin: float | None = None  # verdict.confidence.margin (09 §3.9), for risk-coverage (#405)
+    leader_fused_score: float | None = None  # fused_score of verdict.ranked's rank-1 entry (09 §3.6)
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +135,19 @@ class CaseScore:
     # per_case.csv decoy columns (decoy_runs.decoy_columns), set by the runner (#357).
     decoy_present: bool | None = None
     decoy_ranked_first: bool | None = None
+    # The verdict channel and confidence (#405): has_verdict = the method has a verdict, even when
+    # this run wrote none (a miss); they feed only the status and risk-coverage entries.
+    has_verdict: bool = False
+    margin: float | None = None
+    leader_fused_score: float | None = None
+    # The row's key, fold and verdict columns (03 §13.2), set from per_case rows by summary.with_rows;
+    # they feed only the calibration and proposal entries (bench_summary 1.2, #404).
+    case_id: str | None = None
+    seed: int | None = None
+    variant: str | None = None
+    fold: str | None = None
+    status: str | None = None
+    verdict_hash: str | None = None
 
     def hit_at(self, k: int) -> bool | None:
         """1[r_i ∈ R_i[:k]]; None without a truth."""
@@ -196,4 +211,7 @@ def score_case(truth: Truth, out: MethodOutput, *, universe: Sequence[str] | Non
         in_universe=_member(universe, root),
         slate_k=out.slate_k,
         onset_error_ms=_onset_error_ms(out.t_onset_ns, truth.t_inject_ns) if ran else None,
+        has_verdict=out.has_verdict,
+        margin=out.margin if ran else None,
+        leader_fused_score=out.leader_fused_score if ran else None,
     )
