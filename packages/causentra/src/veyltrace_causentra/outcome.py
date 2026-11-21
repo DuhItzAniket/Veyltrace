@@ -56,11 +56,16 @@ def no_fault_statistic(inp: CausentraInputs) -> float | None:
     return math.log1p(max([*entry, *(inp.ev.of(s).internal for s in services)], default=0.0))
 
 
+def silent_service(inp: CausentraInputs) -> bool:
+    """09 §3.8: some service of U is silent (Sil = 1), which rules NO_FAULT out whatever M is."""
+    return any(inp.ev.of(s).silent == 1.0 for s in inp.ev.universe)
+
+
 def no_fault(inp: CausentraInputs) -> bool:
     """09 §3.8: no silent service and M ≤ τ_nf. A case with no robust_z anomaly atom is never
     NO_FAULT (missing telemetry is not health, 02 §9)."""
     stat = no_fault_statistic(inp)
-    if stat is None or any(inp.ev.of(s).silent == 1.0 for s in inp.ev.universe):
+    if stat is None or silent_service(inp):
         return False
     return round(stat, DECIMALS) <= round(inp.tau_nf, DECIMALS)
 
