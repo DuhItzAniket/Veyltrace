@@ -56,6 +56,8 @@ def test_permutations_are_rows_without_runs(tmp_path: Path, monkeypatch: pytest.
     relentra = config / "relentra.yaml"  # Relentra's seed key (#354), as in test_ai_arms
     if b"seed_index" not in relentra.read_bytes():  # once #354 is on main the key exists: keep it
         relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
+    llm = config / "llm.yaml"  # FakeProvider: no model server in tests (08 §7)
+    llm.write_bytes(llm.read_bytes().replace(b"provider: ollama", b"provider: fake"))
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     monkeypatch.setattr(runner, "IN_PROCESS", True)
     assert cli.main(["data", "fetch", "synth"]) == 0
