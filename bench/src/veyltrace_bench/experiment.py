@@ -18,7 +18,7 @@ from typing import Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from veyltrace_bench.summary import METRIC_KEYS
-from veyltrace_contracts.models import AiMode, Source
+from veyltrace_contracts.models import AiMode, Proposal, Source
 from veyltrace_core import textio, yaml12
 from veyltrace_core.adapters import adapter_for
 from veyltrace_core.config import data_root
@@ -47,6 +47,8 @@ RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method 
 CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
 #: internal_baseline ids v0 runs (04 §4); `chance` is the `chance` metric of every group (04 §7).
 INTERNAL_BASELINES = frozenset({"simplerca", "naive-change"})
+#: Whether the proposals contract has `rank` (proposals 1.1, CCR #409), which agent_only ranks by.
+RANK_FIELD = "rank" in Proposal.model_fields
 FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
@@ -278,6 +280,8 @@ def unsupported(exp: Experiment) -> list[str]:
     todo = [what for bad, what in checks if bad]
     todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
     for m in exp.methods:
+        if m.kind == "agent_only" and not RANK_FIELD:  # every case would be a silent miss (#407 review)
+            todo.append(f"methods {m.id}: kind agent_only needs proposals 1.1 rank (#409)")
         if m.kind == "internal_baseline" and m.id == "chance":
             todo.append("methods chance: chance is analytic; list the `chance` metric instead (04 §7)")
         elif m.kind == "internal_baseline" and m.id not in INTERNAL_BASELINES:

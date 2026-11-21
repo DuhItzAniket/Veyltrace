@@ -14,7 +14,7 @@ from pathlib import Path
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import runner, upstream
+from veyltrace_bench import answer_keys, runner, upstream
 from veyltrace_bench.experiment import load_experiment
 from veyltrace_core import cli, io, textio
 from veyltrace_core.config import CONFIG_DIR_ENV, resolve_config
@@ -33,7 +33,7 @@ dataset: {{parts: [synth], cases: all, exclude: null, normal_windows: none}}
 protocol: {{alert: oracle, shift_s: 0, sources_drop: []}}
 methods:
   - {{id: "veyltrace:off", kind: veyltrace, ai: {{mode: "off"}}, overrides: {{}}}}
-{METHODS}metrics: [ac_at_k]
+{METHODS}metrics: [ac_at_k, cost]
 """
 
 
@@ -69,6 +69,10 @@ def test_reused_slates_are_byte_identical_to_full_runs(
     tmp_path: Path, synth: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rows, slates = _run(tmp_path, synth, "reuse")
+    summary = json.loads(textio.read_text(tmp_path / "reuse" / "synth-reuse" / "summary.json"))
+    cost = {g["method"]: g["metrics"]["cost"] for g in summary["groups"]}
+    assert cost["veyltrace:off"] is not None  # RQ5 cost comes only from veyltrace:off (#413 review)
+    assert all(v is None for m, v in cost.items() if m.startswith("causatrix:"))
     partial = sorted(p.name for p in (tmp_path / "runs-reuse").rglob("*~causatrix"))
     assert len(partial) == 5 * len(RANKERS)  # every causatrix:<ranker> case ran Causatrix alone
     monkeypatch.setattr(upstream, "applies", lambda _m: False)  # the same experiment, every run full
@@ -87,10 +91,8 @@ def test_a_source_that_differs_upstream_is_not_reused(tmp_path: Path, synth: Pat
     over = runner.overrides_for(exp, method)
     lock = resolve_config(over, dataset="synth", ai_mode="off").lock_bytes()
     assert upstream.mismatch(s.run_dir, lock) is None  # off's run serves causatrix:baro_rs
-    other = resolve_config(
-        over | {"faultloom.cards.max_tokens": 1499}, dataset="synth", ai_mode="off"
-    ).lock_bytes()
-    assert upstream.mismatch(s.run_dir, other) == "config sections ['faultloom'] differ"
+    other = resolve_config(over | {"causalith.ci.ridge": 0.002}, dataset="synth", ai_mode="off").lock_bytes()
+    assert upstream.mismatch(s.run_dir, other) == "config sections ['causalith'] differ"
     anomalies = s.run_dir / "anomalies.parquet"
     anomalies.write_bytes(anomalies.read_bytes() + b"\0")  # a reused output edited after the run
     assert upstream.mismatch(s.run_dir, lock) == "anomalies.parquet no longer holds anomara's output"
@@ -104,3 +106,20 @@ def test_a_mismatch_falls_back_to_a_full_run(
     monkeypatch.setattr(upstream, "mismatch", lambda *_a: "forced for the test")
     _run(tmp_path, synth, "fallback")
     assert not list((tmp_path / "runs-fallback").rglob("*~causatrix"))  # every method ran in full
+
+
+def test_a_reused_run_gets_what_is_left_of_the_timeout(
+    tmp_path: Path, synth: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A full causatrix:<ranker> run would include the source's steps, so the reused Causatrix step is
+    a timeout once the source's time plus its own passes timeout_s (#413 review)."""
+    exp = load_experiment(synth)
+    method, key = exp.methods[1], next(iter(answer_keys.load_answer_keys("synth").values()))
+    source = runner.Executed("ok", "0" * 16, tmp_path, False, 599_000.0, 1.0)
+    sources = {(exp.methods[0].id, key.case_id): source}
+    monkeypatch.setattr(upstream, "mismatch", lambda *_a: None)
+    for own_ms, want in ((500.0, "ok"), (2_000.0, "timeout")):
+        fake = runner.Executed("ok", "1" * 16, tmp_path, False, own_ms, 1.0)
+        monkeypatch.setattr(runner, "_execute", lambda *_a, fake=fake, **_k: fake)
+        got = runner._reused(exp, method, key, tmp_path, None, {}, sources)
+        assert got is not None and (got.outcome, got.judged) == (want, True)

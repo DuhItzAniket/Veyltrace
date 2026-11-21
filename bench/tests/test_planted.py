@@ -5,13 +5,14 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pyarrow as pa
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_bench import planted, runner
+from veyltrace_bench import experiment, planted, runner
 from veyltrace_bench.experiment import ProposalDraw
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
@@ -44,7 +45,7 @@ def test_decoys_are_healthy_seeded_and_capped(root: str | None, n: int, seed: in
 def test_planted_proposals_pass_the_contract_writer() -> None:
     example = json.loads(textio.read_text(REPO / "contracts" / "examples" / "proposals.example.json"))
     recorded = models.Proposals.model_validate(example)
-    got = planted.planted(recorded, SERVICES, "checkout", ProposalDraw(n=2, seed=4))
+    got = planted.planted(recorded, SERVICES, "checkout", ProposalDraw(n=2, seed=4), ["frontend", "cart"])
     io.prepare("proposals", got)  # schema, model and x-sort order (03 §9.1)
     assert (got["mode"], got["model"], len(got["proposals"])) == (
         "external",
@@ -54,6 +55,12 @@ def test_planted_proposals_pass_the_contract_writer() -> None:
     mine = [p for p in got["proposals"] if p["rationale"] == planted.RATIONALE]
     assert all(p["hypothesis"]["service"] != "checkout" for p in mine)
     assert [c["predicate"] for c in mine[0]["claims"]] == ["onset_before", "zscore_above"]
+    for (
+        p
+    ) in mine:  # the onset claim names the slate's top-1 (the next one for the top-1 itself), never the root
+        want = "cart" if p["hypothesis"]["service"] == "frontend" else "frontend"
+        assert p["claims"][0]["args"] == {"other_service": want}
+    assert got["status"] == recorded.status and got["budget_used"]["tokens_in"] == 0  # no model call
 
 
 def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
@@ -65,6 +72,7 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
     relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     monkeypatch.setattr(runner, "IN_PROCESS", True)
+    monkeypatch.setattr(experiment, "RANK_FIELD", True)  # agent_only runs once proposals 1.1 (#409) lands
     assert cli.main(["data", "fetch", "synth"]) == 0
     exp = tmp_path / "exp.yaml"
     textio.write_bytes(exp, PLANTED.encode())
@@ -96,3 +104,20 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
         all(r["verdict_hash"] for r in planted_rows)
         and sum(r["hit_at_1"] is not None for r in planted_rows) == 4
     )
+    summary = json.loads(textio.read_text(out / "summary.json"))
+    # H2b: the summary holds only the planted rows, one per (case, seed) (#408 review)
+    assert {g["method"]: (g["n_fault"], g["n_rows"]) for g in summary["groups"]} == {
+        "agent-only:brief": (4, 5), "veyltrace:brief": (4, 5),
+    }  # fmt: skip
+
+
+def test_a_planted_proposal_is_rank_1_once_proposals_carry_ranks(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Worst case (ADR 20261121-ak-rq2-arms-conventions): the adversary's proposal comes first; the
+    recorded ones follow in their own order (here they have none, as 1.0 files)."""
+    monkeypatch.setattr(planted, "Proposal", SimpleNamespace(model_fields={"rank": None}))
+    example = json.loads(textio.read_text(REPO / "contracts" / "examples" / "proposals.example.json"))
+    got = planted.planted(
+        models.Proposals.model_validate(example), SERVICES, "checkout", ProposalDraw(n=1, seed=4)
+    )
+    ranks = {p["rationale"] == planted.RATIONALE: p["rank"] for p in got["proposals"]}
+    assert ranks == {True: 1, False: None}

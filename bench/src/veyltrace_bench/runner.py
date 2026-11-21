@@ -24,6 +24,7 @@ every method's run of it names.
 from __future__ import annotations
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -421,8 +422,10 @@ def _plant(
     case = _read("case_manifest", source.run_dir, CaseManifest)
     if draw is None or recorded is None or case is None or source.run_dir is None:
         return source if not ok else replace(source, outcome="failed")
-    root_service = None if key.is_no_fault else key.root_service
-    proposals = planted.planted(recorded, case.services, root_service, draw)
+    root_service = None if key.is_no_fault else key.root_service  # to pick healthy decoys only
+    slate = _read("slate", source.run_dir, Slate)
+    order = [r.partition("_")[0] for r in slate_ranks(slate)] if slate is not None else []
+    proposals = planted.planted(recorded, case.services, root_service, draw, order)
     over = overrides_for(exp, method, overlay, calibrated.first_run(split, key.case_id), None, seed)
     extra = {
         "from_step": planted.RESTART_STEP,
@@ -488,6 +491,8 @@ def _record(
     decoy = decoy_runs.decoy_columns(key, score.ranks)
     tokens_in, tokens_out = ai_arms.tokens(done.run_dir) if method.ai.mode != "off" else (None, None)
     cost = {"wall_ms": wall_ms, "peak_rss_mb": peak, "tokens_in": tokens_in, "tokens_out": tokens_out}
+    if done.ai_mode == ai_arms.REPLAY:  # a replay has no model time: its cost would mislead (#406 review)
+        cost = dict.fromkeys(cost)
     score = replace(score, **cost, **decoy)  # cost (tokens: the proposals' budget, 03 §9.1) and decoys
     _log.info("bench.case", case_id=key.case_id, method=method.id, outcome=outcome, unranked=score.unranked)
     p = exp.protocol
@@ -595,8 +600,8 @@ def _reused(
     calibration_keys: Mapping[str, object],
     sources: dict[tuple[str, str], Executed] | None,
 ) -> Executed | None:
-    """A causatrix:<ranker> run of one case that reuses its source's steps up to FaultLoom and runs
-    Causatrix alone (`upstream`); None when it does not apply, or the source cannot serve it."""
+    """A causatrix:<ranker> run of one case that reuses its source's steps up to Causalith and runs
+    FaultLoom and Causatrix (`upstream`); None when it does not apply, or the source cannot serve it."""
     if sources is None or not upstream.applies(method) or (source := upstream.source_of(exp, method)) is None:
         return None
     src = sources.get((source.id, key.case_id))
@@ -619,8 +624,13 @@ def _reused(
         _log.info("bench.upstream_reuse", case_id=key.case_id, method=method.id, reused=False, why=why)
         return None
     _log.info("bench.upstream_reuse", case_id=key.case_id, method=method.id, reused=True, source=src.run_id)
-    extra = {"from_step": upstream.START, "reuse_dir": str(src.run_dir), "to_step": upstream.START}
-    return _execute(key, method, over, root, exp.resources.timeout_s, extra)
+    extra = {"from_step": upstream.START, "reuse_dir": str(src.run_dir), "to_step": upstream.STOP}
+    # The run a full method would make includes the source's steps, so the timeout is what is left of
+    # timeout_s after them (results unchanged by construction, ADR slate-method-upstream-reuse).
+    left_ms = exp.resources.timeout_s * MS_PER_S - src.wall_ms
+    done = _execute(key, method, over, root, max(1, math.ceil(left_ms / MS_PER_S)), extra)
+    outcome = "timeout" if done.outcome == "timeout" or done.wall_ms > left_ms else done.outcome
+    return replace(done, outcome=outcome, judged=True)
 
 
 def _fold(split: calibrated.Split | None, case: str) -> str | None:
@@ -692,16 +702,20 @@ def _fit(
     ran: list[tuple[Unit, Executed]],
     commit: str,
 ) -> None:
-    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8); an
-    AI arm's seeds are pooled: one file per arm and alert protocol, the same for every seed."""
+    """Fit and write one file per fold part of the split for one method (04 §5.4; 09 §3.7-3.8). An AI
+    arm is fitted on its first listed seed only (n = cases, m = windows) and the file serves every
+    seed, whose rows are exchangeable with it marginally (ADR 20261121-ak-calibration-fit-conventions)."""
     cfg = resolve_config(overrides_for(exp, method), dataset=ran[0][0][0].dataset, ai_mode=method.ai.mode)
     arm = calibrated.arm(method, cfg)
     default_tau = float(cast("dict[str, Any]", cfg.engine("causentra"))["no_fault"]["default_tau"])
     for fold in sorted(split.plan.fits):  # a window follows its case's fold (04 §5.4 item 1)
-        members = [(k, v, s, d) for (k, v, s), d in ran if k.case_id in split.plan.fits[fold]]  # seeds pooled
+        designated = ai_arms.seeds_of(method)[0]  # None for a deterministic method
+        members = [
+            (k, v, s, d) for (k, v, s), d in ran if k.case_id in split.plan.fits[fold] and s == designated
+        ]
         timeout_s = exp.resources.timeout_s
         fitted = [
-            (replace(r, seed=s), d)  # seeds pool into one fit (n = cases x seeds)
+            (replace(r, seed=s), d)  # the designated seed's runs only
             for k, v, s, d in members
             if (r := _calibration_run(k, v, d, timeout_s)) is not None
         ]
@@ -805,15 +819,21 @@ def _prepare_decoys(
     return overlays
 
 
-def _group(key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...]) -> dict[str, object]:
+def _group(
+    key: tuple[str, str, str], scores: list[CaseScore], metrics: tuple[str, ...], no_cost: bool = False
+) -> dict[str, object]:
     """One bench_summary group (03 §13.3): its counts, every run_outcome counted (0 when none), and
-    one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9)."""
+    one `metrics` entry per METRIC_KEYS name, null when the experiment does not list it (04 §9).
+    `no_cost` nulls the cost entry of a group whose wall times are not end to end (slate-scored
+    methods, whose rows may reuse veyltrace:off's run; RQ5 comes only from veyltrace:off, #413)."""
     flat = summarize(scores, metrics)
     counted = cast("dict[str, int]", flat.pop("outcomes"))
     entries = {
         name: {k: flat.pop(k) for k in keys} if name in metrics else None
         for name, keys in METRIC_KEYS.items()
     } | dict.fromkeys(UNCOMPUTED_ENTRIES)
+    if no_cost:
+        entries["cost"] = None
     dataset, system, method = key
     outcomes = {o: counted.get(o, 0) for o in sorted(RUN_OUTCOMES)}
     return {
@@ -897,12 +917,18 @@ def run_experiment(
     sources: dict[tuple[str, str], Executed] = {}  # (method, case): runs causatrix:<ranker> reuses (#413)
     ai_runs: dict[tuple[str, str, int | None, str | None], Executed] = {}  # (method, case, seed, variant)
 
+    draw = exp.protocol.inject_proposals
+    plant = planted.variant(draw) if draw is not None else None
+    planted_methods = {m.id for m in exp.methods if m.ai.mode != "off"}  # the arms that get planted rows
+
     def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
         rows.append(row)
         if listed and run:  # False: already listed (a calibration run kept as the row); {}: no run
             runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
+        if plant is not None and method_id in planted_methods and row["variant"] != plant:
+            return  # H2b: the summary and statistics hold only the planted rows (#408 review)
         groups.setdefault((dataset, k_sys, method_id), []).append(score)
         k = keys[dataset][str(row["case_id"])]
         cluster = (k.system, k.root_service, k.fault_label)  # 04 §8 clusters
@@ -935,10 +961,22 @@ def run_experiment(
             if method.kind == agent_only.KIND:  # no run of its own: its source's, per case and seed
                 source = agent_only.source_of(exp, method)
                 draw = exp.protocol.inject_proposals
+                fallback: dict[str, int] = {}  # system -> rows with no hypotheses: the slate ranking
                 for k, _, s in _units(method, rows_keys, []):
                     for v in (None, planted.variant(draw)) if draw is not None else (None,):
                         shared = ai_runs[(source.id, k.case_id, s, v)]
+                        proposals = _read("proposals", shared.run_dir, Proposals)
+                        if proposals is None or not proposals.proposals:
+                            fallback[str(k.system)] = fallback.get(str(k.system), 0) + 1
                         keep(_record(exp, method, k, shared, _fold(split, k.case_id), v, s))
+                for system, n in sorted(fallback.items()):  # 04 §4: no hypotheses -> the slate order
+                    _log.info(
+                        "bench.agent_only_slate_fallback",
+                        dataset=dataset,
+                        system=system,
+                        method=method.id,
+                        rows=n,
+                    )
                 continue
             ran = _run_method(
                 exp,
@@ -979,11 +1017,13 @@ def run_experiment(
             _log.info(
                 "bench.held_out", **rates, alpha=exp.calibration.alpha, beta=exp.calibration.no_fault_beta
             )
+    slate_scored = {m.id for m in exp.methods if m.kind == upstream.KIND}
     summary: dict[str, object] = {
         "producer": PRODUCER,
         "experiment_id": exp.experiment_id,
         "groups": [
-            _group(k, scores, exp.metrics) for k, scores in sorted(groups.items(), key=lambda item: item[0])
+            _group(k, scores, exp.metrics, k[2] in slate_scored)
+            for k, scores in sorted(groups.items(), key=lambda item: item[0])
         ],
         "excluded": {d: excluded for d, (_, excluded) in selected.items()},
         "statistics": statistics(exp, cases_scored),  # 04 §8 (#357)
