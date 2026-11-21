@@ -89,3 +89,7 @@ def test_fig7_takes_the_brief_0_s_point_from_the_subset(results: Path) -> None:
         "veyltrace:brief at 0 s computed from per_case.csv, 90-case subset"
         in files["figures/fig7-shift-ob.svg"].decode()
     )
+
+
+def test_heatmap_labels_round_as_the_tables() -> None:
+    assert ">0.063<" in svg.heatmap("t", ["a"], ["x"], [[0.0625]], "note")  # ROUND_HALF_UP, as cells.fixed

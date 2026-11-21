@@ -13,6 +13,8 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from xml.sax.saxutils import escape
 
+from veyltrace_bench.tables.cells import fixed
+
 WIDTH, HEIGHT = 640, 360  # px; a two-column figure at 1:1 (a priori layout)
 MARGIN = (56, 16, 56, 140)  # left, top, bottom (ticks, axis label, note), right (legend) in px (a priori)
 #: Distinguishable categorical colours, dark enough on white (a priori); series beyond 8 repeat.
@@ -104,7 +106,9 @@ def heatmap(
             t = 0.0 if v is None else min(1.0, max(0.0, v))  # colour scale clamped to [0, 1]
             fill = MISSING if v is None else f"#{255 - round(200 * t):02x}{255 - round(150 * t):02x}ff"
             body.append(_el("rect", x=x, y=y, width=w, height=h, fill=fill, stroke="#fff"))
-            body.append(_text(x + w / 2, y + h / 2 + 4, "not run" if v is None else f"{v:.3f}"))
+            body.append(
+                _text(x + w / 2, y + h / 2 + 4, "not run" if v is None else fixed(v))
+            )  # tables' rounding
     body.append(_text(left, HEIGHT - 6, note, "start", ' fill="#555"'))
     return _frame(title, body)
 

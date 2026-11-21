@@ -155,6 +155,8 @@ class Results:
         group = self.group(dataset, system, method)
         assert group is not None  # missing() returned None
         values = getattr(group.metrics, entry)
+        if values is None and self.interval_note is not None:  # recomputed from per_case.csv (H1)
+            return cells.not_run(f"per_case.csv cannot give `{entry}` (it needs the answer key or services)")
         if values is None:
             return cells.not_run(f"the experiment does not list the metric `{entry}`")
         value = getattr(values, key)

@@ -85,6 +85,16 @@ def test_without_subset_rows_the_point_is_not_run(results: Path) -> None:
     textio.write_text(path, header + "\n")
     shift = generate.outputs(results, EXPERIMENTS)["tables/t10-rq4-shift.md"].decode()
     assert "its per_case.csv has no veyltrace:brief rows for the 90-case subset's case ids and seeds" in shift
+    computed = "| 0 s | computed from per_case.csv, 90-case subset | ob |"
+    assert (
+        f"{computed} veyltrace:brief | not run<sup>" in shift and f"{computed} prior-only | n/a<sup>" in shift
+    )
+    zero = [
+        line
+        for line in shift.splitlines()
+        if line.startswith("| 0 s |") and "| ob | prior-only | 0.250" in line
+    ]
+    assert len(zero) == 1  # no second x = 0 floor block from rq2 (verification of H1)
 
 
 def test_the_rq4_grids_take_their_coordinates_and_floors_from_the_specs(files: dict[str, str]) -> None:
@@ -108,8 +118,13 @@ def test_the_rq4_grids_take_their_coordinates_and_floors_from_the_specs(files: d
     )
     assert "not applicable: different case set" in decoys  # floors of the AI cells
     assert (
-        "not run under this protocol (the experiment omits this floor)" in decoys
-    )  # no rcaeval under decoys
+        "| pi=0, rate=0/h | all | ob | rcaeval:baro | 0.375 [0.250, 0.500] |" in decoys
+    )  # decoys: rq1's floor
+    ablation = files["tables/t11-rq4-ablation.md"]
+    assert (
+        "not run under this protocol (the experiment omits this floor)" in ablation
+    )  # drop metrics: no N-Sigma
+    assert "| Lift@1 | AC@1 − Chance@1 |" in shift and "| Lift@1 | AC@1 − Chance@1 |" in decoys
     assert "drop events" in files["tables/t11-rq4-ablation.md"]
 
 

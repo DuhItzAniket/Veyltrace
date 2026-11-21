@@ -40,6 +40,7 @@ class Table:
     caption: str
     columns: tuple[str, ...]
     rows: tuple[Row, ...]
+    key: tuple[int, ...] = (0,)  # the cells naming a row across an experiment and its revision
 
     def __post_init__(self) -> None:
         if any(len(row.cells) != len(self.columns) for row in self.rows):
