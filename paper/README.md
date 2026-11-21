@@ -36,7 +36,7 @@ The lead's sections include the lane files by name and show a stub (or the lead'
 |---|---|---|
 | §3.1 Observe part of the pipeline | `sections/observe-pipeline.tex` | stub |
 | §3.4 The proposer | `sections/explain-proposer.tex` | stub |
-| §3.7 Receipts and replay | `sections/explain-receipts.tex` | stub |
+| §3.7 Receipts and replay | `sections/explain-receipts.tex` | the lead's draft, `sections/03-receipts.tex` |
 
 ## Rules for text
 
