@@ -590,8 +590,9 @@ def _fit(
     for fold in sorted(split.plan.fits):  # a window follows its case's fold (04 §5.4 item 1)
         members = [(k, v, d) for k, v, d in ran if k.case_id in split.plan.fits[fold]]
         timeout_s = exp.resources.timeout_s
-        runs = [r for k, v, d in members if (r := _calibration_run(k, v, d, timeout_s)) is not None]
-        manifests = [_read_manifest(d.run_dir) for _, _, d in members]
+        fitted = [(r, d) for k, v, d in members if (r := _calibration_run(k, v, d, timeout_s)) is not None]
+        runs = [r for r, _ in fitted]
+        manifests = [_read_manifest(d.run_dir) for _, d in fitted]  # dropped windows are not in the fit
         content = calibration.fit(
             runs,
             family=split.family,
@@ -633,19 +634,9 @@ def _split(
     calibration cases from the file's source parts, development cases excluded (04 §5.4 item 7)."""
     splits.check_split(exp.split)
     chosen = {c: keys[d][c] for d, (cases, _) in selected.items() for c in cases}
-    outside = transfer_keys(exp, repo) if exp.split.scheme == "transfer" and exp.calibration.fit else {}
+    fits_transfer = exp.split.scheme == "transfer" and exp.calibration.fit
+    outside = calibrated.transfer_keys(exp, repo) if fits_transfer else {}
     return calibrated.make_split(exp, chosen, outside)
-
-
-def transfer_keys(exp: Experiment, repo: Path) -> dict[str, AnswerKeyRow]:
-    """The calibration cases of a transfer fit: every case of the file's source parts except the
-    experiment's exclusions (04 §5.4 item 7: all RE2-OB and RE2-TT cases but the development ones)."""
-    parts = splits.TRANSFER_SOURCES[str(exp.split.calibrate_from)]
-    source = exp.model_copy(
-        update={"dataset": exp.dataset.model_copy(update={"parts": parts, "cases": "all"})}
-    )
-    source_keys = {d: load_answer_keys(d) for d in parts}
-    return {c: source_keys[d][c] for d, (cases, _) in select_cases(source, repo).items() for c in cases}
 
 
 def check_baselines(exp: Experiment, repo: Path) -> None:

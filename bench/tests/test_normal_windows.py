@@ -9,8 +9,9 @@ from pathlib import Path
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import answer_keys, calibration, normal_windows, runner, splits
+from veyltrace_bench import answer_keys, calibrated, calibration, normal_windows, runner, splits
 from veyltrace_bench.experiment import Experiment
+from veyltrace_contracts import models
 from veyltrace_contracts.models import AnswerKeyRow
 from veyltrace_core import cli, io, textio, yaml12
 from veyltrace_core.calibration import load_calibration
@@ -139,6 +140,12 @@ def test_a_window_with_a_short_baseline_is_dropped_but_its_run_is_recorded(
         for p in (tmp_path / "repo" / "config" / "calibration").glob("*.json")
     ]
     assert sorted(n.m for n in nf) == [0, 1] and all("rcaeval_pre_injection" not in n.sources for n in nf)
+    configs = {
+        io.read_model("run_manifest", m.parent, models.RunManifest).config_sha256
+        for m in (tmp_path / "runs").rglob("run_manifest.json")
+    }
+    for path in (tmp_path / "repo" / "config" / "calibration").glob("*.json"):  # no dropped window's config
+        assert load_calibration(path).content.config_sha256 in configs  # one run config, not a mix of two
 
 
 def test_a_transfer_fit_has_its_source_parts_windows(
@@ -150,7 +157,7 @@ def test_a_transfer_fit_has_its_source_parts_windows(
     test_cases = [case_id("synth-01"), case_id("synth-02")]
     sources = {c: k for c, k in keys.items() if c in {case_id(f"synth-0{i}") for i in (3, 4, 5)}}
     monkeypatch.setattr(splits, "TRANSFER_SOURCES", {"synth.transfer-x": ("synth",)})
-    monkeypatch.setattr(runner, "transfer_keys", lambda *_: sources)
+    monkeypatch.setattr(calibrated, "transfer_keys", lambda *_: sources)
     repo = tmp_path / "repo"
     textio.write_bytes(repo / "two.yaml", "".join(f'- "{c}"\n' for c in test_cases).encode())
     text = WINDOWS.replace("cases: all", "cases: two.yaml").replace(

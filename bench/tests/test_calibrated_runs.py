@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import math
 import shutil
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -23,7 +24,8 @@ from veyltrace_core.calibration import load_calibration, write_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_file
-from veyltrace_core.ids import case_id
+from veyltrace_core.ids import AIMode, case_id
+from veyltrace_core.pipeline import RunSummary, run_case
 
 REPO = Path(__file__).resolve().parents[2]
 FILE: dict[str, Any] = {
@@ -132,10 +134,18 @@ def _write_fold_files(config_root: Path, fitting: str | None = None) -> None:
     experiments.mkdir(parents=True, exist_ok=True)
     text = fitting or FIT.replace("FIT", "true").replace("synth-crossfit", "synth-fit")
     textio.write_bytes(experiments / "synth-fit.yaml", text.encode())
+    plan = splits.crossfit2(_listed(), 20261108)
     for fold, q in (("foldA", 0.0), ("foldB", None)):
-        scores = [] if q is None else [q] * 9
-        runs = [calibration.CalibrationRun(f"{i:012x}", None, score=s) for i, s in enumerate(scores)]
-        write_calibration(config_root / "calibration", calibration.fit(runs, **{**FILE, "fold": fold}))
+        n = sum(not _listed()[c].is_no_fault for c in plan.fits[fold])  # the file's n must fit its plan
+        runs = [calibration.CalibrationRun(f"{i:012x}", None, score=0.5) for i in range(n)]
+        content = calibration.fit(runs, **{**FILE, "fold": fold}).model_copy(update={"q_hat": q})
+        write_calibration(config_root / "calibration", content)
+
+
+def _listed() -> dict[str, models.AnswerKeyRow]:
+    """The answer keys of the five synth cases the adapter lists (synth-01..05)."""
+    ids = {case_id(f"synth-0{i}") for i in range(1, 6)}
+    return {c: k for c, k in answer_keys.load_answer_keys("synth").items() if c in ids}
 
 
 def test_a_file_from_another_fold_plan_or_level_is_refused(tmp_path: Path, config_root: Path) -> None:
@@ -145,7 +155,7 @@ def test_a_file_from_another_fold_plan_or_level_is_refused(tmp_path: Path, confi
     fitting = FIT.replace("FIT", "true").replace("synth-crossfit", "synth-fit")
     _write_fold_files(config_root, fitting.replace("cases: all", "cases: four.yaml"))
     reuse = _yaml(tmp_path, FIT.replace("FIT", "false"), "reuse")
-    with pytest.raises(ConfigError, match="not in the other fold"):
+    with pytest.raises(ConfigError, match="is not in that plan"):
         runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
     for change in ({"seed": 7}, {"alpha": 0.2}):  # another seed's folds, another level's q_hat
         _write_fold_files(config_root)
@@ -154,6 +164,32 @@ def test_a_file_from_another_fold_plan_or_level_is_refused(tmp_path: Path, confi
         )
         with pytest.raises(ConfigError, match=r"split.seed/alpha/beta"):
             runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    _write_fold_files(config_root)  # a file whose n is not its plan's: the fitter's selection changed
+    content = load_calibration(config_root / "calibration" / "synth.off.oracle.foldA.json").content
+    write_calibration(config_root / "calibration", content.model_copy(update={"n": content.n + 1}))
+    with pytest.raises(ConfigError, match="selection changed since the fit"):
+        runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+
+
+def test_a_reused_transfer_file_never_serves_its_own_fit_cases(
+    tmp_path: Path, config_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """fit: false with transfer: a test case among the file's source cases is a leak (#391 review)."""
+    monkeypatch.setattr(splits, "TRANSFER_SOURCES", {"synth.transfer-x": ("synth",)})
+    sources = {c: k for c, k in _listed().items() if c in {case_id("synth-01"), case_id("synth-03")}}
+    monkeypatch.setattr(calibrated, "transfer_keys", lambda *_: sources)
+    transfer = FIT.replace("scheme: crossfit2", "scheme: transfer, calibrate_from: synth.transfer-x")
+    experiments = config_root.parent / "bench" / "experiments"
+    experiments.mkdir(parents=True, exist_ok=True)
+    textio.write_bytes(
+        experiments / "synth-fit.yaml",
+        transfer.replace("FIT", "true").replace("synth-crossfit", "synth-fit").encode(),
+    )
+    runs = [calibration.CalibrationRun(c, None, score=0.5) for c in sources]
+    write_calibration(config_root / "calibration", calibration.fit(runs, **{**FILE, "fold": "transfer-x"}))
+    reuse = _yaml(tmp_path, transfer.replace("FIT", "false"), "reuse")
+    with pytest.raises(ConfigError, match="is in its fit"):
+        runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
 
 
 def test_fit_false_tests_each_case_with_the_file_fitted_without_it(tmp_path: Path, config_root: Path) -> None:
@@ -258,3 +294,42 @@ def test_a_held_out_restart_is_judged_per_run_and_costs_both(
         runner, "_execute", lambda *_a, **_k: runner.Executed("ok", "1" * 16, tmp_path, False, 601_000.0, 1.0)
     )
     assert runner._restart(exp, exp.methods[0], key, first, split, tmp_path, None).outcome == "timeout"
+
+
+def test_record_keeps_a_judged_outcome_whatever_the_summed_wall_time(
+    tmp_path: Path, config_root: Path
+) -> None:
+    """A held-out row costs both runs (700 s here) but each finished within timeout_s 600 (#376 review)."""
+    exp = load_experiment(_yaml(tmp_path, FIT.replace("FIT", "true"), "fit"))
+    s = run_case("synth", "synth-01", "off", runs_root=tmp_path / "runs")
+    done = runner.Executed("ok", s.run_id, s.run_dir, False, 700_000.0, 1.0, judged=True)
+    key = answer_keys.load_answer_keys("synth")[s.case_id]
+    row, _, _ = runner._record(exp, exp.methods[0], key, done, "foldA")  # the branch under test
+    assert (row["run_outcome"], row["wall_ms"]) == ("ok", 700_000.0)
+    unjudged, _, _ = runner._record(exp, exp.methods[0], key, replace(done, judged=False), "foldA")
+    assert unjudged["run_outcome"] == "timeout"  # the same wall time judged as one run
+
+
+def test_a_failed_calibration_run_is_listed_once(
+    tmp_path: Path, config_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Its outcome is the held-out row's (no restart), so it is in manifest.runs once (#376 review)."""
+    failing = case_id("synth-02")
+
+    def flaky(dataset: str, case: str, ai_mode: AIMode, **kwargs: Any) -> RunSummary:
+        if case == failing:
+            return RunSummary(dataset, case, "0" * 16, tmp_path / "failed", "failed", "x", None, (), (), {})
+        return run_case(dataset, case, ai_mode, **kwargs)
+
+    monkeypatch.setattr(runner, "IN_PROCESS", True)
+    monkeypatch.setattr(runner, "run_case", flaky)
+    out, _ = runner.run_experiment(
+        _yaml(tmp_path, FIT.replace("FIT", "true"), "fit"),
+        out_root=tmp_path / "r",
+        runs_root=tmp_path / "runs",
+    )
+    runs = json.loads(textio.read_text(out / "manifest.json"))["runs"]
+    mine = [r for r in runs if r["method"] == "veyltrace:off" and r["case_id"] == failing]
+    assert len(mine) == 1 and _off_runs(out) == 2 * 5 - 1  # 5 calibration runs, 4 restarts
+    row = next(r for r in _rows(out) if r["method"] == "veyltrace:off" and r["case_id"] == failing)
+    assert row["run_outcome"] == "failed"
