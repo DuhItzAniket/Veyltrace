@@ -480,6 +480,13 @@ export interface Hypothesis {
   indicator: Indicator | null;
 }
 
+/** One calibration file behind the result (03 §12.1). */
+export interface ManifestCalibration {
+  family_id: FamilyId;
+  sha256: Sha256;
+  fitted: boolean;
+}
+
 /** Code state the results came from (04 §10.2). */
 export interface ManifestCode {
   commit: string;
@@ -526,6 +533,7 @@ export interface BenchManifest {
   configs: ManifestConfig[];
   seeds: number[];
   runs: ManifestRun[];
+  calibrations: ManifestCalibration[] | null;
 }
 
 /** Onsets of one service; *_source and its onset are null together (enforced by the allOf below). */
@@ -869,6 +877,20 @@ export interface SummaryComparison {
   holm_p: number | null;
 }
 
+/** Coverage over one fold's fault rows. */
+export interface SummaryFoldCoverage {
+  fold: string;
+  coverage: number | null;
+  n_fault: number;
+}
+
+/** The false-alarm rate over one fold's normal rows. */
+export interface SummaryFoldNoFault {
+  fold: string;
+  false_alarm_rate: number | null;
+  n_normal: number;
+}
+
 /** The 95% percentile cluster-bootstrap interval of one case-mean metric of one group (04 §8). */
 export interface SummaryInterval {
   dataset: Dataset;
@@ -918,10 +940,25 @@ export interface SummaryMetricCost {
   n_cost: number;
 }
 
+/** Conformal-set coverage over the group's fault rows (04 §7 Coverage; H3a, R-12): the share whose root is in the set (an empty in_set is a miss, failed runs count). Null when n_fault is 0 or no fault row has a set (a method without a verifier). */
+export interface SummaryMetricCoverage {
+  coverage: number | null;
+  coverage_gap: number | null;
+  pool_coverage: number | null;
+  n_fault: number;
+  by_fold: SummaryFoldCoverage[];
+}
+
 /** Share of the group's rows with decoy_present whose top-1 is a decoy-changed service (04 §7 Decoy metrics, RCAEval-C, H4c); null when n_decoy is 0. */
 export interface SummaryMetricDecoyRankedFirst {
   decoy_ranked_first: number | null;
   n_decoy: number;
+}
+
+/** Share of the group's (case, seed) pairs whose top-1 under planted decoy proposals (variant plant-<i>) differs from the unplanted run's, a planted run with no ranks counting as changed (04 §7 Decoy metrics; H2b); null when n_pairs is 0. */
+export interface SummaryMetricDecoyTop1Change {
+  decoy_top1_change: number | null;
+  n_pairs: number;
 }
 
 /** Indicator-level AC@1..5 over the fault cases with an indicator (04 §7). */
@@ -952,11 +989,28 @@ export interface SummaryMetricMrr {
   mrr: number | null;
 }
 
+/** NO_FAULT rates (04 §7; R-12, SC-4): false alarms over the group's normal rows (no truth: normal windows, no-fault cases), wrong NO_FAULT over its fault rows, and precision and recall of NO_FAULT over all its rows. Each null when its denominator is 0 or the method has no verdict. */
+export interface SummaryMetricNoFaultRates {
+  false_alarm_rate: number | null;
+  n_normal: number;
+  wrong_no_fault_rate: number | null;
+  n_fault: number;
+  no_fault_precision: number | null;
+  no_fault_recall: number | null;
+  by_fold: SummaryFoldNoFault[];
+}
+
 /** Median and max onset error in ms over the rows that have one (detected protocol; 04 §7, #215), and how many rows had one. */
 export interface SummaryMetricOnsetError {
   onset_error_median_ms: number | null;
   onset_error_max_ms: number | null;
   n_onset: number;
+}
+
+/** Share of the group's (case, seed) whose verdict_hash is one value across the unpermuted run and every perm-<i> variant, a missing hash breaking it (04 §7; H2c); null when n_cases is 0. */
+export interface SummaryMetricPermutationInvariance {
+  permutation_invariance: number | null;
+  n_cases: number;
 }
 
 /** Rerank@1 = AC@1 / Retrieval@K; null when Retrieval@K is 0 or null (04 §7). */
@@ -969,6 +1023,30 @@ export interface SummaryMetricRetrievalAtK {
   retrieval_at_k: number | null;
   retrieval_k: number[] | null;
   pool_retrieval: number | null;
+}
+
+/** Area under the risk–coverage curve over the group's fault rows (04 §7; H3c): the mean over prefixes of the error (1 − AC@1) among the answered, with the rows ordered by the verified score V (status CONFIRMED > LIKELY > INCONCLUSIVE > NO_FAULT > none, then confidence margin desc) or by the fused score F of the verdict's leader (desc). Ties count at their expectation over the tied orders. Each null when n_fault is 0 or the method has no verdict. */
+export interface SummaryMetricRiskCoverage {
+  aurc_verdict: number | null;
+  aurc_fused: number | null;
+  n_fault: number;
+}
+
+/** AC@1 among the group's fault rows declared CONFIRMED, and among those declared CONFIRMED or LIKELY, with their shares of the fault rows (04 §7 Selective accuracy; H4b). The answer rates are null when n_fault is 0 or the method has no verdict, the accuracies also when no row has that status. */
+export interface SummaryMetricSelectiveAccuracy {
+  ac_at_1_confirmed: number | null;
+  answer_rate_confirmed: number | null;
+  ac_at_1_likely_or_better: number | null;
+  answer_rate_likely_or_better: number | null;
+  n_fault: number;
+}
+
+/** Mean, nearest-rank median and singleton share of the set size over the group's fault rows with a set_size (04 §7 Set size; H3b); each null when n_set is 0. */
+export interface SummaryMetricSetSize {
+  set_size_mean: number | null;
+  set_size_median: number | null;
+  singleton_share: number | null;
+  n_set: number;
 }
 
 /** One entry per 04 §9 metric name that bench computes; an entry the experiment did not list is null, so a null inside an entry always means undefined, never not requested. */
@@ -984,6 +1062,13 @@ export interface SummaryGroupMetrics {
   onset_error: SummaryMetricOnsetError | null;
   cost: SummaryMetricCost | null;
   decoy_ranked_first: SummaryMetricDecoyRankedFirst | null;
+  coverage: SummaryMetricCoverage | null;
+  set_size: SummaryMetricSetSize | null;
+  no_fault_rates: SummaryMetricNoFaultRates | null;
+  risk_coverage: SummaryMetricRiskCoverage | null;
+  selective_accuracy: SummaryMetricSelectiveAccuracy | null;
+  decoy_top1_change: SummaryMetricDecoyTop1Change | null;
+  permutation_invariance: SummaryMetricPermutationInvariance | null;
 }
 
 /** Rows per bench_result.run_outcome; every outcome is present, 0 when none. */

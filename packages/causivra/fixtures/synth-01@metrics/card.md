@@ -4,9 +4,9 @@
 
 ## Summary
 
-- No single root cause could be established; the candidate set has 1 service. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
-- The leading candidate is checkout. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
-- The asks below list what would settle it: telemetry to collect and trials to check. (cites: Ec2738c422e, E39040cc71a, E69dec80d43)
+- No single root cause could be established; the candidate set has 1 service. (cites: Ec2738c422e, E4896664f91, E39040cc71a, E69dec80d43)
+- The leading candidate is checkout. (cites: Ec2738c422e, E4896664f91, E39040cc71a, E69dec80d43)
+- The asks below list what would settle it: telemetry to collect and trials to check. (cites: Ec2738c422e, E4896664f91, E39040cc71a, E69dec80d43)
 
 ## Candidate set
 
@@ -19,6 +19,7 @@
 | Ea219385f6e | catalog mem anomaly (incident) | 0.421 | z |
 | E7b0771b7a9 | catalog silence (incident) | 0 |  |
 | Ec2738c422e | checkout cpu anomaly (incident) | 33.8 | z |
+| E4896664f91 | checkout anomaly not explained by parents (incident) | 33.8 | z |
 | E39040cc71a | checkout onset precedence over self (onset) | 0 | ms |
 | E69dec80d43 | checkout silence (incident) | 0 |  |
 | E58335ef082 | frontend mem anomaly (incident) | 0.946 | z |
@@ -60,6 +61,6 @@ prose: template
 
 ---
 
-verdict_hash: `8aef258d950c51f4c52b616b6cf888c0bd446e081f3c9d8e6dca77ebafffdc8c`  
-card_hash: `033298b7dd4018e7f115604f1534d1ed95b7802c3de9516012abfe07a2905d6a`  
+verdict_hash: `860688110876d5319db23474ec0b617ff22d2b2f6de30116b63e4e539050630e`  
+card_hash: `c9e12e738b67bb0e3f79a3ec7b9c3264bd66ed4229022b578a7740e400b93619`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
