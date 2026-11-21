@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from veyltrace_causalith.mentions import Matcher, log_edges, topology_edges
 
@@ -54,3 +56,56 @@ def test_topology_edges_from_deploy_and_config_events() -> None:
         ("recommend", "config", "not json"),
     ]
     assert topology_edges(events, nodes, Matcher.build(nodes)) == [("recommend", "catalog")]
+
+
+# --- #36: the substring prefilter in Matcher.mentions never changes a result ---------------------
+TT = Matcher.build(["kafka", "ts-order-service", "ts-travel-service", "ts-travel2-service"])
+
+
+def _every_regex(matcher: Matcher, text: str, speaker: str | None = None) -> set[str]:
+    """The pre-#36 reference: every form of every name, no prefilter."""
+    found = matcher.grpc_names(text)
+    for name, forms in matcher.patterns.items():
+        if name not in found and any(f.search(text) for f in forms):
+            found.add(name)
+    found.discard(speaker or "")
+    return found
+
+
+def test_a_tt_shaped_java_line_still_mentions_its_callee() -> None:
+    # RE2-TT: a Spring Boot prefix (timestamp, thread) makes every line a distinct body (#36).
+    line = (
+        "2024-01-22 14:40:08.861  INFO 1 --- [io-18767-exec-9] t.service.TravelServiceImpl      : "
+        "[Query] calling http://ts-travel-service:12346/api/v1/travelservice/trips"
+    )
+    assert TT.mentions(line, "ts-order-service") == {"ts-travel-service"}
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("dial ts-order-serv\u0131ce:8080", {"ts-order-service"}),  # dotless i
+        ("dial ts-order-serv\u0130ce:8080", {"ts-order-service"}),  # dotted capital I
+        ("dial t\u017f-order-service:8080", {"ts-order-service"}),  # long s
+        ("broker \u212aafka:9092 down", {"kafka"}),  # Kelvin sign
+    ],
+)
+def test_the_four_non_ascii_case_folds_still_match(text: str, expected: set[str]) -> None:
+    assert _every_regex(TT, text, "x") == expected  # what re.IGNORECASE itself decides
+    assert TT.mentions(text, "x") == expected
+
+
+_PIECES = st.sampled_from(
+    ["ts-", "order", "travel", "travel2", "-service", "kafka", "http://", ":8080", ".svc", "-db",
+     "hipster.KafkaService", "TS-ORDER-SERVICE", "\u0130", "\u0131", "\u017f", "\u212a", " ", "/", "."]
+)  # fmt: skip
+_CHARS = st.text(alphabet="aeikorstvKS2-.:/_ \u0130\u0131\u017f\u212a\u00df", max_size=6)
+
+
+@settings(max_examples=400, deadline=None)
+@given(
+    st.lists(st.one_of(_PIECES, _CHARS), max_size=12), st.sampled_from([None, "kafka", "ts-order-service"])
+)
+def test_prefiltered_mentions_equal_running_every_regex(parts: list[str], speaker: str | None) -> None:
+    text = "".join(parts)
+    assert TT.mentions(text, speaker) == _every_regex(TT, text, speaker)
