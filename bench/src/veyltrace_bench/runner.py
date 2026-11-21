@@ -62,6 +62,7 @@ from veyltrace_bench.experiment import (
     select_cases,
     unsupported,
 )
+from veyltrace_bench.manifest_calibrations import recorded as recorded_calibrations
 from veyltrace_bench.metrics import RUN_OUTCOMES, CaseScore, MethodOutput, Truth, score_case
 from veyltrace_bench.stats_summary import Case, statistics
 from veyltrace_bench.summary import entries as summary_entries
@@ -894,7 +895,7 @@ def run_experiment(
         "configs": configs,
         "seeds": sorted({seed for m in exp.methods for seed in m.ai.seeds}),
         "runs": runs,
-        "calibrations": None,  # not recorded yet (bench_manifest 1.1, 03 §13.4; #412)
+        "calibrations": recorded_calibrations(exp, runs, bench_runs),  # 03 §13.4 (#412)
     }
     io.write_path("bench_manifest", manifest, out_dir / "manifest.json")  # last: marks a whole result
     return out_dir, summary

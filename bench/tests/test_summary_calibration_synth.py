@@ -10,7 +10,7 @@ import pyarrow as pa
 import pytest
 
 from veyltrace_bench import runner
-from veyltrace_contracts.models import BenchSummary
+from veyltrace_contracts.models import BenchManifest, BenchSummary
 from veyltrace_core import cli, io, textio
 
 SMOKE = Path(__file__).resolve().parents[1] / "experiments" / "synth-smoke.yaml"
@@ -30,9 +30,10 @@ def test_the_synth_summary_holds_every_new_entry(tmp_path: Path) -> None:
     exp.write_text(listed, encoding="utf-8", newline="\n")
     out, _ = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
     summary = io.read_path("bench_summary", out / "summary.json", validate=True)
-    io.read_path("bench_manifest", out / "manifest.json", validate=True)
+    manifest = io.read_path("bench_manifest", out / "manifest.json", validate=True)
     table = io.read_path("bench_result", out / "per_case.csv", validate=True)
     assert isinstance(summary, BenchSummary) and isinstance(table, pa.Table)
+    assert isinstance(manifest, BenchManifest) and manifest.calibrations == []  # synth is uncalibrated (#412)
     rows: list[dict[str, object]] = table.to_pylist()
     fault = [r for r in rows if r["hit_at_1"] is not None]  # synth-01..04; synth-05 has no truth
     normal = [r for r in rows if r["hit_at_1"] is None]
