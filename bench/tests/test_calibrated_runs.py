@@ -22,11 +22,12 @@ from veyltrace_core.calibration import write_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_file
+from veyltrace_core.ids import case_id
 
 REPO = Path(__file__).resolve().parents[2]
 FILE: dict[str, Any] = {
     "family": "synth", "ai_arm": "off", "alert_protocol": "oracle", "alpha": 0.1, "beta": 0.1,
-    "default_tau": 1.386294361, "seed": 1, "config_sha256s": ["a" * 64], "code_commit": "x",
+    "default_tau": 1.386294361, "seed": 20261108, "config_sha256s": ["a" * 64], "code_commit": "x",
     "experiment_id": "synth-fit",
 }  # fmt: skip
 FIT = """\
@@ -70,12 +71,35 @@ def _off_runs(out: Path) -> int:
     return sum(r["method"] == "veyltrace:off" for r in runs)
 
 
-def _write_fold_files(config_root: Path) -> None:
-    """foldA keeps only the leader (q_hat 0), foldB the whole pool (q_hat +inf, n < 9)."""
+def _write_fold_files(config_root: Path, fitting: str | None = None) -> None:
+    """foldA keeps only the leader (q_hat 0), foldB the whole pool (q_hat +inf, n < 9), as if the
+    experiment synth-fit (`fitting`, default FIT with fit true) had fitted them."""
+    experiments = config_root.parent / "bench" / "experiments"
+    experiments.mkdir(parents=True, exist_ok=True)
+    text = fitting or FIT.replace("FIT", "true").replace("synth-crossfit", "synth-fit")
+    textio.write_bytes(experiments / "synth-fit.yaml", text.encode())
     for fold, q in (("foldA", 0.0), ("foldB", None)):
         scores = [] if q is None else [q] * 9
         runs = [calibration.CalibrationRun(f"{i:012x}", None, score=s) for i, s in enumerate(scores)]
         write_calibration(config_root / "calibration", calibration.fit(runs, **{**FILE, "fold": fold}))
+
+
+def test_a_file_from_another_fold_plan_or_level_is_refused(tmp_path: Path, config_root: Path) -> None:
+    """The fitting experiment lacked a cluster, so its folds differ from this one's (#391 review)."""
+    cases = [case_id(f"synth-0{i}") for i in (1, 2, 3, 5)]  # synth-04's cluster is missing
+    textio.write_bytes(config_root.parent / "four.yaml", "".join(f'- "{c}"\n' for c in cases).encode())
+    fitting = FIT.replace("FIT", "true").replace("synth-crossfit", "synth-fit")
+    _write_fold_files(config_root, fitting.replace("cases: all", "cases: four.yaml"))
+    reuse = _yaml(tmp_path, FIT.replace("FIT", "false"), "reuse")
+    with pytest.raises(ConfigError, match="not in the other fold"):
+        runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    for change in ({"seed": 7}, {"alpha": 0.2}):  # another seed's folds, another level's q_hat
+        _write_fold_files(config_root)
+        write_calibration(
+            config_root / "calibration", calibration.fit([], **{**FILE, "fold": "foldA", **change})
+        )
+        with pytest.raises(ConfigError, match=r"split.seed/alpha/beta"):
+            runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
 
 
 def test_fit_false_tests_each_case_with_the_file_fitted_without_it(tmp_path: Path, config_root: Path) -> None:
