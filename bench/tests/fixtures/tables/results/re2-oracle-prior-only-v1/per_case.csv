@@ -1,0 +1,1 @@
+case_id,dataset,system,method,ai_mode,seed,variant,fold,protocol,run_outcome,pool_hit,shift_s,sources_dropped,status,ranks,hit_at_1,hit_at_3,hit_at_5,retrieval_hit,fault_class_hit,in_set,set_size,onset_error_ms,decoy_present,decoy_ranked_first,wall_ms,peak_rss_mb,tokens_in,tokens_out,verdict_hash

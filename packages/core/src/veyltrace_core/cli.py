@@ -1,4 +1,4 @@
-"""The `veyltrace` command line: diagnose, replay, bench run, data fetch and data list.
+"""The `veyltrace` command line: diagnose, replay, bench run and tables, data fetch and data list.
 
 Why it is shaped this way:
 - Thread pins come first, before anything can import numpy: BLAS/OpenMP thread counts change
@@ -312,6 +312,21 @@ def bench_run(
         )
         raise typer.Exit(int(DiagnoseExit.ERROR))
     raise typer.Exit(int(fn(["run", experiment, *ctx.args])))
+
+
+@bench_app.command(
+    "tables",
+    context_settings=_PASS_THROUGH,
+    help="Regenerate bench/results/tables and figures (veyltrace_bench).",
+)
+def bench_tables(ctx: typer.Context) -> None:
+    fn = _command_main(BENCH_COMMAND)
+    if fn is None:
+        _fail(
+            f"`{PROG} bench tables` needs the bench command ({COMMANDS_GROUP}:{BENCH_COMMAND}), not installed"
+        )
+        raise typer.Exit(int(DiagnoseExit.ERROR))
+    raise typer.Exit(int(fn(["tables", *ctx.args])))
 
 
 @data_app.command("fetch", help="Download (or, for synth, generate) a dataset under VEYLTRACE_DATA.")
