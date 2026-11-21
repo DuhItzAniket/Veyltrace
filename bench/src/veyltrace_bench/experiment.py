@@ -261,7 +261,16 @@ def unsupported(exp: Experiment) -> list[str]:
             exp.dataset.normal_windows == "veyllab",
             "dataset.normal_windows veyllab (not run: no VeylLab captures yet, X-11, O-07)",
         ),
-        (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
+        (p.anonymize_services, "protocol.anonymize_services (optional, not built)"),
+        (
+            p.permute_proposals is not None,
+            "protocol.permute_proposals (#399: the permutation level is the lead's)",
+        ),
+        (
+            p.inject_proposals is not None
+            and (exp.calibration.fit or not any(m.ai.mode != "off" for m in exp.methods)),
+            "protocol.inject_proposals needs an AI arm and calibration.fit false (it plants into proposals)",
+        ),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
     )

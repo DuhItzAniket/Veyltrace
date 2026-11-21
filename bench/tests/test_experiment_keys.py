@@ -40,7 +40,7 @@ def test_transfer_split_names_the_family_it_calibrates_from(tmp_path: Path) -> N
 def test_proposal_perturbations_are_seeded_draws(tmp_path: Path) -> None:
     exp = _load(tmp_path, BASE + "metrics: [mrr]\nprotocol: {inject_proposals: {n: 1, seed: 4}}\n")
     assert exp.protocol.inject_proposals == ProposalDraw(n=1, seed=4)
-    assert "protocol AI perturbations" in unsupported(exp)
+    assert any("inject_proposals needs an AI arm" in t for t in unsupported(exp))  # no AI method here
     for bad in ("{n: 1}", "{n: 0, seed: 4}", "{n: 1, seed: 4, kind: x}"):
         with pytest.raises(ConfigError, match="inject_proposals"):
             _load(tmp_path, BASE + f"metrics: [mrr]\nprotocol: {{inject_proposals: {bad}}}\n")

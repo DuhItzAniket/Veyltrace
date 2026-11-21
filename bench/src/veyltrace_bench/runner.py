@@ -45,6 +45,7 @@ from veyltrace_bench import (
     decoy_runs,
     naive_change,
     normal_windows,
+    planted,
     rcaeval,
     simplerca,
     splits,
@@ -374,6 +375,36 @@ def _restart(
     return replace(done, wall_ms=first.wall_ms + done.wall_ms, peak_rss_mb=max(peaks) if peaks else None)
 
 
+def _plant(
+    exp: Experiment,
+    method: MethodSpec,
+    key: AnswerKeyRow,
+    source: Executed,
+    split: calibrated.Split | None,
+    root: Path,
+    overlay: str | None,
+    seed: int | None,
+) -> Executed:
+    """The planted run of a case and seed (`planted`): the source run's proposals plus the decoys,
+    from FaultLoom on, no model call; a source without proposals gives its own outcome."""
+    draw = exp.protocol.inject_proposals
+    ok = run_outcome(source.outcome, source.wall_ms, exp.resources.timeout_s) == "ok"
+    recorded = _read("proposals", source.run_dir, Proposals) if ok else None
+    case = _read("case_manifest", source.run_dir, CaseManifest)
+    if draw is None or recorded is None or case is None or source.run_dir is None:
+        return source if not ok else replace(source, outcome="failed")
+    root_service = None if key.is_no_fault else key.root_service
+    proposals = planted.planted(recorded, case.services, root_service, draw)
+    over = overrides_for(exp, method, overlay, calibrated.first_run(split, key.case_id), None, seed)
+    extra = {
+        "from_step": planted.RESTART_STEP,
+        "reuse_dir": str(source.run_dir),
+        "external_proposals": proposals,
+    }
+    ai = ai_arms.AiRun(source.ai_mode, root, source.cassette_dir)
+    return _execute(key, method, over, root, exp.resources.timeout_s, extra, ai)
+
+
 def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[str, object]:
     """The manifest entry of one executed run (03 §13.4 runs[])."""
     case = _read("case_manifest", done.run_dir, CaseManifest)
@@ -419,7 +450,8 @@ def _record(
     else:
         out = method_output(outcome, verdict, slate, slate_scored=slate_scored)
     out = replace(out, t_onset_ns=onsets.t_onset_ns if onsets is not None else None)
-    truth = Truth(None) if variant is not None else Truth.from_answer_key(key)  # a window: no truth
+    window = variant == normal_windows.VARIANT  # a normal window has no truth (04 §5.4 item 6)
+    truth = Truth(None) if window else Truth.from_answer_key(key)
     score = score_case(truth, out, universe=universe)
     decoy = decoy_runs.decoy_columns(key, score.ranks)
     tokens_in, tokens_out = ai_arms.tokens(done.run_dir) if method.ai.mode != "off" else (None, None)
@@ -465,7 +497,7 @@ def _run_method(
     split: calibrated.Split | None,
     windows: list[AnswerKeyRow] | None = None,
     dropped: list[dict[str, object]] | None = None,
-    ai_runs: dict[tuple[str, str, int | None], Executed] | None = None,
+    ai_runs: dict[tuple[str, str, int | None, str | None], Executed] | None = None,
 ) -> list[Scored]:
     """Every case of one dataset with one method, each run once, then its normal `windows`; a window
     with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
@@ -483,7 +515,13 @@ def _run_method(
         keys = calibrated.first_run(split, key.case_id)
         done = _timed(exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed)
         if ai_runs is not None and variant is None and method.ai.mode != "off":
-            ai_runs[(method.id, key.case_id, seed)] = done  # what an agent_only method scores (04 §4)
+            ai_runs[(method.id, key.case_id, seed, None)] = done  # what an agent_only method scores (04 §4)
+            if (draw := exp.protocol.inject_proposals) is not None:  # H2b (#399)
+                plant = _plant(exp, method, key, done, split, root, overlays.get(key.case_id), seed)
+                ai_runs[(method.id, key.case_id, seed, planted.variant(draw))] = plant
+                out.append(
+                    _record(exp, method, key, plant, _fold(split, key.case_id), planted.variant(draw), seed)
+                )
         if variant is not None and normal_windows.too_short(done.run_dir):
             (dropped if dropped is not None else []).append(_run_entry(method, key, done))
             continue
@@ -767,7 +805,7 @@ def run_experiment(
     timed: Timed = {}
     reports: dict[tuple[str, str], str] = {}
     first: dict[str, list[tuple[Unit, Executed]]] = {}  # a fitting method's calibration runs
-    ai_runs: dict[tuple[str, str, int | None], Executed] = {}  # (method, case, seed): AI-arm runs
+    ai_runs: dict[tuple[str, str, int | None, str | None], Executed] = {}  # (method, case, seed, variant)
 
     def keep(scored: Scored) -> None:
         row, score, run = scored
@@ -798,13 +836,15 @@ def run_experiment(
                     )
                     first.setdefault(method.id, []).append((unit, done))
                     if v is None and method.ai.mode != "off":
-                        ai_runs[(method.id, k.case_id, s)] = done
+                        ai_runs[(method.id, k.case_id, s, None)] = done
                 continue
             if method.kind == agent_only.KIND:  # no run of its own: its source's, per case and seed
                 source = agent_only.source_of(exp, method)
+                draw = exp.protocol.inject_proposals
                 for k, _, s in _units(method, rows_keys, []):
-                    shared = ai_runs[(source.id, k.case_id, s)]
-                    keep(_record(exp, method, k, shared, _fold(split, k.case_id), None, s))
+                    for v in (None, planted.variant(draw)) if draw is not None else (None,):
+                        shared = ai_runs[(source.id, k.case_id, s, v)]
+                        keep(_record(exp, method, k, shared, _fold(split, k.case_id), v, s))
                 continue
             ran = _run_method(
                 exp, method, rows_keys, bench_runs, timed, reports, overlays, split, windows, runs, ai_runs
