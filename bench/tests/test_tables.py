@@ -48,7 +48,7 @@ def test_the_index_matches_its_golden_file_and_lists_every_reportable_experiment
     assert all(f"| {e.experiment_id} |" in text for e in reportable)
     assert "| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run |" in text
     assert "commit fixture; sha256 manifest.json " in text  # provenance of a run experiment
-    assert text.count(f"]: not run: {NO_RESULTS}\n") == 1  # one note for every experiment without results
+    assert text.count(f". not run: {NO_RESULTS}\n") == 1  # one note for every experiment without results
 
 
 def test_write_then_check_and_stale_files(results: Path) -> None:
@@ -75,8 +75,8 @@ def test_renderers_escape_and_number_notes_once() -> None:
     row = Row((cells.text("a|b_c"), cells.not_run("x ≥ 1 & y")), src)
     table = Table("t", "T", "Caption § 7.", ("Name", "Value"), (row, row))
     md = markdown(table)
-    assert "| a\\|b_c | not run[^1] | re2-oracle-rq3-v1 (not run) |" in md
-    assert md.count("[^1]: not run: x ≥ 1 & y") == 1 and "[^2]" not in md
+    assert "| a\\|b_c | not run<sup>1</sup> | re2-oracle-rq3-v1 (not run) |" in md
+    assert md.count("\n1. not run: x ≥ 1 & y\n") == 1 and "<sup>2</sup>" not in md
     tex = latex(table)
     assert r"a\textbar{}b\_c & not run\textsuperscript{1} &" in tex
     assert r"\textsuperscript{1} not run: x $\geq$ 1 \& y\\" in tex and r"\caption{T. Caption \S{} 7.}" in tex

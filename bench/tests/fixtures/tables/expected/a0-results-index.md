@@ -6,71 +6,71 @@ Every experiment YAML in bench/experiments (synth smoke excluded) and the state 
 
 | Experiment | RQ | Pre-registered | Status | Groups | Statistics | Source |
 |---|---|---|---|---|---|---|
-| fse26-oracle-rq1-v1 | RQ1 | yes | not run[^1] | not run[^1] | not run[^1] | fse26-oracle-rq1-v1 (not run) |
-| nezha-oracle-brief-v1 | RQ2 | yes | not run[^2] | not run[^2] | not run[^2] | nezha-oracle-brief-v1 (not run) |
-| nezha-oracle-rq1-v1 | RQ1 | yes | not run[^2] | not run[^2] | not run[^2] | nezha-oracle-rq1-v1 (not run) |
-| rcaevalc-pi0-l0-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi0-l0-ai-v1 (not run) |
-| rcaevalc-pi0-l0-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi0-l0-v1 (not run) |
-| rcaevalc-pi0-l2-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi0-l2-ai-v1 (not run) |
-| rcaevalc-pi0-l2-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi0-l2-v1 (not run) |
-| rcaevalc-pi0-l6-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi0-l6-ai-v1 (not run) |
-| rcaevalc-pi0-l6-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi0-l6-v1 (not run) |
-| rcaevalc-pi05-l0-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi05-l0-ai-v1 (not run) |
-| rcaevalc-pi05-l0-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi05-l0-v1 (not run) |
-| rcaevalc-pi05-l2-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi05-l2-ai-v1 (not run) |
-| rcaevalc-pi05-l2-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi05-l2-v1 (not run) |
-| rcaevalc-pi05-l6-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi05-l6-ai-v1 (not run) |
-| rcaevalc-pi05-l6-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi05-l6-v1 (not run) |
-| rcaevalc-pi1-l0-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi1-l0-ai-v1 (not run) |
-| rcaevalc-pi1-l0-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi1-l0-v1 (not run) |
-| rcaevalc-pi1-l2-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi1-l2-ai-v1 (not run) |
-| rcaevalc-pi1-l2-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi1-l2-v1 (not run) |
-| rcaevalc-pi1-l6-ai-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi1-l6-ai-v1 (not run) |
-| rcaevalc-pi1-l6-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | rcaevalc-pi1-l6-v1 (not run) |
-| re2-detected-rq1-v1 | RQ1 | yes | not run[^3] | not run[^3] | not run[^3] | re2-detected-rq1-v1 (not run) |
-| re2-detected-rq2-v1 | RQ2 | yes | not run[^2] | not run[^2] | not run[^2] | re2-detected-rq2-v1 (not run) |
-| re2-drop-events-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-drop-events-v1 (not run) |
-| re2-drop-logs-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-drop-logs-v1 (not run) |
-| re2-drop-metrics-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-drop-metrics-v1 (not run) |
-| re2-drop-traces-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-drop-traces-v1 (not run) |
-| re2-metrics-only-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-metrics-only-v1 (not run) |
-| re2-oracle-baselines-r05 | RQ1 | no | not run[^4] | not run[^4] | not run[^4] | re2-oracle-baselines-r05 (not run) |
-| re2-oracle-investigate-v1 | RQ2 | yes | not run[^2] | not run[^2] | not run[^2] | re2-oracle-investigate-v1 (not run) |
-| re2-oracle-loso-v1 | RQ3, RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-oracle-loso-v1 (not run) |
-| re2-oracle-permute-v1 | RQ2 | yes | not run[^2] | not run[^2] | not run[^2] | re2-oracle-permute-v1 (not run) |
-| re2-oracle-planted-v1 | RQ2 | yes | not run[^2] | not run[^2] | not run[^2] | re2-oracle-planted-v1 (not run) |
-| re2-oracle-prior-only-v1 | RQ1 | yes | run | 3 | not run[^5] | re2-oracle-prior-only-v1 @ fixture |
+| fse26-oracle-rq1-v1 | RQ1 | yes | not run<sup>1</sup> | not run<sup>1</sup> | not run<sup>1</sup> | fse26-oracle-rq1-v1 (not run) |
+| nezha-oracle-brief-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | nezha-oracle-brief-v1 (not run) |
+| nezha-oracle-rq1-v1 | RQ1 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | nezha-oracle-rq1-v1 (not run) |
+| rcaevalc-pi0-l0-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi0-l0-ai-v1 (not run) |
+| rcaevalc-pi0-l0-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi0-l0-v1 (not run) |
+| rcaevalc-pi0-l2-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi0-l2-ai-v1 (not run) |
+| rcaevalc-pi0-l2-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi0-l2-v1 (not run) |
+| rcaevalc-pi0-l6-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi0-l6-ai-v1 (not run) |
+| rcaevalc-pi0-l6-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi0-l6-v1 (not run) |
+| rcaevalc-pi05-l0-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi05-l0-ai-v1 (not run) |
+| rcaevalc-pi05-l0-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi05-l0-v1 (not run) |
+| rcaevalc-pi05-l2-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi05-l2-ai-v1 (not run) |
+| rcaevalc-pi05-l2-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi05-l2-v1 (not run) |
+| rcaevalc-pi05-l6-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi05-l6-ai-v1 (not run) |
+| rcaevalc-pi05-l6-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi05-l6-v1 (not run) |
+| rcaevalc-pi1-l0-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi1-l0-ai-v1 (not run) |
+| rcaevalc-pi1-l0-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi1-l0-v1 (not run) |
+| rcaevalc-pi1-l2-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi1-l2-ai-v1 (not run) |
+| rcaevalc-pi1-l2-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi1-l2-v1 (not run) |
+| rcaevalc-pi1-l6-ai-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi1-l6-ai-v1 (not run) |
+| rcaevalc-pi1-l6-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | rcaevalc-pi1-l6-v1 (not run) |
+| re2-detected-rq1-v1 | RQ1 | yes | not run<sup>3</sup> | not run<sup>3</sup> | not run<sup>3</sup> | re2-detected-rq1-v1 (not run) |
+| re2-detected-rq2-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-detected-rq2-v1 (not run) |
+| re2-drop-events-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-drop-events-v1 (not run) |
+| re2-drop-logs-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-drop-logs-v1 (not run) |
+| re2-drop-metrics-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-drop-metrics-v1 (not run) |
+| re2-drop-traces-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-drop-traces-v1 (not run) |
+| re2-metrics-only-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-metrics-only-v1 (not run) |
+| re2-oracle-baselines-r05 | RQ1 | no | not run<sup>4</sup> | not run<sup>4</sup> | not run<sup>4</sup> | re2-oracle-baselines-r05 (not run) |
+| re2-oracle-investigate-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-investigate-v1 (not run) |
+| re2-oracle-loso-v1 | RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-loso-v1 (not run) |
+| re2-oracle-permute-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-permute-v1 (not run) |
+| re2-oracle-planted-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-prior-only-v1 | RQ1 | yes | run | 3 | not run<sup>5</sup> | re2-oracle-prior-only-v1 @ fixture |
 | re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run | re2-oracle-rq1-v1 @ fixture |
-| re2-oracle-rq2-v1 | RQ2 | yes | not run[^6] | not run[^6] | not run[^6] | re2-oracle-rq2-v1 (not run) |
-| re2-oracle-rq3-investigate-v1 | RQ3 | yes | not run[^2] | not run[^2] | not run[^2] | re2-oracle-rq3-investigate-v1 (not run) |
-| re2-oracle-rq3-v1 | RQ3 | yes | not run[^2] | not run[^2] | not run[^2] | re2-oracle-rq3-v1 (not run) |
-| re2-shift-m120-brief-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-m120-brief-v1 (not run) |
-| re2-shift-m120-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-m120-v1 (not run) |
-| re2-shift-m30-brief-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-m30-brief-v1 (not run) |
-| re2-shift-m30-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-m30-v1 (not run) |
-| re2-shift-m60-brief-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-m60-brief-v1 (not run) |
-| re2-shift-m60-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-m60-v1 (not run) |
-| re2-shift-p120-brief-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-p120-brief-v1 (not run) |
-| re2-shift-p120-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-p120-v1 (not run) |
-| re2-shift-p30-brief-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-p30-brief-v1 (not run) |
-| re2-shift-p30-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-p30-v1 (not run) |
-| re2-shift-p60-brief-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-p60-brief-v1 (not run) |
-| re2-shift-p60-v1 | RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-shift-p60-v1 (not run) |
-| re2-to-nezha-transfer-v1 | RQ3, RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re2-to-nezha-transfer-v1 (not run) |
-| re3-oracle-prior-only-v1 | RQ1 | yes | not run[^2] | not run[^2] | not run[^2] | re3-oracle-prior-only-v1 (not run) |
-| re3-oracle-rq1-v1 | RQ1, RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | re3-oracle-rq1-v1 (not run) |
-| re3-oracle-rq2-v1 | RQ2 | yes | not run[^2] | not run[^2] | not run[^2] | re3-oracle-rq2-v1 (not run) |
-| veyllab-oracle-rq1-v1 | RQ1, RQ3, RQ4 | yes | not run[^2] | not run[^2] | not run[^2] | veyllab-oracle-rq1-v1 (not run) |
-| veyllab-oracle-rq2-v1 | RQ2, RQ3 | yes | not run[^2] | not run[^2] | not run[^2] | veyllab-oracle-rq2-v1 (not run) |
+| re2-oracle-rq2-v1 | RQ2 | yes | not run<sup>6</sup> | not run<sup>6</sup> | not run<sup>6</sup> | re2-oracle-rq2-v1 (not run) |
+| re2-oracle-rq3-investigate-v1 | RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-investigate-v1 (not run) |
+| re2-oracle-rq3-v1 | RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-v1 (not run) |
+| re2-shift-m120-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m120-brief-v1 (not run) |
+| re2-shift-m120-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m120-v1 (not run) |
+| re2-shift-m30-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m30-brief-v1 (not run) |
+| re2-shift-m30-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m30-v1 (not run) |
+| re2-shift-m60-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m60-brief-v1 (not run) |
+| re2-shift-m60-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m60-v1 (not run) |
+| re2-shift-p120-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-p120-brief-v1 (not run) |
+| re2-shift-p120-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-p120-v1 (not run) |
+| re2-shift-p30-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-p30-brief-v1 (not run) |
+| re2-shift-p30-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-p30-v1 (not run) |
+| re2-shift-p60-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-p60-brief-v1 (not run) |
+| re2-shift-p60-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-p60-v1 (not run) |
+| re2-to-nezha-transfer-v1 | RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-to-nezha-transfer-v1 (not run) |
+| re3-oracle-prior-only-v1 | RQ1 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-prior-only-v1 (not run) |
+| re3-oracle-rq1-v1 | RQ1, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-rq1-v1 (not run) |
+| re3-oracle-rq2-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-rq2-v1 (not run) |
+| veyllab-oracle-rq1-v1 | RQ1, RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | veyllab-oracle-rq1-v1 (not run) |
+| veyllab-oracle-rq2-v1 | RQ2, RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | veyllab-oracle-rq2-v1 (not run) |
 
 Notes:
 
-[^1]: not run: stretch dataset not verified (07 §1.1 cut item 2)
-[^2]: not run: no committed results in bench/results
-[^3]: not run: results from a dirty work tree are never used (04 §10.2)
-[^4]: not run: summary.json is bench_summary 0.1.0; tables read 1.1 (re-run)
-[^5]: not run: fixture statistics are off
-[^6]: not run: incomplete result: no summary.json (bench writes manifest.json last)
+1. not run: stretch dataset not verified (07 §1.1 cut item 2)
+2. not run: no committed results in bench/results
+3. not run: results from a dirty work tree are never used (04 §10.2)
+4. not run: summary.json is bench_summary 0.1.0; tables read 1.1 (re-run)
+5. not run: fixture statistics are off
+6. not run: incomplete result: no summary.json (bench writes manifest.json last)
 
 Sources:
 

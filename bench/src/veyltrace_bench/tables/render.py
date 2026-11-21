@@ -52,7 +52,8 @@ class Table:
 
 class _Notes:
     """Note numbers by first appearance; a cell's text gets the note's marker appended (a GFM
-    footnote `[^n]` in Markdown, a superscript in LaTeX, so it never reads as an interval)."""
+    superscript in both, so it never reads as an interval; Markdown uses `<sup>`, not GFM
+    footnotes, whose `[^n]: text` definitions link checkers read as broken links)."""
 
     def __init__(self, marker: Callable[[int], str]) -> None:
         self.texts: list[str] = []
@@ -98,14 +99,14 @@ def _md_escape(value: str) -> str:
 
 def markdown(table: Table) -> str:
     """The Markdown table, its notes and its sources."""
-    notes = _Notes(lambda i: f"[^{i}]")
+    notes = _Notes(lambda i: f"<sup>{i}</sup>")
     body = _cells(table, notes, _md_escape)
     columns = [*table.columns, SOURCE_COLUMN]
     lines = [f"<!-- {GENERATED} -->", "", f"# {table.title}", "", table.caption, ""]
     lines += ["| " + " | ".join(_md_escape(c) for c in columns) + " |", "|" + "---|" * len(columns)]
     lines += ["| " + " | ".join(row) + " |" for row in body]
     if notes.texts:
-        lines += ["", "Notes:", ""] + [f"[^{i}]: {_md_escape(n)}" for i, n in enumerate(notes.texts, 1)]
+        lines += ["", "Notes:", ""] + [f"{i}. {_md_escape(n)}" for i, n in enumerate(notes.texts, 1)]
     lines += ["", "Sources:", ""] + [f"- {_md_escape(s)}" for s in _source_lines(table)]
     return "\n".join(lines) + "\n"
 
