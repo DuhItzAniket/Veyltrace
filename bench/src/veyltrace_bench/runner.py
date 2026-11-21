@@ -121,6 +121,7 @@ class Executed:
     wall_ms: float
     peak_rss_mb: float | None
     ranks: tuple[str, ...] | None = None  # a baseline's ranks (simplerca); None otherwise
+    judged: bool = False  # outcome already judged per run against timeout_s (a held-out restart)
 
 
 def slug(method_id: str) -> str:
@@ -329,15 +330,21 @@ def _restart(
     root: Path,
     overlay: str | None,
 ) -> Executed:
-    """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Its
-    cost is both runs' (wall times summed, the larger peak): the prediction needed both."""
+    """A held-out run: Causentra onwards on the calibration run's outputs with the applied file. Each
+    run is judged against `timeout_s` on its own and the worse outcome kept; the cost is both runs'
+    (wall times summed, the larger peak), since the prediction needed both (ADR
+    20261121-ak-calibration-fit-conventions)."""
     if run_outcome(first.outcome, first.wall_ms, exp.resources.timeout_s) != "ok" or first.run_dir is None:
         return first  # nothing to restart: the calibration run's outcome is the case's
     over = overrides_for(exp, method, overlay, split.held_out(key.case_id))  # only the file differs
     extra = {"from_step": calibrated.RESTART_STEP, "reuse_dir": str(first.run_dir)}
     done = _execute(key, method, over, root, exp.resources.timeout_s, extra)
     peaks = [p for p in (first.peak_rss_mb, done.peak_rss_mb) if p is not None]
-    return replace(done, wall_ms=first.wall_ms + done.wall_ms, peak_rss_mb=max(peaks) if peaks else None)
+    outcome = run_outcome(done.outcome, done.wall_ms, exp.resources.timeout_s)  # the first was ok
+    total = first.wall_ms + done.wall_ms
+    return replace(
+        done, outcome=outcome, judged=True, wall_ms=total, peak_rss_mb=max(peaks) if peaks else None
+    )
 
 
 def _run_entry(method: MethodSpec, key: AnswerKeyRow, done: Executed) -> dict[str, object]:
@@ -356,7 +363,7 @@ def _record(
     same for every method and for every outcome that got that far. A baseline is scored on its
     ranks alone: it has no slate, pool, set or fault type (metrics.MethodOutput)."""
     wall_ms, peak = done.wall_ms, done.peak_rss_mb
-    outcome = run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
+    outcome = done.outcome if done.judged else run_outcome(done.outcome, wall_ms, exp.resources.timeout_s)
     slate_scored, baseline = method.kind == "causatrix", method.kind in BASELINE_KINDS
     verdict = (
         _read("verdict", done.run_dir, Verdict) if outcome == "ok" and method.kind == "veyltrace" else None
@@ -474,18 +481,19 @@ def _run_rcaeval(
 
 
 def _calibration_run(key: AnswerKeyRow, done: Executed, timeout_s: int) -> calibration.CalibrationRun | None:
-    """A calibration run as the fit reads it: a fault case's root score, a no-fault case's M (synth-05,
-    VeylLab), None for a no-fault case of another source. A non-ok run has no verdict (+inf) or M."""
-    ok = run_outcome(done.outcome, done.wall_ms, timeout_s) == "ok" and done.run_dir is not None
+    """A calibration run as the fit reads it: a fault case's root score (+inf without a verdict or
+    unranked), a no-fault case's window (synth-05, VeylLab: M, or +inf when it could never be
+    NO_FAULT), None for a no-fault case of another source (ADR 20261121-ak-calibration-fit-conventions)."""
+    ok = run_outcome(done.outcome, done.wall_ms, timeout_s) == "ok"
+    run_dir = done.run_dir if ok else None
     if key.is_no_fault:
         if (source := calibration.window_source(key.dataset)) is None:
             return None
-        m = calibration.run_statistic(done.run_dir) if ok and done.run_dir is not None else None
-        return calibration.CalibrationRun(key.case_id, None, source=source, statistic=m)
-    verdict = _read("verdict", done.run_dir, Verdict) if ok else None
-    return calibration.CalibrationRun(
-        key.case_id, None, score=calibration.root_score(verdict, str(key.root_service))
-    )
+        return calibration.window(key.case_id, None, source, run_dir)
+    verdict, slate = _read("verdict", run_dir, Verdict), _read("slate", run_dir, Slate)
+    unranked = not (verdict and verdict.ranks_rcaeval and slate and slate.rankers_active)  # 04 §7
+    score = calibration.root_score(verdict, str(key.root_service), unranked=unranked)
+    return calibration.CalibrationRun(key.case_id, None, score=score)
 
 
 def _fit(
@@ -522,7 +530,7 @@ def _fit(
         nf = content.no_fault
         _log.info(
             "bench.calibration.fit", family=content.family, n=content.n, q_hat=content.q_hat, m=nf.m,
-            tau_nf=nf.tau_nf, calibrated=nf.calibrated,
+            tau_nf=nf.tau_nf, calibrated=nf.calibrated, **calibration.never_counts(runs),
         )  # fmt: skip
 
 
@@ -673,6 +681,12 @@ def run_experiment(
             if split is not None and method.kind == calibrated.CALIBRATED_KIND:
                 cfg = resolve_config(overrides_for(exp, method), dataset=dataset, ai_mode=method.ai.mode)
                 calibrated.check(exp, split, method, cfg)
+    if split is not None and split.fit:  # one file per family id: two fitting methods may not share one
+        fitting = [m for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND]
+        arms = [calibrated.arm(m, resolve_config(overrides_for(exp, m), ai_mode=m.ai.mode)) for m in fitting]
+        if len(set(arms)) != len(arms):
+            pairs = [f"{m.id}: {a}" for m, a in zip(fitting, arms, strict=True)]
+            raise ConfigError(f"fitting methods share a calibration arm, so a family id: {pairs}")
     bench_runs = (runs_root or default_runs_root()) / BENCH_RUNS / exp.experiment_id
     if bench_runs.exists():  # bench's own directory: stale runs would be reused untimed
         shutil.rmtree(bench_runs)
@@ -686,10 +700,11 @@ def run_experiment(
     reports: dict[tuple[str, str], str] = {}
     first: dict[str, list[tuple[AnswerKeyRow, Executed]]] = {}  # a fitting method's calibration runs
 
-    def keep(scored: Scored) -> None:
+    def keep(scored: Scored, listed: bool = True) -> None:
         row, score, run = scored
         rows.append(row)
-        runs.append(run)
+        if listed:  # False: the run is already in the manifest (a calibration run kept as the row)
+            runs.append(run)
         dataset, k_sys, method_id = str(row["dataset"]), str(row["system"]), str(row["method"])
         groups.setdefault((dataset, k_sys, method_id), []).append(score)
         k = keys[dataset][str(row["case_id"])]
@@ -723,7 +738,7 @@ def run_experiment(
         _fit(exp, split, method, [*first[method.id], *outside], str(code["commit"]))
         for key, done in first[method.id]:
             held_out = _restart(exp, method, key, done, split, bench_runs, overlays.get(key.case_id))
-            keep(_record(exp, method, key, held_out, _fold(split, key.case_id)))
+            keep(_record(exp, method, key, held_out, _fold(split, key.case_id)), held_out is not done)
     if split is not None:
         verdicts = {m.id for m in exp.methods if m.kind == calibrated.CALIBRATED_KIND}  # sets and statuses
         for rates in calibration.held_out_rates(r for r in rows if r["method"] in verdicts):  # #37, per fold

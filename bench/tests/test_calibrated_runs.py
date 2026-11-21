@@ -15,18 +15,20 @@ from typing import Any
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import answer_keys, calibration, runner, splits
+from veyltrace_bench import answer_keys, calibrated, calibration, runner, splits
+from veyltrace_bench.experiment import load_experiment
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
 from veyltrace_core.calibration import load_calibration, write_calibration
 from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_file
+from veyltrace_core.ids import case_id
 
 REPO = Path(__file__).resolve().parents[2]
 FILE: dict[str, Any] = {
     "family": "synth", "ai_arm": "off", "alert_protocol": "oracle", "alpha": 0.1, "beta": 0.1,
-    "default_tau": 1.386294361, "seed": 1, "config_sha256s": ["a" * 64], "code_commit": "x",
+    "default_tau": 1.386294361, "seed": 20261108, "config_sha256s": ["a" * 64], "code_commit": "x",
     "experiment_id": "synth-fit",
 }  # fmt: skip
 FIT = """\
@@ -74,6 +76,9 @@ def test_crossfit2_fits_both_folds_and_tests_each_case_on_the_other(
     tmp_path: Path, config_root: Path
 ) -> None:
     exp = _yaml(tmp_path, FIT.replace("FIT", "true"), "fit")
+    experiments = config_root.parent / "bench" / "experiments"  # where fit: false finds its fitting plan
+    experiments.mkdir(parents=True)
+    shutil.copyfile(exp, experiments / "synth-crossfit.yaml")
     out, _ = runner.run_experiment(exp, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
     rows = _rows(out)
     off = {str(r["case_id"]): r for r in rows if r["method"] == "veyltrace:off"}
@@ -95,6 +100,8 @@ def test_crossfit2_fits_both_folds_and_tests_each_case_on_the_other(
     assert {c: r["fold"] for c, r in off.items()} == dict(plan.test_fold)  # one held-out row per case
     assert all(r["fold"] == plan.test_fold[str(r["case_id"])] for r in rows)  # rrf rows too
     assert _off_runs(out) == 2 * len(keys)  # calibration runs + held-out runs
+    listed = json.loads(textio.read_text(out / "manifest.json"))["runs"]
+    assert len({(r["method"], r["run_id"]) for r in listed}) == len(listed)  # each run listed once
     for run_dir in (tmp_path / "runs").rglob("run_manifest.json"):
         got = io.read_model("run_manifest", run_dir.parent, models.RunManifest)
         verdict = io.read_model("verdict", run_dir.parent, models.Verdict)
@@ -118,12 +125,35 @@ def test_crossfit2_fits_both_folds_and_tests_each_case_on_the_other(
     assert _off_runs(out2) == len(keys)
 
 
-def _write_fold_files(config_root: Path) -> None:
-    """foldA keeps only the leader (q_hat 0), foldB the whole pool (q_hat +inf, n < 9)."""
+def _write_fold_files(config_root: Path, fitting: str | None = None) -> None:
+    """foldA keeps only the leader (q_hat 0), foldB the whole pool (q_hat +inf, n < 9), as if the
+    experiment synth-fit (`fitting`, default FIT with fit true) had fitted them."""
+    experiments = config_root.parent / "bench" / "experiments"
+    experiments.mkdir(parents=True, exist_ok=True)
+    text = fitting or FIT.replace("FIT", "true").replace("synth-crossfit", "synth-fit")
+    textio.write_bytes(experiments / "synth-fit.yaml", text.encode())
     for fold, q in (("foldA", 0.0), ("foldB", None)):
         scores = [] if q is None else [q] * 9
         runs = [calibration.CalibrationRun(f"{i:012x}", None, score=s) for i, s in enumerate(scores)]
         write_calibration(config_root / "calibration", calibration.fit(runs, **{**FILE, "fold": fold}))
+
+
+def test_a_file_from_another_fold_plan_or_level_is_refused(tmp_path: Path, config_root: Path) -> None:
+    """The fitting experiment lacked a cluster, so its folds differ from this one's (#391 review)."""
+    cases = [case_id(f"synth-0{i}") for i in (1, 2, 3, 5)]  # synth-04's cluster is missing
+    textio.write_bytes(config_root.parent / "four.yaml", "".join(f'- "{c}"\n' for c in cases).encode())
+    fitting = FIT.replace("FIT", "true").replace("synth-crossfit", "synth-fit")
+    _write_fold_files(config_root, fitting.replace("cases: all", "cases: four.yaml"))
+    reuse = _yaml(tmp_path, FIT.replace("FIT", "false"), "reuse")
+    with pytest.raises(ConfigError, match="not in the other fold"):
+        runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
+    for change in ({"seed": 7}, {"alpha": 0.2}):  # another seed's folds, another level's q_hat
+        _write_fold_files(config_root)
+        write_calibration(
+            config_root / "calibration", calibration.fit([], **{**FILE, "fold": "foldA", **change})
+        )
+        with pytest.raises(ConfigError, match=r"split.seed/alpha/beta"):
+            runner.run_experiment(reuse, out_root=tmp_path / "results", runs_root=tmp_path / "runs")
 
 
 def test_fit_false_tests_each_case_with_the_file_fitted_without_it(tmp_path: Path, config_root: Path) -> None:
@@ -193,3 +223,38 @@ def test_split_none_runs_stay_uncalibrated_whatever_files_exist(
         for p in (tmp_path / "runs").rglob("verdict.json")
     }
     assert families == {"uncalibrated"}
+
+
+def test_two_fitting_methods_may_not_share_a_family_id(tmp_path: Path, config_root: Path) -> None:
+    twin = (
+        '  - {id: "veyltrace:twin", kind: veyltrace, ai: {mode: "off"}, overrides: {causentra.asks.max: 4}}\n'
+    )
+    text = FIT.replace("FIT", "true").replace('  - {id: "causatrix:rrf"', twin + '  - {id: "causatrix:rrf"')
+    with pytest.raises(ConfigError, match="share a calibration arm"):
+        runner.run_experiment(
+            _yaml(tmp_path, text, "twin"), out_root=tmp_path / "results", runs_root=tmp_path / "runs"
+        )
+    assert not (tmp_path / "runs").exists()
+
+
+def test_a_held_out_restart_is_judged_per_run_and_costs_both(
+    tmp_path: Path, config_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """400 s + 300 s with timeout_s 600: both runs finished, so the row is ok, at 700 s of cost."""
+    exp = load_experiment(_yaml(tmp_path, FIT.replace("FIT", "true"), "fit"))
+    keys = {c: k for c, k in answer_keys.load_answer_keys("synth").items() if c == case_id("synth-01")}
+    split = calibrated.make_split(exp, keys, {})
+    assert split is not None
+    first = runner.Executed("ok", "0" * 16, tmp_path, False, 400_000.0, 10.0)
+    monkeypatch.setattr(
+        runner,
+        "_execute",
+        lambda *_a, **_k: runner.Executed("ok", "1" * 16, tmp_path, False, 300_000.0, 12.0),
+    )
+    key = keys[case_id("synth-01")]
+    got = runner._restart(exp, exp.methods[0], key, first, split, tmp_path, None)  # the unit under test
+    assert (got.outcome, got.judged, got.wall_ms, got.peak_rss_mb) == ("ok", True, 700_000.0, 12.0)
+    monkeypatch.setattr(
+        runner, "_execute", lambda *_a, **_k: runner.Executed("ok", "1" * 16, tmp_path, False, 601_000.0, 1.0)
+    )
+    assert runner._restart(exp, exp.methods[0], key, first, split, tmp_path, None).outcome == "timeout"
