@@ -12,12 +12,12 @@ from pathlib import Path
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import answer_keys, runner
+from veyltrace_bench import answer_keys, calibrated, runner
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, testing, textio
-from veyltrace_core.config import find_config_dir
+from veyltrace_core.config import find_config_dir, resolve_config
 from veyltrace_core.errors import ConfigError, UsageError
-from veyltrace_core.hashing import sha256_text_lf
+from veyltrace_core.hashing import self_hash, sha256_json, sha256_text_lf
 from veyltrace_core.ids import case_id
 from veyltrace_core.pipeline import Outcome, RunSummary
 
@@ -34,7 +34,13 @@ def _check_against_the_goldens(row: dict[str, object], case: str, root: str | No
     verdict, slate = testing.golden("verdict", case), testing.golden("slate", case)
     assert isinstance(verdict, models.Verdict) and isinstance(slate, models.Slate)
     ranks, in_set = verdict.ranks_rcaeval, sorted(c.service for c in verdict.candidate_set)
-    want = (ranks, verdict.status, verdict.verdict_hash, len(in_set))
+    # Bench pins every run's calibration choice (uncalibrated under split none, #391), which is in
+    # Causentra's section and so in params_sha256; everything else is the golden's (03 §10).
+    pinned = resolve_config(dict(calibrated.UNCALIBRATED), dataset="synth", ai_mode="off").engine("causentra")
+    rehashed = self_hash(
+        "verdict", verdict.model_dump(mode="json") | {"params_sha256": sha256_json(dict(pinned))}
+    )
+    want = (ranks, verdict.status, rehashed, len(in_set))
     assert (row["ranks"], row["status"], row["verdict_hash"], row["set_size"]) == want
     assert all(len(r.split("_")) == 2 for r in ranks)  # service_indicator (03 §10)
     assert sorted(r.split("_")[0] for r in ranks) == sorted(s.service for s in slate.all_scores)
