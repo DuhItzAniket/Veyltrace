@@ -46,10 +46,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         args = _parser().parse_args(argv)
     except SystemExit as exc:  # argparse exits 2 on a usage error and 0 after --help
         return exc.code if isinstance(exc.code, int) else int(DiagnoseExit.USAGE)
+    # Resolved here, against the caller's directory: the run children start in the repository root,
+    # and the manifest's calibrations re-open each run's lock under this root (#412).
+    runs_root = args.runs_root.resolve() if args.runs_root is not None else None
     try:
-        out_dir, _ = run_experiment(
-            args.experiment, out_root=args.out, runs_root=args.runs_root, table=args.table
-        )
+        out_dir, _ = run_experiment(args.experiment, out_root=args.out, runs_root=runs_root, table=args.table)
     except VeyltraceError as exc:
         print(f"error: {exc}", file=sys.stderr)
         if isinstance(exc, ArtifactMissing) and exc.name == ANSWER_KEY:

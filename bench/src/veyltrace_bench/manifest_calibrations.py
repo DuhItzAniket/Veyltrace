@@ -24,9 +24,11 @@ def recorded(
 ) -> list[dict[str, object]]:
     """{family_id, sha256, fitted} of every calibration file a recorded run read, sorted by family_id
     then sha256 (03 §13.4). `runs` are the manifest's runs[] entries and `runs_root` the directory
-    their full runs were made in (bench's own, per experiment). A killed run (no run_id), a
-    baseline's partial run (elsewhere) or a run that stopped before the manifest step (no lock)
-    read none that bench can name; an uncalibrated run's lock has a null calibration."""
+    their full runs were made in (bench's own, per experiment), absolute: the CLI resolves
+    --runs-root, since a relative one would name another directory here than in the run children.
+    A killed run (no run_id), a baseline's partial run (elsewhere) or a run that stopped before the
+    manifest step (no lock) read none that bench can name; an uncalibrated run's lock has a null
+    calibration."""
     found: set[tuple[str, str, bool]] = set()
     for run in runs:
         run_id = run.get("run_id")
