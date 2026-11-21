@@ -147,3 +147,29 @@ def test_the_register_holds_reasons_and_revisions(results: Path) -> None:
         read_register(results)
     (results / "not_run.yaml").unlink()
     assert read_register(results) == Register()
+
+
+@pytest.mark.parametrize("version", ["1.1.0", "1.2.0", "1.3.0"])
+def test_summaries_of_1_1_and_1_2_are_read_others_are_not_run(results: Path, version: str) -> None:
+    """1.2 is the current minor (#411); a 1.1 file reads with the 1.2 entries null, and the cell
+    names the file's version; any other minor is refused as "not run"."""
+    path = results / "re2-oracle-rq3-v1" / "summary.json"
+    doc = json.loads(textio.read_text(path))
+    doc["schema_version"] = version
+    if version == "1.1.0":
+        for group in doc["groups"]:
+            for entry in ("coverage", "set_size", "no_fault_rates", "risk_coverage", "selective_accuracy",
+                          "decoy_top1_change", "permutation_invariance"):  # fmt: skip
+                del group["metrics"][entry]
+    textio.write_text(path, json.dumps(doc))
+    res = load(results, "re2-oracle-rq3-v1", NONE)
+    cell = res.metric("re2-ob", "ob", "veyltrace:off", "coverage", "coverage")
+    if version == "1.3.0":
+        assert res.reason == "summary.json is bench_summary 1.3.0; tables read 1.1 and 1.2 (re-run)"
+    elif version == "1.2.0":
+        assert res.reason is None and res.file_version == "1.2.0" and cell == cells.Cell("0.875")
+    else:
+        assert res.reason is None and res.file_version == "1.1.0"
+        assert cell == cells.not_run(
+            "summary.json is bench_summary 1.1, which has no `coverage` entry (re-run)"
+        )
