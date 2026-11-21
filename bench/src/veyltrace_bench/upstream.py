@@ -7,15 +7,15 @@ to and including Causalith. Bench therefore restarts it at `faultloom` on that r
 `from_step` + `reuse_dir`) and stops after Causatrix (`to_step`), which is all a slate-scored
 method is scored on (04 §3, §9). It cannot restart later: FaultLoom's claim pass rewrites
 `evidence.parquet` in every finished run (T8 intervention atoms, #368, AI off too), and core
-refuses that version as FaultLoom's main output. It reuses only when the source run finished `ok` and nothing it
-would reuse differs: the `config.lock.json` sections of every reused step's engine equal the
+refuses that version as FaultLoom's main output. It reuses only when the source run finished `ok`
+and nothing it would reuse differs: the `config.lock.json` sections of every reused step's engine equal the
 method's resolved ones, the code commit is the same, and every file the reused steps wrote still
 holds the hash its `run_manifest` recorded (core re-checks the hashes itself). Otherwise the method
 runs in full, as before, and the reason is logged.
 
 A reused row's `wall_ms` and `peak_rss_mb` cover the FaultLoom and Causatrix steps only
-(bench/README.md), and its timeout is what is left of `timeout_s` after the source's run. RQ5 cost numbers come only from `veyltrace:off` runs. `causatrix:rrf`
-has no override, so it shares `veyltrace:off`'s whole run as before (#172).
+(bench/README.md), and its timeout is what is left of `timeout_s` after the source's run. RQ5
+cost numbers come only from `veyltrace:off` runs. `causatrix:rrf` has no override, so it shares `veyltrace:off`'s whole run as before (#172).
 """
 
 from __future__ import annotations
