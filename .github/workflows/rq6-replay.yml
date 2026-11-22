@@ -1,0 +1,89 @@
+# RQ6 Tier 1 replay in CI (04 §2 H6a / SC-6: "on a second laptop and in CI"; CCR #440;
+# ADR docs/adr/20261122-ak-rq6-replay-results.md). Manual only, never on a PR or a push.
+#
+# It checks out `ref` (a commit holding the committed R-16 results and the recording site's
+# bench/results/replay/recording/), downloads the run archive and runs
+# `veyltrace bench replay --role ci --table`, which replays exactly the recording result's runs.
+#
+# The archive (a .tar.gz of <runs root>/bench-ai/) holds telemetry, which 04 §10.1 does not
+# redistribute. The repository is public, so an Actions artifact would be readable by any signed-in
+# user: the archive is a *draft* release asset, which only collaborators with push access see, and
+# this job reads it with its own token. Its size comes from `bench replay --dry-run`; the lead
+# decides on another transport if it exceeds what a release asset or the runner disk holds (ADR).
+#
+# The result (replay.csv and replay_summary.json, no telemetry) is uploaded as an artifact; the lead
+# commits it to bench/results/replay/ci/. Untrusted values reach shell steps only through `env:`.
+
+name: rq6-replay
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Commit or tag holding bench/results (the R-16 results and replay/recording)"
+        required: true
+      release:
+        description: "Name of the draft release whose asset is the run archive"
+        required: true
+        default: "rq6-replay-runs"
+      asset:
+        description: "Archive file name: a .tar.gz whose top-level directory is bench-ai/"
+        required: true
+        default: "bench-ai.tar.gz"
+
+concurrency:
+  group: rq6-replay
+  cancel-in-progress: false
+
+permissions:
+  contents: write # listing draft releases needs push access; nothing is written
+
+env:
+  UV_PYTHON: "3.12"
+  CI_UV_VERSION: "0.13.0" # as ci.yml: the uv that wrote uv.lock
+
+jobs:
+  replay:
+    name: replay (ci)
+    runs-on: ubuntu-24.04 # as ci.yml: the pinned image of the golden fixtures
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0 # bench replay compares the run code with each source's code.commit
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v10.3.3
+        with:
+          version: ${{ env.CI_UV_VERSION }}
+          enable-cache: true
+      - run: uv python install 3.12
+      - run: uv sync --locked --all-packages
+      - name: Download the run archive (draft release asset)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RELEASE: ${{ inputs.release }}
+          ASSET: ${{ inputs.asset }}
+        run: |
+          set -euo pipefail
+          ids=$(gh api --paginate "repos/$REPO/releases" \
+            --jq '.[] | select(.draft and .name == env.RELEASE) | .assets[] | select(.name == env.ASSET) | .id')
+          if [ "$(printf '%s\n' "$ids" | grep -c .)" != 1 ]; then
+            echo "expected one asset named $ASSET on one draft release named $RELEASE, found: ${ids:-none}" >&2
+            exit 1
+          fi
+          gh api -H "Accept: application/octet-stream" "repos/$REPO/releases/assets/$ids" > "$RUNNER_TEMP/runs.tar.gz"
+          mkdir -p "$RUNNER_TEMP/runs"
+          tar -xzf "$RUNNER_TEMP/runs.tar.gz" -C "$RUNNER_TEMP/runs"
+          rm "$RUNNER_TEMP/runs.tar.gz"
+          test -d "$RUNNER_TEMP/runs/bench-ai"
+      - name: Size (run count and bytes)
+        run: uv run veyltrace bench replay --role ci --runs-root "$RUNNER_TEMP/runs" --dry-run
+      - name: Replay (Tier 1)
+        run: uv run veyltrace bench replay --role ci --runs-root "$RUNNER_TEMP/runs" --table
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rq6-replay-ci
+          path: bench/results/replay/ci/
+          if-no-files-found: error
