@@ -76,16 +76,18 @@ def test_unsupported_names_every_feature_v0_cannot_run(tmp_path: Path) -> None:
         BASE.replace("[mrr]", "[mrr, coverage, cost]")
         + "split: {scheme: crossfit2}\ncalibration: {fit: true}\nprotocol: {decoys: {pi: 0.5}}\n"
         + "resources: {workers: 2}\n"
-        + "methods: [{id: b, kind: agent_only}, {id: v, kind: veyltrace, ai: {mode: record, seeds: [1]}}]\n",
+        + "methods: [{id: b, kind: agent_only}, {id: v, kind: veyltrace,"
+        + " ai: {mode: record, relentra_mode: brief, seeds: [1]}}, {id: 'causatrix:rrf', kind: causatrix,"
+        + " ai: {mode: record, relentra_mode: brief, seeds: [1]}}]\n",
     )
     todo = " | ".join(unsupported(exp))
     for task in (
         "workers",
-        "agent_only",
-        "AI arms",
+        "causatrix:rrf: AI arms run as kind veyltrace",  # a veyltrace AI arm runs since #397
     ):
         assert task in todo
-    assert len(unsupported(exp)) == 3 and "metrics" not in todo  # cost (#316), coverage (#405): computed
+    assert not any(t.startswith("methods b:") for t in unsupported(exp))  # agent_only: proposals 1.1 (#409)
+    assert len(unsupported(exp)) == 2 and "metrics" not in todo  # cost (#316), coverage (#405): computed
     assert "decoys" not in todo  # run since #326; the block is checked when the run starts
     assert "split" not in todo and "calibration" not in todo  # #391, #376
     assert sorted([*METRIC_KEYS, *METRIC_TASKS]) == sorted(get_args(MetricName))  # each: computed or a task

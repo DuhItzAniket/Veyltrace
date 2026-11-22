@@ -530,12 +530,6 @@ def _reader_at(
     )
 
 
-class _Proposals11(models.Proposals):
-    """`proposals` as a 1.1 reader would model it: its schema_version pattern is that minor's."""
-
-    schema_version: str
-
-
 def _restamp_parquet(path: Path, version: str, drop: str) -> None:
     """Rewrite a contract Parquet file as an older minor that lacks column `drop`."""
     table = pq.read_table(path).drop_columns([drop])
@@ -582,16 +576,29 @@ def test_older_minor_parquet_still_rejects_missing_required_columns(
 def test_older_minor_json_reads_absent_nullable_fields_as_null(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """A real older minor: a proposals 1.0.0 file has no `proposals[].rank` (added in 1.1.0,
+    CCR #409), and the 1.1 reader reads it with every rank null."""
+    assert io.contract_info("proposals").version == "1.1.0"
     doc = _example("proposals")
-    doc["mode"], doc["model"] = "external", None
-    io.write("proposals", doc, tmp_path)
-    older = {k: v for k, v in doc.items() if k != "model"}
+    older = {**doc, "schema_version": "1.0.0"}
+    older["proposals"] = [{k: v for k, v in p.items() if k != "rank"} for p in doc["proposals"]]
     textio.write_bytes(io.path_of("proposals", tmp_path), canonical_json(older) + b"\n")  # a 1.0.0 file
-    _reader_at(monkeypatch, "proposals", "1.1.0", _Proposals11)
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", False)
     with pytest.raises(ContractValidationError, match="schema version"):
         io.read("proposals", tmp_path)  # the pre-#319 rule: exact minor only
     monkeypatch.setattr(io, "ALLOW_OLDER_MINOR", True)
     for validate in (False, True):
-        model = io.read_model("proposals", tmp_path, _Proposals11, validate=validate)
-        assert model.model is None
+        model = io.read_model("proposals", tmp_path, models.Proposals, validate=validate)
+        assert model.schema_version == "1.1.0"
+        assert [p.rank for p in model.proposals] == [None] * len(doc["proposals"])
+        assert [p.proposal_id for p in model.proposals] == [p["proposal_id"] for p in doc["proposals"]]
+
+
+def test_proposals_writer_refuses_ranks_that_are_not_one_to_k(tmp_path: Path) -> None:
+    doc = _example("proposals")
+    io.write("proposals", doc, tmp_path)  # the example's ranks are 1, 2
+    doc["proposals"][1]["rank"] = 3
+    with pytest.raises(ContractValidationError, match=r"exactly 1\.\.2, got \[1, 3\]"):
+        io.write("proposals", doc, tmp_path)
+    doc["proposals"][1]["rank"] = None  # an unknown order is allowed; the known ranks stay 1..k
+    io.write("proposals", doc, tmp_path)

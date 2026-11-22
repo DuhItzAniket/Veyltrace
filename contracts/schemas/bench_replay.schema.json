@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/1.0/bench_replay.schema.json",
+  "title": "BenchReplayRow",
+  "description": "One row of bench/results/replay/<role>/replay.csv: the outcome of one Tier 1 replay or Tier 2 regeneration of a recorded AI-arm run (RQ6, 04 §7 \"Replay\"). Written by bench replay, committed to git and released with the paper; evaluation-only.",
+  "x-veyltrace": {
+    "name": "bench_replay",
+    "version": "1.0.0",
+    "kind": "csv",
+    "producer": "bench",
+    "path": "bench/results/replay/<role>/replay.csv",
+    "key": [
+      "tier",
+      "run_id"
+    ],
+    "unique": true
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "card_match",
+    "case_id",
+    "dataset",
+    "env_drift",
+    "exit_code",
+    "experiments",
+    "first_divergence",
+    "method",
+    "proposals_match",
+    "reason",
+    "run_id",
+    "seed",
+    "system",
+    "tier",
+    "trace_match",
+    "verdict_hash",
+    "verdict_hash_replayed"
+  ],
+  "properties": {
+    "tier": {
+      "description": "1 = replay of the recorded receipt (Tier 1); 2 = regeneration of the proposals (Tier 2), 04 §7 \"Replay\".",
+      "type": "integer",
+      "enum": [
+        1,
+        2
+      ],
+      "x-arrow": "int64"
+    },
+    "run_id": {
+      "description": "The kept record run under <runs root>/bench-ai/ (bench ai_arms) that was replayed or regenerated.",
+      "$ref": "common.schema.json#/$defs/run_id",
+      "x-arrow": "string"
+    },
+    "case_id": {
+      "description": "As in bench_result.case_id.",
+      "$ref": "common.schema.json#/$defs/case_id",
+      "x-arrow": "string"
+    },
+    "dataset": {
+      "description": "As in bench_result.dataset.",
+      "$ref": "common.schema.json#/$defs/dataset",
+      "x-arrow": "string"
+    },
+    "system": {
+      "description": "As in bench_result.system.",
+      "$ref": "common.schema.json#/$defs/system",
+      "x-arrow": "string"
+    },
+    "method": {
+      "description": "Method id from the experiment YAML, as in bench_result.method.",
+      "type": "string",
+      "minLength": 1,
+      "x-arrow": "string"
+    },
+    "seed": {
+      "description": "The AI seed of the run, as in bench_result.seed.",
+      "type": "integer",
+      "x-arrow": "int64"
+    },
+    "experiments": {
+      "description": "Ids of the experiments whose manifest lists the run, sorted, ;-joined in the CSV.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+      },
+      "x-sort": [
+        {
+          "pointer": ".",
+          "order": "asc"
+        }
+      ],
+      "x-arrow": "list<string>"
+    },
+    "exit_code": {
+      "description": "Tier 1: the exit code of veyltrace replay (ReplayExit 0-6, 10 §3.9), read from its report; null when reason is set, and for Tier 2.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 6,
+      "x-arrow": "int64"
+    },
+    "reason": {
+      "description": "Why there is no exit code or regeneration: no_receipt (an ok run without receipt.json), no_report (the command wrote no report: a usage error or crash), timeout (killed at the bench timeout), regen_failed (Tier 2: the regenerated run is not ok or has another run id); null otherwise.",
+      "anyOf": [
+        {
+          "type": "string",
+          "enum": [
+            "no_receipt",
+            "no_report",
+            "timeout",
+            "regen_failed"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "verdict_hash": {
+      "description": "The recorded verdict_hash: the receipt's (Tier 1) or the kept verdict's (Tier 2).",
+      "$ref": "common.schema.json#/$defs/sha256",
+      "x-arrow": "string"
+    },
+    "verdict_hash_replayed": {
+      "description": "The recomputed verdict_hash: the report's verdict_hash.actual (Tier 1) or the regenerated verdict's (Tier 2); null when none was computed.",
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "x-arrow": "string"
+    },
+    "trace_match": {
+      "description": "Tier 1: the report's agent_trace_head expected equals actual; null when not compared.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "card_match": {
+      "description": "Tier 1: the report's card_hash expected equals actual; null when not compared.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "proposals_match": {
+      "description": "Tier 2: the SHA-256 of the regenerated proposals.json equals the kept run's (byte-identical, 04 §7); null for Tier 1 and when not regenerated.",
+      "type": [
+        "boolean",
+        "null"
+      ],
+      "x-arrow": "bool"
+    },
+    "first_divergence": {
+      "description": "Tier 1: the report's first_divergence (the first diverging artefact, 10 §3.9 R8); null when none.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "x-arrow": "string"
+    },
+    "env_drift": {
+      "description": "Tier 1: the report's env_drift entries in report order, ;-joined in the CSV; empty cell = no drift.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[^;]+$"
+      },
+      "x-order": "semantic",
+      "x-arrow": "list<string>"
+    }
+  }
+}

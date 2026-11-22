@@ -75,7 +75,7 @@ The override keeps all three consistent under the detected protocol (the alert w
 
 Rule:
 
-1. **System hint.** If `entry.hints[system]` is configured and intersects `services`, return the intersection. Defaults (a priori, architecture knowledge, not fault labels; names checked on data at O-05): `ob: [frontend]`, `ss: [front-end]`, `tt: [ts-ui-dashboard]` (RCAEval TT has `ts-ui-dashboard_istio-latency-90`, [rcaeval_facts §Dataset layout][rf-layout]), `otel: [frontend-proxy]`.
+1. **System hint.** If `entry.hints[system]` is configured and intersects `services`, return the intersection; when the case has cross-service call pairs, only hinted services that occur in one count ([ADR 20261122-ak-entry-hint-needs-trace-edge](../adr/20261122-ak-entry-hint-needs-trace-edge.md)). Defaults (a priori, architecture knowledge, not fault labels; names checked on data at O-05): `ob: [frontend]`, `ss: [front-end]`, `tt: [ts-ui-dashboard]` (RCAEval TT has `ts-ui-dashboard_istio-latency-90`, [rcaeval_facts §Dataset layout][rf-layout]), `otel: [frontend-proxy]`.
 2. **From call pairs.** Remove services in `entry.exclude` (load generators). Entries = services that appear as a caller and never as the callee of a non-excluded service.
 3. Otherwise an empty list. (Without traces and without a hint there is no defensible entry; `detect_alert` then returns `None` and paths are empty.)
 

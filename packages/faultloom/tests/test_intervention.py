@@ -6,14 +6,26 @@ import json
 from pathlib import Path
 from typing import Any
 
-from veyltrace_causalith.ci import CIResult
+import pyarrow as pa
+import pytest
+
+from veyltrace_causalith.ci import CIConfig, CIResult, intervention_test
 from veyltrace_contracts import models
 from veyltrace_core import io
 from veyltrace_core.hashing import sha256_json
 from veyltrace_core.testing import fixture_run_dir, make_context, repo_root
 from veyltrace_faultloom.api import run
 from veyltrace_faultloom.atoms import Atom
-from veyltrace_faultloom.intervention import decision_pool, intervention_atom, target_series
+from veyltrace_faultloom.intervention import (
+    EDGE_COLUMNS,
+    SERIES_COLUMNS,
+    candidate_rows,
+    ci_config,
+    decision_pool,
+    intervention_atom,
+    series_rows,
+    target_series,
+)
 from veyltrace_faultloom.validation import CaseDomain
 
 ARGS = '{"k":4.0,"signal":"cpu"}'
@@ -135,3 +147,62 @@ def test_claim_pass_tests_at_most_max_candidates(tmp_path: Path) -> None:
         "faultloom", run_dir, phase="claim_pass", overrides={"faultloom.intervention.max_candidates": 0}
     )
     assert run(none).metrics["atoms.intervention"] == 0
+
+
+def _both(
+    series: pa.Table, edges: pa.Table, alert: models.Alert, cfg: CIConfig, c: str, t: str | None
+) -> tuple[str, str]:
+    """repr of intervention_test on the whole table and on candidate_rows' slice (repr: NaN == NaN)."""
+    rows_by_id, ids_by_service = series_rows(
+        series.column("series_id").to_pylist(), series.column("service").to_pylist()
+    )
+    rows = candidate_rows(c, edges.select(["src", "dst"]).to_pylist(), rows_by_id, ids_by_service)
+    full = intervention_test(series, edges, alert, c, cfg, t)
+    return repr(full), repr(
+        intervention_test(series.take(rows) if rows else series.slice(0, 0), edges, alert, c, cfg, t)
+    )
+
+
+@pytest.mark.parametrize("case", ["synth-01", "synth-02", "synth-03", "synth-04", "synth-05"])
+def test_the_slice_gives_the_whole_table_result_for_every_node(case: str, tmp_path: Path) -> None:
+    run_dir = fixture_run_dir(case, tmp_path, through="faultloom.claim_pass")
+    ctx = make_context("faultloom", run_dir, phase="claim_pass")
+    series = ctx.read_table("signal_cube.series", columns=list(SERIES_COLUMNS))
+    edges = ctx.read_table("graph.edges", columns=list(EDGE_COLUMNS))
+    alert = ctx.read_model("alert", models.Alert)
+    cfg = ci_config(ctx.with_config("causalith").config, ctx.with_config("anomara").config)
+    engine = io.read_table("evidence", run_dir).to_pylist()
+    nodes = sorted({str(s) for s in series.column("service").to_pylist()} | {"no-such-service"})
+    tested = 0
+    for c in nodes:
+        for target in (None, target_series(c, engine), "x|x|cpu|metrics"):  # default, atom's, foreign
+            full, part = _both(series, edges, alert, cfg, c, target)
+            assert part == full, (c, target)
+            tested += "reason=None" in full
+    assert tested > 0  # some results are testable, not only untestable ones
+
+
+def test_a_series_is_kept_whole_with_all_its_rows() -> None:
+    def rows(sid: str, service: str, signal: str, n: int) -> list[dict[str, object]]:
+        base: dict[str, object] = {"series_id": sid, "service": service, "signal": signal, "family": "cpu"}
+        return [
+            base | {"source": "metrics", "unit": None, "t_ns": t * 1_000_000_000, "value": float(t % 7)}
+            for t in range(n)
+        ]
+
+    table = pa.Table.from_pylist(
+        rows("a|cpu", "a", "cpu", 4)
+        + rows("mixed", "z", "cpu", 2)
+        + rows("mixed", "a", "cpu", 2)
+        + rows("b|cpu", "b", "cpu", 3)
+        + rows("z|cpu", "z", "cpu", 5)
+    )
+    by_id, by_service = series_rows(
+        table.column("series_id").to_pylist(), table.column("service").to_pylist()
+    )
+    links = [{"src": "a", "dst": "b"}, {"src": "b", "dst": "z"}]
+    assert candidate_rows("a", links, by_id, by_service) == list(range(11))  # all of "mixed", not z|cpu
+    assert candidate_rows("b", links, by_id, by_service) == list(
+        range(4, 16)
+    )  # b, its callee z, all of "mixed"
+    assert candidate_rows("q", links, by_id, by_service) == []  # no series: no_target either way

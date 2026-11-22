@@ -14,11 +14,11 @@ from veyltrace_bench.experiment import Experiment
 from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.render import Row, Table
-from veyltrace_bench.tables.results import Results
+from veyltrace_bench.tables.results import EXACT_SHARES, Results
 from veyltrace_bench.tables.rq1 import ACCURACY, accuracy_table, comparisons, methods
 from veyltrace_bench.tables.rq4 import listed
 
-ARMS = {"decoy_top1_change": "n_pairs", "permutation_invariance": "n_cases"}  # entry -> its pair count
+ARMS = EXACT_SHARES  # entry -> its pair count
 
 
 def _is_proposal_arm(e: Experiment) -> bool:
@@ -66,7 +66,8 @@ def proposer(ctx: Context) -> list[Table]:
     caption = (
         "Planted decoy proposals (H2b: share of (case, seed) whose top-1 changed under a planted proposal) "
         "and proposal permutations (H2c: share of (case, seed) with one verdict_hash across permutations); "
-        "bench_summary 1.2 entries (03 §13.3). Protocol: see Sources."
+        "bench_summary 1.2 entries (03 §13.3); 95% exact (Clopper–Pearson) binomial intervals over the "
+        "pairs in brackets (04 §8 proportions without clusters). Protocol: see Sources."
     )
     title = "Table 6d: RQ2 planted and permuted proposals"
     columns = ("Experiment", "System", "Method", "Metric", "Value", "Pairs")

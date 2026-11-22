@@ -48,6 +48,37 @@ ANSWER_KEY = pa.schema(
     metadata={b"veyltrace.schema": b"answer_key/1.0.0"},
 )
 
+BENCH_REPLAY = pa.schema(
+    [
+        pa.field("tier", pa.int64(), nullable=False),
+        pa.field("run_id", pa.string(), nullable=False),
+        pa.field("case_id", pa.string(), nullable=False),
+        pa.field("dataset", pa.string(), nullable=False),
+        pa.field("system", pa.string(), nullable=False),
+        pa.field("method", pa.string(), nullable=False),
+        pa.field("seed", pa.int64(), nullable=False),
+        pa.field(
+            "experiments",
+            pa.list_(pa.field("item", pa.string(), nullable=False)),
+            nullable=False,
+        ),
+        pa.field("exit_code", pa.int64(), nullable=True),
+        pa.field("reason", pa.string(), nullable=True),
+        pa.field("verdict_hash", pa.string(), nullable=False),
+        pa.field("verdict_hash_replayed", pa.string(), nullable=True),
+        pa.field("trace_match", pa.bool_(), nullable=True),
+        pa.field("card_match", pa.bool_(), nullable=True),
+        pa.field("proposals_match", pa.bool_(), nullable=True),
+        pa.field("first_divergence", pa.string(), nullable=True),
+        pa.field(
+            "env_drift",
+            pa.list_(pa.field("item", pa.string(), nullable=False)),
+            nullable=False,
+        ),
+    ],
+    metadata={b"veyltrace.schema": b"bench_replay/1.0.0"},
+)
+
 BENCH_RESULT = pa.schema(
     [
         pa.field("case_id", pa.string(), nullable=False),
@@ -299,6 +330,7 @@ SCHEMAS: Mapping[str, pa.Schema] = MappingProxyType(
     {
         "anomalies": ANOMALIES,
         "answer_key": ANSWER_KEY,
+        "bench_replay": BENCH_REPLAY,
         "bench_result": BENCH_RESULT,
         "changes": CHANGES,
         "evidence": EVIDENCE,

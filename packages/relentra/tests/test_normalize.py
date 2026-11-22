@@ -119,14 +119,34 @@ _REPLY = [
 ]
 
 
+def test_rank_is_the_first_position_in_the_reply_renumbered_after_the_cap() -> None:
+    reply = [
+        _proposal("frontend"),
+        _proposal("checkout"),
+        _proposal("cart", rationale="b"),
+        _proposal("checkout"),
+    ]
+    out = normalize_proposals(reply, SETTINGS)  # the cap keeps cart and checkout; frontend was first
+    assert [(p["hypothesis"]["service"], p["rank"]) for p in out] == [("cart", 2), ("checkout", 1)]
+
+
+def _unranked(proposals: list[dict[str, Any]]) -> bytes:
+    return canonical_json([{k: v for k, v in p.items() if k != "rank"} for p in proposals])
+
+
 @given(st.permutations(_REPLY))
-def test_the_order_of_the_reply_never_changes_the_output(reply: list[CheckedProposal]) -> None:
-    base = canonical_json(normalize_proposals(_REPLY, SETTINGS))
+def test_the_order_of_the_reply_changes_only_the_rank(reply: list[CheckedProposal]) -> None:
+    """A permuted reply permutes `rank` and nothing else: ids, claims and file order stay (#409)."""
+    base = _unranked(normalize_proposals(_REPLY, SETTINGS))
     reversed_claims = [
         CheckedProposal(
             p.service, p.fault_class, p.indicator, p.claims[::-1], p.requested_trials[::-1], p.rationale
         )
         for p in reply
     ]
-    assert canonical_json(normalize_proposals(reply, SETTINGS)) == base
-    assert canonical_json(normalize_proposals(reversed_claims, SETTINGS)) == base
+    out = normalize_proposals(reply, SETTINGS)
+    assert _unranked(out) == base and _unranked(normalize_proposals(reversed_claims, SETTINGS)) == base
+    firsts = list(dict.fromkeys((p.service, p.fault_class) for p in reply))
+    assert {(p["hypothesis"]["service"], p["hypothesis"]["fault_class"]): p["rank"] for p in out} == {
+        key: i for i, key in enumerate(firsts, start=1)
+    }

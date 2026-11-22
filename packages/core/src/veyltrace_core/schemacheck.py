@@ -12,6 +12,8 @@ models and Arrow schemas are derived from them. This module applies the schemas 
   domain (verdict.candidate_set: v desc, ties in ranked order). `order: "enum"` compares by
   position in the field's enum (trial ids T1 < T2 < … < T10). `x-order: "semantic"` arrays are
   kept exactly as produced.
+- `check_document_rules`: the few cross-field rules of a JSON contract that 03 states and JSON
+  Schema cannot (proposals: the non-null ranks are exactly 1..k).
 - `check_table_rows`: the same schema applied to every row of an Arrow table, vectorised
   (numpy/pyarrow masks per keyword), because telemetry tables have millions of rows. Keywords the
   vectorised evaluator does not know make it fall back to row-by-row `jsonschema`, so a schema
@@ -42,6 +44,7 @@ from veyltrace_core.errors import ContractValidationError
 
 __all__ = [
     "SortRule",
+    "check_document_rules",
     "check_orders",
     "check_table_rows",
     "contract_schema",
@@ -413,6 +416,32 @@ def check_orders(name: str, instance: object) -> None:
     already passed validate_json_schema. x-sort under if/then/else/not is not visited (no schema
     has one; a test pins that)."""
     _walk(name, contract_schema(name), name, instance, "")
+
+
+def _check_proposal_ranks(instance: Mapping[str, object]) -> None:
+    """proposals 1.1 (03 §9.1, CCR #409): the non-null `proposals[].rank` values of one file are
+    exactly 1..k, so bench's agent-only arm reads a total order without gaps or ties. Null ranks
+    (order unknown, a 1.0 file read as an older minor) are not counted."""
+    proposals = cast("list[Mapping[str, object]]", instance.get("proposals") or [])
+    ranks = sorted(cast("int", p["rank"]) for p in proposals if p.get("rank") is not None)
+    if ranks != list(range(1, len(ranks) + 1)):
+        msg = f"the non-null proposals[].rank values must be exactly 1..{len(ranks)}, got {ranks}"
+        raise ContractValidationError("proposals", msg)
+
+
+#: Writer checks a JSON Schema cannot state, by contract name; each takes a document that already
+#: passed validate_json_schema. Keep this to contract rules written in 03, not engine logic.
+_DOCUMENT_RULES: Final[Mapping[str, Callable[[Mapping[str, object]], None]]] = {
+    "proposals": _check_proposal_ranks,
+}
+
+
+def check_document_rules(name: str, instance: object) -> None:
+    """Raise ContractValidationError unless `instance` (a JSON document of contract `name` that
+    passed validate_json_schema) satisfies the contract's cross-field rules from 03."""
+    rule = _DOCUMENT_RULES.get(name)
+    if rule is not None and isinstance(instance, Mapping):
+        rule(cast("Mapping[str, object]", instance))
 
 
 def _fill(node: object, resolver: Doc, instance: object) -> object:

@@ -25,7 +25,16 @@ from veyltrace_faultloom.atoms import Atom, engine_atom
 from veyltrace_faultloom.claims import EVALUATED_STATUSES
 from veyltrace_faultloom.validation import CaseDomain, ValidClaim, validate
 
-__all__ = ["KIND", "ci_config", "decision_pool", "intervention_atom", "intervention_atoms", "target_series"]
+__all__ = [
+    "KIND",
+    "candidate_rows",
+    "ci_config",
+    "decision_pool",
+    "intervention_atom",
+    "intervention_atoms",
+    "series_rows",
+    "target_series",
+]
 
 KIND: Final = "intervention"
 #: The incident window, as for every anomaly-derived atom (06 §3.4).
@@ -101,6 +110,34 @@ def intervention_atom(result: CIResult) -> Atom | None:
     return engine_atom(KIND, result.candidate, args, value=result.stat_resid, unit=UNIT, refs=refs)
 
 
+def series_rows(
+    series_ids: Sequence[object], services: Sequence[object]
+) -> tuple[dict[str, list[int]], dict[str, set[str]]]:
+    """signal_cube.series row indices per series_id (table order), and the series_ids that have a
+    row in each service: built once per case, so each candidate's test reads a slice, not the table."""
+    rows_by_id: dict[str, list[int]] = {}
+    ids_by_service: dict[str, set[str]] = {}
+    for i, (sid, service) in enumerate(zip(series_ids, services, strict=True)):
+        rows_by_id.setdefault(str(sid), []).append(i)
+        ids_by_service.setdefault(str(service), set()).add(str(sid))
+    return rows_by_id, ids_by_service
+
+
+def candidate_rows(
+    candidate: str,
+    links: Iterable[Mapping[str, object]],
+    rows_by_id: Mapping[str, Sequence[int]],
+    ids_by_service: Mapping[str, set[str]],
+) -> list[int]:
+    """The rows intervention_test can read for c, in table order: every row of each series with a
+    row in c or in a callee of c (graph.edges with src = c). It looks up only the target (c's own),
+    the callees' targets and c's load (05 §3.7 steps 1–2); a target id outside them is `no_target`
+    either way. So the test on this slice equals the test on the whole table."""
+    services = {candidate} | {str(e["dst"]) for e in links if e["src"] == candidate}
+    ids = set[str]().union(*(ids_by_service.get(s, set()) for s in services))
+    return sorted(i for sid in ids for i in rows_by_id[sid])
+
+
 def intervention_atoms(
     ctx: RunContext, pool: Sequence[str], engine: Sequence[Atom], cfg: CIConfig, max_candidates: int
 ) -> list[Atom]:
@@ -109,9 +146,16 @@ def intervention_atoms(
     series = ctx.read_table("signal_cube.series", columns=list(SERIES_COLUMNS))
     edges = ctx.read_table("graph.edges", columns=list(EDGE_COLUMNS))
     alert = ctx.read_model("alert", models.Alert)
+    rows_by_id, ids_by_service = series_rows(
+        series.column("series_id").to_pylist(), series.column("service").to_pylist()
+    )
+    links = edges.select(["src", "dst"]).to_pylist()
     out: list[Atom] = []
     for candidate in pool[:max_candidates]:
-        result = intervention_test(series, edges, alert, candidate, cfg, target_series(candidate, engine))
+        rows = candidate_rows(candidate, links, rows_by_id, ids_by_service)
+        # Causalith's series_by_id is O(table) per call (#429); take([]) has no kernel for null.
+        part = series.take(rows) if rows else series.slice(0, 0)
+        result = intervention_test(part, edges, alert, candidate, cfg, target_series(candidate, engine))
         atom = intervention_atom(result)
         if atom is not None:
             out.append(atom)

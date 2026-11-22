@@ -34,13 +34,25 @@ uv run veyltrace bench run bench/experiments/synth-smoke.yaml --out /tmp/vt-resu
 - The YAML ([04 §9](../docs/04-evaluation-protocol.md)) is strict: unknown keys are an error, `metrics` is required (summary.json holds just those) and the defaults cite their source (`veyltrace_bench/experiment.py`). Features v0 cannot run yet (the baselines named above, AI arms, AI perturbations, splits, calibration, normal-window variants, parallel workers, `max_rss_mb` (no outcome is defined for a run over it), coverage/set-size/risk-coverage/selective-accuracy/`NO_FAULT`/decoy/permutation metrics) fail before the first case, naming each one and, where known, the task that adds it or why v0 cannot run it. `statistics` is recorded as not run until `bench/stats` (O-14). The `cost` metric is the nearest-rank p50 and p95 of `wall_ms`, `peak_rss_mb` and the token columns over the rows that have them, plus `n_cost` (03 §13.3, #316).
 - **Statistics** (`summary.json` `statistics`, bench_summary 1.1, #357; `veyltrace_bench.stats_summary` over Observe's `veyltrace_stats`, O-14): a 95% cluster-bootstrap interval per group for every listed case-mean metric, with clusters (system, root service, fault) and the experiment's seeds. An experiment with `statistics.noninferiority` also gets its paired comparisons on `primary_metric`:
   - **Per system:** non-inferiority with margin 0 against the best baseline of that system (ties go to the earlier listed), and superiority in `holm_family`.
-  - **Pooled:** superiority over all clusters of the benchmark (`dataset` `re2`, `system` null), with the sign-flip test and McNemar. Holm runs over the family.
+  - **Pooled:** superiority over all clusters of the benchmark (`dataset` `re2`, `system` null), with the sign-flip test, McNemar, and `low`/`high` from the system-stratified cluster bootstrap (`veyltrace_stats.cluster.stratified_cluster_bootstrap`, #427); H1b needs that interval to exclude 0 and Holm significance (04 §2). Holm runs over the family. Every method also gets pooled `intervals[]` rows (system null), stratified the same way, on per-case seed means.
   - **Method A** is the first listed method that is not compared against.
-  - **Not run:** pooled intervals wait for the system-stratified bootstrap and are listed in `not_run`.
 - `cases` (`all` or a path) and `exclude` (a path) name YAML lists of 12-hex case ids; ids are unique across datasets, so one list (e.g. `bench/dev_cases.yaml`) serves every part.
 - An `ok` run with empty `ranks` or a slate with `rankers_active == []` (the R-00 stubs) is unranked ([04 §7](../docs/04-evaluation-protocol.md)): empty `ranks`, every hit a miss, counted (fault cases only) as `n_unranked`. No-fault cases (synth-05) have no truth: null hits, outside every accuracy denominator. Chance@k's n_i is the number of the case's `case_manifest.services` ([04 §7](../docs/04-evaluation-protocol.md)), and Chance@k is null unless every fault case has one.
 - `--table` is for results that feed a table: it refuses a dirty work tree (core's `code.dirty` or uncommitted `bench/` files; [AGENTS.md](AGENTS.md) Never 3) and synth (04 §3).
 - Exit codes: 0 results written (failed, rejected, `no_alert` and timeout runs are rows); 1 error; 2 usage, `--table` refused, or synth without an `--out` outside the repo; 3 input missing (answer keys: `veyltrace data fetch`); 4 invalid or unsupported experiment.
+
+## RQ6 replay results (#440)
+
+```bash
+uv run veyltrace bench replay --role recording --dry-run   # run count and total bytes (the CI archive); writes nothing
+uv run veyltrace bench replay --role recording --table     # Tier 1 on the recording laptop
+uv run veyltrace bench replay --role recording --tier 2    # Tier 2: regenerate the fixed sample (needs the model)
+uv run veyltrace bench replay --role second-laptop         # the same runs on another host (copy of <runs root>/bench-ai)
+```
+
+- The sources are the committed results under `--results` (default `bench/results`) with an AI arm, or the `--experiment` ids given. `recording` enumerates the kept record runs their `ok` AI-arm rows scored. `second-laptop` and `ci` replay exactly the runs of the committed `replay/recording/` result, whose sources must be the same.
+- Tier 1 runs `veyltrace replay <receipt> --report` in a child per run (strict: no `--allow-env-drift`). Tier 2 records the run again from its `config.lock.json` into a scratch root and compares `proposals.json` bytes.
+- Output: `bench/results/replay/<role>/replay.csv` and `replay_summary.json` ([03 §13.5–13.6](../docs/03-contracts.md)), the rates with Clopper–Pearson intervals; Table 9 reads them. Decisions: [ADR](../docs/adr/20261122-ak-rq6-replay-results.md). The run archive is private only (it holds telemetry).
 
 ## Tables and figures (R-17)
 

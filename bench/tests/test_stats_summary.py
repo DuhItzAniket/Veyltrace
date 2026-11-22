@@ -10,7 +10,7 @@ from typing import Any, cast
 
 from veyltrace_bench.experiment import load_experiment
 from veyltrace_bench.metrics import CaseScore, MethodOutput, Truth, score_case
-from veyltrace_bench.stats_summary import POOLED_REASON, Case
+from veyltrace_bench.stats_summary import Case, _interval_row
 from veyltrace_bench.stats_summary import statistics as _statistics
 from veyltrace_bench.summary import summarize
 from veyltrace_core import io, textio
@@ -55,7 +55,10 @@ def _cases() -> list[Case]:
 def test_intervals_match_the_summary_and_cover_every_group() -> None:
     got = statistics(RQ1, _cases())
     ac1 = {(r["dataset"], r["method"]): r for r in got["intervals"] if r["metric"] == "ac_at_1"}
-    assert len(ac1) == 12
+    assert len(ac1) == 12 + 4  # 3 systems x 4 methods, plus each method pooled over RE2 (#427)
+    for method in HITS["ob"]:  # pooled: case-weighted over the systems' 54 cases, 18 clusters
+        hits = sum(HITS[s][method] for s in HITS)
+        assert (ac1[("re2", method)]["estimate"], ac1[("re2", method)]["n_clusters"]) == (hits / 54, 18)
     for system, methods in HITS.items():
         for method, hits in methods.items():
             rows = [c.score for c in _cases() if c.system == system and c.method == method]
@@ -85,13 +88,17 @@ def test_rq1_comparisons_pick_the_best_baseline_and_holm_over_pooled_plus_system
         ("re2-tt", "tt"),
     ]
     pooled = family[0]
-    assert pooled["low"] is None and pooled["high"] is None and pooled["sign_flip_p"] is not None
+    assert (
+        pooled["low"] <= pooled["difference"] <= pooled["high"] and pooled["sign_flip_p"] is not None
+    )  # #427
     assert pooled["n_pairs"] == 54 and pooled["method_b"] == "rcaeval:baro"  # 21/54 beats 19/54 and 13/54
     assert [r["holm_p"] for r in family] == holm([r["sign_flip_p"] for r in family])
     ob = next(r for r in family if r["system"] == "ob")
     assert ob["difference"] == (12 - 9) / 18 and ob["low"] <= ob["difference"] <= ob["high"]
     assert ob["mcnemar_only_a"] == 3 and ob["mcnemar_only_b"] == 0  # hits are nested: 0..8 and 0..11
-    assert got["not_run"] == [{"scope": "re2 pooled intervals", "reason": POOLED_REASON}]
+    assert got["not_run"] == []  # the pooled intervals are computed (stratified bootstrap, #427)
+    pooled_iv = [i for i in got["intervals"] if i["system"] is None]
+    assert {i["dataset"] for i in pooled_iv} == {"re2"} and len({i["method"] for i in pooled_iv}) == 4
 
 
 def test_statistics_never_depend_on_row_order() -> None:
@@ -125,3 +132,54 @@ def test_decoy_ranked_first_is_the_share_over_decoyed_rows() -> None:
     rows += [replace(plain, decoy_present=False), plain]  # no decoy, no planted changes: outside the share
     got = summarize(rows, ["decoy_ranked_first"])
     assert (got["decoy_ranked_first"], got["n_decoy"]) == (0.25, 4)
+
+
+def test_a_seeded_arm_pairs_on_per_case_seed_means() -> None:
+    """04 §8 "LLM arms": brief (3 seeds) vs off is paired per case on the seed mean; n_pairs counts
+    cases, and McNemar is not run because the means are not binary (known answer below)."""
+    rq2 = load_experiment(REPO / "bench" / "experiments" / "re2-oracle-rq2-v1.yaml")
+    brief = {0: (1, 1, 0), 1: (0, 0, 0), 2: (1, 1, 1)}  # per-case seed hits: means 2/3, 0, 1
+    off = {0: 1, 1: 0, 2: 0}
+    cases: list[Case] = []
+    for i in range(3):
+        cid, cluster = f"ob{i:010d}", ("ob", f"svc{i}", "cpu")
+        cases.append(Case(cid, "re2-ob", "ob", "veyltrace:off", cluster, _score(off[i] == 1)))
+        for seed, hit in zip((1, 2, 3), brief[i], strict=True):
+            cases.append(Case(cid, "re2-ob", "ob", "veyltrace:brief", cluster, _score(hit == 1), seed))
+    got = statistics(rq2, cases)
+    row = next(r for r in got["comparisons"] if r["system"] == "ob" and r["kind"] == "noninferiority")
+    assert (row["method_a"], row["method_b"], row["n_pairs"], row["n_clusters"]) == (
+        "veyltrace:brief", "veyltrace:off", 3, 3,
+    )  # fmt: skip
+    assert abs(row["difference"] - (-1 / 3 + 0 + 1) / 3) < 1e-12  # mean of the per-case differences
+    assert (row["mcnemar_only_a"], row["mcnemar_p"]) == (None, None)
+    brief_ac = next(
+        i for i in got["intervals"] if i["method"] == "veyltrace:brief" and i["metric"] == "ac_at_1"
+    )
+    assert brief_ac["n_cases"] == 3 and abs(brief_ac["estimate"] - (2 / 3 + 0 + 1) / 3) < 1e-12  # case means
+    reasons = {r["reason"] for r in got["not_run"] if r["scope"].startswith("mcnemar ")}
+    assert reasons == {"seeded method: per-case seed means are not binary"}
+
+
+def test_pooled_rows_resample_within_each_system() -> None:
+    """Known answer: every ob case hits and no ss case does, with equal clusters per system. A
+    stratified resample keeps each system's clusters, so the pooled interval is the point 0.5;
+    an unstratified bootstrap would wander (#427, 04 §8 "system as stratum")."""
+    rows: list[Case] = []
+    for system, hit in (("ob", True), ("ss", False)):
+        for i in range(12):  # 4 clusters of 3 repetitions per system
+            cluster = (system, f"svc{i // 3}", "cpu")
+            rows.append(
+                Case(f"{system}{i:010d}", f"re2-{system}", system, "veyltrace:off", cluster, _score(hit))
+            )
+    got = statistics(RQ1, rows)
+    pooled = next(i for i in got["intervals"] if i["system"] is None and i["metric"] == "ac_at_1")
+    assert (pooled["dataset"], pooled["estimate"], pooled["low"], pooled["high"]) == ("re2", 0.5, 0.5, 0.5)
+    assert (pooled["n_cases"], pooled["n_clusters"]) == (24, 8)
+
+
+def test_a_single_stratum_matches_the_per_system_path() -> None:
+    """With one system the stratified bootstrap is the per-system cluster bootstrap (same seed)."""
+    ob = [c for c in _cases() if c.system == "ob" and c.method == "veyltrace:off"]
+    key = ("re2-ob", "ob", "veyltrace:off")
+    assert _interval_row(RQ1, key, "ac_at_1", ob, True) == _interval_row(RQ1, key, "ac_at_1", ob, False)
