@@ -3,7 +3,7 @@
 Table 8 holds the cost percentiles of the RE2 oracle RQ1 and RQ2 experiments per system and method
 (nearest-rank p50/p95 over the group's rows, 03 §13.3); Table A1 holds them for every experiment
 that lists `cost`, so the cost of every reported number is on record (04 §6 "RQ5 cost is recorded
-on every run"). Replay rates (Table 9) are not bench output, so its rows say so.
+on every run"). Table 9 holds the RQ6 replay rates of `bench/results/replay/<role>/` (#440).
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.render import Row, Table
 from veyltrace_bench.tables.rq1 import methods
+from veyltrace_contracts.models import ReplayTier1
 
 MAIN = ("re2-oracle-rq1-v1", "re2-oracle-rq2-v1")  # Table 8: the deterministic and AI paths on RE2
 COST = (
@@ -51,21 +52,54 @@ def cost(ctx: Context) -> list[Table]:
 
 
 REPLAY = (
-    "Tier 1, recording laptop",
-    "Tier 1, second laptop",
-    "Tier 1, CI",
-    "Tier 2 regeneration, 50 recorded cases",
-)  # 04 §6 cross-cutting, §7 "Replay"
-REPLAY_REASON = "replay rates are not bench output: bench_summary 1.1 has no replay entry (03 §13.3)"
+    ("Tier 1, recording laptop", "recording", 1),
+    ("Tier 1, second laptop", "second-laptop", 1),
+    ("Tier 1, CI", "ci", 1),
+    ("Tier 2 regeneration, 50 recorded cases", "recording", 2),
+)  # 04 §6 cross-cutting, §7 "Replay": (row, bench/results/replay/<role>, tier)
+COLUMNS9 = ("Measurement", "Rate", "Runs", "Verdict reproduced", "Exit codes")
+
+
+def _replay_row(ctx: Context, label: str, role: str, tier: int) -> Row:
+    got = ctx.replays.get(role)
+    entry = (
+        None if got is None or got.summary is None else got.summary.tier1 if tier == 1 else got.summary.tier2
+    )
+    source = got.source if got is not None else None
+    if entry is None:
+        why = (
+            got.source.reason
+            if got is not None and got.source.reason
+            else f"tier {tier} was not run at {role}"
+        )
+        return Row((cells.text(label), *(cells.not_run(why) for _ in COLUMNS9[1:])), source)
+    interval = (
+        (entry.ci_low, entry.ci_high) if entry.ci_low is not None and entry.ci_high is not None else None
+    )
+    codes = "—"
+    if isinstance(entry, ReplayTier1):  # the 04 §7 exit-code histogram, non-zero counts only
+        codes = (
+            ", ".join(f"{k}: {v}" for k, v in entry.outcomes.model_dump(by_alias=True).items() if v) or "—"
+        )
+    return Row(
+        (
+            cells.text(label),
+            cells.rate(entry.rate, interval),
+            cells.text(f"{entry.k}/{entry.n}"),
+            cells.text(f"{entry.k_verdict}/{entry.n}"),
+            cells.text(codes),
+        ),
+        source,
+    )
 
 
 def replay(ctx: Context) -> list[Table]:
-    del ctx  # no experiment holds replay rates
-    rows = tuple(
-        Row((cells.text(t), cells.not_run(REPLAY_REASON), cells.not_run(REPLAY_REASON)), None) for t in REPLAY
-    )
+    """Table 9 from the committed replay summaries (03 §13.6; 04 §12 row of 22 Nov)."""
+    rows = tuple(_replay_row(ctx, label, role, tier) for label, role, tier in REPLAY)
     caption = (
-        "Share of recorded AI runs whose `veyltrace replay` exits 0 (Tier 1) or whose proposals regenerate"
+        "Tier 1: share of recorded AI runs whose `veyltrace replay` exits 0, with its exact (Clopper–Pearson)"
+        " 95% interval; verdict reproduced counts recomputed `verdict_hash` equal to the recorded one."
+        " Tier 2: share of a fixed sample whose regenerated proposals are byte-identical (on the recording's"
+        " own provider, 04 §12). Exit codes as 10 §3.9."
     )
-    caption += " byte-identically (Tier 2)."
-    return [Table("t09-rq6-replay", "Table 9: RQ6 replay", caption, ("Measurement", "Rate", "Runs"), rows)]
+    return [Table("t09-rq6-replay", "Table 9: RQ6 replay", caption, COLUMNS9, rows)]

@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from veyltrace_bench.tables import generate
-from veyltrace_core import textio
+from veyltrace_core import io, textio
 
 BENCH = Path(__file__).resolve().parents[1]
 EXPERIMENTS = BENCH / "experiments"
@@ -168,5 +168,30 @@ def test_cost_and_replay(files: dict[str, str]) -> None:
     assert "| Peak RSS p50 (MiB) |" in cost
     assert "| re2-oracle-rq1-v1 | ob | veyltrace:off | 25000 | 31000 | 1500 | 1600 | n/a<sup>" in cost
     replay = files["tables/t09-rq6-replay.md"]
-    assert "| Tier 1, CI | not run<sup>1</sup> | not run<sup>1</sup> | no bench experiment |" in replay
-    assert "none: every row has no bench experiment" in replay
+    assert (
+        "| Tier 1, CI | not run<sup>3</sup> | not run<sup>3</sup> |" in replay
+        and "replay/ci (not run) |" in replay
+    )
+    assert "- replay/ci: not run: no committed result (veyltrace bench replay --role ci)" in replay
+
+
+def test_replay_reads_the_committed_replay_summaries(results: Path) -> None:
+    """Table 9 from bench/results/replay/<role>/ (03 §13.5-§13.6, #440): rate, exact interval, counts."""
+    examples = BENCH.parent / "contracts" / "examples"
+    out = results / "replay" / "recording"
+    out.mkdir(parents=True)
+    rows = json.loads(textio.read_text(examples / "bench_replay.example.json"))
+    io.write_path("bench_replay", rows, out / "replay.csv")
+    io.write_path(
+        "bench_replay_summary",
+        json.loads(textio.read_text(examples / "bench_replay_summary.example.json")),
+        out / "replay_summary.json",
+    )
+    table = generate.outputs(results, EXPERIMENTS)["tables/t09-rq6-replay.md"].decode()
+    row = "| Tier 1, recording laptop | 0.500 [0.013, 0.987] | 1/2 | 2/2 | 0: 1, 5: 1 |"
+    row += " replay/recording @ a35144c4 |"
+    assert row in table
+    assert "| Tier 2 regeneration, 50 recorded cases | 1.000 [0.025, 1.000] | 1/1 | 1/1 | — |" in table
+    assert "| Tier 1, second laptop | not run<sup>" in table
+    assert "- replay/recording: commit a35144c4f0e1d2c3b4a5968778695a4b3c2d1e0f; sha256 replay.csv " in table
+    assert "protocol: recording: Windows-11-10.0.26100-SP0, Python 3.12.7, host 1a2b3c4d5e6f" in table
