@@ -1,6 +1,6 @@
 # 03 · Data contracts
 
-> **Status:** v1.0 (frozen at tag `contracts-1.0`, [ADR](adr/20261116-ak-contracts-1-0-freeze.md); changes only as in §1 "After M1") · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-22 (#409: proposals 1.1)
+> **Status:** v1.0 (frozen at tag `contracts-1.0`, [ADR](adr/20261116-ak-contracts-1-0-freeze.md); changes only as in §1 "After M1") · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-22 (#440: bench_replay, bench_replay_summary 1.0)
 > Master spec: [02-architecture](02-architecture.md). This doc is the field-level truth for every artifact that crosses a package boundary. If a field is not here, no engine may rely on it.
 
 ## 1. How contracts work
@@ -51,6 +51,8 @@ Catalog (producer → consumers):
 | `bench_result` | CSV | bench | paper tables |
 | `bench_summary` | JSON | bench | table generator (R-17), bench/stats (O-14) |
 | `bench_manifest` | JSON | bench | paper traceability ([04 §10.2](04-evaluation-protocol.md)) |
+| `bench_replay` | CSV | bench | table generator (R-17), paper traceability |
+| `bench_replay_summary` | JSON | bench | table generator (R-17) |
 | API types (§14) | OpenAPI → TS | gateway | console, MCP clients |
 
 Gateway and console may read every run artifact above for display; they never write them.
@@ -604,6 +606,47 @@ The `statistics` object has `params` (`level`, `resamples`, `bootstrap_seed`, `f
 | `seeds` | [int] | distinct AI seeds, sorted |
 | `runs` | [{`case_id`, `dataset`, `method`, `run_id`?, `inputs_sha256`?}] | every executed run, in run order; `run_id` null for a run killed at `timeout_s`, `inputs_sha256` null when the run wrote no `case_manifest` |
 | `calibrations`? | [{`family_id`, `sha256`, `fitted`}] | every calibration file a recorded run read (its `config.lock.json` `calibration`, §12.2), sorted by `family_id`, then `sha256`; `fitted` = this experiment wrote it (`calibration.fit` and the file's `experiment_id` is the experiment's own); `[]` when no run read one; null when bench did not record them (every 1.0 file) |
+
+
+### 13.5 `bench_replay`
+
+`bench/results/replay/<role>/replay.csv` — UTF-8 CSV written by `veyltrace bench replay` (committed, released with the paper; CCR #440): one row per recorded AI-arm run replayed (Tier 1) or regenerated (Tier 2) for RQ6 ([04 §7](04-evaluation-protocol.md) "Replay"). `role` is `recording`, `second-laptop` or `ci`. Sorted by key `tier, run_id` (unique). Booleans are `0/1`, lists `;`-joined, missing values empty.
+
+| Column | Type | Notes |
+|---|---|---|
+| `tier` | int | 1 = `veyltrace replay` of the recorded receipt; 2 = regeneration of the proposals |
+| `run_id` | str | the kept record run under `<runs root>/bench-ai/` |
+| `case_id`, `dataset`, `system`, `method` | str | as in `bench_result` |
+| `seed` | int | the AI seed |
+| `experiments` | [str] | the experiments whose `manifest.json` lists the run, sorted |
+| `exit_code`? | int | Tier 1: the replay exit code (0–6, [10 §3.9](engines/10-causivra.md)), read from its report; null when `reason` is set, and for Tier 2 |
+| `reason`? | str | `no_receipt` (an `ok` run without `receipt.json`), `no_report` (the command wrote no report: usage error or crash), `timeout` (killed at the bench timeout), `regen_failed` (Tier 2: the regenerated run is not `ok` or has another run id) |
+| `verdict_hash` | sha256 | recorded: the receipt's (Tier 1) or the kept verdict's (Tier 2) |
+| `verdict_hash_replayed`? | sha256 | recomputed: the report's `verdict_hash.actual` (Tier 1) or the regenerated verdict's (Tier 2) |
+| `trace_match`?, `card_match`? | bool | Tier 1: the report's `agent_trace_head` / `card_hash`, expected = actual |
+| `proposals_match`? | bool | Tier 2: SHA-256 of the regenerated `proposals.json` = the kept run's (byte-identical) |
+| `first_divergence`? | str | Tier 1: the report's `first_divergence` |
+| `env_drift` | [str] | Tier 1: the report's `env_drift` entries, in report order; empty = none |
+
+### 13.6 `bench_replay_summary`
+
+`bench/results/replay/<role>/replay_summary.json` — canonical JSON written last by `veyltrace bench replay` through core io, so its presence marks a whole result (CCR #440). Tables read it as a committed summary (R-17 Table 9; [04 §12](04-evaluation-protocol.md)).
+
+| Field | Type | Notes |
+|---|---|---|
+| `schema_version` | str | `1.0.x` |
+| `producer` | str | `bench@<ALGO_VERSION>` |
+| `role` | str | `recording` \| `second-laptop` \| `ci`; names the directory |
+| `site` | {`host_id`, `os`, `python`, `cpu`?, `ci_run_url`?} | `host_id` = first 12 hex of SHA-256 of the host name (a `second-laptop` result's differs from the `recording` result's); `os`, `python` as `run_manifest.env`; `ci_run_url` non-null exactly for `ci` |
+| `code` | {`commit`, `dirty`, `bench_dirty`} | the replaying checkout, as `bench_manifest.code`; its run code (core's `DIRTY_PATHS`) equals every source manifest's `code.commit` (the results may be committed later); `--table` refuses either dirty flag |
+| `uv_lock_sha256` | sha256 | |
+| `sources` | [{`experiment_id`, `manifest_sha256`}] | the experiments read, sorted by `experiment_id`; `manifest_sha256` = SHA-256 of its `manifest.json` bytes |
+| `tier1`? | object | null = not run here; below |
+| `tier2`? | object | null = not run here; below |
+
+Both tiers hold `n` (the tier's rows), `k`, `k_verdict` (rows whose `verdict_hash_replayed` equals `verdict_hash`, whatever the exit code: H6a's wording), `rate` = k / n, `ci_low` and `ci_high` (the Clopper–Pearson interval at `level`, 0.95, [04 §8](04-evaluation-protocol.md)); `rate` and the bounds are null when n = 0.
+- `tier1`: `k` = rows with exit 0 (04 §7 Tier 1). `outcomes` has one count per exit code `0`…`6` and per reason `no_receipt`, `no_report`, `timeout`; every key is present, and they sum to `n`. `excluded` {`failed`, `no_alert`, `rejected`, `timeout`} counts the AI-arm rows of the sources' `per_case.csv` that have no verdict to replay; they are not in `n`. `by_experiment` [{`experiment_id`, `n`, `k`}] is sorted by `experiment_id`; a run that two experiments list counts in both.
+- `tier2`: `k` = rows with `proposals_match`. `selection` {`experiment_id`, `method`, `seed`, `rng_seed`, `n_requested`} is the seeded sample, fixed before any regeneration: the first `n_requested` runs ordered by `sha256_json([rng_seed, case_id, run_id])`; `n` is smaller than `n_requested` only when fewer runs exist.
 
 ---
 
