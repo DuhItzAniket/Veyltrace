@@ -35,6 +35,9 @@ SUMMARY_VERSIONS = ("1.1.", "1.2.")  # the bench_summary minors the generator re
 #: Entries bench_summary 1.2 added (CCR #404): a 1.1 file has them null although they are listed.
 NEW_IN_1_2 = frozenset({"coverage", "set_size", "no_fault_rates", "risk_coverage", "selective_accuracy",
                         "decoy_top1_change", "permutation_invariance"})  # fmt: skip
+#: Shares over independent (case, seed) pairs and their counts, which get an exact binomial
+#: interval (04 §8 "Proportions": no clusters, so exact binomial CIs; 03 §13.3).
+EXACT_SHARES = {"decoy_top1_change": "n_pairs", "permutation_invariance": "n_cases"}
 NO_RESULTS = "no committed results in bench/results"  # the row names the experiment
 NO_GROUP = "its summary.json has no group for this dataset, system and method"
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
@@ -152,7 +155,8 @@ class Results:
 
     def metric(self, dataset: str, system: str, method: str, entry: str, key: str) -> Cell:
         """The summary value `metrics[entry][key]` of one group, with its interval when the key is
-        a case mean; a rate-like value (cells.rate) unless the key is a count or percentile.
+        a case mean (bootstrap) or a share over pairs (exact binomial); a rate-like value
+        (cells.rate) unless the key is a count or percentile.
         Retrieval@K also names its K, the slate sizes of the group's runs (`retrieval_k`)."""
         if (why := self.missing(dataset, system, method)) is not None:
             return cells.not_run(why)
@@ -170,6 +174,8 @@ class Results:
             return cells.text(";".join(str(v) for v in value))
         if key.startswith("n_") or key.endswith(("_p50", "_p95", "_ms")):
             return cells.count(value)
+        if key in EXACT_SHARES:
+            return cells.exact_share(value, getattr(values, EXACT_SHARES[key]))
         cell = self._case_mean(dataset, system, method, key, value) if key in CASE_MEAN else cells.rate(value)
         ks = getattr(values, "retrieval_k", None) if key == "retrieval_at_k" else None
         return (

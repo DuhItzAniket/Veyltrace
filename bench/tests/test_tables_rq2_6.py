@@ -57,7 +57,10 @@ def test_the_1_2_entries_render_with_their_reasons(files: dict[str, str], result
     assert "no committed results in bench/results" in t7  # loso did not run: its own reason wins
     assert "alpha 0.1 (each experiment's calibration.alpha" in t7 and NO_ENTRY.format("coverage") not in t7
     arms = files["tables/t06d-rq2-proposal-arms.md"]
-    assert "| re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance | 0.875 | 8 |" in arms
+    h2c = (
+        "| re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997] | 8 |"
+    )
+    assert h2c in arms
     assert (
         "| re2-oracle-planted-v1 | ob | agent-only:brief | decoy_top1_change | not run<sup>" in arms
     )  # no results
