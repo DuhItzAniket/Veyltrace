@@ -350,7 +350,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 | `provider` | `ollama` | one of `ollama`, `llamacpp`, `openai_compat`, `fake`; an `openai_compat` bearer key comes only from the environment variable `VEYLTRACE_LLM_API_KEY` and is never recorded |
 | `base_url` | `http://127.0.0.1:11434` | localhost only (§5.4) |
 | `model.name` | `qwen3.5:9b` (exact tag pinned at M0) | 02 §12 |
-| `model.gguf_sha256` | `null` until M0 | pinned after `llama-bench` |
+| `model.gguf_sha256` | `02d45dc1…0278d` (the `qwen3.5:9b` Q4_K_M blob on the recording host) | pinned for R-16 (L-01); bench refuses AI arms while it is null |
 | `model.fallback_name` | `qwen3.5:4b` | 02 §6.8 |
 | `runtime.num_ctx` | 16,384 | 02 budget |
 | `runtime.num_thread` | `null` (= physical cores) | recorded in cassette entry, not in key |

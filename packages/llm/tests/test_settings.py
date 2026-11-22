@@ -27,9 +27,13 @@ def _section() -> dict[str, Any]:
     return _thaw(load_section_file("llm", config_dir=repo_root() / "config"))
 
 
+#: The qwen3.5:9b Q4_K_M blob on the recording host (#2): bench refuses AI arms while it is null.
+PINNED_GGUF = "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"
+
+
 def test_repo_config_is_valid() -> None:
     s = settings_from(_section(), env={})
-    assert s.provider == "ollama" and s.model.name == "qwen3.5:9b" and s.model.gguf_sha256 is None
+    assert s.provider == "ollama" and s.model.name == "qwen3.5:9b" and s.model.gguf_sha256 == PINNED_GGUF
     assert (s.endpoint.host, s.endpoint.port, s.endpoint.path) == ("127.0.0.1", 11434, "")
     assert s.num_ctx == 16384 and s.num_thread is None and s.parallel == 1 and s.cache_prompt is False
     assert (s.connect_timeout_s, s.timeout_s) == (5.0, 240.0)

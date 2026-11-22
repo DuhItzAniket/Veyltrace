@@ -11,7 +11,7 @@ provider: ollama
 base_url: "http://127.0.0.1:11434"
 model:
   name: "qwen3.5:9b"            # 02 §12; exact tag pinned at M0 (08-relentra §4)
-  gguf_sha256: null             # null until pinned after llama-bench (08-relentra §4)
+  gguf_sha256: "02d45dc1cf451ba2475ac33b301c2dd8f985abe4c182ce04a1f2f5bf0260278d"  # Q4_K_M blob on the recording host (08-relentra §4)
   fallback_name: "qwen3.5:4b"   # 02 §6.8
 
 runtime:
