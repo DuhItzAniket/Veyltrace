@@ -228,7 +228,7 @@ Rendered from `card.json` only: title; status banner with `confidence.level`, se
 
 ### 3.9 Replay
 
-`veyltrace replay <receipt.json> [--run-dir DIR] [--full] [--allow-env-drift] [--report PATH] [--keep]`. Core's CLI parses arguments and calls `veyltrace_causivra.replay.replay(...)`.
+`veyltrace replay <receipt.json> [--run-dir DIR] [--full] [--allow-env-drift] [--report PATH] [--keep]`. Core's CLI forwards the arguments to `veyltrace.commands:replay` (`veyltrace_causivra.replay.main`), which calls `replay(...)`. `--full` is not built yet and exits 1; `--keep DIR` keeps the re-run directory in DIR.
 
 ```mermaid
 flowchart TD
@@ -255,7 +255,7 @@ flowchart TD
 Steps:
 
 1. **R1** Parse `receipt.json`; require `_type`, `subject[0].name = "verdict.json"`, `predicateType = https://veyltrace.dev/rca-verdict/v1`. Unreadable or malformed → 1.
-2. **R2** If `receipt.json.minisig` exists and `signing.public_key_path` is configured, verify; failure → 3. Signature present but no public key → warning.
+2. **R2** If `receipt.json.minisig` exists and `signing.public_key_path` is configured, verify; failure → 3. Signature present but no public key → warning. (Built: no signing key is configured in v1, so a signature is only reported; #432.)
 3. **R3** Run dir = receipt's directory unless `--run-dir`. The receipt's embedded `run_manifest` must equal `run_manifest.json` on disk (canonical bytes), and SHA-256 of `verdict.json` must equal `subject[0].digest.sha256`; else → 3.
 4. **R4** Load the run dir's `config.lock.json` (the fully resolved config, [02 §4.1](../02-architecture.md#41-run-directory)) through core's loader; invalid or hash ≠ `config_sha256` → 4. Replay never reads the repo's current `config/<engine>.yaml` files.
 5. **R5** Environment: compare `env.python` (major.minor), every `env.libs` version and `uv_lock_sha256`; `env.os` and `code.commit` are reported but never fail (a receipt from a Windows laptop must replay on CI Linux, [verified_agents §Q3][va-q3] Tier 1). Drift is recorded; it decides the exit code only at the end.
