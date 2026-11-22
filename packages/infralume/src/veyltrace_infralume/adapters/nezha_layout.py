@@ -5,8 +5,8 @@ Nezha (IntelligentDDS/Nezha, MIT) publishes one directory per collection day und
 `log/HH_MM_log.csv` and `trace/HH_MM_trace.csv`, which exist only for the fault's minute and the two
 after it (neighbouring files overlap by a second or two). A case is one entry of a day's fault
 list. Its telemetry is the slice
-[t_fault − 12 min, t_fault + 12 min), clipped to the midpoint to each neighbouring fault of the day,
-so no row belongs to two cases.
+[t_fault − half window, t_fault + half window), clipped to the midpoint to each neighbouring fault of
+the day, so no row belongs to two cases (`nezha.half_window_s`, `nezha.clip` in config/infralume.yaml).
 
 The fault list is read for `inject_time` only. `inject_timestamp` is not used: on the Train Ticket
 days it is eight hours off and repeats between entries, while `inject_time` (UTC) agrees with the
@@ -18,11 +18,11 @@ from __future__ import annotations
 import itertools
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
-from typing import Final, cast
+from typing import Any, Final, cast
 
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError, UsageError
@@ -30,12 +30,13 @@ from veyltrace_core.ids import case_id as make_case_id
 from veyltrace_infralume.index import write_index
 
 __all__ = [
+    "CLIP_RULES",
     "DATASETS",
-    "HALF_SPAN_NS",
     "KEY_FORMAT",
     "MINUTE_FILES",
     "SRC",
     "NezhaCase",
+    "SliceRule",
     "build_index",
     "day_system",
     "discover",
@@ -56,8 +57,9 @@ SRC: Final = ("nezha", "src", "rca_data")
 DATASETS: Final = ("nezha-ob", "nezha-tt")
 #: The canonical case key (01 §3.2): index = 0-based position in the day's fault list, in time order.
 KEY_FORMAT: Final = "nezha-{system}-{date}-{index}"
-#: 01 §3.3: the slice mirrors RCAEval's 12 + 12 minutes around the fault.
-HALF_SPAN_NS: Final = 12 * 60 * NS
+#: `nezha.clip` values (01 §4).
+MIDPOINT: Final = "midpoint"
+CLIP_RULES: Final = (MIDPOINT, "none")
 #: Log and trace files exist for the fault's minute and the next two (verified on all 101 faults).
 MINUTE_FILES: Final = 3
 #: How far a minute file's rows can lie from the minute it is named after (see `stems_for`).
@@ -134,17 +136,41 @@ def day_system(day_dir: Path) -> str:
     return "tt" if any(n.startswith(TT_PREFIX) for n in names) else "ob"
 
 
-def window_ns(times: tuple[int, ...], index: int) -> tuple[int, int]:
-    """The half-open slice [lo, hi) of fault `index`: ±12 min, clipped to the midpoints to the
-    neighbouring faults of the day (01 §3.3)."""
+@dataclass(frozen=True)
+class SliceRule:
+    """`nezha.*` of config/infralume.yaml: how a case's slice is cut around its fault (01 §3.3)."""
+
+    half_window_ns: int
+    clip: str  # `midpoint`: end at the midpoint to each neighbouring fault; `none`: keep ± half window
+
+    def __post_init__(self) -> None:
+        if self.half_window_ns <= 0 or self.clip not in CLIP_RULES:
+            raise ConfigError(
+                f"nezha.half_window_s must be > 0 and nezha.clip one of {', '.join(CLIP_RULES)}, "
+                f"got {self.half_window_ns / NS:g} s and {self.clip!r}"
+            )
+
+    @classmethod
+    def from_config(cls, cfg: Mapping[str, Any]) -> SliceRule:
+        section = cast("Mapping[str, Any]", cfg["nezha"])
+        half = section["half_window_s"]
+        if isinstance(half, bool) or not isinstance(half, int | float):
+            raise ConfigError(f"nezha.half_window_s must be a number of seconds, got {half!r}")
+        return cls(round(half * NS), str(section["clip"]))
+
+
+def window_ns(times: tuple[int, ...], index: int, rule: SliceRule) -> tuple[int, int]:
+    """The half-open slice [lo, hi) of fault `index`: ± the half window, clipped as `rule.clip`
+    says to the midpoints to the neighbouring faults of the day (01 §3.3)."""
     if not 0 <= index < len(times):
         raise UsageError(f"fault index {index} is outside the day's {len(times)} faults")
     t = times[index]
-    lo, hi = t - HALF_SPAN_NS, t + HALF_SPAN_NS
-    if index > 0:
-        lo = max(lo, (times[index - 1] + t) // 2)
-    if index + 1 < len(times):
-        hi = min(hi, (t + times[index + 1]) // 2)
+    lo, hi = t - rule.half_window_ns, t + rule.half_window_ns
+    if rule.clip == MIDPOINT:
+        if index > 0:
+            lo = max(lo, (times[index - 1] + t) // 2)
+        if index + 1 < len(times):
+            hi = min(hi, (t + times[index + 1]) // 2)
     return lo, hi
 
 

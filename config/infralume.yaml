@@ -22,6 +22,12 @@ rcaeval:
   layout: auto            # auto | hf | zenodo: detected by file presence (01 §3.3)
   metrics_table: simple   # simple_metrics / HF metrics.parquet, the table RCAEval's runner reads (01 §4)
 
+nezha:
+  # The slice of a Nezha case around its fault time (01 §3.3). Both values are a priori: they were
+  # fixed in the 01 §3.3 plan before any Nezha file was read, and no Nezha result informed them.
+  half_window_s: 720   # 12 min each side, the shape of an RCAEval case (rcaeval_facts §Metric step and windows)
+  clip: midpoint       # midpoint | none: end a slice halfway to the neighbouring fault, so no row is in two cases
+
 normalise:
   # Per-system aliases, applied after lowercasing (01 §3.4 step 4): OB traces name the frontend
   # `frontendservice`, metrics and logs `frontend` (rcaeval_facts §Dataset layout).
