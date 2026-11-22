@@ -92,7 +92,9 @@ SPEC_ENGINE_DEPS["faultloom"] = ("veyltrace-causalith",)
 SPEC_ENGINE_DEPS["relentra"] = ("veyltrace-faultloom", "veyltrace-llm")
 # 04 §5.4 item 6, 09 §3.8: bench fits tau_nf on Causentra's NO_FAULT statistic M with Causentra's own
 # code (no second implementation, #373); bench imports engines only outside the isolation scope.
-SPEC_ENGINE_DEPS["bench"] = ("veyltrace-causentra",)
+# The Nezha answer keys (#451) take case keys, fault order and service names from Infralume's Nezha
+# layout and name rules, so key and run share one id and one service name (#436 review).
+SPEC_ENGINE_DEPS["bench"] = ("veyltrace-causentra", "veyltrace-infralume")
 WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys", "stats/veyltrace_stats"]}  # Observe's (#326, #357)
 
 
