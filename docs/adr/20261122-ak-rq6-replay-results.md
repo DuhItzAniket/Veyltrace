@@ -71,9 +71,12 @@ We choose **option 3**. Two new evaluation-only contracts, at 1.0.0 ([03 §13.5�
 **Table 9.** `tables/rq56.replay` reads the three `replay_summary.json` files: Tier 1 per role, then Tier 2. A missing role stays "not run". This reading is covered by 04 §9's committed-summaries rule, with a one-line §12 row for clarity.
 
 **The run archive.** The second laptop and CI need the kept `bench-ai` run directories. Replay re-hashes their `telemetry/*` (R6), and 04 §10.1 doesn't redistribute raw telemetry. So the archive is **private only**. It is never on Zenodo and never committed, until the dataset licences are checked. The repository is public, so an Actions artifact is downloadable by any signed-in user: the archive is a **draft release asset** (drafts are visible only to collaborators with push access), and the CI job reads it with its own token.
+- The draft is **never published**, and it is **deleted** once the paper's replay numbers are committed (the three `bench/results/replay/<role>/` results).
+- The asset name carries no case ids or dataset folder names (the CI job accepts only `bench-ai.tar.gz` or a numbered re-upload `bench-ai.<n>.tar.gz`).
+- The CI job is `workflow_dispatch` only (never on a push or a PR). Only that job has `contents: write`, which listing drafts needs; the workflow's default permissions stay read-only.
 
 **CI.** A `workflow_dispatch` job downloads that archive and runs `--role ci`.
-- **Decision point (lead, after R-16):** if `--dry-run` reports more bytes than the Actions artifact limit allows, the lead decides how CI gets the runs. No size is assumed here.
+- **Decision point (lead, after R-16):** a release asset is limited to 2 GB (GitHub's per-file limit). If `--dry-run` reports a compressed archive above that, the lead decides how CI gets the runs. No size is assumed here.
 
 ## Alternatives considered
 
