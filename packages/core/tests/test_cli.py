@@ -230,6 +230,12 @@ def test_bench_tables_without_bench_is_a_clear_error(
     assert "veyltrace.commands:bench" in capsys.readouterr().err
 
 
+def test_bench_replay_delegates(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls = _fake_command(monkeypatch, "bench", 0)  # RQ6 replay results (#440)
+    assert cli.main(["bench", "replay", "--role", "recording", "--dry-run"]) == 0
+    assert calls == [["replay", "--role", "recording", "--dry-run"]]
+
+
 def test_data_fetch_builds_a_fetch_request(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[FetchRequest] = []
 

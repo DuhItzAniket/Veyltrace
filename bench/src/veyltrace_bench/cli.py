@@ -1,4 +1,4 @@
-"""`veyltrace bench run` and `veyltrace bench tables`: bench's `veyltrace.commands:bench` entry point.
+"""`veyltrace bench run`, `replay` and `tables`: bench's `veyltrace.commands:bench` entry point.
 
 Core's CLI delegates `veyltrace bench run <experiment.yaml> [options]` here as
 `main(["run", <experiment.yaml>, *options])`, so core never imports bench (core_api_spec §9).
@@ -22,11 +22,13 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from veyltrace_bench import replay
 from veyltrace_bench.answer_keys import ANSWER_KEY
 from veyltrace_bench.runner import RESULTS_DIR, run_experiment
 from veyltrace_bench.tables import generate
 from veyltrace_core.config import find_config_dir
 from veyltrace_core.errors import ArtifactMissing, DiagnoseExit, VeyltraceError, exit_code_for
+from veyltrace_core.pipeline import runs_root as default_runs_root
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -43,6 +45,18 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument(
         "--table", action="store_true", help="results for a table: refuse a dirty work tree and synth"
     )
+    rep = commands.add_parser(
+        "replay",
+        help="RQ6: replay (Tier 1) the recorded AI runs; write replay/<role>/",
+    )
+    rep.add_argument("--role", required=True, choices=replay.ROLES, help="the RQ6 site this machine is")
+    rep.add_argument("--results", type=Path, help="results root (default bench/results)")
+    rep.add_argument("--experiment", action="append", default=[], help="source experiment id (repeatable)")
+    rep.add_argument("--runs-root", type=Path, help="root of the run directories, default core.paths.runs")
+    rep.add_argument(
+        "--dry-run", action="store_true", help="print the run count and total bytes; write nothing"
+    )
+    rep.add_argument("--table", action="store_true", help="results for a table: refuse a dirty work tree")
     tables = commands.add_parser(
         "tables", help="regenerate bench/results/tables from committed results (R-17)"
     )
@@ -70,6 +84,25 @@ def _tables(args: argparse.Namespace) -> int:
     return int(DiagnoseExit.OK)
 
 
+def _replay(args: argparse.Namespace) -> int:
+    repo = find_config_dir().parent
+    results = args.results if args.results is not None else repo.joinpath(*RESULTS_DIR)
+    runs_root = args.runs_root.resolve() if args.runs_root is not None else default_runs_root()
+    got = replay.replay(
+        results,
+        runs_root,
+        args.role,
+        experiments=args.experiment,
+        dry_run=args.dry_run,
+        table=args.table,
+    )
+    if isinstance(got, tuple):
+        print(f"runs: {got[0]}, bytes: {got[1]}")
+    else:
+        print(f"replay: {got.as_posix()}")
+    return int(DiagnoseExit.OK)
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the bench CLI on `argv` (default sys.argv[1:]) and return the process exit code."""
     try:
@@ -79,6 +112,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "tables":
             return _tables(args)
+        if args.command == "replay":
+            return _replay(args)
         # Resolved here, against the caller's directory: the run children start in the repository
         # root, and the manifest's calibrations re-open each run's lock under this root (#412).
         runs_root = args.runs_root.resolve() if args.runs_root is not None else None

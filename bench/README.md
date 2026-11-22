@@ -41,6 +41,18 @@ uv run veyltrace bench run bench/experiments/synth-smoke.yaml --out /tmp/vt-resu
 - `--table` is for results that feed a table: it refuses a dirty work tree (core's `code.dirty` or uncommitted `bench/` files; [AGENTS.md](AGENTS.md) Never 3) and synth (04 §3).
 - Exit codes: 0 results written (failed, rejected, `no_alert` and timeout runs are rows); 1 error; 2 usage, `--table` refused, or synth without an `--out` outside the repo; 3 input missing (answer keys: `veyltrace data fetch`); 4 invalid or unsupported experiment.
 
+## RQ6 replay results (#440)
+
+```bash
+uv run veyltrace bench replay --role recording --dry-run   # run count and total bytes (the CI archive); writes nothing
+uv run veyltrace bench replay --role recording --table     # Tier 1 on the recording laptop
+uv run veyltrace bench replay --role second-laptop         # the same runs on another host (copy of <runs root>/bench-ai)
+```
+
+- The sources are the committed results under `--results` (default `bench/results`) with an AI arm, or the `--experiment` ids given. `recording` enumerates the kept record runs their `ok` AI-arm rows scored. `second-laptop` and `ci` replay exactly the runs of the committed `replay/recording/` result, whose sources must be the same.
+- Tier 1 runs `veyltrace replay <receipt> --report` in a child per run (strict: no `--allow-env-drift`).
+- Output: `bench/results/replay/<role>/replay.csv` and `replay_summary.json` ([03 §13.5–13.6](../docs/03-contracts.md)), the rates with Clopper–Pearson intervals; Table 9 reads them. Decisions: [ADR](../docs/adr/20261122-ak-rq6-replay-results.md). The run archive is private only (it holds telemetry).
+
 ## Tables and figures (R-17)
 
 ```bash
