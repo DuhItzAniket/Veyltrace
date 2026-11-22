@@ -8,8 +8,10 @@
 # The archive (a .tar.gz of <runs root>/bench-ai/) holds telemetry, which 04 §10.1 does not
 # redistribute. The repository is public, so an Actions artifact would be readable by any signed-in
 # user: the archive is a *draft* release asset, which only collaborators with push access see, and
-# this job reads it with its own token. Its size comes from `bench replay --dry-run`; the lead
-# decides on another transport if it exceeds what a release asset or the runner disk holds (ADR).
+# this job reads it with its own token. The draft is never published, and it is deleted once the
+# paper's replay numbers are committed (ADR). The asset name carries no case or dataset names.
+# Its size comes from `bench replay --dry-run`; a release asset holds at most 2 GB, and above that
+# the lead decides on another transport (ADR decision point).
 #
 # The result (replay.csv and replay_summary.json, no telemetry) is uploaded as an artifact; the lead
 # commits it to bench/results/replay/ci/. Untrusted values reach shell steps only through `env:`.
@@ -27,7 +29,7 @@ on:
         required: true
         default: "rq6-replay-runs"
       asset:
-        description: "Archive file name: a .tar.gz whose top-level directory is bench-ai/"
+        description: "Archive file name, bench-ai.tar.gz or bench-ai.<n>.tar.gz (top-level directory bench-ai/)"
         required: true
         default: "bench-ai.tar.gz"
 
@@ -36,7 +38,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # listing draft releases needs push access; nothing is written
+  contents: read # the default; only the replay job below may list draft releases
 
 env:
   UV_PYTHON: "3.12"
@@ -47,6 +49,8 @@ jobs:
     name: replay (ci)
     runs-on: ubuntu-24.04 # as ci.yml: the pinned image of the golden fixtures
     timeout-minutes: 360
+    permissions:
+      contents: write # listing draft releases needs push access; this job writes nothing
     steps:
       - uses: actions/checkout@v7
         with:
@@ -67,6 +71,10 @@ jobs:
           ASSET: ${{ inputs.asset }}
         run: |
           set -euo pipefail
+          if ! printf '%s' "$ASSET" | grep -Eq '^bench-ai(\.[0-9]+)?\.tar\.gz$'; then
+            echo "the asset name must be bench-ai.tar.gz or bench-ai.<n>.tar.gz (no case or dataset names)" >&2
+            exit 1
+          fi
           ids=$(gh api --paginate "repos/$REPO/releases" \
             --jq '.[] | select(.draft and .name == env.RELEASE) | .assets[] | select(.name == env.ASSET) | .id')
           if [ "$(printf '%s\n' "$ids" | grep -c .)" != 1 ]; then
@@ -78,7 +86,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/runs.tar.gz" -C "$RUNNER_TEMP/runs"
           rm "$RUNNER_TEMP/runs.tar.gz"
           test -d "$RUNNER_TEMP/runs/bench-ai"
-      - name: Size (run count and bytes)
+      - name: Size (run count and bytes; a release asset holds at most 2 GB compressed)
         run: uv run veyltrace bench replay --role ci --runs-root "$RUNNER_TEMP/runs" --dry-run
       - name: Replay (Tier 1)
         run: uv run veyltrace bench replay --role ci --runs-root "$RUNNER_TEMP/runs" --table
