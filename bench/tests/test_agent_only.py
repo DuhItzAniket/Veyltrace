@@ -5,8 +5,6 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from types import SimpleNamespace
-from typing import cast
 
 import pyarrow as pa
 import pytest
@@ -34,23 +32,20 @@ metrics: [ac_at_k, cost]
 
 
 def test_proposals_lead_in_rank_order_and_a_null_rank_is_unranked() -> None:
-    """The model's order (proposals[].rank, CCR #409), not the file's A-Z order; unknown order is
-    unranked. Until #409 lands the models have no rank, so a stand-in carries it here."""
+    """The model's order (proposals[].rank, proposals 1.1, CCR #409), not the file's A-Z order; an
+    unknown order (a null rank, e.g. a 1.0 file) is unranked."""
     slate = testing.golden("slate", "synth-01")
     assert isinstance(slate, models.Slate)
     example = json.loads(textio.read_text(REPO / "contracts" / "examples" / "proposals.example.json"))
     proposals = models.Proposals.model_validate(example)
     ranking = slate_ranks(slate)
-    assert agent_only.ranks(proposals, ranking, slate) is None  # 1.0 file: no rank, order unknown
     first, second = proposals.proposals[0], proposals.proposals[1]  # file order: A-Z by service
-    stand_in = SimpleNamespace(
-        case_id=proposals.case_id,
-        proposals=[
-            SimpleNamespace(hypothesis=first.hypothesis, rank=2),
-            SimpleNamespace(hypothesis=second.hypothesis, rank=1),
-        ],
+    unknown = proposals.model_copy(update={"proposals": [first.model_copy(update={"rank": None}), second]})
+    assert agent_only.ranks(unknown, ranking, slate) is None  # a null rank: order unknown
+    swapped = proposals.model_copy(
+        update={"proposals": [first.model_copy(update={"rank": 2}), second.model_copy(update={"rank": 1})]}
     )
-    got = agent_only.ranks(cast("models.Proposals", stand_in), ranking, slate)
+    got = agent_only.ranks(swapped, ranking, slate)
     assert got is not None
     heads = [second.hypothesis.service, first.hypothesis.service]  # rank 1 first
     assert [r.split("_")[0] for r in got[:2]] == heads
@@ -78,15 +73,18 @@ def test_an_agent_only_method_needs_its_source_before_it(tmp_path: Path, text: s
         agent_only.source_of(exp, agent)
 
 
-def test_agent_only_is_refused_until_proposals_carry_a_rank(tmp_path: Path) -> None:
-    """Without proposals[].rank every case would be a silent miss (#407 review, CCR #409)."""
+def test_agent_only_runs_now_that_proposals_carry_a_rank(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without proposals[].rank every case would be a silent miss (#407 review), so agent_only is
+    refused; proposals 1.1 (CCR #409) has the rank."""
     path = tmp_path / "exp.yaml"
     textio.write_bytes(path, BOTH.encode())
+    assert experiment.RANK_FIELD
+    assert not any("agent_only" in t for t in unsupported(load_experiment(path)))
+    monkeypatch.setattr(experiment, "RANK_FIELD", False)  # a proposals contract without rank
     todo = unsupported(load_experiment(path))
-    if experiment.RANK_FIELD:
-        assert not any("agent_only" in t for t in todo)
-    else:
-        assert "methods agent-only:brief: kind agent_only needs proposals 1.1 rank (#409)" in todo
+    assert "methods agent-only:brief: kind agent_only needs proposals 1.1 rank (#409)" in todo
 
 
 def test_agent_only_rows_score_the_brief_runs_without_runs_of_their_own(
@@ -99,9 +97,11 @@ def test_agent_only_rows_score_the_brief_runs_without_runs_of_their_own(
         relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
     llm = config / "llm.yaml"  # FakeProvider: no model server in tests (08 §7)
     llm.write_bytes(llm.read_bytes().replace(b"provider: ollama", b"provider: fake"))
+    pinned = b'gguf_sha256: "' + b"ab" * 32 + b'"'  # a test digest: AI arms run on a pinned GGUF (#315)
+    llm.write_bytes(llm.read_bytes().replace(b"gguf_sha256: null", pinned))
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     monkeypatch.setattr(runner, "IN_PROCESS", True)
-    monkeypatch.setattr(experiment, "RANK_FIELD", True)  # as once proposals 1.1 (#409) lands
+    assert experiment.RANK_FIELD  # proposals 1.1 (#409): agent_only runs
     assert cli.main(["data", "fetch", "synth"]) == 0
     exp = tmp_path / "exp.yaml"
     textio.write_bytes(exp, BOTH.encode())

@@ -4,6 +4,10 @@ Why everything is ordered by content: the output must depend on the set of thing
 never on the order it wrote them in, so a reordered but equal reply gives byte-identical
 `proposals.json`. Merging and capping therefore walk the proposals in canonical order, and ids are
 content hashes.
+
+The one exception is `rank` (proposals 1.1, #409): the model's order is what bench's agent-only arm
+measures (04 §4), so each kept proposal records where it first appeared in the reply. It changes no
+other field, no id and not the file order.
 """
 
 from __future__ import annotations
@@ -87,11 +91,20 @@ def _finish(group: Sequence[CheckedProposal], settings: BriefSettings) -> dict[s
 def normalize_proposals(
     proposals: Iterable[CheckedProposal], settings: BriefSettings
 ) -> list[dict[str, Any]]:
-    """Merge by (service, fault_class), deduplicate, cap, sort and assign ids (08 §3.6)."""
+    """Merge by (service, fault_class), deduplicate, cap, sort, assign ids and rank (08 §3.6; #409).
+
+    `proposals` is the validated reply in the model's order, after drops. A merged proposal ranks at
+    its members' first position; the kept ones are renumbered 1..k in that order after the cap.
+    """
     groups: dict[tuple[str, str], list[CheckedProposal]] = {}
-    for proposal in sorted(proposals, key=_content_key):
-        groups.setdefault((proposal.service, proposal.fault_class), []).append(proposal)
-    kept = [_finish(groups[key], settings) for key in sorted(groups)[: settings.max_hypotheses]]
+    first: dict[tuple[str, str], int] = {}
+    for position, proposal in sorted(enumerate(proposals, start=1), key=lambda ip: _content_key(ip[1])):
+        key = (proposal.service, proposal.fault_class)
+        groups.setdefault(key, []).append(proposal)
+        first[key] = min(first.get(key, position), position)
+    keys = sorted(groups)[: settings.max_hypotheses]
+    rank = {key: i for i, key in enumerate(sorted(keys, key=first.__getitem__), start=1)}
+    kept = [{**_finish(groups[key], settings), "rank": rank[key]} for key in keys]
     return sorted(
         kept,
         key=lambda p: (p["hypothesis"]["service"], p["hypothesis"]["fault_class"], p["proposal_id"]),

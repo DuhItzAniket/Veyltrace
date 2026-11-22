@@ -1,6 +1,6 @@
 # 03 · Data contracts
 
-> **Status:** v1.0 (frozen at tag `contracts-1.0`, [ADR](adr/20261116-ak-contracts-1-0-freeze.md); changes only as in §1 "After M1") · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-21 (#404: bench_summary 1.2, bench_manifest 1.1)
+> **Status:** v1.0 (frozen at tag `contracts-1.0`, [ADR](adr/20261116-ak-contracts-1-0-freeze.md); changes only as in §1 "After M1") · **Owner:** lead (file), producer lane (semantics) · **Last updated:** 2026-11-22 (#409: proposals 1.1)
 > Master spec: [02-architecture](02-architecture.md). This doc is the field-level truth for every artifact that crosses a package boundary. If a field is not here, no engine may rely on it.
 
 ## 1. How contracts work
@@ -403,12 +403,12 @@ Parameter types follow FaultLoom's `Param` ([engines/06 §3.5](engines/06-faultl
 
 | Field | Type | Notes |
 |---|---|---|
-| `schema_version`, `case_id` | str | |
+| `schema_version`, `case_id` | str | `schema_version` is `1.1.x` (`proposals[].rank` in 1.1.0, CCR #409) |
 | `status` | str | `complete \| budget_exhausted \| failed \| skipped` |
 | `mode` | str | `brief \| investigate \| external` (`external`: hypotheses submitted through the MCP `verify_hypothesis` tool, [06](06-gateway-and-console.md)) |
 | `model`? | {`provider`, `name`, `gguf_sha256`?, `params`: {`temperature`, `seed`, `top_k`?, `top_p`?, `presence_penalty`?, `thinking`?: bool, `max_tokens`}} | null for `mode = external` and for `status = skipped`; `provider` ∈ `ollama \| llamacpp \| openai_compat \| fake`; `seed` is an integer in [0, 2³¹ − 1) |
 | `budget_used` | {`turns`, `tokens_in`, `tokens_out`, `wall_ms`} | `wall_ms` is a float; it comes from the cassette in replay, so replays match |
-| `proposals` | [ {`proposal_id`, `hypothesis`: {`service`, `component`?, `fault_class`, `indicator`?}, `claims`: [ {`claim_id`, `predicate`, `args`, `cites`: [str]} ], `requested_trials`: [`T1`…`T10`], `rationale`: str ≤ 280 chars} ] | `proposal_id` matches `^P[0-9a-f]{8}$` (preimage in [engines/08 §2.2](engines/08-relentra.md)); `claim_id` = `<proposal_id>-<i>`; `requested_trials` unique, at most 4, sorted by trial number (T1 < T2 < … < T10); `rationale` ≤ 280 Unicode code points, display-only and never read by code |
+| `proposals` | [ {`proposal_id`, `hypothesis`: {`service`, `component`?, `fault_class`, `indicator`?}, `claims`: [ {`claim_id`, `predicate`, `args`, `cites`: [str]} ], `requested_trials`: [`T1`…`T10`], `rationale`: str ≤ 280 chars, `rank`?: int ≥ 1} ] | `proposal_id` matches `^P[0-9a-f]{8}$` (preimage in [engines/08 §2.2](engines/08-relentra.md)); `claim_id` = `<proposal_id>-<i>`; `requested_trials` unique, at most 4, sorted by trial number (T1 < T2 < … < T10); `rationale` ≤ 280 Unicode code points, display-only and never read by code; `rank` is the 1-based position of the hypothesis in the model's validated reply after drops (before the [engines/08 §3.6](engines/08-relentra.md) merge; a merged proposal keeps the smallest rank of its members, and after the `budget.max_hypotheses` cap the kept proposals are renumbered 1..k in rank order), the submission order for `mode = external`, and null when the order is unknown (a 1.0 file); the non-null ranks of one file are exactly 1..k (writer check). `rank` never changes the canonical order, `proposal_id` or `claim_id`, and Causentra never reads it; bench `agent_only` ranks by it ([04 §4](04-evaluation-protocol.md)) |
 | `asks` | [ {`kind`: `telemetry \| trial \| context`, `target`, `why`} ] | at most 3, sorted by (`kind`, `target`); `target` ≤ 80 and `why` ≤ 160 characters (the limits of [engines/08 §3.4](engines/08-relentra.md)) |
 
 `service` must be a `graph.nodes.node`; `predicate` must be in the library (§7). `args` holds only the arguments **after** the subject (the subject is the hypothesis `service`, and the claim pass substitutes every pool candidate); a `subject` key in `args` is invalid (`bad_args`). The contract schema keeps `args` permissive (a JSON object of scalar values) and does not check for `subject`: argument problems are per-claim `bad_args` rejections, not schema errors. The JSON schema used for constrained decoding enumerates both per case. `cites` holds atom IDs (`E…`, both modes) or tool-call IDs (`tc:<seq>`, `investigate` mode), each matching `^(E[0-9a-f]{10}|tc:[0-9]+)$`, at most 3 per claim, possibly none; citations are for display and audit, while the decision uses only the claim pass result.

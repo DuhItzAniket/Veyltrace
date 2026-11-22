@@ -354,10 +354,12 @@ def _timed(
     calibration_keys: Mapping[str, object] = calibrated.UNCALIBRATED,
     variant: str | None = None,
     seed: int | None = None,
+    pin: ai_arms.Pin | None = None,
 ) -> Executed:
     """Diagnose one case with one method; a run another kind already made keeps that run's cost. An
     AI arm records into, or replays from, `<runs root>/bench-ai/` (`ai_arms`); `runs_root` is
-    bench's `<runs root>/bench/<experiment_id>` for every full-pipeline method."""
+    bench's `<runs root>/bench/<experiment_id>` for every full-pipeline method. An AI-arm run whose
+    resolved model is not its `pin` is rejected, never scored (#315)."""
     over = overrides_for(exp, method, overlay, calibration_keys, variant, seed)
     kept = runs_root.parent.parent / ai_arms.KEPT
     ai = ai_arms.plan(key, method.ai.mode, over, runs_root, kept) if baseline is None else None
@@ -371,7 +373,12 @@ def _timed(
         wall_ms, peak, kinds = earlier  # e.g. causatrix:rrf and veyltrace:off: one run, scored twice
     if done.run_id is not None:
         timed[done.run_id] = (wall_ms, peak, kinds | {method.kind})
-    return replace(done, wall_ms=wall_ms, peak_rss_mb=peak)
+    done = replace(done, wall_ms=wall_ms, peak_rss_mb=peak)
+    ok = run_outcome(done.outcome, wall_ms, exp.resources.timeout_s) == "ok"
+    if pin is not None and ok and (why := ai_arms.mismatch(done.run_dir, pin)) is not None:
+        _log.warning("bench.ai_rejected", case_id=key.case_id, method=method.id, seed=seed, why=why)
+        return replace(done, outcome=ai_arms.REJECTED, judged=True, reason=ai_arms.MISMATCH)
+    return done
 
 
 def _restart(
@@ -535,6 +542,7 @@ def _run_method(
     dropped: list[dict[str, object]] | None = None,
     sources: dict[tuple[str, str], Executed] | None = None,
     ai_runs: dict[tuple[str, str, int | None, str | None], Executed] | None = None,
+    pin: ai_arms.Pin | None = None,
 ) -> list[Scored]:
     """Every case of one dataset with one method, each run once, then its normal `windows`; a window
     with too short a baseline goes to `dropped` (manifest runs only). A baseline gets its own runs
@@ -555,7 +563,7 @@ def _run_method(
         plain = variant is None and seed is None  # the run a causatrix:<ranker> reuses or is (#413)
         reuse = _reused(exp, method, key, root, overlays.get(key.case_id), keys, sources) if plain else None
         done = reuse or _timed(
-            exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed
+            exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed, pin
         )
         if sources is not None and plain and method.kind == upstream.SOURCE_KIND and method.ai.mode == "off":
             sources[(method.id, key.case_id)] = done
@@ -894,7 +902,7 @@ def run_experiment(
             Truth.from_answer_key(keys[d][c])  # refuse a fault row without a root before any run
     check_rankers(exp)
     normal_windows.check(exp)
-    ai_arms.check(exp)
+    pins = ai_arms.check(exp)  # each AI arm's pinned GGUF (#315)
     for m in exp.methods:  # each agent_only method has its source before it (04 §4)
         if m.kind == agent_only.KIND:
             agent_only.source_of(exp, m)
@@ -963,7 +971,17 @@ def run_experiment(
                 for unit in _units(method, rows_keys, windows):
                     k, v, s = unit
                     done = _timed(
-                        exp, method, k, bench_runs, timed, None, overlays.get(k.case_id), uncal, v, s
+                        exp,
+                        method,
+                        k,
+                        bench_runs,
+                        timed,
+                        None,
+                        overlays.get(k.case_id),
+                        uncal,
+                        v,
+                        s,
+                        pins.get(method.id),
                     )
                     first.setdefault(method.id, []).append((unit, done))
                     if v is None and s is None and method.ai.mode == "off":
@@ -1004,6 +1022,7 @@ def run_experiment(
                 runs,
                 sources,
                 ai_runs,
+                pins.get(method.id),
             )
             for scored in ran:
                 keep(scored)
@@ -1014,7 +1033,8 @@ def run_experiment(
         outside: list[tuple[Unit, Executed]] = []
         for unit in _units(method, outside_keys, normal_windows.pre_injection(outside_keys)):
             k, v, s = unit
-            outside.append((unit, _timed(exp, method, k, bench_runs, timed, variant=v, seed=s)))
+            got = _timed(exp, method, k, bench_runs, timed, variant=v, seed=s, pin=pins.get(method.id))
+            outside.append((unit, got))
         runs.extend(_run_entry(method, k, d) for (k, _, _), d in [*first[method.id], *outside])
         _fit(exp, split, method, [*first[method.id], *outside], str(code["commit"]))
         for (key, variant, seed), done in first[method.id]:

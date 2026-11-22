@@ -33,8 +33,11 @@ from veyltrace_causentra.outcome import (
 )
 from veyltrace_causentra.trials import TrialResult
 from veyltrace_contracts import models
+from veyltrace_contracts.registry import CONTRACTS
 from veyltrace_core.config import load_section_file
 from veyltrace_core.testing import make_context
+
+PROPOSALS_VERSION = CONTRACTS["proposals"].version
 
 CFG = config_from(load_section_file("causentra"), load_section_file("core"))
 CASE = "59e0d31bcc42"
@@ -287,12 +290,19 @@ def _proposals(status: str, *specs: tuple[str, str]) -> models.Proposals:
             "claims": [{"claim_id": f"{pid}-1", "predicate": "silent", "args": {}, "cites": []}],
             "requested_trials": [],
             "rationale": "",
+            "rank": rank,  # mode external: the submission order (03 §9.1); Causentra never reads it
         }
-        for pid, svc in specs
+        for rank, (pid, svc) in enumerate(specs, 1)
     ]
     budget = {"turns": 1, "tokens_in": 1, "tokens_out": 1, "wall_ms": 1.0}
     return models.Proposals.model_validate(
-        {"schema_version": "1.0.0", "case_id": CASE, "status": status, "mode": "external", "model": None}
+        {
+            "schema_version": PROPOSALS_VERSION,
+            "case_id": CASE,
+            "status": status,
+            "mode": "external",
+            "model": None,
+        }
         | {"budget_used": budget, "proposals": items, "asks": []}
     )
 
