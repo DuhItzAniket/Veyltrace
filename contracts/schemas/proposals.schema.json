@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://veyltrace.dev/schemas/1.0/proposals.schema.json",
+  "$id": "https://veyltrace.dev/schemas/1.1/proposals.schema.json",
   "title": "Proposals",
   "description": "Hypotheses, predicate claims and trial requests proposed by Relentra (pipeline step 7, AI on only), or submitted externally through the MCP verify_hypothesis tool (mode external). Proposals never decide: FaultLoom's claim pass re-evaluates every claim for every claim-pass pool candidate, and Causentra reads the result (03 §9.1).",
   "x-veyltrace": {
     "name": "proposals",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "kind": "json",
     "producer": "relentra",
     "path": "proposals.json"
@@ -25,10 +25,10 @@
   "properties": {
     "schema_version": {
       "type": "string",
-      "pattern": "^1\\.0\\.[0-9]+$"
+      "pattern": "^1\\.1\\.[0-9]+$"
     },
     "case_id": {
-      "$ref": "common.schema.json#/$defs/case_id"
+      "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/case_id"
     },
     "status": {
       "description": "complete: the state machine reached done; budget_exhausted: a budget stopped it (finished proposals kept); failed: provider error or no valid output after repair; skipped: AI on but the model was not called (relentra.enabled false or empty slate).",
@@ -175,7 +175,7 @@
           "description": "SHA-256 of the pinned GGUF weights file (model.gguf_sha256); null when not pinned.",
           "anyOf": [
             {
-              "$ref": "common.schema.json#/$defs/sha256"
+              "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/sha256"
             },
             {
               "type": "null"
@@ -278,12 +278,13 @@
         "claims",
         "hypothesis",
         "proposal_id",
+        "rank",
         "rationale",
         "requested_trials"
       ],
       "properties": {
         "proposal_id": {
-          "$ref": "common.schema.json#/$defs/proposal_id"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/proposal_id"
         },
         "hypothesis": {
           "$ref": "#/$defs/Hypothesis"
@@ -311,7 +312,7 @@
           "maxItems": 4,
           "uniqueItems": true,
           "items": {
-            "$ref": "common.schema.json#/$defs/trial_id"
+            "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/trial_id"
           },
           "x-sort": [
             {
@@ -324,6 +325,14 @@
           "description": "Display only; never read by code. At most 280 code points.",
           "type": "string",
           "maxLength": 280
+        },
+        "rank": {
+          "description": "1-based position of the hypothesis in the model's validated reply after drops (submission order for mode external); null when the order is unknown. Never read by Causentra; bench agent_only ranks by it (04 §4).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
         }
       }
     },
@@ -340,13 +349,13 @@
       ],
       "properties": {
         "service": {
-          "$ref": "common.schema.json#/$defs/service_name"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/service_name"
         },
         "component": {
           "description": "Always null in v1.0 (08 §2.2).",
           "anyOf": [
             {
-              "$ref": "common.schema.json#/$defs/service_name"
+              "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/service_name"
             },
             {
               "type": "null"
@@ -354,12 +363,12 @@
           ]
         },
         "fault_class": {
-          "$ref": "common.schema.json#/$defs/fault_class"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/fault_class"
         },
         "indicator": {
           "anyOf": [
             {
-              "$ref": "common.schema.json#/$defs/indicator"
+              "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/indicator"
             },
             {
               "type": "null"
@@ -386,7 +395,7 @@
           "pattern": "^P[0-9a-f]{8}-[1-9][0-9]*$"
         },
         "predicate": {
-          "$ref": "common.schema.json#/$defs/predicate"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/predicate"
         },
         "args": {
           "description": "Predicate arguments after the subject, keyed by parameter name. Permissive in the schema: a subject key, unknown names and out-of-range values are rejected per claim as bad_args by FaultLoom and Causentra, not here.",
@@ -424,7 +433,7 @@
       ],
       "properties": {
         "kind": {
-          "$ref": "common.schema.json#/$defs/ask_kind"
+          "$ref": "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/ask_kind"
         },
         "target": {
           "type": "string",

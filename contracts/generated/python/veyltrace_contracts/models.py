@@ -1136,6 +1136,7 @@ class Proposal(BaseModel):
     claims: list[Claim]
     requested_trials: Annotated[list[TrialId], Field(max_length=4)]
     rationale: Annotated[str, StringConstraints(max_length=280)]
+    rank: Annotated[int, Field(ge=1)] | None
 
 
 class ProposalAsk(BaseModel):
@@ -1388,7 +1389,7 @@ class Proposals(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.1\.[0-9]+$")]
     case_id: CaseId
     status: Literal["complete", "budget_exhausted", "failed", "skipped"]
     mode: Literal["brief", "investigate", "external"]

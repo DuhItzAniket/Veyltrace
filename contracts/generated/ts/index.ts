@@ -583,6 +583,7 @@ export interface Proposal {
   claims: Claim[];
   requested_trials: TrialId[];
   rationale: string;
+  rank: number | null;
 }
 
 /** A request for more telemetry, a trial or context. */
