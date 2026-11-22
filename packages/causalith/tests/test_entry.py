@@ -49,6 +49,30 @@ def test_system_hint_wins_when_it_names_a_known_service() -> None:
     assert entry_services([("cart", "frontend")], ["cart", "frontend"], "ob", CFG) == ["frontend"]
 
 
+def test_a_hint_without_a_trace_edge_falls_back_to_call_pairs() -> None:
+    # RE2-TT shape (#36): the hinted gateway is a known service (metrics, logs) but has no spans.
+    cfg = EntryConfig(hints={"tt": ("ts-ui-dashboard",)}, exclude=())
+    pairs = [
+        ("ts-preserve-service", "ts-seat-service"),
+        ("ts-seat-service", "ts-order-service"),
+        ("ts-travel-service", "ts-basic-service"),
+    ]
+    services = ["ts-basic-service", "ts-order-service", "ts-preserve-service", "ts-seat-service",
+                "ts-travel-service", "ts-ui-dashboard"]  # fmt: skip
+    assert entry_services(pairs, services, "tt", cfg) == ["ts-preserve-service", "ts-travel-service"]
+
+
+def test_a_traced_hint_still_wins_and_a_logs_only_case_keeps_its_hint() -> None:
+    cfg = EntryConfig(hints={"tt": ("ts-ui-dashboard",)}, exclude=())
+    pairs = [("ts-ui-dashboard", "ts-travel-service"), ("ts-travel-service", "ts-basic-service")]
+    services = ["ts-basic-service", "ts-travel-service", "ts-ui-dashboard"]
+    assert entry_services(pairs, services, "tt", cfg) == ["ts-ui-dashboard"]
+    assert entry_services([], services, "tt", cfg) == ["ts-ui-dashboard"]  # no traces (RE2-SS shape)
+    assert entry_services([("ts-ui-dashboard", "ts-ui-dashboard")], services, "tt", cfg) == [
+        "ts-ui-dashboard"
+    ]  # a self pair is no cross-service call, so the case counts as untraced
+
+
 def test_a_hint_naming_no_known_service_falls_back_to_call_pairs() -> None:
     assert entry_services(TOY, ["cart", "checkout"], "ob", CFG) == ["frontend"]
 

@@ -22,6 +22,10 @@ _GRPC = re.compile(r"\b[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.([A-Z]\w*)\b")
 _SUFFIX = "service"
 #: Event kinds whose details carry topology hints (05 §3.4).
 TOPOLOGY_KINDS = frozenset({"deploy", "config"})
+#: The only non-ASCII letters re.IGNORECASE matches to ASCII letters (Python docs, `re.IGNORECASE`):
+#: U+0130, U+0131, U+017F and the Kelvin sign U+212A. Mapping them before `str.lower` makes
+#: "the name is a substring of the folded text" a necessary condition for any form to match (#36).
+_ASCII_FOLD = str.maketrans({"\u0130": "i", "\u0131": "i", "\u017f": "s", "\u212a": "k"})
 
 
 @dataclass(frozen=True)
@@ -59,10 +63,16 @@ class Matcher:
         return found
 
     def mentions(self, text: str, speaker: str | None = None) -> set[str]:
-        """Known services `text` mentions, never the speaker itself (a line counts once per service)."""
+        """Known services `text` mentions, never the speaker itself (a line counts once per service).
+
+        Every form contains the name as a literal, so a name absent from the case-folded text is
+        skipped before its regexes run; the regexes still decide. Why: RE2-TT bodies start with a
+        millisecond timestamp, so nearly every line is a distinct body and 68 services x 3 forms
+        cost about 45 M searches (~350 s) per case without the prefilter (#36)."""
         found = self.grpc_names(text)
+        folded = text.translate(_ASCII_FOLD).lower()
         for name, forms in self.patterns.items():
-            if name not in found and any(f.search(text) for f in forms):
+            if name not in found and name in folded and any(f.search(text) for f in forms):
                 found.add(name)
         found.discard(speaker or "")
         return found

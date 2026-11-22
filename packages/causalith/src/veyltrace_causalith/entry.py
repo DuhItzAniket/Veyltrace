@@ -84,13 +84,20 @@ def entry_services(
 ) -> list[str]:
     """Entry services, sorted A→Z (05 §3.3).
 
-    1. The system hint, intersected with `services`, if that is non-empty.
+    1. The system hint, intersected with `services`, if that is non-empty. When the case has
+       cross-service call pairs, a hinted service counts only if it is in one of them: a hint the
+       traces never show (RE2-TT's `ts-ui-dashboard` is not traced) would be an entry no path can
+       reach (ADR 20261122-ak-entry-hint-needs-trace-edge, #36). Without call pairs (logs only,
+       RE2-SS) the hint applies as configured.
     2. Else, ignoring excluded services (load generators): the services that appear as a caller
        and never as the callee of a non-excluded service. A self pair is not a cross-service call.
     3. Else an empty list: without traces and a hint there is no defensible entry.
     """
     known = set(services)
+    traced = {n for a, b in call_pairs if a != b for n in (a, b)}
     hinted = sorted(set(cfg.hints.get(system, ())) & known)
+    if traced:
+        hinted = [h for h in hinted if h in traced]
     if hinted:
         return hinted
     excluded = set(cfg.exclude)
