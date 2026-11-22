@@ -27,6 +27,12 @@ P_DIGITS = 4  # review decision (R-17, 21 Nov): p-values carry one decimal more 
 P_FLOOR = 0.001  # p-values below it print as "<0.001" (a priori presentation, as the paper's tables)
 DASH = "—"  # a share over no pairs: no estimate and no interval (R-17 #46, lead brief)
 NO_PAIRS_NOTE = "no (case, seed) pairs (n = 0): the share and its exact interval are undefined"
+#: 04 RQ2 pre-registers exact binomial CIs for H2b and H2c (its row wins over §8's cluster rule), so
+#: the table states what that interval assumes (lead review of #439).
+PAIRS_NOTE = (
+    "exact binomial interval over (case, seed) pairs, as 04 RQ2 pre-registers for H2b and H2c; a case's "
+    "seeds are not independent, so this interval can be narrower than a case-clustered one"
+)
 #: A share in summary.json is k / n as a float; k is recovered when share · n lies this close to an
 #: integer (a float k / n is within n · 2**-53 of it, far inside this tolerance; a priori).
 SHARE_TOLERANCE = 1e-6
@@ -94,4 +100,4 @@ def exact_share(share: float | None, n: int | None) -> Cell:
     if abs(share * n - k) > SHARE_TOLERANCE:
         raise ConfigError(f"summary.json share {share!r} of n = {n} is not k / n for an integer k")
     ci = clopper_pearson(k, n)
-    return rate(share, (ci.low, ci.high))
+    return rate(share, (ci.low, ci.high), PAIRS_NOTE)

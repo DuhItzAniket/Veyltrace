@@ -32,7 +32,7 @@ ROW = "| re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance |
     ],
 )
 def test_a_share_prints_its_exact_interval(share: float, n: int, text: str) -> None:
-    assert cells.exact_share(share, n) == cells.Cell(text)
+    assert cells.exact_share(share, n) == cells.Cell(text, cells.PAIRS_NOTE)
 
 
 def test_no_pairs_print_a_dash_with_its_reason() -> None:
@@ -54,8 +54,8 @@ def test_table_6d_is_golden() -> None:
 @pytest.mark.parametrize(
     ("share", "n", "cell"),
     [
-        (0.0, 8, "0.000 [0.000, 0.369] | 8 |"),
-        (1.0, 8, "1.000 [0.631, 1.000] | 8 |"),
+        (0.0, 8, "0.000 [0.000, 0.369]<sup>1</sup> | 8 |"),
+        (1.0, 8, "1.000 [0.631, 1.000]<sup>1</sup> | 8 |"),
         (None, 0, f"{cells.DASH}<sup>1</sup> | 0 |"),
     ],
 )
@@ -69,6 +69,7 @@ def test_edge_counts_render_in_table_6d(tmp_path: Path, share: float | None, n: 
     textio.write_text(path, json.dumps(doc))
     table = generate.outputs(root, EXPERIMENTS)[T6D].decode()
     assert f"{ROW} {cell}" in table
+    assert (cells.PAIRS_NOTE in table) is (n > 0)
 
 
 def test_the_h2b_share_gets_its_interval_from_n_pairs(tmp_path: Path) -> None:
@@ -81,5 +82,7 @@ def test_the_h2b_share_gets_its_interval_from_n_pairs(tmp_path: Path) -> None:
     textio.write_text(path, json.dumps(doc))
     res = results.load(root, "re2-oracle-permute-v1", results.Register())
     key = "decoy_top1_change"
-    assert res.metric("re2-ob", "ob", "veyltrace:brief", key, key) == cells.Cell("0.125 [0.003, 0.527]")
+    assert res.metric("re2-ob", "ob", "veyltrace:brief", key, key) == cells.Cell(
+        "0.125 [0.003, 0.527]", cells.PAIRS_NOTE
+    )
     assert res.metric("re2-ob", "ob", "veyltrace:brief", key, "n_pairs") == cells.Cell("8")

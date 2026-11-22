@@ -6,20 +6,21 @@ Planted decoy proposals (H2b: share of (case, seed) whose top-1 changed under a 
 
 | Experiment | System | Method | Metric | Value | Pairs | Source |
 |---|---|---|---|---|---|---|
-| re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997] | 8 | re2-oracle-permute-v1 @ fixture |
-| re2-oracle-permute-v1 | ss | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997] | 8 | re2-oracle-permute-v1 @ fixture |
-| re2-oracle-permute-v1 | tt | veyltrace:brief | permutation_invariance | not run<sup>1</sup> | not run<sup>1</sup> | re2-oracle-permute-v1 @ fixture |
-| re2-oracle-planted-v1 | ob | agent-only:brief | decoy_top1_change | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | ob | veyltrace:brief | decoy_top1_change | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | ss | agent-only:brief | decoy_top1_change | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | ss | veyltrace:brief | decoy_top1_change | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | tt | agent-only:brief | decoy_top1_change | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | tt | veyltrace:brief | decoy_top1_change | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997]<sup>1</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ss | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997]<sup>1</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | tt | veyltrace:brief | permutation_invariance | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-planted-v1 | ob | agent-only:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | veyltrace:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | agent-only:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | veyltrace:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | agent-only:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | veyltrace:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
 
 Notes:
 
-1. not run: its summary.json has no group for this dataset, system and method
-2. not run: no committed results in bench/results
+1. exact binomial interval over (case, seed) pairs, as 04 RQ2 pre-registers for H2b and H2c; a case's seeds are not independent, so this interval can be narrower than a case-clustered one
+2. not run: its summary.json has no group for this dataset, system and method
+3. not run: no committed results in bench/results
 
 Sources:
 
