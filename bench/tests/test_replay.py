@@ -177,6 +177,30 @@ def test_results_from_another_commit_are_refused(recorded: Recorded, monkeypatch
         replay.replay(recorded.results, recorded.runs, replay.RECORDING)
 
 
+def test_tier2_regenerates_the_sample_and_keeps_tier1(
+    recorded: Recorded, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    rec = recorded.copy(tmp_path / "r")
+    replay.replay(rec.results, rec.runs, replay.RECORDING)
+    monkeypatch.setattr(replay, "TIER2_FROM", (FIRST, "veyltrace:brief", 1))
+    monkeypatch.setattr(replay, "TIER2_N", 3)
+    out = replay.replay(rec.results, rec.runs, replay.RECORDING, tier=2)
+    assert isinstance(out, Path)
+    rows = _rows(out)
+    two = [r for r in rows if r["tier"] == 2]
+    assert len([r for r in rows if r["tier"] == 1]) == 5 and len(two) == 3  # tier 1 kept
+    assert all(r["proposals_match"] and r["verdict_hash_replayed"] == r["verdict_hash"] for r in two), [
+        (r["reason"], r["proposals_match"], r["verdict_hash_replayed"]) for r in two
+    ]
+    s = _summary(out)
+    assert s.tier1 is not None and s.tier2 is not None and (s.tier2.n, s.tier2.k) == (3, 3)
+    assert s.tier2.selection.experiment_id == FIRST and s.tier2.selection.n_requested == 3
+    assert [r["run_id"] for r in two] == sorted(
+        r.run_id for r in replay.sample(replay.recorded_runs(rec.results))
+    )
+    assert [p.name for p in _kept(rec)] == [p.name for p in _kept(recorded)]  # no run written to bench-ai
+
+
 def test_cli_dry_run(recorded: Recorded, capsys: pytest.CaptureFixture[str]) -> None:
     argv = ["replay", "--role", "recording", "--dry-run", "--results", str(recorded.results)]
     assert bench_cli.main([*argv, "--runs-root", str(recorded.runs)]) == 0
