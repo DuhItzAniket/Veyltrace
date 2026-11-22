@@ -1190,6 +1190,7 @@ dependencies = [
     { name = "veyltrace-causentra" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
+    { name = "veyltrace-infralume" },
 ]
 
 [package.metadata]
@@ -1197,6 +1198,7 @@ requires-dist = [
     { name = "veyltrace-causentra", editable = "packages/causentra" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
+    { name = "veyltrace-infralume", editable = "packages/infralume" },
 ]
 
 [[package]]
