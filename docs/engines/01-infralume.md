@@ -62,7 +62,7 @@ Cache entries are keyed by (`case_id`, adapter version, `scrub.rules_version`, c
 | Adapter | Canonical case key |
 |---|---|
 | `rcaeval` | Hugging Face case name `{suite}{system}_{service}_{fault}_{rep}`, lowercase, e.g. the HF directory name. A Zenodo path `RE2/RE2-OB/<svc>_<fault>/<rep>` is converted to the same string. |
-| `nezha` | `nezha-{system}-{date}-{index}` (index = order of the fault in the day's fault list) |
+| `nezha` | `nezha-{system}-{date}-{index}` (index = 0-based order of the fault in the day's fault list, by `inject_time`), e.g. `nezha-ob-2022-08-22-0` |
 | `fse26_tt` | to define at O-08 |
 | `veyllab` | the capture id (already opaque, set by the lab packager) |
 | `otlp_live` | the snapshot id written by the gateway |
@@ -87,7 +87,15 @@ Never opened by the adapter (enforced by an allow-list of readable file names pe
 
 Hint sanity: if the hint lies outside `[data_start_ns, data_end_ns]` (two RE1-OB cases have broken inject times, [rcaeval_facts §Data quirks][rf-quirks]), Infralume still writes it unchanged and logs a warning; the alert step decides what to do (open question 8).
 
-**`nezha`** — format partially unverified. Notes confirm only: two systems (OB `hipster`, TT `ts`), 101 faults, metrics/logs/traces plus fault-free `construct_data/`, ground truth in `*-fault_list` files and `root_cause_*.json` ([benchmarks_and_testbed §Q1][bt]). Plan for O-08: one case per fault-list entry; slice `[t_fault − 12 min, t_fault + 12 min]` clipped to the midpoint between neighbouring faults (mirrors RCAEval's 12 + 12 min shape, [rcaeval_facts §Metric step and windows][rf-step]). The fault list is read only for its timestamps (slice bounds and the oracle hint); the root-cause fields and `root_cause_*.json` are never opened. Fault-free `construct_data` is not ingested as no-fault cases (open question 6).
+**`nezha`** — format verified on the repository at commit `d8140101` (O-08, 22 Nov 2026). `rca_data/<date>/` holds one collection day: `<date>-fault_list.json`, `metric/<pod>_metric.csv` (one row per minute for the whole day), and `log/HH_MM_log.csv`, `trace/HH_MM_trace.csv`, which exist only for the fault's minute and the two after it. Four days, 101 faults: 2022-08-22 and -23 are Online Boutique (56), 2023-01-29 and -30 Train Ticket (45); the system is read from the pod names (`ts-` = Train Ticket). Datasets `nezha-ob`, `nezha-tt`.
+
+- **Case and slice.** One case per fault-list entry; slice `[t_fault − 12 min, t_fault + 12 min)` clipped to the midpoint between neighbouring faults of the day (mirrors RCAEval's 12 + 12 min shape, [rcaeval_facts §Metric step and windows][rf-step]), so no row belongs to two cases. The index entry of a case is `<day directory>/<index>`.
+- **Fault time.** `inject_time` (UTC) only. `inject_timestamp` is not used: on the Train Ticket days it is eight hours off and repeats between entries. The fault list is read only for these times (slice bounds and the oracle hint); `inject_pod`, `inject_type` and `root_cause_*.json` are never read.
+- **Metrics.** Pod files only; time from the `Time` text in whole seconds (the `TimeStamp` column is 2·10^8 s off in some pod files). Names: `cpu`, `cpu_usage_rate`, `mem` (Mi converted to bytes), `memory_usage_rate`, `syscall_read`, `syscall_write`, `network_receive_bytes`, `network_transmit_bytes`, `latency-90/95/99` (server side), `client_p90/95/99` (client side, kept outside the latency family), `workload`, `success_rate`. Node-level columns are not service metrics and are not read.
+- **Logs.** Body = the `log` field of the container's JSON line, or its inner `message` when that is JSON (Online Boutique); severity from the inner `severity` or the level word at the start of a plain line (Train Ticket); trace and span ids go to `attrs_json`.
+- **Spans.** Service = pod name without its generated suffix; `root` parents are null; times in microseconds; Nezha records no status code, so every span is `unset` and the error-rate signals are empty.
+- **Not read** (outside the allow-list): `front_service.csv`, `dependency.csv`, `source_50.csv`, `destination_50.csv`, `traceid/`, and `construct_data/` (open question 6).
+- **Known limit.** A case has at most 12 min of metrics before the fault at one point a minute (median 4 min, because faults are 4–9 min apart), and its logs and traces start about 1.5 min before the fault. With core's default baseline window `[t_alert − 20 min, t_alert − 2 min]`, 86 of the 101 cases have fewer than 3 baseline metric points and none has baseline logs or spans.
 
 **`fse26_tt`** — "format unverified". Zenodo DOI 10.5281/zenodo.17105974, 1,430 cases; size, file format, injection tool and licence not verified ([benchmarks_and_testbed §Q1][bt]). Until R-07 confirms them, the module exists and raises `UnsupportedFormat`. Cut-list item 2 ([07 §1.1](../07-roadmap.md)).
 

@@ -19,6 +19,7 @@ infralume = "veyltrace_infralume.api:run"
 # Dataset adapters (01 §3.3), resolved by dataset pattern through veyltrace_core.adapters.
 [project.entry-points."veyltrace.adapters"]
 rcaeval = "veyltrace_infralume.adapters.rcaeval:RcaevalAdapter"
+nezha = "veyltrace_infralume.adapters.nezha:NezhaAdapter"
 
 # `veyltrace data fetch rcaeval` (01 §3.11): the single network exemption, never imported by api.py.
 [project.entry-points."veyltrace.fetchers"]
