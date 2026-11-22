@@ -21,6 +21,8 @@ __all__ = [
     "AtomId",
     "AtomKind",
     "BenchManifest",
+    "BenchReplayRow",
+    "BenchReplaySummary",
     "BenchResultRow",
     "BenchSummary",
     "BudgetUsed",
@@ -86,6 +88,15 @@ __all__ = [
     "ReceiptPredicate",
     "ReceiptSubject",
     "RejectionReason",
+    "ReplayCode",
+    "ReplayExcluded",
+    "ReplayExperiment",
+    "ReplayOutcomes",
+    "ReplaySelection",
+    "ReplaySite",
+    "ReplaySource",
+    "ReplayTier1",
+    "ReplayTier2",
     "Root",
     "RowRef",
     "RunId",
@@ -605,6 +616,37 @@ class AnswerKeyRow(BaseModel):
     decoy_changes_json: str | None
     validated: bool | None
     sli_impact_json: str | None
+
+
+class BenchReplayRow(BaseModel):
+    """One row of bench/results/replay/<role>/replay.csv: the outcome of one Tier 1
+    replay or Tier 2 regeneration of a recorded AI-arm run (RQ6, 04 §7 "Replay").
+    Written by bench replay, committed to git and released with the paper;
+    evaluation-only.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    tier: Literal[1, 2]
+    run_id: RunId
+    case_id: CaseId
+    dataset: Dataset
+    system: System
+    method: Annotated[str, StringConstraints(min_length=1)]
+    seed: int
+    experiments: Annotated[
+        list[Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")]],
+        Field(min_length=1),
+    ]
+    exit_code: Annotated[int, Field(ge=0, le=6)] | None
+    reason: Literal["no_receipt", "no_report", "timeout", "regen_failed"] | None
+    verdict_hash: Sha256
+    verdict_hash_replayed: Sha256 | None
+    trace_match: bool | None
+    card_match: bool | None
+    proposals_match: bool | None
+    first_divergence: Annotated[str, StringConstraints(min_length=1)] | None
+    env_drift: list[Annotated[str, StringConstraints(pattern=r"^[^;]+$")]]
 
 
 class BenchResultRow(BaseModel):
@@ -1164,6 +1206,156 @@ class ReceiptSubject(BaseModel):
 
     name: Literal["verdict.json"]
     digest: ReceiptDigest
+
+
+class ReplayCode(BaseModel):
+    """Code state of the replaying checkout (as bench_manifest.code); commit equals
+    every source manifest's code.commit.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    commit: Annotated[str, StringConstraints(min_length=1)]
+    dirty: bool
+    bench_dirty: bool
+
+
+class ReplayExcluded(BaseModel):
+    """AI-arm rows of the source experiments' per_case.csv with no verdict to replay,
+    per run_outcome; not in n.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    failed: Annotated[int, Field(ge=0)]
+    no_alert: Annotated[int, Field(ge=0)]
+    rejected: Annotated[int, Field(ge=0)]
+    timeout: Annotated[int, Field(ge=0)]
+
+
+class ReplayExperiment(BaseModel):
+    """n and k of one source experiment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    experiment_id: Annotated[
+        str,
+        StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$"),
+    ]
+    n: Annotated[int, Field(ge=0)]
+    k: Annotated[int, Field(ge=0)]
+
+
+class ReplayOutcomes(BaseModel):
+    """Tier 1 rows per exit code and per reason without one; every key is present, 0
+    when none, and they sum to n.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    f_0: Annotated[Annotated[int, Field(ge=0)], Field(alias="0")]
+    f_1: Annotated[Annotated[int, Field(ge=0)], Field(alias="1")]
+    f_2: Annotated[Annotated[int, Field(ge=0)], Field(alias="2")]
+    f_3: Annotated[Annotated[int, Field(ge=0)], Field(alias="3")]
+    f_4: Annotated[Annotated[int, Field(ge=0)], Field(alias="4")]
+    f_5: Annotated[Annotated[int, Field(ge=0)], Field(alias="5")]
+    f_6: Annotated[Annotated[int, Field(ge=0)], Field(alias="6")]
+    no_receipt: Annotated[int, Field(ge=0)]
+    no_report: Annotated[int, Field(ge=0)]
+    timeout: Annotated[int, Field(ge=0)]
+
+
+class ReplaySelection(BaseModel):
+    """The Tier 2 sample, fixed before any regeneration (ADR
+    20261122-ak-rq6-replay-results).
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    experiment_id: Annotated[
+        str,
+        StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$"),
+    ]
+    method: Annotated[str, StringConstraints(min_length=1)]
+    seed: int
+    rng_seed: int
+    n_requested: Annotated[int, Field(ge=1)]
+
+
+class ReplaySite(BaseModel):
+    """Where the replay ran (RQ6: recording laptop, second laptop, CI)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    host_id: Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{12}$")]
+    os: Annotated[str, StringConstraints(min_length=1)]
+    python: Annotated[str, StringConstraints(min_length=1)]
+    cpu: Annotated[str, StringConstraints(min_length=1)] | None
+    ci_run_url: Annotated[str, StringConstraints(pattern=r"^https://")] | None
+
+
+class ReplaySource(BaseModel):
+    """One source experiment."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    experiment_id: Annotated[
+        str,
+        StringConstraints(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$"),
+    ]
+    manifest_sha256: Sha256
+
+
+class ReplayTier1(BaseModel):
+    """Tier 1: veyltrace replay of every recorded ok AI-arm run (H6a / SC-6)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    n: Annotated[int, Field(ge=0)]
+    k: Annotated[int, Field(ge=0)]
+    k_verdict: Annotated[int, Field(ge=0)]
+    rate: float | None
+    ci_low: float | None
+    ci_high: float | None
+    level: Annotated[float, Field(gt=0, lt=1)]
+    outcomes: ReplayOutcomes
+    excluded: ReplayExcluded
+    by_experiment: list[ReplayExperiment]
+
+
+class ReplayTier2(BaseModel):
+    """Tier 2: regeneration of a seeded sample of recorded runs (H6b)."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    n: Annotated[int, Field(ge=0)]
+    k: Annotated[int, Field(ge=0)]
+    k_verdict: Annotated[int, Field(ge=0)]
+    rate: float | None
+    ci_low: float | None
+    ci_high: float | None
+    level: Annotated[float, Field(gt=0, lt=1)]
+    selection: ReplaySelection
+
+
+class BenchReplaySummary(BaseModel):
+    """bench/results/replay/<role>/replay_summary.json: the RQ6 replay rates of one site
+    with exact binomial intervals, the site, the code state and the source
+    experiments (04 §2 RQ6, §7, §8). Written last by bench replay, so its presence
+    marks a whole result; tables read it (R-17 Table 9). Evaluation-only.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Annotated[str, StringConstraints(pattern=r"^1\.0\.[0-9]+$")]
+    producer: Annotated[str, StringConstraints(min_length=1)]
+    role: Literal["recording", "second-laptop", "ci"]
+    site: ReplaySite
+    code: ReplayCode
+    uv_lock_sha256: Sha256
+    sources: list[ReplaySource]
+    tier1: ReplayTier1 | None
+    tier2: ReplayTier2 | None
 
 
 class Root(BaseModel):

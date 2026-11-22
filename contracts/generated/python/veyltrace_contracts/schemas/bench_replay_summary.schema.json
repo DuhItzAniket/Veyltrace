@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veyltrace.dev/schemas/1.0/bench_replay_summary.schema.json",
+  "title": "BenchReplaySummary",
+  "description": "bench/results/replay/<role>/replay_summary.json: the RQ6 replay rates of one site with exact binomial intervals, the site, the code state and the source experiments (04 §2 RQ6, §7, §8). Written last by bench replay, so its presence marks a whole result; tables read it (R-17 Table 9). Evaluation-only.",
+  "x-veyltrace": {
+    "name": "bench_replay_summary",
+    "version": "1.0.0",
+    "kind": "json",
+    "producer": "bench",
+    "path": "bench/results/replay/<role>/replay_summary.json"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "code",
+    "producer",
+    "role",
+    "schema_version",
+    "site",
+    "sources",
+    "tier1",
+    "tier2",
+    "uv_lock_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^1\\.0\\.[0-9]+$"
+    },
+    "producer": {
+      "description": "bench@<ALGO_VERSION>: the bench code that replayed.",
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "description": "Which RQ6 site this is; names the results directory.",
+      "type": "string",
+      "enum": [
+        "recording",
+        "second-laptop",
+        "ci"
+      ]
+    },
+    "site": {
+      "$ref": "#/$defs/replay_site"
+    },
+    "code": {
+      "$ref": "#/$defs/replay_code"
+    },
+    "uv_lock_sha256": {
+      "description": "sha256_text_lf of uv.lock (pipeline.uv_lock_sha256).",
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "sources": {
+      "description": "The experiments whose recorded runs were read, sorted.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/replay_source"
+      },
+      "x-sort": [
+        {
+          "pointer": "experiment_id",
+          "order": "asc"
+        }
+      ]
+    },
+    "tier1": {
+      "description": "Tier 1 result; null when Tier 1 was not run here.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/replay_tier1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "tier2": {
+      "description": "Tier 2 result; null when Tier 2 was not run here.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/replay_tier2"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "replay_site": {
+      "description": "Where the replay ran (RQ6: recording laptop, second laptop, CI).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ci_run_url",
+        "cpu",
+        "host_id",
+        "os",
+        "python"
+      ],
+      "properties": {
+        "host_id": {
+          "description": "First 12 hex of the SHA-256 of the host name; second-laptop must differ from the recording result's.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{12}$"
+        },
+        "os": {
+          "description": "Operating system, as run_manifest.env.os.",
+          "type": "string",
+          "minLength": 1
+        },
+        "python": {
+          "description": "Python version, as run_manifest.env.python.",
+          "type": "string",
+          "minLength": 1
+        },
+        "cpu": {
+          "description": "Processor name as the platform reports it; null when it reports none.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "minLength": 1
+        },
+        "ci_run_url": {
+          "description": "The CI run that produced the result; non-null exactly when role is ci.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^https://"
+        }
+      }
+    },
+    "replay_code": {
+      "description": "Code state of the replaying checkout (as bench_manifest.code); commit equals every source manifest's code.commit.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bench_dirty",
+        "commit",
+        "dirty"
+      ],
+      "properties": {
+        "commit": {
+          "description": "core's code commit, as run_manifest.code.commit.",
+          "type": "string",
+          "minLength": 1
+        },
+        "dirty": {
+          "description": "core's dirtiness, as run_manifest.code.dirty.",
+          "type": "boolean"
+        },
+        "bench_dirty": {
+          "description": "Uncommitted files under bench/ (bench/results excluded); --table refuses true.",
+          "type": "boolean"
+        }
+      }
+    },
+    "replay_source": {
+      "description": "One source experiment.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experiment_id",
+        "manifest_sha256"
+      ],
+      "properties": {
+        "experiment_id": {
+          "description": "The experiment whose committed results were read.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "manifest_sha256": {
+          "description": "SHA-256 of its bench/results/<experiment_id>/manifest.json bytes.",
+          "$ref": "common.schema.json#/$defs/sha256"
+        }
+      }
+    },
+    "replay_outcomes": {
+      "description": "Tier 1 rows per exit code and per reason without one; every key is present, 0 when none, and they sum to n.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "0",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "no_receipt",
+        "no_report",
+        "timeout"
+      ],
+      "properties": {
+        "0": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "1": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "2": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "3": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "4": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "5": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "6": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_receipt": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_report": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "replay_excluded": {
+      "description": "AI-arm rows of the source experiments' per_case.csv with no verdict to replay, per run_outcome; not in n.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "failed",
+        "no_alert",
+        "rejected",
+        "timeout"
+      ],
+      "properties": {
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "no_alert": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rejected": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "replay_experiment": {
+      "description": "n and k of one source experiment.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experiment_id",
+        "k",
+        "n"
+      ],
+      "properties": {
+        "experiment_id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "k": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "replay_selection": {
+      "description": "The Tier 2 sample, fixed before any regeneration (ADR 20261122-ak-rq6-replay-results).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experiment_id",
+        "method",
+        "n_requested",
+        "rng_seed",
+        "seed"
+      ],
+      "properties": {
+        "experiment_id": {
+          "description": "Experiment the sample is drawn from.",
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+        },
+        "method": {
+          "description": "Method id the sample is drawn from.",
+          "type": "string",
+          "minLength": 1
+        },
+        "seed": {
+          "description": "AI seed the sample is drawn from.",
+          "type": "integer"
+        },
+        "rng_seed": {
+          "description": "Seed of the veyltrace_core.rng draw.",
+          "type": "integer"
+        },
+        "n_requested": {
+          "description": "Sample size asked for (04 §6: 50); n is smaller only when fewer runs exist.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "replay_tier1": {
+      "description": "Tier 1: veyltrace replay of every recorded ok AI-arm run (H6a / SC-6).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "by_experiment",
+        "ci_high",
+        "ci_low",
+        "excluded",
+        "k",
+        "k_verdict",
+        "level",
+        "n",
+        "outcomes",
+        "rate"
+      ],
+      "properties": {
+        "n": {
+          "description": "Rows of this tier in replay.csv.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "k": {
+          "description": "Rows whose veyltrace replay exited 0 (04 §7 Tier 1).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "k_verdict": {
+          "description": "Rows whose recomputed verdict_hash equals the recorded one (verdict_hash_replayed = verdict_hash), whatever the exit code (H6a's wording; Tier 1 exit 6 counts here, not in k).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "rate": {
+          "description": "k / n; null when n is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ci_low": {
+          "description": "Lower Clopper-Pearson bound of k / n at level (04 §8); null when n is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ci_high": {
+          "description": "Upper Clopper-Pearson bound of k / n at level (04 §8); null when n is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "level": {
+          "description": "Confidence level of the interval (0.95, 04 §8).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "outcomes": {
+          "$ref": "#/$defs/replay_outcomes"
+        },
+        "excluded": {
+          "$ref": "#/$defs/replay_excluded"
+        },
+        "by_experiment": {
+          "description": "n and k per source experiment that lists the run; a run listed by two experiments counts in both.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/replay_experiment"
+          },
+          "x-sort": [
+            {
+              "pointer": "experiment_id",
+              "order": "asc"
+            }
+          ]
+        }
+      }
+    },
+    "replay_tier2": {
+      "description": "Tier 2: regeneration of a seeded sample of recorded runs (H6b).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ci_high",
+        "ci_low",
+        "k",
+        "k_verdict",
+        "level",
+        "n",
+        "rate",
+        "selection"
+      ],
+      "properties": {
+        "n": {
+          "description": "Rows of this tier in replay.csv.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "k": {
+          "description": "Rows whose regenerated proposals.json is byte-identical to the kept run's (proposals_match).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "k_verdict": {
+          "description": "Rows whose recomputed verdict_hash equals the recorded one (verdict_hash_replayed = verdict_hash), whatever the exit code (H6a's wording; Tier 1 exit 6 counts here, not in k).",
+          "type": "integer",
+          "minimum": 0
+        },
+        "rate": {
+          "description": "k / n; null when n is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ci_low": {
+          "description": "Lower Clopper-Pearson bound of k / n at level (04 §8); null when n is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ci_high": {
+          "description": "Upper Clopper-Pearson bound of k / n at level (04 §8); null when n is 0.",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "level": {
+          "description": "Confidence level of the interval (0.95, 04 §8).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "exclusiveMaximum": 1
+        },
+        "selection": {
+          "$ref": "#/$defs/replay_selection"
+        }
+      }
+    }
+  }
+}
