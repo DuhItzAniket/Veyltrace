@@ -55,6 +55,7 @@ METRICS: Final = {
     "PodWorkload(Ops)": "workload",
     "PodSuccessRate(%)": "success_rate",
 }
+_UTC_MARK: Final = " +0000 UTC"
 _TIME_CHARS: Final = 19  # `YYYY-MM-DD HH:MM:SS` of `2022-08-22 03:51:19.607158889 +0000 UTC m=+0.11`
 #: The level word of a plain log line, searched in its first characters only (a priori: the level
 #: follows the clock time in Train Ticket's lines).
@@ -69,11 +70,14 @@ def _strings(table: pa.Table, name: str) -> list[str | None]:
 
 def raw_metrics(pod: pa.Table, service: str, window_ns: tuple[int, int]) -> pa.Table:
     """One pod's metric file as RCAEval's wide table: `time` (s) + `{service}_{metric}`, rows inside
-    the half-open window only. An unparsable `Time` drops the row (null time)."""
+    the half-open window only. A `Time` that does not parse, or is not marked `+0000 UTC`, drops the row."""
     if "Time" not in pod.column_names or pod.num_rows == 0:
         return pa.Table.from_arrays([], names=[])
-    text = _pc.utf8_slice_codeunits(_pc.cast(pod.column("Time"), pa.string()), 0, _TIME_CHARS)
+    time = _pc.cast(pod.column("Time"), pa.string())
+    text = _pc.utf8_slice_codeunits(time, 0, _TIME_CHARS)
     stamp = _pc.strptime(text, format="%Y-%m-%d %H:%M:%S", unit="s", error_is_null=True)
+    # The text must say it is UTC: a row in another zone would be read hours off, so it is dropped.
+    stamp = _pc.if_else(_pc.fill_null(_pc.match_substring(time, _UTC_MARK), False), stamp, None)
     seconds = np.asarray(_pc.cast(stamp, pa.int64()).fill_null(-1).to_numpy(zero_copy_only=False), np.int64)
     keep = (
         (seconds >= 0) & (seconds * 1_000_000_000 >= window_ns[0]) & (seconds * 1_000_000_000 < window_ns[1])

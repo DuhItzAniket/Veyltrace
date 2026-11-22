@@ -3,7 +3,8 @@
 Nezha (IntelligentDDS/Nezha, MIT) publishes one directory per collection day under `rca_data/`:
 `<date>-fault_list.json`, `metric/<pod>_metric.csv` (one row per minute for the whole day), and
 `log/HH_MM_log.csv` and `trace/HH_MM_trace.csv`, which exist only for the fault's minute and the two
-after it. A case is one entry of a day's fault list. Its telemetry is the slice
+after it (neighbouring files overlap by a second or two). A case is one entry of a day's fault
+list. Its telemetry is the slice
 [t_fault − 12 min, t_fault + 12 min), clipped to the midpoint to each neighbouring fault of the day,
 so no row belongs to two cases.
 
@@ -17,6 +18,7 @@ from __future__ import annotations
 import itertools
 import json
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
@@ -42,6 +44,8 @@ __all__ = [
     "minute_stems",
     "nezha_key",
     "parse_key",
+    "stem_time_ns",
+    "stems_for",
     "window_ns",
 ]
 
@@ -56,6 +60,8 @@ KEY_FORMAT: Final = "nezha-{system}-{date}-{index}"
 HALF_SPAN_NS: Final = 12 * 60 * NS
 #: Log and trace files exist for the fault's minute and the next two (verified on all 101 faults).
 MINUTE_FILES: Final = 3
+#: How far a minute file's rows can lie from the minute it is named after (see `stems_for`).
+FILE_SLACK_NS: Final = 60 * NS
 #: Pod names of Train Ticket start with `ts-`; Online Boutique's never do.
 TT_PREFIX: Final = "ts-"
 
@@ -93,8 +99,8 @@ def fault_list_name(date: str) -> str:
 
 
 def fault_times_ns(day_dir: Path) -> tuple[int, ...]:
-    """The day's fault times in ns, in list order (hours sorted, then the order within the hour).
-    Only `inject_time` is taken from each entry; it must increase strictly."""
+    """The day's fault times in ns, ascending; a case's index is its position here. Only
+    `inject_time` is taken from each entry, and no two entries may share it."""
     path = day_dir / fault_list_name(day_dir.name)
     raw: object = json.loads(textio.read_text(path))
     if not isinstance(raw, dict):
@@ -114,8 +120,9 @@ def fault_times_ns(day_dir: Path) -> tuple[int, ...]:
             except ValueError:
                 raise ConfigError(f"{path}: inject_time {stamp!r} is not {_TIME_FORMAT}") from None
             times.append(int(when.timestamp()) * NS)
+    times.sort()  # by parsed time, not by the hour keys' text ("10" sorts before "9")
     if any(b <= a for a, b in itertools.pairwise(times)):
-        raise ConfigError(f"{path}: fault times do not increase strictly")
+        raise ConfigError(f"{path}: two faults share one inject_time")
     return tuple(times)
 
 
@@ -145,6 +152,21 @@ def minute_stems(t_ns: int) -> tuple[str, ...]:
     """`HH_MM` of the fault's minute and the following ones that have log and trace files."""
     start = datetime.fromtimestamp(t_ns // NS, UTC).replace(second=0)
     return tuple((start + timedelta(minutes=k)).strftime("%H_%M") for k in range(MINUTE_FILES))
+
+
+def stem_time_ns(date: str, stem: str) -> int:
+    """The minute a log or trace file is named after (`HH_MM` on `date`, UTC) in ns."""
+    return int(datetime.strptime(f"{date} {stem}", "%Y-%m-%d %H_%M").replace(tzinfo=UTC).timestamp()) * NS
+
+
+def stems_for(date: str, stems: Iterable[str], window: tuple[int, int]) -> list[str]:
+    """The `stems` whose file can hold rows of the half-open `window`, in time order. A file named
+    after minute M holds rows from about M − 41 s to M + 20 s (measured on all four days), so every
+    file with M in [lo − 1 min, hi + 1 min] is read and the rows are filtered afterwards. This
+    includes neighbouring faults' files: with faults a few minutes apart, a fault's last file has
+    rows past the midpoint, which belong to the next case."""
+    timed = sorted((stem_time_ns(date, s), s) for s in stems)
+    return [s for m, s in timed if window[0] - FILE_SLACK_NS <= m <= window[1] + FILE_SLACK_NS]
 
 
 def discover(data_root: Path) -> list[NezhaCase]:

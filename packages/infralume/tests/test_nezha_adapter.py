@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
@@ -23,7 +24,7 @@ from veyltrace_core.config import EngineConfig, data_root
 from veyltrace_core.errors import ConfigError, UsageError
 from veyltrace_core.ids import case_id
 from veyltrace_infralume.adapters import nezha_layout as layout
-from veyltrace_infralume.adapters.nezha import ForbiddenFile, NezhaAdapter, _open
+from veyltrace_infralume.adapters.nezha import ForbiddenFile, NezhaAdapter, _inside, _open
 from veyltrace_infralume.adapters.nezha_tables import MIB, _message, raw_metrics, raw_spans
 
 NS = 1_000_000_000
@@ -34,6 +35,7 @@ T = (
     int(datetime(2022, 8, 22, 3, 53, 54, tzinfo=UTC).timestamp()),
     int(datetime(2022, 8, 22, 3, 58, 54, tzinfo=UTC).timestamp()),
 )
+assert T == (1_661_140_434, 1_661_140_734)  # literal epoch seconds: a naive-local parse would differ
 ADAPTER = NezhaAdapter()
 KEYS = (f"nezha-ob-{DATE}-0", f"nezha-ob-{DATE}-1")
 
@@ -149,7 +151,7 @@ def test_fault_times_come_from_inject_time_only(nezha_day: Path) -> None:
     assert ADAPTER.alert_hint(ADAPTER.resolve("nezha-ob", KEYS[1], data_root())) == (T[1] * NS, "oracle")
     listing = nezha_day / layout.fault_list_name(DATE)
     listing.write_text(json.dumps({"03": [{"inject_time": _clock(T[0])}] * 2}), encoding="utf-8")
-    with pytest.raises(ConfigError, match="increase strictly"):
+    with pytest.raises(ConfigError, match="share one inject_time"):
         layout.fault_times_ns(nezha_day)
 
 
@@ -172,8 +174,14 @@ def test_first_case_is_sliced_converted_and_scrub_free(nezha_day: Path, infralum
     assert out.sources_present == {"metrics": True, "logs": True, "traces": True, "events": False}
     assert (out.t_alert_hint_ns, out.hint_source) == (T[0] * NS, "oracle")
     names = [name for name, _, _ in out.inputs]
-    assert names == sorted(names) and f"metrics/{POD}_metric.csv" in names
-    assert not any("fault_list" in n or "front_service" in n for n in names)
+    assert names == [
+        "logs/minute-0.csv", "logs/minute-1.csv", "logs/minute-2.csv",
+        f"metrics/{POD}_metric.csv",
+        "traces/minute-0.csv", "traces/minute-1.csv", "traces/minute-2.csv",
+    ]  # fmt: skip
+    # No clock minute, fault list or unread file in any name: the manifest and the receipt carry
+    # these names even when the hint is blanked (detected protocol, shifted alerts).
+    assert not any(re.search(r"\d\d_\d\d", n) or "fault_list" in n or "front_service" in n for n in names)
     m = out.tables.metrics
     # The slice ends at the midpoint to the next fault (+150 s): minutes -240 … +120 are inside.
     assert sorted(set(_vals(m, "t_ns"))) == [(T[0] - 240 + 60 * i) * NS for i in range(7)]
@@ -217,14 +225,80 @@ def test_second_case_gets_only_its_own_rows(nezha_day: Path, infralume_cfg: Engi
 
 
 @given(st.lists(st.integers(60, 3000), min_size=1, max_size=12), st.data())
-def test_slices_never_overlap_and_contain_their_fault(gaps: list[int], data: st.DataObject) -> None:
+def test_slices_tile_the_day_without_overlap(gaps: list[int], data: st.DataObject) -> None:
     times = tuple(sum(gaps[: i + 1]) * NS for i in range(len(gaps)))
     windows = [layout.window_ns(times, i) for i in range(len(times))]
+    half = layout.HALF_SPAN_NS
     for (lo, hi), t in zip(windows, times, strict=True):
-        assert lo < t < hi and hi - lo <= 2 * layout.HALF_SPAN_NS
-    assert all(a[1] <= b[0] for a, b in itertools.pairwise(windows))
+        assert lo < t < hi and hi - lo <= 2 * half
+    assert windows[0][0] == times[0] - half and windows[-1][1] == times[-1] + half  # first, last of day
+    for (a, b), (ta, tb) in zip(itertools.pairwise(windows), itertools.pairwise(times), strict=True):
+        if tb - ta < 2 * half:
+            assert a[1] == b[0] == (ta + tb) // 2  # neighbours meet exactly at the midpoint
+        else:
+            assert (a[1], b[0]) == (ta + half, tb - half)  # a gap neither case covers
     i = data.draw(st.integers(0, len(times) - 1))
     assert layout.parse_key(layout.nezha_key("tt", DATE, i)) == ("tt", DATE, i)
+
+
+def test_a_row_between_two_faults_lands_in_exactly_one_case(
+    nezha_day: Path, infralume_cfg: EngineConfig
+) -> None:
+    """Faults 120 s apart: the first fault's last minute file has rows past the midpoint, which
+    belong to the second case although that file is not one of its own three."""
+    second = T[0] + 120
+    faults = {"03": [{"inject_time": _clock(T[0])}, {"inject_time": _clock(second)}]}
+    (nezha_day / layout.fault_list_name(DATE)).write_text(json.dumps(faults), encoding="utf-8")
+    mid = (T[0] + second) // 2
+    last = nezha_day / "log" / f"{layout.minute_stems(T[0] * NS)[2]}_log.csv"  # 03_55: rows near T0 + 60
+    rows = {"before": mid * NS - 1, "at": mid * NS, "after": mid * NS + 1}
+    with last.open("a", encoding="utf-8", newline="\n") as f:
+        for label, t_ns in rows.items():
+            f.write(f"x,{t_ns},10.0.0.1,{POD},server,,,{label} the midpoint\n")
+    bodies = [set(_vals(_convert(key, infralume_cfg).tables.logs, "body")) for key in KEYS]
+    marks = [{b.split()[0] for b in found if b.endswith("the midpoint")} for found in bodies]
+    assert marks == [{"before"}, {"at", "after"}]  # the slice is half-open: the midpoint is case i + 1's
+
+
+def _canonical_bytes(out: CanonicalCase) -> bytes:
+    """Everything a CanonicalCase carries, as bytes: the three tables (Arrow IPC) and the rest."""
+    sink = pa.BufferOutputStream()
+    for table in (out.tables.metrics, out.tables.logs, out.tables.spans):
+        with pa.ipc.new_stream(sink, table.schema) as writer:
+            writer.write_table(table)
+    rest = (out.system, sorted(out.sources_present.items()), out.inputs, out.adapter_name,
+            out.adapter_version, out.scrub, out.t_alert_hint_ns, out.hint_source)  # fmt: skip
+    return sink.getvalue().to_pybytes() + repr(rest).encode()
+
+
+def test_output_does_not_depend_on_the_root_cause_fields(
+    nezha_day: Path, infralume_cfg: EngineConfig
+) -> None:
+    """Two days that differ only in `inject_pod` / `inject_type`, plus a planted root-cause file:
+    the converted case is byte-identical and no label value appears anywhere in it."""
+    listing = nezha_day / layout.fault_list_name(DATE)
+    outputs: list[bytes] = []
+    for pod, kind in (("SENTINELPODAAA", "SENTINELTYPEAAA"), ("SENTINELPODBBB", "SENTINELTYPEBBB")):
+        faults = {"03": [{"inject_time": _clock(t), "inject_pod": pod, "inject_type": kind} for t in T]}
+        listing.write_text(json.dumps(faults), encoding="utf-8")
+        for name in ("root_cause_hipster.json", "root_cause_ts.json"):
+            (nezha_day / name).write_text(json.dumps({pod: {kind: ["SENTINELCAUSE"]}}), encoding="utf-8")
+            (nezha_day / "metric" / name).write_text(json.dumps({pod: kind}), encoding="utf-8")
+        outputs.append(_canonical_bytes(_convert(KEYS[0], infralume_cfg)))
+    assert outputs[0] == outputs[1]
+    assert b"SENTINEL" not in outputs[0] and b"root_cause" not in outputs[0]
+
+
+def test_fault_order_is_by_time_not_by_hour_text(nezha_day: Path) -> None:
+    late, early = "2022-08-22 10:00:00", "2022-08-22 09:00:00"
+    faults = {"10": [{"inject_time": late}], "9": [{"inject_time": early}]}  # "10" sorts before "9"
+    (nezha_day / layout.fault_list_name(DATE)).write_text(json.dumps(faults), encoding="utf-8")
+    first, second = layout.fault_times_ns(nezha_day)
+    assert second - first == 3600 * NS
+    assert layout.stems_for(DATE, ["10_01", "09_00", "08_58", "09_02"], (first, first + 60 * NS)) == [
+        "09_00",
+        "09_02",
+    ]
 
 
 def test_table_helpers() -> None:
@@ -235,6 +309,9 @@ def test_table_helpers() -> None:
     wide = raw_metrics(pod, "frontend", (0, 2**62))
     assert wide.column_names == ["time", "frontend_cpu"] and _vals(wide, "frontend_cpu") == [2.0]
     assert raw_metrics(pod, "frontend", (0, 1)).num_rows == 0  # outside the window
+    other_zone = pa.table({"Time": [f"{_clock(T[0])}.5 +0800 CST"], "CpuUsage(m)": [1.0]})
+    assert raw_metrics(other_zone, "frontend", (0, 2**62)).num_rows == 0  # not marked UTC: dropped
+    assert _inside(pa.table({"x": [1, 2]}), "TimeUnixNano", (0, 2**62)).num_rows == 0  # no time column
     assert raw_spans(pa.table({"x": [1]})).num_rows == 0
     assert layout.minute_stems(T[0] * NS) == ("03_53", "03_54", "03_55")
 
