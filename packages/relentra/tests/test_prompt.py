@@ -127,3 +127,16 @@ def test_the_repair_turn_adds_the_output_and_the_errors() -> None:
     assert (
         messages[2].content == '{"bad": 1}' and "- proposals[0]: unknown service 'x'" in messages[3].content
     )
+
+
+#: From the lead's render of the dev cases' graphs (review of #347): names the briefs used that are
+#: not graph nodes, and nodes they left out. The model can select only nodes (08 §3.3).
+_NOT_NODES = {"ob": ("redis-cart",), "ss": ("carts-db", "catalogue-db", "orders-db", "user-db")}
+_MISSING_NODES = {"ob": ("frontend-external",), "ss": ("session", "rabbitmq-exporter")}
+
+
+@pytest.mark.parametrize("system", sorted(_NOT_NODES))
+def test_briefs_name_graph_nodes_only(system: str) -> None:
+    brief = load_prompt_files(system, "re2-" + system, [], SETTINGS).brief
+    assert not [name for name in _NOT_NODES[system] if name in brief]
+    assert all(f"- {name} " in brief for name in _MISSING_NODES[system])

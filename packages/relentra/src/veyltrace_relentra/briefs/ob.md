@@ -1,8 +1,9 @@
 Online Boutique is a web shop made of small services that call each other over gRPC.
 
-- frontend serves the web pages and calls the other services. It is where user requests enter.
+- frontend serves the web pages and calls the other services.
+- frontend-external is the externally exposed entry: user requests reach frontend through it.
 - checkoutservice runs an order: it calls cartservice, productcatalogservice, currencyservice, shippingservice, paymentservice and emailservice.
-- cartservice stores carts in the redis-cart datastore.
+- cartservice stores carts in its own Redis datastore, which is not a separate service here.
 - productcatalogservice serves the product list.
 - recommendationservice suggests products and reads the product list.
 - adservice returns text ads.
