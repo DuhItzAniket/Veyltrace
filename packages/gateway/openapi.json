@@ -1965,6 +1965,18 @@
             "title": "Proposal Id",
             "type": "string"
           },
+          "rank": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rank"
+          },
           "rationale": {
             "maxLength": 280,
             "title": "Rationale",
@@ -1996,7 +2008,8 @@
           "hypothesis",
           "claims",
           "requested_trials",
-          "rationale"
+          "rationale",
+          "rank"
         ],
         "title": "Proposal",
         "type": "object"
@@ -2080,7 +2093,7 @@
             "type": "array"
           },
           "schema_version": {
-            "pattern": "^1\\.0\\.[0-9]+$",
+            "pattern": "^1\\.1\\.[0-9]+$",
             "title": "Schema Version",
             "type": "string"
           },
