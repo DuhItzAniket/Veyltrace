@@ -18,7 +18,13 @@ from pathlib import Path
 
 from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.cells import Cell
-from veyltrace_contracts.models import BenchManifest, BenchSummary, SummaryGroup, SummaryInterval
+from veyltrace_contracts.models import (
+    BenchManifest,
+    BenchReplaySummary,
+    BenchSummary,
+    SummaryGroup,
+    SummaryInterval,
+)
 from veyltrace_core import io, textio
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_file
@@ -289,3 +295,34 @@ def load(
         _groups={(g.dataset, g.system, g.method): g for g in summary.groups},
         _intervals=intervals,
     )
+
+
+REPLAY_ROLES = ("recording", "second-laptop", "ci")  # bench/results/replay/<role>/ (03 §13.5-§13.6)
+REPLAY_FILES = ("replay.csv", "replay_summary.json")  # sorted, as FILES
+
+
+@dataclass(frozen=True)
+class Replay:
+    """One RQ6 site's committed replay result (`source` cites it like an experiment), or why none."""
+
+    source: Results
+    summary: BenchReplaySummary | None = None
+
+
+def load_replay(results_root: Path, role: str) -> Replay:
+    """The committed `veyltrace bench replay --role <role>` result under `results_root`."""
+    out, name = results_root / "replay" / role, f"replay/{role}"
+    if not all((out / f).is_file() for f in REPLAY_FILES):
+        return Replay(Results(name, f"no committed result (veyltrace bench replay --role {role})"))
+    summary = io.read_path("bench_replay_summary", out / REPLAY_FILES[1], validate=True)
+    assert isinstance(summary, BenchReplaySummary)
+    if summary.role != role:
+        raise ConfigError(f"bench/results/{name}/ holds the {summary.role!r} result")
+    if summary.code.dirty or summary.code.bench_dirty:
+        return Replay(Results(name, "results from a dirty work tree are never used (04 §10.2)"))
+    hashes = tuple((f, sha256_file(out / f)) for f in REPLAY_FILES)
+    s = summary.site
+    where = f"{role}: {s.os}, Python {s.python}, host {s.host_id}" + (
+        f", {s.ci_run_url}" if s.ci_run_url else ""
+    )
+    return Replay(Results(name, commit=summary.code.commit, hashes=hashes, protocol=where, path=out), summary)
