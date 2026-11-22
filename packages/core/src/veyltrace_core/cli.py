@@ -329,6 +329,21 @@ def bench_tables(ctx: typer.Context) -> None:
     raise typer.Exit(int(fn(["tables", *ctx.args])))
 
 
+@bench_app.command(
+    "replay",
+    context_settings=_PASS_THROUGH,
+    help="RQ6: replay or regenerate the recorded AI runs into bench/results/replay/<role> (veyltrace_bench).",
+)
+def bench_replay(ctx: typer.Context) -> None:
+    fn = _command_main(BENCH_COMMAND)
+    if fn is None:
+        _fail(
+            f"`{PROG} bench replay` needs the bench command ({COMMANDS_GROUP}:{BENCH_COMMAND}), not installed"
+        )
+        raise typer.Exit(int(DiagnoseExit.ERROR))
+    raise typer.Exit(int(fn(["replay", *ctx.args])))
+
+
 @data_app.command("fetch", help="Download (or, for synth, generate) a dataset under VEYLTRACE_DATA.")
 def data_fetch(
     name: str = typer.Argument(..., help="Fetcher name, e.g. synth or rcaeval."),
