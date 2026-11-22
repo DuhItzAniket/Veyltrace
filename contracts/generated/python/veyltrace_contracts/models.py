@@ -1209,8 +1209,9 @@ class ReceiptSubject(BaseModel):
 
 
 class ReplayCode(BaseModel):
-    """Code state of the replaying checkout (as bench_manifest.code); commit equals
-    every source manifest's code.commit.
+    """Code state of the replaying checkout (as bench_manifest.code); its run code
+    (core's DIRTY_PATHS: packages, contracts, config except config/calibration,
+    uv.lock, pyproject.toml) equals every source manifest's code.commit.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)

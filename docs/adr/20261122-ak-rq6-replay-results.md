@@ -47,7 +47,8 @@ We choose **option 3**. Two new evaluation-only contracts, at 1.0.0 ([03 §13.5�
 **Command.** `veyltrace bench replay --role <role> --runs-root R [--tier 1|2] [--dry-run]`. It reads the committed `manifest.json` and `per_case.csv` of the R-16 experiments at `results-code-v1`.
 - `--dry-run` prints the run count and the total bytes of the run directories, and replays nothing.
 - It refuses, before the first replay:
-  - a checkout whose commit differs from a source manifest's `code.commit`, or that is dirty;
+  - a checkout whose run code (core's `DIRTY_PATHS`: `packages/`, `contracts/`, `config/` except `config/calibration/`, `uv.lock`, `pyproject.toml`) differs from a source manifest's `code.commit`. The results themselves are committed after the tag, so HEAD may be a later commit;
+  - with `--table`, a dirty checkout;
   - `second-laptop` with the `recording` result's `host_id`;
   - `ci` without `GITHUB_ACTIONS`.
 
@@ -58,7 +59,7 @@ We choose **option 3**. Two new evaluation-only contracts, at 1.0.0 ([03 §13.5�
 - **The rate:** the primary rate is the share of exits 0 (04 §7). `k_verdict` counts the rows whose recomputed `verdict_hash` equals the recorded one (H6a's wording).
 
 **Tier 2 (H6b).**
-- **The sample:** 50 runs of `re2-oracle-rq2-v1` / `veyltrace:brief` / seed 1, drawn with `veyltrace_core.rng` (seed 20261108, the experiment's split seed, a priori).
+- **The sample:** 50 runs of `re2-oracle-rq2-v1` / `veyltrace:brief` / seed 1: the first 50 ordered by `sha256_json([20261108, case_id, run_id])` (20261108 is the experiment's split seed, a priori; a hash order needs no numpy and does not depend on its version).
   - This fills a detail 04 §6 leaves open, and it is fixed here, before any regeneration.
   - The sample is recorded in `tier2.selection`.
 - **The regeneration:** each sampled run is regenerated in `record` mode through bench's child runner, with the kept run's resolved config, into a scratch runs root outside the repo. The regenerated run id must equal the kept one; otherwise the row is `regen_failed`.
@@ -69,7 +70,7 @@ We choose **option 3**. Two new evaluation-only contracts, at 1.0.0 ([03 §13.5�
 
 **Table 9.** `tables/rq56.replay` reads the three `replay_summary.json` files: Tier 1 per role, then Tier 2. A missing role stays "not run". This reading is covered by 04 §9's committed-summaries rule, with a one-line §12 row for clarity.
 
-**The run archive.** The second laptop and CI need the kept `bench-ai` run directories. Replay re-hashes their `telemetry/*` (R6), and 04 §10.1 doesn't redistribute raw telemetry. So the archive is **private only**: a GitHub Actions artifact or a private release asset. It is never on Zenodo and never committed, until the dataset licences are checked.
+**The run archive.** The second laptop and CI need the kept `bench-ai` run directories. Replay re-hashes their `telemetry/*` (R6), and 04 §10.1 doesn't redistribute raw telemetry. So the archive is **private only**. It is never on Zenodo and never committed, until the dataset licences are checked. The repository is public, so an Actions artifact is downloadable by any signed-in user: the archive is a **draft release asset** (drafts are visible only to collaborators with push access), and the CI job reads it with its own token.
 
 **CI.** A `workflow_dispatch` job downloads that archive and runs `--role ci`.
 - **Decision point (lead, after R-16):** if `--dry-run` reports more bytes than the Actions artifact limit allows, the lead decides how CI gets the runs. No size is assumed here.

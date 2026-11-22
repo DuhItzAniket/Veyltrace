@@ -638,7 +638,7 @@ The `statistics` object has `params` (`level`, `resamples`, `bootstrap_seed`, `f
 | `producer` | str | `bench@<ALGO_VERSION>` |
 | `role` | str | `recording` \| `second-laptop` \| `ci`; names the directory |
 | `site` | {`host_id`, `os`, `python`, `cpu`?, `ci_run_url`?} | `host_id` = first 12 hex of SHA-256 of the host name (a `second-laptop` result's differs from the `recording` result's); `os`, `python` as `run_manifest.env`; `ci_run_url` non-null exactly for `ci` |
-| `code` | {`commit`, `dirty`, `bench_dirty`} | the replaying checkout, as `bench_manifest.code`; `commit` equals every source manifest's `code.commit`; `--table` refuses either dirty flag |
+| `code` | {`commit`, `dirty`, `bench_dirty`} | the replaying checkout, as `bench_manifest.code`; its run code (core's `DIRTY_PATHS`) equals every source manifest's `code.commit` (the results may be committed later); `--table` refuses either dirty flag |
 | `uv_lock_sha256` | sha256 | |
 | `sources` | [{`experiment_id`, `manifest_sha256`}] | the experiments read, sorted by `experiment_id`; `manifest_sha256` = SHA-256 of its `manifest.json` bytes |
 | `tier1`? | object | null = not run here; below |
@@ -646,7 +646,7 @@ The `statistics` object has `params` (`level`, `resamples`, `bootstrap_seed`, `f
 
 Both tiers hold `n` (the tier's rows), `k`, `k_verdict` (rows whose `verdict_hash_replayed` equals `verdict_hash`, whatever the exit code: H6a's wording), `rate` = k / n, `ci_low` and `ci_high` (the Clopper–Pearson interval at `level`, 0.95, [04 §8](04-evaluation-protocol.md)); `rate` and the bounds are null when n = 0.
 - `tier1`: `k` = rows with exit 0 (04 §7 Tier 1). `outcomes` has one count per exit code `0`…`6` and per reason `no_receipt`, `no_report`, `timeout`; every key is present, and they sum to `n`. `excluded` {`failed`, `no_alert`, `rejected`, `timeout`} counts the AI-arm rows of the sources' `per_case.csv` that have no verdict to replay; they are not in `n`. `by_experiment` [{`experiment_id`, `n`, `k`}] is sorted by `experiment_id`; a run that two experiments list counts in both.
-- `tier2`: `k` = rows with `proposals_match`. `selection` {`experiment_id`, `method`, `seed`, `rng_seed`, `n_requested`} is the seeded sample, fixed before any regeneration; `n` is smaller than `n_requested` only when fewer runs exist.
+- `tier2`: `k` = rows with `proposals_match`. `selection` {`experiment_id`, `method`, `seed`, `rng_seed`, `n_requested`} is the seeded sample, fixed before any regeneration: the first `n_requested` runs ordered by `sha256_json([rng_seed, case_id, run_id])`; `n` is smaller than `n_requested` only when fewer runs exist.
 
 ---
 

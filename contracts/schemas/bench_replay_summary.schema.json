@@ -135,7 +135,7 @@
       }
     },
     "replay_code": {
-      "description": "Code state of the replaying checkout (as bench_manifest.code); commit equals every source manifest's code.commit.",
+      "description": "Code state of the replaying checkout (as bench_manifest.code); its run code (core's DIRTY_PATHS: packages, contracts, config except config/calibration, uv.lock, pyproject.toml) equals every source manifest's code.commit.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -318,7 +318,7 @@
           "type": "integer"
         },
         "rng_seed": {
-          "description": "Seed of the veyltrace_core.rng draw.",
+          "description": "Seed of the draw: the sample is the first n_requested runs ordered by sha256_json([rng_seed, case_id, run_id]).",
           "type": "integer"
         },
         "n_requested": {
