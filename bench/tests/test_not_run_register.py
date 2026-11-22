@@ -1,5 +1,6 @@
 """The committed R-16 cut list, bench/results/not_run.yaml (#421; lead decision on #45, 21 Nov):
 every cut experiment and the Cloud-OpsBench cell print "not run" with the reason the paper prints.
+The two VeylLab experiments joined on 22 Nov (Observe and Explain on #45; ADR addendum).
 """
 
 from __future__ import annotations
@@ -14,6 +15,10 @@ BENCH = Path(__file__).resolve().parents[1]
 RESULTS, EXPERIMENTS = BENCH / "results", BENCH / "experiments"
 CORNERS = "LLM budget; the 4 corner cells bracket the effect (ADR 20261121-ak-r16-cut-list)"
 SHIFT_30 = "±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list)"
+VEYLLAB = (
+    "VeylLab: 8 of 120 captures, no adapter yet (X-11, O-07); "
+    "X-14 moves to v1.1 (ADR 20261121-ak-r16-cut-list)"
+)
 CUTS = {
     "fse26-oracle-rq1-v1": "stretch dataset; size, format and licence not verified (07 §1.1 cut item 2)",
     "re2-oracle-investigate-v1": "`investigate` mode is cut (07 §1.1 cut item 3)",
@@ -30,6 +35,7 @@ CUTS = {
     ),
     "re2-shift-m30-brief-v1": SHIFT_30,
     "re2-shift-p30-brief-v1": SHIFT_30,
+    **dict.fromkeys(("veyllab-oracle-rq1-v1", "veyllab-oracle-rq2-v1"), VEYLLAB),
     "cloud-opsbench/agent-only": "optional in 04 §3; no experiment YAML",
 }
 

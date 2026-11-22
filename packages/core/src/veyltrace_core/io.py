@@ -392,6 +392,7 @@ def _checked_model(name: str, obj: dict[str, Any], where: str = "") -> tuple[Bas
         raise ContractValidationError(name, msg)
     try:
         schemacheck.check_orders(name, dumped)
+        schemacheck.check_document_rules(name, dumped)
     except ContractValidationError as exc:
         raise ContractValidationError(name, f"{where}{exc.detail}") from None
     return model, dumped

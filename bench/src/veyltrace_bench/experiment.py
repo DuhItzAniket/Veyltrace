@@ -18,7 +18,7 @@ from typing import Literal, cast
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from veyltrace_bench.summary import METRIC_KEYS
-from veyltrace_contracts.models import AiMode, Source
+from veyltrace_contracts.models import AiMode, Proposal, Source
 from veyltrace_core import textio, yaml12
 from veyltrace_core.adapters import adapter_for
 from veyltrace_core.config import data_root
@@ -35,6 +35,8 @@ PROTOCOL_KEYS = (
     "infralume.events.overlay_path",
 )
 OVERLAY_KEY = PROTOCOL_KEYS[3]
+#: Relentra keys bench sets from a method's `ai` block (`ai_arms`, #397; 08 §3.8).
+AI_KEYS = ("relentra.mode", "relentra.sampler.seed_index")
 #: Config keys bench sets to choose each run's calibration file (04 §5.4; `calibrated`, #376).
 CALIBRATION_KEYS = (
     "causentra.calibration.family",
@@ -45,6 +47,8 @@ RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method 
 CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
 #: internal_baseline ids v0 runs (04 §4); `chance` is the `chance` metric of every group (04 §7).
 INTERNAL_BASELINES = frozenset({"simplerca", "naive-change"})
+#: Whether the proposals contract has `rank` (proposals 1.1, CCR #409), which agent_only ranks by.
+RANK_FIELD = "rank" in Proposal.model_fields
 FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
 MetricName = Literal[  # the 04 §9 `metrics` vocabulary
     "ac_at_k", "avg_at_5", "mrr", "fine_ac_at_k", "retrieval_at_k", "rerank_at_1", "chance", "lift",
@@ -110,6 +114,21 @@ class AISpec(_Strict):
     relentra_mode: Literal["brief", "investigate"] | None = None
     model: str | None = None
     seeds: tuple[int, ...] = ()  # empty: a deterministic method (bench_result.seed null)
+
+    @model_validator(mode="after")
+    def _an_arm_is_complete(self) -> AISpec:
+        """AI off has no Relentra mode or seeds; an AI arm names its mode and distinct seeds (04 §8:
+        at least 3 in the matrix, not enforced here). `replay` is bench's choice (ai_arms), not a
+        method's."""
+        if self.mode == "off" and (self.relentra_mode is not None or self.seeds):
+            raise ValueError("ai.mode off has no relentra_mode or seeds")
+        if self.mode == "replay":
+            raise ValueError("ai.mode replay: methods record; bench replays a kept record run itself")
+        if self.mode == "record" and (self.relentra_mode is None or not self.seeds):
+            raise ValueError("ai.mode record needs relentra_mode and seeds")
+        if len(set(self.seeds)) != len(self.seeds) or any(s < 0 for s in self.seeds):
+            raise ValueError(f"ai.seeds must be distinct seed indexes >= 0, got {list(self.seeds)}")
+        return self
 
 
 class MethodSpec(_Strict):
@@ -207,6 +226,8 @@ class Experiment(_Strict):
         for m in self.methods:
             if clash := sorted(set(m.overrides) & set(PROTOCOL_KEYS)):
                 raise ValueError(f"method {m.id} overrides {clash}: set them in `protocol`")
+            if m.ai.mode != "off" and (clash := sorted(set(m.overrides) & set(AI_KEYS))):
+                raise ValueError(f"method {m.id} overrides {clash}: bench sets them from `ai`")
             if clash := sorted(set(m.overrides) & set(CALIBRATION_KEYS)):
                 raise ValueError(f"method {m.id} overrides {clash}: bench sets them from `split`")
         return self
@@ -235,21 +256,31 @@ def unsupported(exp: Experiment) -> list[str]:
             exp.dataset.normal_windows == "veyllab",
             "dataset.normal_windows veyllab (not run: no VeylLab captures yet, X-11, O-07)",
         ),
-        (p.anonymize_services or p.inject_proposals or p.permute_proposals, "protocol AI perturbations"),
+        (p.anonymize_services, "protocol.anonymize_services (optional, not built)"),
+        (
+            p.permute_proposals is not None
+            and (exp.calibration.fit or not any(m.ai.mode != "off" for m in exp.methods)),
+            "protocol.permute_proposals needs an AI arm and calibration.fit false (it permutes proposals)",
+        ),
+        (
+            p.inject_proposals is not None
+            and (exp.calibration.fit or not any(m.ai.mode != "off" for m in exp.methods)),
+            "protocol.inject_proposals needs an AI arm and calibration.fit false (it plants into proposals)",
+        ),
         (r.workers != 1, "resources.workers > 1 (v0 runs sequentially)"),
         (r.max_rss_mb is not None, "resources.max_rss_mb (03 §13.2 has no outcome for a run over it)"),
     )
     todo = [what for bad, what in checks if bad]
     todo += [f"metrics {m} ({METRIC_TASKS[m]})" for m in exp.metrics if m not in METRIC_KEYS]
     for m in exp.methods:
-        if m.kind == "agent_only":
-            todo.append(f"methods {m.id}: kind agent_only (RQ2 arms)")
-        elif m.kind == "internal_baseline" and m.id == "chance":
+        if m.kind == "agent_only" and not RANK_FIELD:  # every case would be a silent miss (#407 review)
+            todo.append(f"methods {m.id}: kind agent_only needs proposals 1.1 rank (#409)")
+        if m.kind == "internal_baseline" and m.id == "chance":
             todo.append("methods chance: chance is analytic; list the `chance` metric instead (04 §7)")
         elif m.kind == "internal_baseline" and m.id not in INTERNAL_BASELINES:
             todo.append(f"methods {m.id}: internal baseline not built (v0 has {sorted(INTERNAL_BASELINES)})")
-        elif m.ai.mode != "off" or m.ai.seeds:
-            todo.append(f"methods {m.id}: AI arms (ai.mode {m.ai.mode}, seeds)")
+        elif m.ai.mode != "off" and m.kind not in ("veyltrace", "agent_only"):
+            todo.append(f"methods {m.id}: AI arms run as kind veyltrace or agent_only")
     return todo
 
 

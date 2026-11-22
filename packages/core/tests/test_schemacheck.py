@@ -94,6 +94,44 @@ def test_examples_satisfy_schema_and_orders() -> None:
         for item in data if info.kind != "json" else [data]:
             schemacheck.validate_json_schema(name, item)
             schemacheck.check_orders(name, item)
+            schemacheck.check_document_rules(name, item)
+
+
+def _with_ranks(ranks: list[int | None]) -> dict[str, Any]:
+    """The proposals example with one proposal per entry of `ranks` (copies of the first one)."""
+    doc = _example("proposals")
+    first = doc["proposals"][0]
+    doc["proposals"] = [{**copy.deepcopy(first), "rank": r} for r in ranks]
+    return doc
+
+
+@pytest.mark.parametrize("ranks", [[], [None], [None, None], [1], [2, 1], [1, 3, 2], [None, 1], [2, None, 1]])
+def test_proposal_ranks_one_to_k_pass(ranks: list[int | None]) -> None:
+    schemacheck.check_document_rules("proposals", _with_ranks(ranks))
+
+
+@pytest.mark.parametrize("ranks", [[2], [1, 1], [1, 3], [0, 1], [None, 2], [3, 2]])
+def test_proposal_ranks_with_a_gap_or_tie_are_refused(ranks: list[int | None]) -> None:
+    with pytest.raises(ContractValidationError, match=r"exactly 1\.\."):
+        schemacheck.check_document_rules("proposals", _with_ranks(ranks))
+
+
+@given(st.lists(st.one_of(st.none(), st.integers(min_value=1, max_value=6)), max_size=6))
+def test_proposal_ranks_pass_iff_the_non_null_ones_are_a_permutation_of_one_to_k(
+    ranks: list[int | None],
+) -> None:
+    present = sorted(r for r in ranks if r is not None)
+    ok = present == list(range(1, len(present) + 1))
+    doc = _with_ranks(ranks)
+    if ok:
+        schemacheck.check_document_rules("proposals", doc)
+    else:
+        with pytest.raises(ContractValidationError):
+            schemacheck.check_document_rules("proposals", doc)
+
+
+def test_document_rules_ignore_contracts_without_one() -> None:
+    schemacheck.check_document_rules("alert", _example("alert"))
 
 
 def test_schema_violation_names_the_path() -> None:
@@ -117,7 +155,9 @@ def test_trials_use_enum_order_not_byte_order() -> None:
 
 
 def test_enum_order_puts_t2_before_t10() -> None:
-    node = {"type": "array", "items": {"$ref": "common.schema.json#/$defs/trial_id"}}
+    # proposals is a 1.1 contract, so it names the 1.0 common by absolute $id (CONVENTIONS §1).
+    trial_id = "https://veyltrace.dev/schemas/1.0/common.schema.json#/$defs/trial_id"
+    node: dict[str, Any] = {"type": "array", "items": {"$ref": trial_id}}
     node["x-sort"] = [{"pointer": ".", "order": "enum"}]
     schemacheck.check_list_order("proposals", node, "proposals", ["T1", "T2", "T10"], "/t")
     with pytest.raises(ContractValidationError):

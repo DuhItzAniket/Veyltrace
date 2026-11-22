@@ -234,6 +234,27 @@ export interface AnswerKeyRow {
   sli_impact_json: string | null;
 }
 
+/** One row of bench/results/replay/<role>/replay.csv: the outcome of one Tier 1 replay or Tier 2 regeneration of a recorded AI-arm run (RQ6, 04 §7 "Replay"). Written by bench replay, committed to git and released with the paper; evaluation-only. */
+export interface BenchReplayRow {
+  tier: 1 | 2;
+  run_id: RunId;
+  case_id: CaseId;
+  dataset: Dataset;
+  system: System;
+  method: string;
+  seed: number;
+  experiments: string[];
+  exit_code: number | null;
+  reason: "no_receipt" | "no_report" | "timeout" | "regen_failed" | null;
+  verdict_hash: Sha256;
+  verdict_hash_replayed: Sha256 | null;
+  trace_match: boolean | null;
+  card_match: boolean | null;
+  proposals_match: boolean | null;
+  first_divergence: string | null;
+  env_drift: string[];
+}
+
 /** One row of bench/results/<experiment_id>/per_case.csv: the outcome of one method on one case (per seed and variant) in one experiment. Written by bench, committed to git and released with the paper; evaluation-only. */
 export interface BenchResultRow {
   case_id: CaseId;
@@ -583,6 +604,7 @@ export interface Proposal {
   claims: Claim[];
   requested_trials: TrialId[];
   rationale: string;
+  rank: number | null;
 }
 
 /** A request for more telemetry, a trial or context. */
@@ -601,6 +623,105 @@ export interface ReceiptDigest {
 export interface ReceiptSubject {
   name: "verdict.json";
   digest: ReceiptDigest;
+}
+
+/** Code state of the replaying checkout (as bench_manifest.code); its run code (core's DIRTY_PATHS: packages, contracts, config except config/calibration, uv.lock, pyproject.toml) equals every source manifest's code.commit. */
+export interface ReplayCode {
+  commit: string;
+  dirty: boolean;
+  bench_dirty: boolean;
+}
+
+/** AI-arm rows of the source experiments' per_case.csv with no verdict to replay, per run_outcome; not in n. */
+export interface ReplayExcluded {
+  failed: number;
+  no_alert: number;
+  rejected: number;
+  timeout: number;
+}
+
+/** n and k of one source experiment. */
+export interface ReplayExperiment {
+  experiment_id: string;
+  n: number;
+  k: number;
+}
+
+/** Tier 1 rows per exit code and per reason without one; every key is present, 0 when none, and they sum to n. */
+export interface ReplayOutcomes {
+  "0": number;
+  "1": number;
+  "2": number;
+  "3": number;
+  "4": number;
+  "5": number;
+  "6": number;
+  no_receipt: number;
+  no_report: number;
+  timeout: number;
+}
+
+/** The Tier 2 sample, fixed before any regeneration (ADR 20261122-ak-rq6-replay-results). */
+export interface ReplaySelection {
+  experiment_id: string;
+  method: string;
+  seed: number;
+  rng_seed: number;
+  n_requested: number;
+}
+
+/** Where the replay ran (RQ6: recording laptop, second laptop, CI). */
+export interface ReplaySite {
+  host_id: string;
+  os: string;
+  python: string;
+  cpu: string | null;
+  ci_run_url: string | null;
+}
+
+/** One source experiment. */
+export interface ReplaySource {
+  experiment_id: string;
+  manifest_sha256: Sha256;
+}
+
+/** Tier 1: veyltrace replay of every recorded ok AI-arm run (H6a / SC-6). */
+export interface ReplayTier1 {
+  n: number;
+  k: number;
+  k_verdict: number;
+  rate: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  level: number;
+  outcomes: ReplayOutcomes;
+  excluded: ReplayExcluded;
+  by_experiment: ReplayExperiment[];
+}
+
+/** Tier 2: regeneration of a seeded sample of recorded runs (H6b). */
+export interface ReplayTier2 {
+  n: number;
+  k: number;
+  k_verdict: number;
+  rate: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  level: number;
+  selection: ReplaySelection;
+}
+
+/** bench/results/replay/<role>/replay_summary.json: the RQ6 replay rates of one site with exact binomial intervals, the site, the code state and the source experiments (04 §2 RQ6, §7, §8). Written last by bench replay, so its presence marks a whole result; tables read it (R-17 Table 9). Evaluation-only. */
+export interface BenchReplaySummary {
+  schema_version: string;
+  producer: string;
+  role: "recording" | "second-laptop" | "ci";
+  site: ReplaySite;
+  code: ReplayCode;
+  uv_lock_sha256: Sha256;
+  sources: ReplaySource[];
+  tier1: ReplayTier1 | null;
+  tier2: ReplayTier2 | null;
 }
 
 /** Classification of the leader: copied from the slate entry for slate candidates, from Causatrix classify() for proposal-origin candidates (09 §3.9). Shared with card.root. */
@@ -1250,4 +1371,4 @@ export interface Verdict {
 }
 
 /** Names of all contracts (x-veyltrace.name). */
-export type ContractName = "agent_trace" | "alert" | "alignment" | "anomalies" | "answer_key" | "bench_manifest" | "bench_result" | "bench_summary" | "calibration" | "card" | "case_manifest" | "changes" | "config_lock" | "evidence" | "graph.edges" | "graph.nodes" | "graph.paths" | "onsets" | "predicates" | "proposals" | "receipt" | "run_manifest" | "signal_cube.critical_path" | "signal_cube.edges" | "signal_cube.series" | "signal_cube.templates" | "slate" | "telemetry.events" | "telemetry.logs" | "telemetry.metrics" | "telemetry.spans" | "verdict";
+export type ContractName = "agent_trace" | "alert" | "alignment" | "anomalies" | "answer_key" | "bench_manifest" | "bench_replay" | "bench_replay_summary" | "bench_result" | "bench_summary" | "calibration" | "card" | "case_manifest" | "changes" | "config_lock" | "evidence" | "graph.edges" | "graph.nodes" | "graph.paths" | "onsets" | "predicates" | "proposals" | "receipt" | "run_manifest" | "signal_cube.critical_path" | "signal_cube.edges" | "signal_cube.series" | "signal_cube.templates" | "slate" | "telemetry.events" | "telemetry.logs" | "telemetry.metrics" | "telemetry.spans" | "verdict";

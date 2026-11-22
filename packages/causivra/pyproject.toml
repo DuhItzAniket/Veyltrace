@@ -15,6 +15,10 @@ dependencies = ["veyltrace-core", "veyltrace-contracts"]
 [project.entry-points."veyltrace.engines"]
 causivra = "veyltrace_causivra.api:run"
 
+# `veyltrace replay` and the gateway's replay route delegate here (10 §3.9; core CLI, veyltrace.commands).
+[project.entry-points."veyltrace.commands"]
+replay = "veyltrace_causivra.replay:main"
+
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }

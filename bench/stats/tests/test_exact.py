@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import itertools
+import math
 import random
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from veyltrace_stats.exact import holm, mcnemar_exact
+from veyltrace_stats.exact import clopper_pearson, holm, mcnemar_exact
 
 
 def _pairs(only_a: int, only_b: int, both: int = 3, neither: int = 2) -> tuple[list[bool], list[bool]]:
@@ -77,3 +79,57 @@ def test_holm_properties(p: list[float], rnd: random.Random) -> None:
     order = list(range(len(p)))
     rnd.shuffle(order)
     assert holm([p[i] for i in order]) == pytest.approx([adjusted[i] for i in order])
+
+
+# --- exact binomial interval (04 §8 "exact binomial CIs otherwise": H2b, H2c, RQ6 replay rates) ---
+
+
+def _tail_ge(x: int, n: int, p: float) -> float:
+    return math.fsum(math.comb(n, i) * p**i * (1 - p) ** (n - i) for i in range(x, n + 1))
+
+
+@pytest.mark.parametrize(
+    ("x", "n", "low", "high"),
+    [
+        (0, 10, 0.0, 1 - 0.025 ** (1 / 10)),  # closed form when x = 0
+        (10, 10, 0.025 ** (1 / 10), 1.0),  # and when x = n
+        (1, 1, 0.025, 1.0),
+        (0, 1, 0.0, 0.975),
+        (5, 10, 0.187086028, 0.812913972),  # textbook value
+        (267, 267, 0.025 ** (1 / 267), 1.0),  # H2c on RE2: every case invariant
+    ],
+)
+def test_clopper_pearson_known_values(x: int, n: int, low: float, high: float) -> None:
+    got = clopper_pearson(x, n)
+    assert (got.low, got.high) == pytest.approx((low, high), abs=1e-9)
+    assert (got.estimate, got.successes, got.n, got.level) == (x / n, x, n, 0.95)
+
+
+@given(st.integers(1, 120).flatmap(lambda n: st.tuples(st.integers(0, n), st.just(n))))
+def test_clopper_pearson_solves_its_tail_equations(xn: tuple[int, int]) -> None:
+    x, n = xn
+    got = clopper_pearson(x, n)
+    assert 0.0 <= got.low <= x / n <= got.high <= 1.0
+    if x > 0:  # P(X >= x | low) = alpha / 2
+        assert _tail_ge(x, n, got.low) == pytest.approx(0.025, abs=1e-9)
+    if x < n:  # P(X <= x | high) = alpha / 2
+        assert 1 - _tail_ge(x + 1, n, got.high) == pytest.approx(0.025, abs=1e-9)
+    mirror = clopper_pearson(n - x, n)
+    assert (got.low, got.high) == pytest.approx((1 - mirror.high, 1 - mirror.low), abs=1e-11)
+
+
+def test_clopper_pearson_is_monotone_and_widens_with_level() -> None:
+    bounds = [clopper_pearson(x, 30) for x in range(31)]
+    assert all(a.low <= b.low and a.high <= b.high for a, b in itertools.pairwise(bounds))
+    narrow, wide = clopper_pearson(12, 30, level=0.90), clopper_pearson(12, 30, level=0.99)
+    assert wide.low < narrow.low < narrow.high < wide.high
+
+
+def test_clopper_pearson_refuses_bad_input() -> None:
+    for x, n in ((-1, 5), (6, 5), (0, 0)):
+        with pytest.raises(ValueError, match="0 <= successes <= n"):
+            clopper_pearson(x, n)
+    with pytest.raises(ValueError, match="integers"):
+        clopper_pearson(True, 5)
+    with pytest.raises(ValueError, match="level"):
+        clopper_pearson(1, 5, level=1.0)

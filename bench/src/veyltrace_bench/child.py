@@ -3,7 +3,9 @@ runner can kill a hung run at `resources.timeout_s` (04 §9: a timeout is a miss
 run's peak resident set size (03 §13.2 `peak_rss_mb`, 04 §6 "Cost").
 
 `python -m veyltrace_bench.child REQUEST RESULT`. REQUEST is a JSON object {dataset, case_id,
-ai_mode, overrides, runs_root}, {from_step, reuse_dir} for a calibrated restart (#376) and, for a
+ai_mode, overrides, runs_root}, {from_step, reuse_dir} for a calibrated restart (#376),
+{cassette_dir, force_record} for an AI arm (#397), {lock} (a config.lock.json, used instead of
+the overrides) for an RQ6 Tier 2 regeneration (#440) and, for a
 baseline (R-05), {to_step, baseline, export}: the run
 stops after `to_step` (the alert step: Infralume's tables and alert.json), then `baseline`
 (`simplerca`, `naive-change`) ranks the case or `export` names the directory for RCAEval's input. The child
@@ -26,7 +28,7 @@ from typing import Any, cast
 
 from veyltrace_bench import baselines, naive_change, rcaeval, simplerca
 from veyltrace_core import textio
-from veyltrace_core.config import resolve_config
+from veyltrace_core.config import ResolvedConfig, resolve_config
 from veyltrace_core.ids import AIMode
 from veyltrace_core.pipeline import RunSummary, run_case, summary_dict
 from veyltrace_core.steps import LAST_STEP
@@ -90,7 +92,22 @@ def restart(request: dict[str, Any]) -> dict[str, Any]:
     """A held-out calibrated run restarts at `from_step` on `reuse_dir`'s outputs (R-13, #376)."""
     if (reuse := request.get("reuse_dir")) is None:
         return {}
-    return {"from_step": request["from_step"], "reuse_dir": Path(reuse)}
+    got: dict[str, Any] = {"from_step": request["from_step"], "reuse_dir": Path(reuse)}
+    if (proposals := request.get("external_proposals")) is not None:  # a planted run (#399)
+        got["external_proposals"] = proposals
+    return got
+
+
+def ai_run(request: dict[str, Any]) -> dict[str, Any]:
+    """run_case's {cassette_dir, force_record} of an AI-arm run (ai_arms): the kept cassette a replay
+    reads, and whether a record run may overwrite a killed attempt's unfinished directory."""
+    if "cassette_dir" not in request and "force_record" not in request:
+        return {}
+    cassette = request.get("cassette_dir")
+    return {
+        "cassette_dir": Path(cassette) if cassette else None,
+        "force_record": bool(request.get("force_record")),
+    }
 
 
 def main(argv: list[str]) -> int:
@@ -99,7 +116,12 @@ def main(argv: list[str]) -> int:
     request = cast("dict[str, Any]", json.loads(textio.read_text(request_path)))
     try:
         ai_mode = cast("AIMode", request["ai_mode"])
-        cfg = resolve_config(request["overrides"], dataset=request["dataset"], ai_mode=ai_mode)
+        lock = request.get("lock")  # an RQ6 Tier 2 regeneration: the kept run's resolved config (#440)
+        cfg = (
+            ResolvedConfig.from_lock(Path(lock))
+            if lock is not None
+            else resolve_config(request["overrides"], dataset=request["dataset"], ai_mode=ai_mode)
+        )
         start = time.perf_counter()
         summary = run_case(
             request["dataset"],
@@ -109,6 +131,7 @@ def main(argv: list[str]) -> int:
             runs_root=Path(request["runs_root"]),
             to_step=request.get("to_step", LAST_STEP),
             **restart(request),
+            **ai_run(request),
         )
         ranks = after_run(request, summary)
         wall_ms = (time.perf_counter() - start) * MS_PER_S

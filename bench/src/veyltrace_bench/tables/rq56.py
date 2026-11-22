@@ -56,7 +56,9 @@ REPLAY = (
     "Tier 1, CI",
     "Tier 2 regeneration, 50 recorded cases",
 )  # 04 §6 cross-cutting, §7 "Replay"
-REPLAY_REASON = "replay rates are not bench output: bench_summary 1.1 has no replay entry (03 §13.3)"
+#: No bench_summary minor (1.1, 1.2) has a replay entry with run counts, so Table 9 has no value and
+#: no exact binomial interval (04 §8) until replay rates get a source (03 §13.3).
+REPLAY_REASON = "replay rates are not bench output: bench_summary 1.1 and 1.2 have no replay entry (03 §13.3)"
 
 
 def replay(ctx: Context) -> list[Table]:
