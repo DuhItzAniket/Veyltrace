@@ -74,6 +74,8 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
         relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
     llm = config / "llm.yaml"  # FakeProvider: no model server in tests (08 §7)
     llm.write_bytes(llm.read_bytes().replace(b"provider: ollama", b"provider: fake"))
+    pinned = b'gguf_sha256: "' + b"ab" * 32 + b'"'  # a test digest: AI arms run on a pinned GGUF (#315)
+    llm.write_bytes(llm.read_bytes().replace(b"gguf_sha256: null", pinned))
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     monkeypatch.setattr(runner, "IN_PROCESS", True)
     assert experiment.RANK_FIELD  # proposals 1.1 (#409): agent_only runs

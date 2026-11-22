@@ -2,7 +2,8 @@
 
 Relentra brief mode (#354-#356) runs against FakeProvider (the config copy sets llm.provider fake,
 08 §7): every model call is a recorded `unscripted` error, so runs record and replay real
-cassettes without a model server. relentra.sampler.seed_index (#354) carries each seed.
+cassettes without a model server. relentra.sampler.seed_index (#354) carries each seed. The copy
+pins a test GGUF digest, because an AI arm counts only on the pinned GGUF (#315).
 """
 
 from __future__ import annotations
@@ -15,8 +16,8 @@ from typing import Any
 import pyarrow as pa
 import pytest
 
-from veyltrace_bench import answer_keys, runner, splits
-from veyltrace_bench.experiment import load_experiment
+from veyltrace_bench import ai_arms, answer_keys, runner, splits
+from veyltrace_bench.experiment import Experiment, load_experiment
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
 from veyltrace_core.calibration import load_calibration
@@ -24,6 +25,8 @@ from veyltrace_core.config import CONFIG_DIR_ENV
 from veyltrace_core.errors import ConfigError
 
 REPO = Path(__file__).resolve().parents[2]
+GGUF = "ab" * 32  # the test copy's pinned model.gguf_sha256
+UNPINNED = b"gguf_sha256: null"
 BRIEF = """\
 experiment_id: synth-brief
 description: "AI arm on synth (never reported)"
@@ -50,9 +53,19 @@ def ai_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         relentra.write_bytes(relentra.read_bytes() + b"\nsampler:\n  seed_index: 0\n")
     llm = config / "llm.yaml"  # FakeProvider: no model server in tests (08 §7)
     llm.write_bytes(llm.read_bytes().replace(b"provider: ollama", b"provider: fake"))
+    _set_digest(config, GGUF)
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     assert cli.main(["data", "fetch", "synth"]) == 0
     return config
+
+
+def _set_digest(config: Path, digest: str | None) -> None:
+    """Pin config/llm.yaml model.gguf_sha256 of the copy to `digest` (None: unpinned)."""
+    llm = config / "llm.yaml"
+    lines = textio.read_text(llm).splitlines(keepends=True)
+    value = f'"{digest}"' if digest is not None else "null"
+    pinned = [f"  gguf_sha256: {value}\n" if ln.strip().startswith("gguf_sha256:") else ln for ln in lines]
+    textio.write_bytes(llm, "".join(pinned).encode())
 
 
 def _yaml(tmp_path: Path, text: str, name: str = "brief") -> Path:
@@ -84,7 +97,8 @@ def test_each_seed_is_a_kept_record_run_and_a_second_run_replays_it(tmp_path: Pa
         lock: dict[str, Any] = json.loads(textio.read_text(run_dir / "config.lock.json"))
         relentra = lock["sections"]["relentra"]
         seeds.add((run_dir.parent.name, relentra["sampler"]["seed_index"], relentra["mode"]))
-        assert io.read_model("run_manifest", run_dir, models.RunManifest).ai.mode == "record"
+        ai = io.read_model("run_manifest", run_dir, models.RunManifest).ai
+        assert ai.mode == "record" and (ai.model, ai.gguf_sha256) == ("qwen3.5:9b", GGUF)  # RQ6 Tier 2
     assert len(seeds) == 10 and {s for _, s, _ in seeds} == {1, 2} and {m for *_, m in seeds} == {"brief"}
 
     again, _ = runner.run_experiment(exp, out_root=tmp_path / "results2", runs_root=tmp_path / "runs")
@@ -155,3 +169,61 @@ def test_a_fitted_ai_arm_writes_its_own_arms_files(
     for fold in splits.FOLDS:  # fitted on the first seed only: n = fault cases, not cases x seeds
         content = load_calibration(ai_config / "calibration" / f"synth.brief.oracle.{fold}.json").content
         assert content.n == sum(not keys[c].is_no_fault for c in plan.fits[fold])
+
+
+def test_an_unpinned_gguf_refuses_before_the_first_case(tmp_path: Path, ai_config: Path) -> None:
+    _set_digest(ai_config, None)  # config/llm.yaml as it ships until L-01 pins the digest
+    with pytest.raises(ConfigError, match="gguf_sha256 is null"):
+        runner.run_experiment(
+            _yaml(tmp_path, BRIEF), out_root=tmp_path / "results", runs_root=tmp_path / "runs"
+        )
+    assert not (tmp_path / "runs").exists()
+
+
+@pytest.mark.parametrize(
+    ("method", "match"),
+    [
+        ("    overrides: {llm.model.name: 'qwen3.5:4b'}", "'qwen3.5:4b' is not qwen3.5-9b-q4_k_m"),
+        (f"    overrides: {{llm.model.gguf_sha256: '{'cd' * 32}'}}", f"is not the pinned {GGUF}"),
+        ("", "'qwen3.5-4b-q4_k_m' is not a pinned 04 model id"),
+    ],
+)
+def test_a_method_on_another_model_refuses_before_the_first_case(
+    tmp_path: Path, ai_config: Path, method: str, match: str
+) -> None:
+    kind = "    kind: veyltrace"
+    text = BRIEF.replace(kind, f"{kind}\n{method}" if method else kind)
+    if not method:
+        text = text.replace("model: qwen3.5-9b-q4_k_m", "model: qwen3.5-4b-q4_k_m")
+    with pytest.raises(ConfigError, match=match):
+        runner.run_experiment(
+            _yaml(tmp_path, text), out_root=tmp_path / "results", runs_root=tmp_path / "runs"
+        )
+    assert not (tmp_path / "runs").exists()
+
+
+def test_a_run_on_another_gguf_is_rejected_never_scored(
+    tmp_path: Path, ai_config: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """config/llm.yaml changes after the check (an edit mid-experiment): every run resolves another
+    digest than the pin, so each row is rejected: no ranks or verdict, a miss (03 §13.2; 04 §7)."""
+    monkeypatch.setattr(runner, "IN_PROCESS", True)
+    check = ai_arms.check
+
+    def edit_after_check(exp: Experiment) -> dict[str, ai_arms.Pin]:
+        pins = check(exp)
+        _set_digest(ai_config, "cd" * 32)
+        return pins
+
+    monkeypatch.setattr(ai_arms, "check", edit_after_check)
+    out, summary = runner.run_experiment(
+        _yaml(tmp_path, BRIEF), out_root=tmp_path / "results", runs_root=tmp_path / "runs"
+    )
+    rows = _rows(out)
+    assert len(rows) == 10 and {r["run_outcome"] for r in rows} == {"rejected"}
+    assert all(not r["ranks"] and r["status"] is None and r["verdict_hash"] is None for r in rows)
+    assert all(r[c] in (None, False, 0) for r in rows for c in ("hit_at_1", "hit_at_5", "in_set"))  # misses
+    groups = summary["groups"]
+    assert isinstance(groups, list) and all(g["outcomes"]["rejected"] == g["n_rows"] for g in groups)
+    assert len(_kept(tmp_path)) == 10  # the runs happened; they are listed in the manifest, not scored
+    assert len(json.loads(textio.read_text(out / "manifest.json"))["runs"]) == 10
