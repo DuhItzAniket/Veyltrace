@@ -1,6 +1,6 @@
 # An entry hint counts only when the case's traces show it
 
-- **Status:** Proposed (lead decision on #36, comment 7066702400; Accepted once the Observe owner approves the PR)
+- **Status:** Accepted (lead decision on #36, comment 7066702400; approved by the Observe owner on #431, 22 Nov)
 - **Date:** 2026-11-22
 - **Author:** Aniket Kumar (AK), drafted by the lead's session from the #36 diagnosis
 - **Deciders:** the lead
