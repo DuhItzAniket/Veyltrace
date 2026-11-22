@@ -29,9 +29,9 @@ from veyltrace_core.log import get_logger
 from veyltrace_infralume.adapters.nezha_layout import (
     DATASETS,
     fault_times_ns,
-    minute_stems,
     nezha_key,
     parse_key,
+    stems_for,
     window_ns,
 )
 from veyltrace_infralume.adapters.nezha_tables import raw_logs, raw_metrics, raw_spans
@@ -115,9 +115,52 @@ def _read(path: Path) -> pa.Table:
 def _inside(table: pa.Table, column: str, window: tuple[int, int]) -> pa.Table:
     """Rows whose ns `column` lies in the half-open window; rows without a time are dropped."""
     if column not in table.column_names:
-        return table
+        return table.slice(0, 0)
     t = np.asarray(_pc.cast(table.column(column), pa.int64()).fill_null(-1).to_numpy(zero_copy_only=False))
     return table.filter(pa.array((t >= window[0]) & (t < window[1])))
+
+
+def _minute_files(day: Path, kind: str, window: tuple[int, int]) -> list[Path]:
+    """The day's allow-listed `kind` files that can hold rows of `window`, in time order."""
+    suffix = f"_{kind}.csv"
+    names = {p.name.removesuffix(suffix): p.name for p in sorted((day / kind).glob(f"*{suffix}"))}
+    stems = [stem for stem, name in names.items() if _ALLOWED[kind].fullmatch(name)]
+    found = (_open(day, kind, names[stem]) for stem in stems_for(day.name, stems, window))
+    return [path for path in found if path is not None]
+
+
+def _unique_rows(table: pa.Table) -> pa.Table:
+    """`table` without repeated rows. Neighbouring minute files overlap by a second or two, so a
+    log line can be published twice (24,717 of 4.2 million rows); counted twice it would look like a
+    step in log rate. Dropped rows are logged as a data-quality drop (01 §6)."""
+    if table.num_rows == 0:
+        return table
+    unique = table.group_by(table.column_names, use_threads=False).aggregate([])
+    if unique.num_rows != table.num_rows:
+        _log.info(
+            "infralume.rows_dropped",
+            source="logs",
+            rows=table.num_rows - unique.num_rows,
+            reason="duplicate_row",
+        )
+    return unique.select(table.column_names).cast(table.schema)
+
+
+def _input_names(used: list[tuple[str, Path]]) -> list[tuple[str, Path]]:
+    """`case_manifest.inputs` names (03 §2.1). Minute files are named by their position among the
+    case's files, `logs/minute-0.csv`, …: their real names are the clock minute around the fault,
+    which would give the fault time to every reader of the manifest and the receipt even where the
+    hint is blanked (detected protocol, shifted alerts). Pod metric files keep their names."""
+    counts: dict[str, int] = {}
+    named: list[tuple[str, Path]] = []
+    for source, path in used:
+        if source == "metrics":
+            named.append((f"{source}/{path.name}", path))
+            continue
+        position = counts.get(source, 0)
+        counts[source] = position + 1
+        named.append((f"{source}/minute-{position}.csv", path))
+    return named
 
 
 def _concat(tables: list[pa.Table], contract: str) -> pa.Table:
@@ -186,18 +229,17 @@ class NezhaAdapter:
                 used.append(("metrics", path))
 
         logs: list[pa.Table] = []
+        for path in _minute_files(day, "log", window):
+            table = logs_table(raw_logs(_inside(_read(path), "TimeUnixNano", window)), rules, scrub)
+            if table.num_rows:
+                logs.append(table)
+                used.append(("logs", path))
         spans: list[pa.Table] = []
-        for stem in minute_stems(times[index]):
-            if (path := _open(day, "log", f"{stem}_log.csv")) is not None:
-                table = logs_table(raw_logs(_inside(_read(path), "TimeUnixNano", window)), rules, scrub)
-                if table.num_rows:
-                    logs.append(table)
-                    used.append(("logs", path))
-            if (path := _open(day, "trace", f"{stem}_trace.csv")) is not None:
-                raw = raw_spans(_inside(_read(path), "StartTimeUnixNano", window))
-                if raw.num_rows:
-                    spans.append(raw)
-                    used.append(("traces", path))
+        for path in _minute_files(day, "trace", window):
+            raw = raw_spans(_inside(_read(path), "StartTimeUnixNano", window))
+            if raw.num_rows:
+                spans.append(raw)
+                used.append(("traces", path))
         # One call over all minute files: a span repeated across files is de-duplicated once.
         span_table = (
             spans_table(pa.concat_tables(spans), rules, StatusRules.from_config(cfg), scrub)
@@ -206,7 +248,7 @@ class NezhaAdapter:
         )
         tables = TelemetryTables.from_tables(
             metrics=_concat(metrics, "telemetry.metrics"),
-            logs=_concat(logs, "telemetry.logs"),
+            logs=_unique_rows(_concat(logs, "telemetry.logs")),
             spans=span_table,
         )
         present = {
@@ -218,9 +260,9 @@ class NezhaAdapter:
         if not any(present.values()):
             raise CaseRejected("no_telemetry", f"case {ref.case_id} has no metric, log or span rows")
         inputs = sorted(
-            (f"{source}/{path.name}", sha256_file(path), path.stat().st_size)
-            for source, path in used
-            if present[source]
+            (name, sha256_file(path), path.stat().st_size)
+            for name, path in _input_names(used)
+            if present[name.partition("/")[0]]
         )
         return CanonicalCase(
             system=cast("Any", system),
