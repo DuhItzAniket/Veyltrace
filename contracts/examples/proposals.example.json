@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0.0",
+  "schema_version": "1.1.0",
   "case_id": "59e0d31bcc42",
   "status": "complete",
   "mode": "investigate",
@@ -61,7 +61,8 @@
         "T4",
         "T10"
       ],
-      "rationale": "checkout cpu shifted sharply while its callees stayed flat, and its onset precedes the frontend latency onset."
+      "rationale": "checkout cpu shifted sharply while its callees stayed flat, and its onset precedes the frontend latency onset.",
+      "rank": 1
     },
     {
       "proposal_id": "P4b37d37e",
@@ -93,7 +94,8 @@
       "requested_trials": [
         "T2"
       ],
-      "rationale": "redis is a shared cache; a memory squeeze there could also slow checkout, so it is worth ruling out."
+      "rationale": "redis is a shared cache; a memory squeeze there could also slow checkout, so it is worth ruling out.",
+      "rank": 2
     }
   ],
   "asks": [

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from types import SimpleNamespace
+from typing import cast
 
 import pyarrow as pa
 import pytest
@@ -14,6 +14,7 @@ from hypothesis import strategies as st
 
 from veyltrace_bench import experiment, planted, runner
 from veyltrace_bench.experiment import ProposalDraw
+from veyltrace_bench.metrics import RANK_SEPARATOR
 from veyltrace_contracts import models
 from veyltrace_core import cli, io, textio
 from veyltrace_core.config import CONFIG_DIR_ENV
@@ -75,7 +76,7 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
     llm.write_bytes(llm.read_bytes().replace(b"provider: ollama", b"provider: fake"))
     monkeypatch.setenv(CONFIG_DIR_ENV, str(config))
     monkeypatch.setattr(runner, "IN_PROCESS", True)
-    monkeypatch.setattr(experiment, "RANK_FIELD", True)  # agent_only runs once proposals 1.1 (#409) lands
+    assert experiment.RANK_FIELD  # proposals 1.1 (#409): agent_only runs
     assert cli.main(["data", "fetch", "synth"]) == 0
     exp = tmp_path / "exp.yaml"
     textio.write_bytes(exp, PLANTED.encode())
@@ -99,9 +100,10 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
             and r["case_id"] == got.case_id
         )  # fmt: skip
         ranks = agent["ranks"]
-        # Planted proposals carry no rank until proposals 1.1 (CCR #409), so agent-only cannot order
-        # them: the planted row is unranked (a miss, 04 §7), never ranked by the file's A-Z order.
-        assert ranks == [] and decoy
+        # The planted proposal is rank 1 (proposals 1.1, CCR #409; worst case): agent-only puts the
+        # decoy first, then the slate's ranking without it.
+        assert got.proposals[0].rank == 1
+        assert ranks and ranks[0].partition(RANK_SEPARATOR)[0] == decoy
     planted_rows = [r for r in rows if r["variant"] == "plant-1" and r["method"] == "veyltrace:brief"]
     assert (
         all(r["verdict_hash"] for r in planted_rows)
@@ -116,13 +118,21 @@ def test_planted_runs_need_no_model_call_and_agent_only_sees_the_decoy(
         assert g["metrics"]["decoy_top1_change"]["n_pairs"] == 5
 
 
-def test_a_planted_proposal_is_rank_1_once_proposals_carry_ranks(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_a_planted_proposal_is_rank_1_and_the_recorded_ones_follow() -> None:
     """Worst case (ADR 20261121-ak-rq2-arms-conventions): the adversary's proposal comes first; the
-    recorded ones follow in their own order (here they have none, as 1.0 files)."""
-    monkeypatch.setattr(planted, "Proposal", SimpleNamespace(model_fields={"rank": None}))
+    recorded ones follow in their own order, and a recorded null rank (order unknown) stays null."""
     example = json.loads(textio.read_text(REPO / "contracts" / "examples" / "proposals.example.json"))
-    got = planted.planted(
-        models.Proposals.model_validate(example), SERVICES, "checkout", ProposalDraw(n=1, seed=4)
+    recorded = models.Proposals.model_validate(example)
+    got = planted.planted(recorded, SERVICES, "checkout", ProposalDraw(n=1, seed=4))
+    io.prepare("proposals", got)  # the shifted ranks are still exactly 1..k
+    by_id = {p["proposal_id"]: p["rank"] for p in got["proposals"]}
+    assert [by_id[p.proposal_id] for p in recorded.proposals] == [
+        cast(int, p.rank) + 1 for p in recorded.proposals
+    ]
+    assert [p["rank"] for p in got["proposals"] if p["rationale"] == planted.RATIONALE] == [1]
+    unknown = recorded.model_copy(
+        update={"proposals": [p.model_copy(update={"rank": None}) for p in recorded.proposals]}
     )
+    got = planted.planted(unknown, SERVICES, "checkout", ProposalDraw(n=1, seed=4))
     ranks = {p["rationale"] == planted.RATIONALE: p["rank"] for p in got["proposals"]}
     assert ranks == {True: 1, False: None}

@@ -290,6 +290,7 @@ export interface Proposal {
   claims: Claim[];
   hypothesis: Hypothesis;
   proposal_id: string;
+  rank: number | null;
   rationale: string;
   requested_trials: Array<"T1" | "T2" | "T3" | "T4" | "T5" | "T6" | "T7" | "T8" | "T9" | "T10">;
 }
