@@ -234,12 +234,14 @@ def replay(
         _inputs(manifest, resolved, directory, report)
         _rerun(manifest, resolved, directory, out_dir, report)
         outcome = _compare(receipt, manifest, out_dir, report)
-        drift = report.env_drift and not allow_env_drift
-        report.exit_code = int(ReplayExit.ENV_DRIFT if drift else outcome)
     except _Stop as stop:
-        report.exit_code = int(stop.args[0])
+        outcome = ReplayExit(stop.args[0])
     finally:
         shutil.rmtree(work, ignore_errors=True)
+    # R9: unallowed drift (5) outranks 2, 6 and 0, however the re-run ended; 1, 4 and 3 outrank it.
+    drift = bool(report.env_drift) and not allow_env_drift
+    late = outcome in (ReplayExit.HASH_MISMATCH, ReplayExit.NARRATIVE_MISMATCH, ReplayExit.OK)
+    report.exit_code = int(ReplayExit.ENV_DRIFT if drift and late else outcome)
     return report
 
 

@@ -115,7 +115,14 @@ def test_a_missing_recording_is_exit_3(runs: dict[str, Path], tmp_path: Path) ->
     assert replay(target / "receipt.json").exit_code == ReplayExit.INPUTS_CHANGED
 
 
-def test_a_cassette_miss_in_the_rerun_is_exit_2(runs: dict[str, Path], monkeypatch: Any) -> None:
+@pytest.mark.parametrize(("drift", "allow", "code"), [(False, False, 2), (True, False, 5), (True, True, 2)])
+def test_a_cassette_miss_in_the_rerun_is_exit_2_after_drift(
+    runs: dict[str, Path], monkeypatch: Any, drift: bool, allow: bool, code: int
+) -> None:
+    real = env_info()
+    if drift:  # R9: unallowed drift (5) outranks a cassette miss (2), review of #434
+        monkeypatch.setattr("veyltrace_causivra.replay.env_info", lambda: {**real, "python": "9.99.0"})
+
     def miss(*args: Any, **kwargs: Any) -> Any:  # the step error comes back wrapped, as run_case does
         error = StepFailed("relentra", CassetteMiss("a request the recording never saw"))
         return dataclasses.replace(
@@ -123,4 +130,4 @@ def test_a_cassette_miss_in_the_rerun_is_exit_2(runs: dict[str, Path], monkeypat
         )
 
     monkeypatch.setattr("veyltrace_causivra.replay.run_case", miss)
-    assert replay(runs["record"] / "receipt.json").exit_code == ReplayExit.HASH_MISMATCH
+    assert replay(runs["record"] / "receipt.json", allow_env_drift=allow).exit_code == code

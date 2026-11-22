@@ -350,7 +350,7 @@ Computed by code from cards; no judge ([verified_agents §Q8][va-q8]).
 | Template safety | every template sentence passes the checker on `synth-01…05` (property test over verdict fixtures) |
 | Golden | `synth-01…05` cards with `ai off` from Causentra's verdict fixtures → `packages/causivra/fixtures/synth-0N/{card.json,card.md}`; FakeProvider narration scripted for one valid and one twice-rejected case |
 | Receipt | in-toto field check; round trip; `subject` digest equals file hash; tamper `verdict.json` → R3 fails |
-| Replay | one fixture per exit code: 0 clean; 1 truncated receipt; 2 a monkeypatched Causentra scoring function (simulates code drift with identical inputs and config); 3 deleted `signal_cube/series.parquet`; 4 edited `config.lock.json` in a copied run dir; 5 manifest recorded with a different lib version; 6 a monkeypatched playbook text (card changes, verdict does not). Runs in `tests/integration/test_explain_replay.py` |
+| Replay | one case per exit code on copied synth-01 runs (AI off and fake record): 0 clean; 1 malformed receipt; 2 an edited `verdict_hash`, and a cassette miss in the re-run; 3 a changed step 0–4 output, `verdict.json` or cassette; 4 edited `config.lock.json`; 5 a different Python version (and 5 over a cassette miss unless `--allow-env-drift`); 6 an edited `card_hash`. Runs in `packages/causivra/tests/test_replay.py` |
 | Determinism | two runs on `synth-01` give identical `card.json`, `card.md`, `receipt.json` bytes |
 
 ## 8. Performance budget
