@@ -175,6 +175,10 @@ TSFM_ALLOWED = ("torch", "transformers")
 FETCH_PREFIX = "veyltrace_infralume.fetch"
 FETCH_ALLOWED = ("urllib.request",)
 FETCHERS_GROUP = "veyltrace.fetchers"
+#: Causivra's replay command re-runs steps 5-10a through core's pipeline (10 §3.9; PR #434). Only
+#: pipeline, and no other module may import the command, so the engine step never loads it.
+REPLAY_PREFIX = "veyltrace_causivra.replay"
+REPLAY_ALLOWED = ("veyltrace_core.pipeline",)
 GROUP_PREFIX = "veyltrace."
 
 # --- literal scan (02 §9 rule 3; AGENTS §4.5; M0 lead decision §2.1) ---------------------------
@@ -575,6 +579,10 @@ def _banned_imports(package: str, module: str) -> tuple[str, ...]:
         banned = [b for b in banned if b not in TSFM_ALLOWED]
     if _matches(module, (FETCH_PREFIX,)):
         banned = [b for b in banned if b not in (*FETCH_ALLOWED, FETCH_PREFIX)]
+    if _matches(module, (REPLAY_PREFIX,)):
+        banned = [b for b in banned if b not in REPLAY_ALLOWED]
+    else:
+        banned.append(REPLAY_PREFIX)
     return tuple(banned)
 
 
@@ -814,6 +822,13 @@ def test_import_exemptions_are_scoped() -> None:
     assert _module_import_problems("infralume", api, _first_party_allowed("infralume")) != []
     llm = _snippet("import veyltrace_llm", "veyltrace_relentra.api", "relentra")
     assert _module_import_problems("relentra", llm, _first_party_allowed("relentra")) == []
+    replay = _snippet("from veyltrace_core.pipeline import run_case", "veyltrace_causivra.replay", "causivra")
+    assert _module_import_problems("causivra", replay, _first_party_allowed("causivra")) == []
+    for source in ("from veyltrace_core.pipeline import run_case", "from veyltrace_causivra import replay"):
+        card = _snippet(source, "veyltrace_causivra.api", "causivra")
+        assert _module_import_problems("causivra", card, _first_party_allowed("causivra")) != [], source
+    cli = _snippet("import veyltrace_core.cli", "veyltrace_causivra.replay", "causivra")
+    assert _module_import_problems("causivra", cli, _first_party_allowed("causivra")) != []
     meta = _snippet("import importlib.metadata", "veyltrace_core.plugins", "core")
     assert _module_import_problems("core", meta, _first_party_allowed("core")) == []
     meta_io = _snippet("import importlib.metadata", "veyltrace_core.io", "core")
