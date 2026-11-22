@@ -24,6 +24,7 @@ nezha = "veyltrace_infralume.adapters.nezha:NezhaAdapter"
 # `veyltrace data fetch rcaeval` (01 §3.11): the single network exemption, never imported by api.py.
 [project.entry-points."veyltrace.fetchers"]
 rcaeval = "veyltrace_infralume.fetch.rcaeval:fetch"
+nezha = "veyltrace_infralume.fetch.nezha:fetch"
 
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
