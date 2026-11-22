@@ -18,6 +18,7 @@ Built so far (O-01): the `rcaeval` adapter (Hugging Face Parquet and Zenodo CSV 
 
 ```bash
 uv run veyltrace data fetch rcaeval --suite re2-ss          # into ${VEYLTRACE_DATA}, default ~/veyltrace-data
+uv run veyltrace data fetch nezha                          # all 101 Nezha cases (2.8 GB), pinned commit
 uv run veyltrace data list re2-ss                           # fetched case ids
 uv run veyltrace diagnose --dataset re2-ss --case <case_id> --ai off
 uv run python scripts/observe/ingest_check.py re2-ob re2-ss re2-tt --expect-cases 90   # all RE2, <= 10 s each

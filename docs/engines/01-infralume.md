@@ -232,7 +232,7 @@ All three come from config, so they change the config hash and therefore `run_id
 |---|---|---|
 | `rcaeval` (default `--source hf`) | Hugging Face `phamquiluan/RCAEval`, file list from the tree API `https://huggingface.co/api/datasets/phamquiluan/RCAEval/tree/main?recursive=true`; files via the standard HF `resolve/main/<path>` URL (verify at O-01) | 3.44 GB total; RE2-SS ≈ 101 MB, RE2-OB ≈ 923 MB, RE2-TT ≈ 1.97 GB |
 | `rcaeval --source zenodo` | Zenodo record 14590730, `https://zenodo.org/records/14590730/files/RE2-OB.zip?download=1` pattern | ≈ 5.2 GB zips, ≈ 38 GB extracted |
-| `nezha` | GitHub `IntelligentDDS/Nezha` archive at a pinned commit (`rca_data/`, `construct_data/`) | unverified |
+| `nezha` | GitHub `IntelligentDDS/Nezha` (MIT), the tar archive of the pinned commit, streamed; file list, sizes and git blob ids from the tree API of that commit, and every extracted file is verified against its blob id. Fetched: per day the fault list and the adapter's allow-listed files (`metric/*_metric.csv`, `log/`, `trace/`); not `traceid/`, the other metric files or `construct_data/`. Whole archive only: `--suite`, `--source`, `--cases` are refused. A dropped connection keeps the verified files, so the next run resumes | 722 files, 2.8 GB extracted |
 | `fse26_tt` | Zenodo DOI 10.5281/zenodo.17105974 | unverified |
 
 `cases.parquet` (the HF ground-truth index) is downloaded only into `${VEYLTRACE_DATA}/rcaeval/answers/` for bench; the adapter's allow-list never opens it. Licence: code MIT; dataset MIT on HF/figshare, CC BY 4.0 on Zenodo — cite the RCAEval paper either way ([rcaeval_facts §Downloads and licence][rf-downloads]).
@@ -261,7 +261,7 @@ Isolation: the fetcher needs HTTP, which engines 1–7 must not import (AGENTS �
 | `duckdb.memory_limit` | `1GB` | bytes | share of the 3 GB budget (§8) |
 | `fetch.rcaeval.hf_repo` | `phamquiluan/RCAEval` | — | [rcaeval_facts §Downloads and licence][rf-downloads] |
 | `fetch.rcaeval.zenodo_record` | `14590730` | — | [rcaeval_facts §Downloads and licence][rf-downloads] |
-| `fetch.nezha.commit` | pin at O-08 | — | reproducible fetch |
+| `fetch.nezha.commit` | `d8140101fdb4e7dfb60d3ef9f64706f382b68470` | — | pinned at O-08 (22 Nov 2026); a constant in `fetch/nezha.py`, as `data fetch` has no run config |
 
 ## 5. Determinism and isolation
 
