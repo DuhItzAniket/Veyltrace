@@ -157,6 +157,8 @@ def test_other_sites_replay_the_recording_runs(
     assert [r["run_id"] for r in _rows(out)] == [
         r["run_id"] for r in _rows(rec.results / "replay" / "recording")
     ]
+    for k in ("GITHUB_ACTIONS", *replay.GITHUB):  # this test also runs inside GitHub Actions
+        monkeypatch.delenv(k, raising=False)
     with pytest.raises(UsageError, match="GitHub Actions"):
         replay.replay(rec.results, rec.runs, replay.CI)
     for k, v in {
