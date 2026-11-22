@@ -47,9 +47,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     rep = commands.add_parser(
         "replay",
-        help="RQ6: replay (Tier 1) the recorded AI runs; write replay/<role>/",
+        help="RQ6: replay (tier 1) or regenerate (tier 2) the recorded AI runs; write replay/<role>/",
     )
     rep.add_argument("--role", required=True, choices=replay.ROLES, help="the RQ6 site this machine is")
+    rep.add_argument("--tier", type=int, choices=(1, 2), default=1)
     rep.add_argument("--results", type=Path, help="results root (default bench/results)")
     rep.add_argument("--experiment", action="append", default=[], help="source experiment id (repeatable)")
     rep.add_argument("--runs-root", type=Path, help="root of the run directories, default core.paths.runs")
@@ -92,6 +93,7 @@ def _replay(args: argparse.Namespace) -> int:
         results,
         runs_root,
         args.role,
+        tier=args.tier,
         experiments=args.experiment,
         dry_run=args.dry_run,
         table=args.table,
