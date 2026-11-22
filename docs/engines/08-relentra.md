@@ -248,6 +248,7 @@ Relentra adds no numbers of its own to the prompt beyond fused scores in the poo
 3. Deduplicate claims by (`predicate`, canonical `args`); union their cites.
 4. Cap: proposals ≤ `budget.max_hypotheses` (by `service`, `fault_class`), claims ≤ `budget.max_claims_per_proposal` (by `predicate`, canonical `args`), cites ≤ 3 and trials ≤ 4 (the contract's limits). A reply over the schema's own limits is cut in model order when it is checked, and counts as a validation problem.
 5. Sort claims by (`predicate`, canonical `args`); assign ids; sort proposals by (`service`, `fault_class`, `proposal_id`). The output therefore depends on the *set* the model proposed, not its order.
+6. Rank (proposals 1.1, #409): each kept proposal records its 1-based position in the checked reply (after drops, before merging); a merged proposal takes its members' smallest position; after the cap the kept ones are renumbered 1..k in that order. Only `rank` depends on the reply order; ids, claims and file order do not ([ADR](../adr/20261122-cl-proposals-rank.md)).
 
 ### 3.7 `sql` tool and DuckDB views
 
