@@ -127,3 +127,25 @@ def test_the_repair_turn_adds_the_output_and_the_errors() -> None:
     assert (
         messages[2].content == '{"bad": 1}' and "- proposals[0]: unknown service 'x'" in messages[3].content
     )
+
+
+#: The graph nodes of each system in the RE2 runs (the lead's and Annapurna's review of #446; Istio
+#: artefacts seen in a few runs are left out). The model can select only nodes (08 §3.3).
+_NODES = {
+    "ob": (
+        "adservice", "cartservice", "checkoutservice", "currencyservice", "emailservice", "frontend",
+        "frontend-external", "paymentservice", "productcatalogservice", "recommendationservice",
+        "redis", "shippingservice",
+    ),
+    "ss": (
+        "carts", "catalogue", "front-end", "orders", "payment", "queue-master", "rabbitmq",
+        "rabbitmq-exporter", "session", "shipping", "user",
+    ),
+}  # fmt: skip
+
+
+@pytest.mark.parametrize("system", sorted(_NODES))
+def test_each_brief_bullet_names_one_node_and_every_node_has_one(system: str) -> None:
+    brief = load_prompt_files(system, "re2-" + system, [], SETTINGS).brief
+    bullets = [line[2:].split(" ", 1)[0] for line in brief.splitlines() if line.startswith("- ")]
+    assert sorted(bullets) == sorted(_NODES[system])
