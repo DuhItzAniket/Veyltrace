@@ -3,3 +3,6 @@ coverage
 pnpm-lock.yaml
 # Markdown follows the repo doc conventions (docs/), not Prettier.
 *.md
+
+# Gateway responses captured verbatim from a local run (src/fixtures/README.md).
+src/fixtures/

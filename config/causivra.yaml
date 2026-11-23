@@ -1,7 +1,7 @@
 # config/causivra.yaml: section "causivra" (file stem). Owner: Explain lane.
 # Spec: docs/engines/10-causivra.md §4. Overrides can only name keys present here
-# (packages/core/README.md). X-03: the deterministic card keys; narration, checker, signing and
-# replay keys arrive with X-09, which reads them (checker: #458).
+# (packages/core/README.md). X-03: the deterministic card keys; X-09 adds the checker (#458) and
+# narration (#466) keys; the signing keys come later.
 
 card:
   # Atoms in the evidence table, trial atoms kept first (10 §3.1 step 3; a priori).
@@ -68,3 +68,21 @@ checker:
     medium-confidence, high-confidence, real-time, in-flight, gRPC]
   # C7: certainty words, allowed only when the status is CONFIRMED; a phrase matches word by word.
   certainty_words: [confirmed, certainly, definitely, proven, undoubtedly, "the root cause is"]
+
+# LLM narration of the card summary (10 §3.2), only with ai.mode record or replay. The sampler is
+# Relentra's (relentra.sampler.*, 08 §3.8) with the seed purpose causivra.seed/<seed_index>.
+narration:
+  # false → template prose even with AI on (10 §4).
+  enabled: true
+  # summary only in v0.1; why-not, asks and next steps stay template prose (10 §3.2).
+  scope: summary
+  # Sentences of one reply; the schema's minimum is 2 (10 §3.2 step 2; a priori).
+  max_sentences: 5
+  # Calls per card, the repair included: "two failures → template" (02).
+  max_attempts: 2
+  # Output limit of one call (10 §4; a priori, CPU cost 10 §8).
+  max_tokens: 300
+  # Recorded latency of all calls of one card, in ms (02 §9 target).
+  budget_ms: 60000
+  # Show atom values in the evidence rows (an ablation, 10 §9); the checker still applies.
+  show_values: false
