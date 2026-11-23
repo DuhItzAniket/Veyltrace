@@ -216,9 +216,10 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | runs root | `runs/` | path | 02 §4.1; read from `config/core.yaml` `paths.runs`, not a gateway key, so the gateway reads the root `run_case` writes (X-04) |
 | `live.enabled` | `false` | bool | only on the demo laptop |
 | `live.otlp_host` / `live.otlp_port` | `127.0.0.1` / 4319 | — | a priori; not the Collector's own 4318 |
-| `live.max_body_mb` | 16 | MB | a priori |
+| `live.max_body_mb` | 16 | MiB | a priori |
 | `live.buffer_minutes` | 30 | min | 02 §5.1 windows + margin |
-| `live.buffer_max_mb` | 512 | MB | a priori (*estimate*) |
+| `live.buffer_max_mb` | 512 | MiB | a priori (*estimate*); Arrow bytes, not RSS; a batch over the cap is refused |
+| `live.future_tolerance_s` | 300 | s | a priori; a batch more than this ahead of the wall clock is refused (X-10) |
 | `live.receiving_s` | 60 | s | a priori; `/health` `live.receiving` while the last OTLP batch is at most this old (X-10) |
 | `live.snapshot_before_min` | 20 | min | 02 §5.1 baseline start |
 | `live.settle_s` / `live.manual_settle_s` | 120 / 0 | s | a priori; trade-off with the 5-minute demo target (§8) |
