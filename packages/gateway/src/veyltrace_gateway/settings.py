@@ -36,6 +36,8 @@ class LiveSettings:
     buffer_minutes: int
     buffer_max_mb: int
     receiving_s: int
+    snapshot_before_min: int
+    ai_modes: tuple[AIMode, ...]
 
 
 @dataclass(frozen=True)
@@ -112,7 +114,19 @@ def _live(body: Mapping[str, Any]) -> LiveSettings:
         buffer_minutes=_positive(body, "live.buffer_minutes"),
         buffer_max_mb=_positive(body, "live.buffer_max_mb"),
         receiving_s=_positive(body, "live.receiving_s"),
+        snapshot_before_min=_positive(body, "live.snapshot_before_min"),
+        ai_modes=_live_modes(body),
     )
+
+
+def _live_modes(body: Mapping[str, Any]) -> tuple[AIMode, ...]:
+    """Non-empty, distinct, AI off first (06 §3.4: the AI-off verdict appears first); no replay,
+    since a new snapshot has no cassette."""
+    modes = _get(body, "live.ai_modes")
+    found = tuple(cast(list[object], modes)) if isinstance(modes, list | tuple) else None
+    if found not in (("off",), ("off", "record")):
+        raise ConfigError(f"gateway.live.ai_modes must be [off] or [off, record], got {modes!r}")
+    return cast(tuple[AIMode, ...], found)
 
 
 def _poll(body: Mapping[str, Any]) -> float:

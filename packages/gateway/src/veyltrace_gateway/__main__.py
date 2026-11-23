@@ -17,6 +17,7 @@ from dataclasses import replace
 
 from veyltrace_core.errors import ConfigError
 from veyltrace_gateway.buffer import LiveBuffer
+from veyltrace_gateway.otlp import ReceiverCounters
 from veyltrace_gateway.settings import GatewaySettings, check_bind, load_settings
 
 
@@ -49,25 +50,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from veyltrace_gateway.app import create_app
 
-    buffer = _start_receiver(settings) if settings.live_enabled else None
-    uvicorn.run(create_app(settings, live=buffer), host=settings.host, port=settings.port)
+    buffer, counters = _start_receiver(settings) if settings.live_enabled else (None, None)
+    uvicorn.run(create_app(settings, live=buffer, counters=counters), host=settings.host, port=settings.port)
     return 0
 
 
-def _start_receiver(settings: GatewaySettings) -> LiveBuffer:
-    """Serve the OTLP receiver in a daemon thread; return the buffer it fills."""
+def _start_receiver(settings: GatewaySettings) -> tuple[LiveBuffer, ReceiverCounters]:
+    """Serve the OTLP receiver in a daemon thread; return the buffer it fills and its counters."""
     import uvicorn
 
     from veyltrace_core.config import load_section_file
-    from veyltrace_gateway.otlp import create_otlp_app
+    from veyltrace_gateway.otlp import ReceiverCounters, create_otlp_app
 
     live = settings.live
-    buffer = LiveBuffer(live.buffer_minutes, live.buffer_max_mb)
+    buffer, counters = LiveBuffer(live.buffer_minutes, live.buffer_max_mb), ReceiverCounters()
     # The converter arrives with O-07 (#24); until then the receiver answers 503.
-    app = create_otlp_app(buffer, None, load_section_file("infralume"), max_body_mb=live.max_body_mb)
+    app = create_otlp_app(
+        buffer, None, load_section_file("infralume"), max_body_mb=live.max_body_mb, counters=counters
+    )
     server = uvicorn.Server(uvicorn.Config(app, host=live.otlp_host, port=live.otlp_port))
     threading.Thread(target=server.run, name="veyltrace-otlp", daemon=True).start()
-    return buffer
+    return buffer, counters
 
 
 if __name__ == "__main__":
