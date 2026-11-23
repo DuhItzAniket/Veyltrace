@@ -29,6 +29,10 @@ _BRACED: Final = re.compile(r"\{[^{}]*\}")
 #: A token of the text outside placeholders: split on space and sentence punctuation; `/`, `-` and
 #: `_` stay inside, so `HTTP/2`, `end-to-end` and `snake_case` are one token each.
 _TOKEN: Final = re.compile(r"[^\s.,;:!?()\[\]\"'\u201c\u201d\u2018\u2019]+")  # with curly quotes
+#: The words inside a token, which C5–C7 look up: any character outside `[A-Za-z0-9_-]` splits, so
+#: a word wrapped in backticks, `*`, `<>`, `/` or a dash is still found (#459 review).
+_WORD: Final = re.compile(r"[A-Za-z0-9_-]+")
+_EDGES: Final = re.compile(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$")
 _TERMINATOR: Final = re.compile(r"[.!?]")
 _SNAKE_OR_KEBAB: Final = re.compile(r"[a-z0-9]+(?:[-_][a-z0-9]+)+")
 _CAMEL: Final = re.compile(r"[a-z][A-Z]")
@@ -80,7 +84,7 @@ def checker_settings(section: Mapping[str, Any]) -> CheckerSettings:
     return CheckerSettings(
         max_chars=_positive(checker, "max_chars"),
         max_words=_positive(checker, "max_words"),
-        allowed_digit_tokens=frozenset(_words(checker, "allowed_digit_tokens")),
+        allowed_digit_tokens=frozenset(w.lower() for w in _words(checker, "allowed_digit_tokens")),
         quantity_words=frozenset(w.lower() for w in _words(checker, "quantity_words")),
         allowed_compound_words=frozenset(w.lower() for w in _words(checker, "allowed_compound_words")),
         certainty_words=tuple(tuple(w.lower().split()) for w in _words(checker, "certainty_words")),
@@ -108,34 +112,50 @@ def _identifier(token: str, settings: CheckerSettings) -> bool:
     return shaped and lower not in settings.allowed_compound_words
 
 
+def _digits(tokens: list[str], settings: CheckerSettings) -> Finding | None:
+    """C4. A token passes whole (`HTTP/2`, `` `p99` ``) or word by word (`5xx/4xx`). A digit inside an
+    identifier-shaped word (`paymentservice-v2`) is C6's, as 10 §7's seeded case expects; such a word
+    is always rejected there.
+    """
+    allowed = settings.allowed_digit_tokens
+    for token in tokens:
+        if not any(c.isdigit() for c in token) or _EDGES.sub("", token).lower() in allowed:
+            continue
+        for word in _WORD.findall(token):
+            if (
+                any(c.isdigit() for c in word)
+                and word.lower() not in allowed
+                and not _identifier(word, settings)
+            ):
+                return Finding("C4", word, "raw digits outside placeholders")
+    return None
+
+
 def _token_rules(
     tokens: list[str], ctx: FillContext, entities: frozenset[str], settings: CheckerSettings
 ) -> Finding | None:
-    """C4–C7, each over every token before the next rule.
-
-    A digit inside an identifier-shaped token (`paymentservice-v2`) is C6's, not C4's: the token
-    names an entity, which is what 10 §7's seeded case expects. Such a token is always rejected.
-    """
-    for token in tokens:
-        digit = any(c.isdigit() for c in token)
-        if digit and token not in settings.allowed_digit_tokens and not _identifier(token, settings):
-            return Finding("C4", token, "raw digits outside placeholders")
+    """C4–C7, each over the whole sentence before the next; C5–C7 look up the words of each token."""
+    if (found := _digits(tokens, settings)) is not None:
+        return found
     for token in tokens:
         if "%" in token:
             return Finding("C5", "%", "a percent sign outside placeholders")
-        if token.lower() in settings.quantity_words:
-            return Finding("C5", token, "a quantity word outside placeholders")
-    for token in tokens:
-        if token.lower() in entities:
-            return Finding("C6", token, "an entity named outside a placeholder")
-        if _identifier(token, settings):
-            return Finding("C6", token, "identifier-shaped token")
+        for word in _WORD.findall(token):
+            if word.lower() in settings.quantity_words:
+                return Finding("C5", word, "a quantity word outside placeholders")
+    words = [w for token in tokens for w in _WORD.findall(token)]
+    for word in words:
+        if word.lower() in entities:
+            return Finding("C6", word, "an entity named outside a placeholder")
+        if _identifier(word, settings):
+            return Finding("C6", word, "identifier-shaped token")
     if ctx.status != CONFIRMED:
-        lowered = [t.lower() for t in tokens]
+        lowered = [w.lower() for w in words]
         for i in range(len(lowered)):
             for phrase in settings.certainty_words:
                 if tuple(lowered[i : i + len(phrase)]) == phrase:
-                    return Finding("C7", " ".join(phrase), f"certainty word under {ctx.status}")
+                    as_written = " ".join(words[i : i + len(phrase)])
+                    return Finding("C7", as_written, f"certainty word under {ctx.status}")
     return None
 
 
