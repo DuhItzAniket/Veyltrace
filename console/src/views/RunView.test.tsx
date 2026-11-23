@@ -27,10 +27,10 @@ describe("run view: status banner", () => {
     expect(b.getByText("Root cause: payment (exception, logs)")).toBeTruthy();
     expect(b.getByText(/Confidence high/)).toBeTruthy();
     expect(b.getByText(/set size 1/)).toBeTruthy();
-    expect(b.getByText("6 of 8 trials passed for payment")).toBeTruthy();
+    expect(b.getByText(/^6 of 8 trials passed for payment \(all trials run/)).toBeTruthy();
     expect(b.getByText(/AI mode off/)).toBeTruthy();
     expect(b.getByText(/alert protocol oracle/)).toBeTruthy();
-    expect(b.getByRole("link", { name: "0.7524" }).getAttribute("href")).toBe("#def-margin");
+    expect(b.getByRole("link", { name: "0.752427184" }).getAttribute("href")).toBe("#def-margin");
   });
 
   it("reads INCONCLUSIVE as no single root cause, with the leader unconfirmed and the asks", async () => {
@@ -51,6 +51,42 @@ describe("run view: status banner", () => {
     expect(b.getByText("No fault detected; the candidate set is empty")).toBeTruthy();
     const set = within(screen.getByRole("region", { name: "Candidate set" }));
     expect(set.getByText("empty")).toBeTruthy();
+    expect(b.queryByText(/trials passed/)).toBeNull();
+  });
+
+  // Handmade from the CONFIRMED fixture (no synth case yields these): LIKELY, and a margin just
+  // under c_high = 0.30 that rounding to 4 digits would show as 0.3.
+  it("reads LIKELY as not confirmed and shows the margin at its stored precision", async () => {
+    stubGateway({
+      [`/runs/${CONFIRMED}/verdict`]: {
+        ...confirmedVerdict,
+        status: "LIKELY",
+        confidence: { ...confirmedVerdict.confidence, level: "medium", margin: 0.29996 },
+      },
+    });
+    renderAt(`/runs/${CONFIRMED}`);
+    const b = await banner();
+    expect(b.getByText("LIKELY")).toBeTruthy();
+    expect(b.getByText("Likely root cause, not confirmed: payment (exception, logs)")).toBeTruthy();
+    expect(b.getByRole("link", { name: "0.29996" })).toBeTruthy();
+    expect(b.queryByRole("link", { name: "0.3" })).toBeNull();
+  });
+
+  // Handmade: an INCONCLUSIVE verdict with no leader (root null).
+  it("reads INCONCLUSIVE without a leader and names no candidate", async () => {
+    stubGateway({
+      [`/runs/${CONFIRMED}/verdict`]: {
+        ...confirmedVerdict,
+        status: "INCONCLUSIVE",
+        root: null,
+        confidence: { ...confirmedVerdict.confidence, level: "none" },
+      },
+    });
+    renderAt(`/runs/${CONFIRMED}`);
+    const b = await banner();
+    expect(b.getByText("No single root cause established")).toBeTruthy();
+    expect(b.queryByText(/leading candidate/)).toBeNull();
+    expect(b.queryByText(/trials passed/)).toBeNull();
   });
 
   it("announces progress while the run is still running", async () => {
