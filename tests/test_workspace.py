@@ -90,6 +90,8 @@ SPEC_ENGINE_DEPS["causentra"] = ("veyltrace-causatrix", "veyltrace-faultloom")
 SPEC_ENGINE_DEPS["faultloom"] = ("veyltrace-causalith",)
 # 08 §2.1, §5.4: Relentra uses FaultLoom's cards, predicate library and validate(), and the LLM client.
 SPEC_ENGINE_DEPS["relentra"] = ("veyltrace-faultloom", "veyltrace-llm")
+# 10 §3.2 and §5 item 5: Causivra narrates the card summary through the LLM client (#460).
+SPEC_ENGINE_DEPS["causivra"] = ("veyltrace-llm",)
 # 04 §5.4 item 6, 09 §3.8: bench fits tau_nf on Causentra's NO_FAULT statistic M with Causentra's own
 # code (no second implementation, #373); bench imports engines only outside the isolation scope.
 # The Nezha answer keys (#451) take case keys, fault order and service names from Infralume's Nezha
