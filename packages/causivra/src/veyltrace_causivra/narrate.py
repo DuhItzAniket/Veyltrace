@@ -3,7 +3,8 @@
 Why the model sees no values: it writes `{E<atom>.value}` and code fills it, so every digit on the
 card comes from an atom. Each sentence passes the claim checker before filling; one repair names
 each failing sentence's rule and token. A second failure, a provider error or the latency budget
-(recorded latency only, so replay reproduces it) gives template prose, as with AI off.
+(recorded latency only, so replay reproduces it) gives template prose, as with AI off. So does a
+cassette miss in replay: the card then differs from the record, which replay reports as exit 6.
 """
 
 from __future__ import annotations
@@ -20,6 +21,7 @@ from veyltrace_contracts import models
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_json, sha256_text_lf
+from veyltrace_llm.cassette import CassetteMiss
 from veyltrace_llm.client import JsonReply, LLMClient
 from veyltrace_llm.errors import ProviderError
 from veyltrace_llm.request import Message
@@ -46,12 +48,16 @@ class NarrationSettings:
 
 @dataclass(frozen=True)
 class Narration:
-    """The narrated summary (None → template prose) and the card's `narrator` block (03 §11.1)."""
+    """The narrated summary (None → template prose) and the card's `narrator` block (03 §11.1).
+
+    `cassette_miss` marks a replay that asked something unrecorded (10 §6), for the card step's log.
+    """
 
     summary: list[dict[str, Any]] | None
     narrator: dict[str, Any]
     prompts: tuple[tuple[str, str], ...]
     schema_sha256: str
+    cassette_miss: bool = False
 
 
 def _at_least(value: object, low: int) -> int | None:
@@ -77,35 +83,17 @@ def _read(name: str) -> str:
     return textio.read_text(_PACKAGE / name).replace("\r\n", "\n").strip("\n")
 
 
+def _object(properties: dict[str, Any]) -> dict[str, Any]:
+    return {"type": "object", "additionalProperties": False, "required": list(properties),
+        "properties": properties}  # fmt: skip
+
+
 def schema(atom_ids: Sequence[str], max_sentences: int, max_chars: int) -> dict[str, Any]:
     """The per-case reply schema of 10 §3.2 step 2; cites are the evidence table's atoms."""
-    sentence = {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["text", "cites"],
-        "properties": {
-            "text": {"type": "string", "maxLength": max_chars},
-            "cites": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": MAX_CITES,
-                "items": {"enum": sorted(atom_ids)},
-            },
-        },
-    }
-    return {
-        "type": "object",
-        "additionalProperties": False,
-        "required": ["sentences"],
-        "properties": {
-            "sentences": {
-                "type": "array",
-                "minItems": MIN_SENTENCES,
-                "maxItems": max_sentences,
-                "items": sentence,
-            }
-        },
-    }
+    cites = {"type": "array", "minItems": 1, "maxItems": MAX_CITES, "items": {"enum": sorted(atom_ids)}}
+    sentence = _object({"text": {"type": "string", "maxLength": max_chars}, "cites": cites})
+    sentences = {"type": "array", "minItems": MIN_SENTENCES, "maxItems": max_sentences, "items": sentence}
+    return _object({"sentences": sentences})
 
 
 def _verdict_lines(verdict: models.Verdict, ctx: FillContext, path: Sequence[str]) -> tuple[str, list[str]]:
@@ -133,33 +121,23 @@ def _verdict_lines(verdict: models.Verdict, ctx: FillContext, path: Sequence[str
 
 
 def _messages(
-    verdict: models.Verdict,
-    ctx: FillContext,
-    kinds: Mapping[str, str],
-    path: Sequence[str],
-    settings: NarrationSettings,
-    checker: CheckerSettings,
-) -> tuple[Message, Message]:
+    verdict: models.Verdict, ctx: FillContext, kinds: Mapping[str, str], path: Sequence[str],
+    settings: NarrationSettings, checker: CheckerSettings,
+) -> tuple[Message, ...]:  # fmt: skip
     """System and user messages (10 §3.2 step 1): no atom value is shown."""
     text, allowed = _verdict_lines(verdict, ctx, path)
-    rows = [
-        f"{a} | {atom.label} | {kinds.get(a, '')} | {atom.unit or ''}"
-        for a, atom in sorted(ctx.table.items())
-    ]
+    rows = [f"{a} | {t.label} | {kinds.get(a, '')} | {t.unit or ''}" for a, t in sorted(ctx.table.items())]
     user = Template(_read(PROMPTS[1])).substitute(
-        verdict=text,
-        evidence="\n".join(rows) or "(empty)",
-        placeholders=", ".join(allowed),
-        max_sentences=settings.max_sentences,
-        max_words=checker.max_words,
-    )
+        atom=min(ctx.table), verdict=text, evidence="\n".join(rows), placeholders=", ".join(allowed),
+        max_sentences=settings.max_sentences, max_words=checker.max_words,
+    )  # fmt: skip
     return Message("system", _read(PROMPTS[0])), Message("user", user)
 
 
 def _problems(
     reply: JsonReply, ctx: FillContext, entities: frozenset[str], checker: CheckerSettings, max_sentences: int
 ) -> tuple[list[dict[str, Any]], list[str], int]:
-    """The reply's sentences, its problems for the repair prompt, and how many sentences failed."""
+    """The reply's sentences, its problems for the repair prompt, and how many the checker rejected."""
     value: object = reply.value
     raw = cast(Mapping[str, object], value).get("sentences") if isinstance(value, Mapping) else None
     items = cast(list[object], raw) if isinstance(raw, list) else None
@@ -168,6 +146,7 @@ def _problems(
         return [], [f"reply: {why}"], 0
     sentences: list[dict[str, Any]] = []
     problems: list[str] = []
+    rejected = 0
     for i, item in enumerate(items, start=1):
         empty: Mapping[str, object] = {}
         fields = cast(Mapping[str, object], item) if isinstance(item, Mapping) else empty
@@ -179,32 +158,31 @@ def _problems(
         found: Finding | None = check_sentence(text, cite_list, ctx, entities, checker)
         if found is not None:
             problems.append(f"sentence {i}: {found.rule} at {found.token!r}: {found.detail}")
+            rejected += 1
             continue
         sentences.append({"text": text, "cites": cite_list})
-    return sentences, problems, len(problems)
+    return sentences, problems, rejected
 
 
 def narrate(
-    *,
-    verdict: models.Verdict,
-    ctx: FillContext,
-    kinds: Mapping[str, str],
-    path: Sequence[str],
-    entities: frozenset[str],
-    client: LLMClient,
-    params: Mapping[str, Any],
-    settings: NarrationSettings,
+    *, verdict: models.Verdict, ctx: FillContext, kinds: Mapping[str, str], path: Sequence[str],
+    entities: frozenset[str], client: LLMClient, params: Mapping[str, Any], settings: NarrationSettings,
     checker: CheckerSettings,
-) -> Narration:
+) -> Narration:  # fmt: skip
     """Narrate the summary (10 §3.2 steps 3–6). `params` are the sampler parameters with the seed."""
     reply_schema = schema(list(ctx.table), settings.max_sentences, checker.max_chars)
-    messages: Sequence[Message] = _messages(verdict, ctx, kinds, path, settings, checker)
-    attempts, failures, latency = 0, 0, 0.0
+    attempts, failures, latency, missed = 0, 0, 0.0, False
     summary: list[dict[str, Any]] | None = None
-    while attempts < settings.max_attempts:
+    # No atom to cite: no reply can satisfy the schema, so no call is made (template prose).
+    empty: tuple[Message, ...] = ()
+    messages = _messages(verdict, ctx, kinds, path, settings, checker) if ctx.table else empty
+    while messages and attempts < settings.max_attempts:
         attempts += 1
         try:
             reply = client.call_json(PURPOSE, messages, reply_schema, params)
+        except CassetteMiss:  # 10 §6: template prose; the card differs, so replay exits 6
+            missed = True
+            break
         except ProviderError:
             break
         latency += reply.completion.latency_ms
@@ -226,4 +204,4 @@ def narrate(
         "checker_failures": failures,
     }
     prompts = tuple((name, sha256_text_lf(_PACKAGE / name)) for name in PROMPTS)
-    return Narration(summary, narrator, prompts, sha256_json(reply_schema))
+    return Narration(summary, narrator, prompts, sha256_json(reply_schema), missed)
