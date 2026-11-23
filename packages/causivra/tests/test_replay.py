@@ -13,7 +13,7 @@ import pytest
 from veyltrace_causivra.replay import main, replay
 from veyltrace_core.canonical import canonical_json
 from veyltrace_core.errors import CassetteMiss, ReplayExit, StepFailed
-from veyltrace_core.ids import case_id
+from veyltrace_core.ids import AIMode, case_id
 from veyltrace_core.pipeline import env_info, run_case
 from veyltrace_core.testing import FIXTURE_CODE_COMMIT, repo_root
 
@@ -131,3 +131,35 @@ def test_a_cassette_miss_in_the_rerun_is_exit_2_after_drift(
 
     monkeypatch.setattr("veyltrace_causivra.replay.run_case", miss)
     assert replay(runs["record"] / "receipt.json", allow_env_drift=allow).exit_code == code
+
+
+def _config_before_narration(tmp_path: Path) -> Path:
+    """config/ as locked at results-code-v1: causivra.yaml without the checker and narration keys."""
+    target = tmp_path / "config"
+    shutil.copytree(CONFIG, target)
+    path = target / "causivra.yaml"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(text[: text.index("\n# Claim checker")] + "\n", encoding="utf-8")
+    return target
+
+
+@pytest.mark.parametrize("mode", ["off", "record"])
+def test_a_receipt_locked_before_narration_replays(tmp_path: Path, mode: AIMode) -> None:
+    """#467 review: main must replay results-code-v1 receipts, whose config.lock has no narration."""
+    summary = run_case(
+        "synth", case_id("synth-01"), mode, {"llm.provider": "fake"} if mode == "record" else {},
+        runs_root=tmp_path / "runs", config_dir=_config_before_narration(tmp_path),
+        code_commit=FIXTURE_CODE_COMMIT,
+    )  # fmt: skip
+    assert summary.outcome == "ok", (summary.failed_step, summary.reason)
+    assert '"narration"' not in (summary.run_dir / "config.lock.json").read_text(encoding="utf-8")
+    report = replay(summary.run_dir / "receipt.json")
+    assert report.exit_code == ReplayExit.OK, report.as_json()
+
+
+def test_a_fake_ai_run_reports_narration_in_run_manifest_ai(runs: dict[str, Path]) -> None:
+    """#467 review: the card step's AIManifest reaches run_manifest.ai through the full pipeline."""
+    ai = json.loads((runs["record"] / "run_manifest.json").read_text(encoding="utf-8"))["ai"]
+    assert ai["provider"] == "fake" and ai["model"] is not None
+    assert ai["prompt_sha256"] is not None and ai["schema_sha256"] is not None
+    assert (runs["record"] / "cassette" / "narration" / "index.json").is_file()
