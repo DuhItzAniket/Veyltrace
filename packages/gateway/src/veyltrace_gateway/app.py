@@ -19,6 +19,7 @@ from veyltrace_core.errors import ConfigError
 from veyltrace_core.pipeline import code_commit, runs_root
 from veyltrace_gateway import __version__
 from veyltrace_gateway.api_models import ErrorBody, Health, HealthAI, HealthLive
+from veyltrace_gateway.buffer import LiveBuffer
 from veyltrace_gateway.cases import case_router
 from veyltrace_gateway.errors import add_error_handlers
 from veyltrace_gateway.jobs import JobRunner
@@ -35,7 +36,7 @@ ERRORS: Final[dict[int | str, dict[str, Any]]] = {c: {"model": ErrorBody} for c 
 
 
 def build_health(settings: GatewaySettings, llm: Mapping[str, Any], commit: str) -> Health:
-    """The health envelope. Live receiving is false until the OTLP receiver exists (X-10)."""
+    """The static health envelope; `get_health` fills `live.receiving` from the buffer (X-10)."""
     provider, model = llm.get("provider"), llm.get("model")
     name = model.get("name") if isinstance(model, Mapping) else None
     if not isinstance(provider, str) or not isinstance(name, str):
@@ -56,9 +57,11 @@ def create_app(
     config_dir: Path | None = None,
     runs: Path | None = None,
     jobs: JobRunner | None = None,
+    live: LiveBuffer | None = None,
 ) -> FastAPI:
     """The ASGI app; `settings` default to `config/gateway.yaml`, `runs` to core's runs root (the
-    directory `run_case` writes, `config/core.yaml` paths.runs), `jobs` to a runner over that root."""
+    directory `run_case` writes, `config/core.yaml` paths.runs), `jobs` to a runner over that root.
+    `live` is the OTLP receiver's buffer when `live.enabled` (06 §3.4)."""
     resolved = settings if settings is not None else load_settings(config_dir)
     health = build_health(resolved, load_section_file(LLM_SECTION, config_dir=config_dir), code_commit()[0])
     app = FastAPI(title="Veyltrace gateway", version=__version__, docs_url=None, redoc_url=None)
@@ -73,7 +76,10 @@ def create_app(
 
     @app.get(f"{API_PREFIX}/health", response_model=Health)
     def get_health() -> Health:
-        return health
+        receiving = live is not None and live.receiving(resolved.live.receiving_s)
+        return health.model_copy(
+            update={"live": HealthLive(enabled=resolved.live_enabled, receiving=receiving)}
+        )
 
     root = runs if runs is not None else runs_root()
     app.include_router(case_router(resolved, root), prefix=API_PREFIX, responses=ERRORS)
