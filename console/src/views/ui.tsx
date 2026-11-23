@@ -40,11 +40,15 @@ export function AtomLink({ id }: { id: string }) {
   );
 }
 
-/** A verdict field value linked to its one-line definition in the run view's glossary. */
+/**
+ * A verdict field value linked to its one-line definition in the run view's glossary. Shown at the
+ * stored precision: rounding could move a value across a decision threshold (e.g. margin 0.29996
+ * rounded to 0.3 would read as meeting c_high).
+ */
 export function Field({ name, value }: { name: string; value: number | null }) {
   return (
-    <a href={`#def-${name}`} title={value === null ? "null (+∞)" : String(value)}>
-      {value === null ? "∞" : num(value)}
+    <a href={`#def-${name}`} title={value === null ? "null (+∞)" : undefined}>
+      {value === null ? "∞" : String(value)}
     </a>
   );
 }
