@@ -23,6 +23,8 @@ from veyltrace_gateway.buffer import LiveBuffer
 from veyltrace_gateway.cases import case_router
 from veyltrace_gateway.errors import add_error_handlers
 from veyltrace_gateway.jobs import JobRunner
+from veyltrace_gateway.live import live_router
+from veyltrace_gateway.otlp import ReceiverCounters
 from veyltrace_gateway.runs import run_router
 from veyltrace_gateway.settings import GatewaySettings, load_settings
 from veyltrace_gateway.submit import submit_router
@@ -58,10 +60,12 @@ def create_app(
     runs: Path | None = None,
     jobs: JobRunner | None = None,
     live: LiveBuffer | None = None,
+    counters: ReceiverCounters | None = None,
 ) -> FastAPI:
     """The ASGI app; `settings` default to `config/gateway.yaml`, `runs` to core's runs root (the
     directory `run_case` writes, `config/core.yaml` paths.runs), `jobs` to a runner over that root.
-    `live` is the OTLP receiver's buffer when `live.enabled` (06 §3.4)."""
+    `live` is the OTLP receiver's buffer when `live.enabled` (06 §3.4) and `counters` its request
+    counts; without a buffer the `/live/*` routes answer 503."""
     resolved = settings if settings is not None else load_settings(config_dir)
     health = build_health(resolved, load_section_file(LLM_SECTION, config_dir=config_dir), code_commit()[0])
     app = FastAPI(title="Veyltrace gateway", version=__version__, docs_url=None, redoc_url=None)
@@ -86,4 +90,7 @@ def create_app(
     runner = jobs if jobs is not None else JobRunner(root, config_dir=config_dir)
     app.include_router(submit_router(resolved, root, runner), prefix=API_PREFIX, responses=ERRORS)
     app.include_router(run_router(resolved, root, runner), prefix=API_PREFIX, responses=ERRORS)
+    app.include_router(
+        live_router(resolved, live, counters, root, runner), prefix=API_PREFIX, responses=ERRORS
+    )
     return app
