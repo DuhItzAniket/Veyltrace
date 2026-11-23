@@ -17,13 +17,26 @@ from veyltrace_core.config import load_section_file
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.ids import AI_MODES, AIMode
 
-__all__ = ["LOOPBACK_NAMES", "GatewaySettings", "check_bind", "is_loopback", "load_settings"]
+__all__ = ["LOOPBACK_NAMES", "GatewaySettings", "LiveSettings", "check_bind", "is_loopback", "load_settings"]
 
 SECTION: Final = "gateway"
 #: Host names that always mean this machine (06 §3.6); IP literals are checked with ipaddress.
 LOOPBACK_NAMES: Final = frozenset({"localhost"})
 _MAX_PORT: Final = 65535
 _MAX_POLL_S: Final = 10  # an event stream that polls less often than this looks stuck
+
+
+@dataclass(frozen=True)
+class LiveSettings:
+    """The `live.*` keys of the OTLP receiver and its buffer (06 §3.3, §3.4, §6; X-10)."""
+
+    otlp_host: str
+    otlp_port: int
+    max_body_mb: int
+    buffer_minutes: int
+    buffer_max_mb: int
+    future_tolerance_s: int
+    receiving_s: int
 
 
 @dataclass(frozen=True)
@@ -39,6 +52,7 @@ class GatewaySettings:
     evidence_limit: int
     series_max_points: int
     events_poll_s: float
+    live: LiveSettings
 
 
 def _get(body: Mapping[str, Any], dotted: str) -> object:
@@ -82,6 +96,24 @@ def settings_from(body: Mapping[str, Any]) -> GatewaySettings:
         evidence_limit=evidence,
         series_max_points=_positive(body, "api.series_max_points"),
         events_poll_s=_poll(body),
+        live=_live(body),
+    )
+
+
+def _live(body: Mapping[str, Any]) -> LiveSettings:
+    host, port = _get(body, "live.otlp_host"), _get(body, "live.otlp_port")
+    if not isinstance(host, str) or not host:
+        raise ConfigError(f"gateway.live.otlp_host must be a non-empty string, got {host!r}")
+    if isinstance(port, bool) or not isinstance(port, int) or not 0 < port <= _MAX_PORT:
+        raise ConfigError(f"gateway.live.otlp_port must be an int in 1..{_MAX_PORT}, got {port!r}")
+    return LiveSettings(
+        otlp_host=host,
+        otlp_port=port,
+        max_body_mb=_positive(body, "live.max_body_mb"),
+        buffer_minutes=_positive(body, "live.buffer_minutes"),
+        buffer_max_mb=_positive(body, "live.buffer_max_mb"),
+        future_tolerance_s=_positive(body, "live.future_tolerance_s"),
+        receiving_s=_positive(body, "live.receiving_s"),
     )
 
 
