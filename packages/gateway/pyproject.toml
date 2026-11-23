@@ -10,13 +10,15 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
 # FastAPI + uvicorn: the HTTP API and its ASGI server (02 §8 API row; 06 §2); pydantic: the
-# gateway-only envelopes, imported directly (06 §3.1). Minimums only; uv.lock pins.
+# gateway-only envelopes, imported directly (06 §3.1); pyarrow: the live buffer's record batches
+# and the snapshot window (06 §3.4, X-10). Minimums only; uv.lock pins.
 dependencies = [
     "veyltrace-core",
     "veyltrace-contracts",
     "fastapi>=0.162.2",
     "uvicorn>=0.54.0",
     "pydantic>=2.9",
+    "pyarrow>=17",
 ]
 
 [tool.uv.sources]
