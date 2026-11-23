@@ -83,7 +83,7 @@ The gateway and console read these artifacts for display only and never write th
 
 - Paths and payload shapes follow OTLP/HTTP; gzip `Content-Encoding` is accepted ([stack_and_market §A1][sm-a1]). Decoding uses `opentelemetry-proto` pinned to the same version as the SDKs, to avoid the "invalid protobuf" version-skew failure ([sm §A1][sm-a1]).
 - Decoded requests go straight into Infralume's converter `veyltrace_infralume.otlp` (Observe lane, O-07), which returns canonical-shape Arrow tables, already normalised and scrubbed ([engines/01](engines/01-infralume.md)). The gateway does not parse telemetry semantics itself.
-- **Built (X-10a, #468).** The JSON path comes first: `application/json` bodies, gzip or not, go to the converter, which is injected as `veyltrace_gateway.otlp.OtlpConverter` (`spans`, `metrics` and `logs`, each `(request, settings) -> (table, scrub counters)`, where `request` is one protobuf-JSON export request and `settings` is the `infralume` section). Without a converter the receiver answers 503, and protobuf bodies get 415 (OTLP/HTTP's answer to an unsupported content type) until `opentelemetry-proto` is a dependency. Until then, the lab Collector's `otlphttp` exporter uses `encoding: json`. A retried request (same path and body digest) is acknowledged and buffered once. The buffer's "now" is the newest data time it holds, so retention never reads the clock.
+- **Built (X-10a, #468).** The JSON path comes first: `application/json` bodies, gzip or not, go to the converter, which is injected as `veyltrace_gateway.otlp.OtlpConverter` (`spans`, `metrics` and `logs`, each `(request, settings) -> (table, scrub counters)`, where `request` is one protobuf-JSON export request and `settings` is the `infralume` section). Without a converter the receiver answers 503, and protobuf bodies get 415 (OTLP/HTTP's answer to an unsupported content type) until `opentelemetry-proto` is a dependency. Until then, the lab Collector's `otlphttp` exporter uses `encoding: json`. A retried request (same path and body digest) is acknowledged and buffered once. A body that can never be read (bad JSON, bad or truncated gzip) is 400, which OTLP does not retry. A converter failure is 500, which the Collector retries, so a converter bug does not drop data. A batch the buffer refuses is answered as an OTLP `partialSuccess`. Only `gzip` encoding is accepted; others get 415. The CLI binds the OTLP socket before starting, so a taken port, or `live.otlp_port` equal to `api.port`, stops it with an error. The Collector exporter and the OQ-7 route are #489. The buffer's "now" is the newest data time it holds, so retention never reads the clock.
 - Body larger than `live.max_body_mb` → 413. Malformed body → 400 and a counter. The Collector's own batching and retry provide back-pressure; no queue (Redis, NATS) is used ([stack_and_market §A3][sm-a3]).
 
 ### 3.4 Live: buffer, snapshot, alert watcher, "Diagnose now"
@@ -217,9 +217,10 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | runs root | `runs/` | path | 02 §4.1; read from `config/core.yaml` `paths.runs`, not a gateway key, so the gateway reads the root `run_case` writes (X-04) |
 | `live.enabled` | `false` | bool | only on the demo laptop |
 | `live.otlp_host` / `live.otlp_port` | `127.0.0.1` / 4319 | — | a priori; not the Collector's own 4318 |
-| `live.max_body_mb` | 16 | MB | a priori |
+| `live.max_body_mb` | 16 | MiB | a priori |
 | `live.buffer_minutes` | 30 | min | 02 §5.1 windows + margin |
-| `live.buffer_max_mb` | 512 | MB | a priori (*estimate*) |
+| `live.buffer_max_mb` | 512 | MiB | a priori (*estimate*); Arrow bytes, not RSS; a batch over the cap is refused |
+| `live.future_tolerance_s` | 300 | s | a priori; a batch more than this ahead of the wall clock is refused (X-10) |
 | `live.receiving_s` | 60 | s | a priori; `/health` `live.receiving` while the last OTLP batch is at most this old (X-10) |
 | `live.snapshot_before_min` | 20 | min | 02 §5.1 baseline start |
 | `live.settle_s` / `live.manual_settle_s` | 120 / 0 | s | a priori; trade-off with the 5-minute demo target (§8) |
