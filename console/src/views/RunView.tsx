@@ -1,12 +1,30 @@
-// Run view (docs/06 §5.2 "/runs/:runId"): the run's case and its progress until the run is done.
-// The verdict sections follow in the next X-05 slices.
+// Run view (docs/06 §5.2 "/runs/:runId"): progress until the run is done, then the verdict
+// sections a–b. Every value shown is an artifact value.
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
 
 import { api } from "../api";
 import { Failure } from "./ui";
+import { CandidateSet, Glossary, StatusBanner } from "./Verdict";
 
 const POLL_MS = 2000; // run status refresh while queued or running (06 §5.1 polling fallback)
+
+function FinishedRun({ runId, aiMode }: { runId: string; aiMode: string }) {
+  const finished = { staleTime: Infinity } as const; // finished-run artifacts are immutable (06 §5.1)
+  const verdict = useQuery({ queryKey: ["verdict", runId], queryFn: () => api.verdict(runId), ...finished });
+  const alert = useQuery({ queryKey: ["alert", runId], queryFn: () => api.alert(runId), ...finished });
+  const error = verdict.error ?? alert.error;
+  if (error !== null) return <Failure error={error} />;
+  if (verdict.data === undefined || alert.data === undefined) return <p>Loading verdict…</p>;
+  const v = verdict.data;
+  return (
+    <>
+      <StatusBanner verdict={v} alert={alert.data} aiMode={aiMode} />
+      <CandidateSet verdict={v} />
+      <Glossary />
+    </>
+  );
+}
 
 export function RunView() {
   const { runId = "" } = useParams();
@@ -35,6 +53,7 @@ export function RunView() {
           </p>
         )}
       </div>
+      {s?.state === "done" && <FinishedRun runId={runId} aiMode={s.ai_mode} />}
     </section>
   );
 }

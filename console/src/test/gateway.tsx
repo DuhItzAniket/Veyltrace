@@ -9,10 +9,26 @@ import { AppRoutes } from "../App";
 import casesSynth from "../fixtures/cases-synth.json";
 import datasets from "../fixtures/datasets.json";
 import runsSynth from "../fixtures/runs-synth.json";
+import confirmedAlert from "../fixtures/synth-confirmed/alert.json";
 import confirmedStatus from "../fixtures/synth-confirmed/status.json";
+import confirmedVerdict from "../fixtures/synth-confirmed/verdict.json";
+import inconclusiveAlert from "../fixtures/synth-inconclusive/alert.json";
+import inconclusiveStatus from "../fixtures/synth-inconclusive/status.json";
+import inconclusiveVerdict from "../fixtures/synth-inconclusive/verdict.json";
+import noFaultAlert from "../fixtures/synth-no-fault/alert.json";
+import noFaultStatus from "../fixtures/synth-no-fault/status.json";
+import noFaultVerdict from "../fixtures/synth-no-fault/verdict.json";
 
 export const CONFIRMED = confirmedStatus.run_id;
-export { confirmedStatus };
+export const INCONCLUSIVE = inconclusiveStatus.run_id;
+export const NO_FAULT = noFaultStatus.run_id;
+export { confirmedStatus, confirmedVerdict };
+
+const runs: Record<string, Record<string, unknown>> = {
+  [CONFIRMED]: { "": confirmedStatus, verdict: confirmedVerdict, alert: confirmedAlert },
+  [INCONCLUSIVE]: { "": inconclusiveStatus, verdict: inconclusiveVerdict, alert: inconclusiveAlert },
+  [NO_FAULT]: { "": noFaultStatus, verdict: noFaultVerdict, alert: noFaultAlert },
+};
 
 /** Paths (without /api/v1) whose response a test replaces, e.g. `/runs/<id>/verdict`. */
 export type Overrides = Record<string, unknown>;
@@ -36,8 +52,10 @@ function route(method: string, url: URL, overrides: Overrides): Response {
   if (path === "/datasets") return json(datasets);
   if (path === "/cases" && url.searchParams.get("dataset") === "synth") return json(casesSynth);
   if (path === "/runs" && url.searchParams.get("dataset") === "synth") return json(runsSynth);
-  if (path === `/runs/${CONFIRMED}`) return json(confirmedStatus);
-  return notFound();
+  const match = /^\/runs\/([0-9a-f]{16})(?:\/(.*))?$/.exec(path);
+  if (match?.[1] === undefined) return notFound();
+  const body = runs[match[1]]?.[match[2] ?? ""];
+  return body === undefined ? notFound() : json(body);
 }
 
 /** Replace `fetch` with the fixture gateway; returns the list of calls the app made. */

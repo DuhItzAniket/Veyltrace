@@ -7,5 +7,7 @@ Gateway responses captured verbatim with `curl` from a local gateway (`uv run py
 | Folder | Run | Verdict status |
 |---|---|---|
 | `synth-confirmed/` | `72d3d6973cb2c78b` (case `067c1ba0c360`) | `CONFIRMED` |
+| `synth-inconclusive/` | `22f74b437440ffca` (case `0ad66f75c9ac`) | `INCONCLUSIVE` |
+| `synth-no-fault/` | `cbc71a0d761a51e3` (case `3263e227fcbe`) | `NO_FAULT` |
 
-Each folder holds the run's `GET /runs/{run_id}` as `status.json`. Regenerate by re-running the cases and repeating the `curl` calls; run ids change when config or code change.
+Each folder holds the run's `GET /runs/{run_id}` (`status.json`), `/verdict` and `/alert`. Regenerate by re-running the cases and repeating the `curl` calls; run ids change when config or code change.

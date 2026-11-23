@@ -1,4 +1,5 @@
-// Small shared pieces of the console views: the error line and the pager.
+// Small shared pieces of the console views: the error line, the pager, number display and the
+// links verdict-field numbers need (docs/06 §5.3 rule 2).
 import { ApiError } from "../api";
 
 export function Failure({ error }: { error: Error }) {
@@ -7,6 +8,20 @@ export function Failure({ error }: { error: Error }) {
     <p role="alert">
       Could not load{code}: {error.message}
     </p>
+  );
+}
+
+/** Display only: 4 significant digits; the full artifact value stays in the title. */
+export function num(x: number): string {
+  return Number(x.toPrecision(4)).toString();
+}
+
+/** A verdict field value linked to its one-line definition in the run view's glossary. */
+export function Field({ name, value }: { name: string; value: number | null }) {
+  return (
+    <a href={`#def-${name}`} title={value === null ? "null (+∞)" : String(value)}>
+      {value === null ? "∞" : num(value)}
+    </a>
   );
 }
 
