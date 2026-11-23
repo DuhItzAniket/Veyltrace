@@ -3,7 +3,7 @@
 // as CONFIRMED, and status and trial results are always text plus shape, never colour alone.
 import { useSearchParams } from "react-router";
 
-import type { Alert, Verdict, VerdictRankedTrials } from "../../../contracts/generated/ts/api";
+import type { Alert, Verdict, VerdictRanked, VerdictRankedTrials } from "../../../contracts/generated/ts/api";
 import { AtomLink, Field } from "./ui";
 
 type Status = Verdict["status"];
@@ -106,12 +106,18 @@ export function CandidateSet({ verdict }: { verdict: Verdict }) {
   );
 }
 
+/** `service` or `service/component`: the table and drawer name a candidate the same way. */
+function candidateName(r: VerdictRanked): string {
+  return r.component === null ? r.service : `${r.service}/${r.component}`;
+}
+
 export function RankedTable({ verdict }: { verdict: Verdict }) {
   const [params, setParams] = useSearchParams();
-  const open = (service: string, id: TrialId) => {
+  // Keyed by rank, which is unique per row; a service can appear on more than one row.
+  const open = (rank: number, id: TrialId) => {
     const next = new URLSearchParams(params);
     next.set("trial", id);
-    next.set("for", service);
+    next.set("rank", String(rank));
     setParams(next);
   };
   return (
@@ -119,8 +125,8 @@ export function RankedTable({ verdict }: { verdict: Verdict }) {
       <caption>Ranked candidates</caption>
       <thead>
         <tr>
-          <th scope="col">Service</th>
           <th scope="col">Rank</th>
+          <th scope="col">Candidate</th>
           <th scope="col">Origin</th>
           <th scope="col">Fused score</th>
           <th scope="col">V</th>
@@ -131,9 +137,9 @@ export function RankedTable({ verdict }: { verdict: Verdict }) {
       </thead>
       <tbody>
         {verdict.ranked.map((r) => (
-          <tr key={`${r.service}/${r.component ?? ""}`}>
-            <th scope="row">{r.component === null ? r.service : `${r.service}/${r.component}`}</th>
+          <tr key={r.rank}>
             <td>{r.rank}</td>
+            <th scope="row">{candidateName(r)}</th>
             <td>{r.origin}</td>
             <td>
               <Field name="fused_score" value={r.fused_score} />
@@ -150,7 +156,7 @@ export function RankedTable({ verdict }: { verdict: Verdict }) {
                   type="button"
                   className={`badge ${t.result}`}
                   onClick={() => {
-                    open(r.service, t.id);
+                    open(r.rank, t.id);
                   }}
                 >
                   <span aria-hidden="true">{BADGE[t.result]}</span> {t.id} {t.result}
@@ -164,17 +170,18 @@ export function RankedTable({ verdict }: { verdict: Verdict }) {
   );
 }
 
-/** The trial drawer: the selected badge's result, reason and atoms (from `?trial=&for=`). */
+/** The trial drawer: the selected badge's result, reason and atoms (from `?trial=&rank=`). */
 export function TrialPanel({ verdict }: { verdict: Verdict }) {
   const [params] = useSearchParams();
   const id = TRIALS.find((t) => t === params.get("trial"));
-  const service = params.get("for");
-  const trial = verdict.ranked.find((r) => r.service === service)?.trials.find((t) => t.id === id);
-  if (trial === undefined || service === null) return null;
+  const row = verdict.ranked.find((r) => String(r.rank) === params.get("rank"));
+  const trial = row?.trials.find((t) => t.id === id);
+  if (row === undefined || trial === undefined) return null;
+  const name = candidateName(row);
   return (
-    <section aria-label={`Trial ${trial.id} of ${service}`} className="drawer">
+    <section aria-label={`Trial ${trial.id} of ${name}`} className="drawer">
       <h3>
-        Trial {trial.id} of {service}
+        Trial {trial.id} of {name}
       </h3>
       <p>{trial.reason === null ? trial.result : `${trial.result}: ${trial.reason}`}</p>
       {trial.atoms.length === 0 ? (

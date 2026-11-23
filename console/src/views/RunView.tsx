@@ -24,11 +24,15 @@ function PathAndTimeline({ card }: { card: Card }) {
         {card.path.length === 0 ? (
           <p>No propagation path</p>
         ) : (
-          <ol className="path">
-            {card.path.map((node) => (
-              <li key={node}>{node}</li>
-            ))}
-          </ol>
+          <>
+            {/* Only a CONFIRMED path starts at a confirmed root (06 §5.3 rule 1). */}
+            {card.status !== "CONFIRMED" && <p>From the leading candidate, not confirmed</p>}
+            <ol className="path">
+              {card.path.map((node) => (
+                <li key={node}>{node}</li>
+              ))}
+            </ol>
+          </>
         )}
       </section>
       <section aria-label="Timeline">

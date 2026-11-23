@@ -1,6 +1,6 @@
 # Console test fixtures
 
-Gateway responses captured verbatim with `curl` from a local gateway (`uv run python -m veyltrace_gateway`) after AI-off runs of the five `synth` cases (`POST /api/v1/runs`, commit `948fb049`). Served to the views by the fetch stub in `src/test/gateway.ts`; not formatted by Prettier, so they stay byte-identical to the API output.
+Gateway responses captured verbatim with `curl` from a local gateway (`uv run python -m veyltrace_gateway`) after AI-off runs of the five `synth` cases (`POST /api/v1/runs`, commit `948fb049`). Served to the views by the fetch stub in `src/test/gateway.tsx`; not formatted by Prettier, so they stay byte-identical to the API output.
 
 | Folder | Run | Verdict status |
 |---|---|---|

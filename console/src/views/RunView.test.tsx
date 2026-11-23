@@ -41,6 +41,8 @@ describe("run view: status banner", () => {
     expect(b.getByText("No single root cause established")).toBeTruthy();
     expect(b.getByText("frontend: leading candidate, not confirmed")).toBeTruthy();
     expect(b.getByText(/mandatory trial T1 failed: no_internal_anomaly/)).toBeTruthy();
+    const path = within(screen.getByRole("region", { name: "Propagation path" }));
+    expect(path.getByText("From the leading candidate, not confirmed")).toBeTruthy();
   });
 
   it("reads NO_FAULT with an empty candidate set shown as empty", async () => {
@@ -153,6 +155,26 @@ describe("run view: ranked table, trial drawer, path and timeline", () => {
     expect(first.getByRole("button", { name: "T6 fail" })).toBeTruthy();
     expect(first.getByRole("button", { name: "T5 untestable" })).toBeTruthy();
     expect(first.getByText("slate")).toBeTruthy();
+    expect(top.querySelector("td")?.textContent).toBe("1");
+  });
+
+  // Handmade from the CONFIRMED fixture: the same service ranked twice (two components).
+  it("opens the trial of the clicked row when a service is ranked twice", async () => {
+    const [r1, r2, ...rest] = confirmedVerdict.ranked;
+    if (r1 === undefined || r2 === undefined) throw new Error("fixture has fewer than 2 ranked rows");
+    stubGateway({
+      [`/runs/${CONFIRMED}/verdict`]: {
+        ...confirmedVerdict,
+        ranked: [r1, { ...r2, service: "payment", component: "payment-2" }, ...rest],
+      },
+    });
+    renderAt(`/runs/${CONFIRMED}`);
+    const table = within(await screen.findByRole("table", { name: "Ranked candidates" }));
+    const [secondT1] = table.getAllByRole("button", { name: "T1 fail" });
+    if (secondT1 === undefined) throw new Error("no failed T1 badge");
+    fireEvent.click(secondT1);
+    const trial = within(await screen.findByRole("region", { name: "Trial T1 of payment/payment-2" }));
+    expect(trial.getByText("fail: explained_by_callee:payment")).toBeTruthy();
   });
 
   it("opens a trial's reason and atoms, and an atom link shows the evidence row", async () => {
@@ -180,6 +202,7 @@ describe("run view: ranked table, trial drawer, path and timeline", () => {
       "checkout",
       "frontend",
     ]);
+    expect(path.queryByText(/not confirmed/)).toBeNull();
     const timeline = within(screen.getByRole("region", { name: "Timeline" }));
     expect(timeline.getByText(/cart-1 deploy change/)).toBeTruthy();
     expect(timeline.getByRole("link", { name: "Ea59a066a7a" })).toBeTruthy();
