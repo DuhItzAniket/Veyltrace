@@ -67,6 +67,7 @@ class ReceiverCounters:
     duplicate: int = 0
     rejected: int = 0
     scrub: dict[str, int] = field(default_factory=lambda: {})
+    converter_installed: bool = False
 
 
 async def _body(request: Request, limit: int) -> bytes:
@@ -108,6 +109,7 @@ def create_otlp_app(
     app = FastAPI(title="Veyltrace OTLP receiver", docs_url=None, redoc_url=None, openapi_url=None)
     add_error_handlers(app)
     tally = counters if counters is not None else ReceiverCounters()
+    tally.converter_installed = converter is not None
     limit = max_body_mb * BYTES_PER_MIB
 
     def ingest(convert: Converts, signal: str, raw: bytes) -> tuple[AddResult, int, Mapping[str, int]]:

@@ -1844,13 +1844,20 @@
       },
       "LiveStatus": {
         "additionalProperties": false,
-        "description": "`live_status` (06 §3.4) without the watcher fields: the alert watcher is cut to v1.1\n(#227), so its state and last alert time arrive with it. Rows and bytes are per source;\ndata times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies.",
+        "description": "`live_status` (06 §3.4) without the watcher fields: the alert watcher is cut to v1.1\n(#227), so its state and last alert time arrive with it. Rows and bytes are per source;\ndata times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies,\n`dropped` the batches the buffer refused by reason, and `scrub` the converter's counters.",
         "properties": {
           "bytes": {
             "additionalProperties": {
               "type": "integer"
             },
             "title": "Bytes",
+            "type": "object"
+          },
+          "dropped": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Dropped",
             "type": "object"
           },
           "newest_ns": {
@@ -1900,6 +1907,13 @@
             "title": "Run Ids",
             "type": "array"
           },
+          "scrub": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Scrub",
+            "type": "object"
+          },
           "seconds_since_last_batch": {
             "anyOf": [
               {
@@ -1927,6 +1941,8 @@
           "oldest_ns",
           "newest_ns",
           "requests",
+          "dropped",
+          "scrub",
           "snapshots",
           "run_ids"
         ],

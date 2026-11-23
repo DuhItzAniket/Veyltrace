@@ -180,7 +180,8 @@ class LiveSnapshot(_Envelope):
 class LiveStatus(_Envelope):
     """`live_status` (06 §3.4) without the watcher fields: the alert watcher is cut to v1.1
     (#227), so its state and last alert time arrive with it. Rows and bytes are per source;
-    data times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies."""
+    data times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies,
+    `dropped` the batches the buffer refused by reason, and `scrub` the converter's counters."""
 
     receiving: bool
     seconds_since_last_batch: float | None
@@ -189,5 +190,7 @@ class LiveStatus(_Envelope):
     oldest_ns: int | None
     newest_ns: int | None
     requests: dict[str, int]
+    dropped: dict[str, int]
+    scrub: dict[str, int]
     snapshots: list[str]
     run_ids: list[str]

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import queue
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -31,6 +31,7 @@ class Job:
     dataset: str
     case_id: str
     ai_mode: AIMode
+    overrides: dict[str, Any] = field(default_factory=lambda: {})  # config overrides (live runs)
     state: JobState = "queued"
     step: int = 0
     step_name: str = STEPS[0].name
@@ -61,9 +62,11 @@ class JobRunner:
         self._lock = threading.Lock()
         self._worker: threading.Thread | None = None
 
-    def plan_run_id(self, case_id: str, ai_mode: AIMode, dataset: str) -> str:
+    def plan_run_id(
+        self, case_id: str, ai_mode: AIMode, dataset: str, overrides: Mapping[str, Any] | None = None
+    ) -> str:
         """The run id `run_case` will use for this job (02 §4.1)."""
-        return plan_run_id(dataset, case_id, ai_mode, {}, **self._plan())
+        return plan_run_id(dataset, case_id, ai_mode, dict(overrides or {}), **self._plan())
 
     def _plan(self) -> dict[str, Any]:
         """The `run_case` plan of every job; `plan_run_id` needs the same one."""
@@ -80,14 +83,21 @@ class JobRunner:
         with self._lock:
             return sorted(self._jobs.values(), key=lambda j: j.run_id)
 
-    def submit(self, dataset: str, case_id: str, ai_mode: AIMode, run_id: str) -> Job:
+    def submit(
+        self,
+        dataset: str,
+        case_id: str,
+        ai_mode: AIMode,
+        run_id: str,
+        overrides: Mapping[str, Any] | None = None,
+    ) -> Job:
         """Queue a run, or return the job already queued or running under `run_id`. An ended job is
         replaced: the caller found no finished run, so it failed or its directory lost the receipt."""
         with self._lock:
             job = self._jobs.get(run_id)
             if job is not None and job.state in ("queued", "running"):
                 return job
-            job = Job(run_id=run_id, dataset=dataset, case_id=case_id, ai_mode=ai_mode)
+            job = Job(run_id, dataset, case_id, ai_mode, dict(overrides or {}))
             self._jobs[run_id] = job
             self._start()
         self._queue.put(lambda: self._run(job))
@@ -138,7 +148,9 @@ class JobRunner:
         with self._lock:
             job.state = "running"
         try:
-            summary = run_case(job.dataset, job.case_id, job.ai_mode, {}, progress=progress, **self._plan())
+            summary = run_case(
+                job.dataset, job.case_id, job.ai_mode, job.overrides, progress=progress, **self._plan()
+            )
             ok, error = summary.outcome == "ok", summary.reason
             if ok and summary.run_id != job.run_id:  # the id contract of 02 §4.1 broke: say so
                 ok, error = False, f"run id {summary.run_id} differs from the planned {job.run_id}"

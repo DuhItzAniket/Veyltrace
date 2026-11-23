@@ -14,10 +14,12 @@ from fastapi import FastAPI
 from veyltrace_core.config import load_section_file
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.testing import FIXTURE_CODE_COMMIT, repo_root
+from veyltrace_gateway import live
 from veyltrace_gateway.buffer import LiveBuffer
 from veyltrace_gateway.errors import add_error_handlers
 from veyltrace_gateway.jobs import JobRunner
 from veyltrace_gateway.live import live_router
+from veyltrace_gateway.otlp import ReceiverCounters
 from veyltrace_gateway.settings import load_settings, settings_from
 
 CONFIG = repo_root() / "config"
@@ -46,18 +48,26 @@ def _post(app: Any, path: str, body: object | None = None) -> tuple[int, Any]:
     return sent[0]["status"], json.loads(b"".join(m.get("body", b"") for m in sent[1:]))
 
 
-def _app(buffer: LiveBuffer | None, tmp_path: Path) -> FastAPI:
+def _app(buffer: LiveBuffer | None, tmp_path: Path, converter: bool = True) -> FastAPI:
     app = FastAPI()
     add_error_handlers(app)
     runner = JobRunner(tmp_path / "runs", commit=FIXTURE_CODE_COMMIT, config_dir=CONFIG)
-    app.include_router(live_router(load_settings(CONFIG), buffer, None, tmp_path / "runs", runner, lambda: T))
+    counters = ReceiverCounters(converter_installed=converter)
+    app.include_router(
+        live_router(load_settings(CONFIG), buffer, counters, tmp_path / "runs", runner, lambda: T)
+    )
     return app
 
 
 def test_route_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VEYLTRACE_DATA", str(tmp_path / "data"))
     assert _post(_app(None, tmp_path), "/live/status")[1]["error"]["code"] == "live_disabled"
+    no_converter = _app(LiveBuffer(30, 512, 300), tmp_path, converter=False)
+    assert _post(no_converter, "/live/snapshot")[1]["error"]["code"] == "converter_missing"
     app = _app(LiveBuffer(30, 512, 300), tmp_path)
+    monkeypatch.setattr(live, "find_adapter", lambda dataset: None)  # O-07 not installed
+    assert _post(app, "/live/diagnose")[1]["error"]["code"] == "adapter_missing"
+    monkeypatch.setattr(live, "find_adapter", lambda dataset: object())
     assert _post(app, "/live/diagnose") == (
         409,
         {"error": {"code": "buffer_empty", "message": "no live data in the last 20 min"}},

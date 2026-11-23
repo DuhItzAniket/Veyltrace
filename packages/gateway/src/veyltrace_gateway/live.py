@@ -4,17 +4,22 @@
 hashed, before any run starts (package rule 6), then queues one run per `live.ai_modes` with
 `dataset = live`, AI off first. Infralume's `otlp_live` adapter reads the snapshot and writes the
 hint (`hint_source = live`), and core's alert step turns it into `alert.json`, so the gateway holds
-no analysis logic. The clock is injected so tests fix the trigger.
+no analysis logic. The runs carry `core.alert.protocol=live`, so `alert.json` records the live
+protocol (03 §2.6). A missing converter or adapter is 503 before anything is written, as for the
+replay route's command. The clock is injected so tests fix the trigger. The snapshot and run id
+lists live in memory only (lost on restart, never pruned): enough for a demo session.
 """
 
 # No `from __future__ import annotations`: FastAPI reads the route annotations at creation.
 import time
 from collections.abc import Callable
 from pathlib import Path
+from typing import Final
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from veyltrace_core.adapters import find_adapter
 from veyltrace_core.config import data_root
 from veyltrace_core.errors import ContractValidationError
 from veyltrace_gateway.api_models import LiveRequest, LiveSnapshot, LiveStatus, RunStatus
@@ -26,7 +31,10 @@ from veyltrace_gateway.runs import finished_run, finished_status, job_status
 from veyltrace_gateway.settings import GatewaySettings
 from veyltrace_gateway.snapshot import LIVE_DATASET, Snapshot, write_snapshot
 
-__all__ = ["live_router"]
+__all__ = ["LIVE_OVERRIDES", "live_router"]
+
+#: Config overrides of every live run: the hint is the live trigger (02 §5.1; 03 §2.6).
+LIVE_OVERRIDES: Final = {"core.alert.protocol": "live"}
 
 
 def live_router(
@@ -47,6 +55,8 @@ def live_router(
         return buffer
 
     def snapshot(request: LiveRequest | None) -> Snapshot:
+        if counters is None or not counters.converter_installed:
+            raise ApiError(503, "converter_missing", "Infralume's OTLP converter (O-07) is not installed")
         before = request.before_min if request and request.before_min else settings.live.snapshot_before_min
         if before > settings.live.buffer_minutes:
             raise ApiError(422, "invalid_request", f"before_min exceeds live.buffer_minutes ({before})")
@@ -72,6 +82,8 @@ def live_router(
             oldest_ns=stats.oldest_ns,
             newest_ns=stats.newest_ns,
             requests={"accepted": tally.accepted, "duplicate": tally.duplicate, "rejected": tally.rejected},
+            dropped=stats.dropped,
+            scrub=dict(tally.scrub),
             snapshots=list(snapshots),
             run_ids=list(run_ids),
         )
@@ -82,20 +94,24 @@ def live_router(
 
     @router.post("/live/diagnose", status_code=202, response_model=RunStatus)
     def post_diagnose(request: LiveRequest | None = None) -> JSONResponse:
+        live()
+        if find_adapter(LIVE_DATASET) is None:
+            raise ApiError(503, "adapter_missing", "Infralume's otlp_live adapter (O-07) is not installed")
         snap = snapshot(request)
         first: RunStatus | None = None
         for mode in settings.live.ai_modes:  # AI off first (06 §3.4)
-            rid = runner.plan_run_id(snap.case_id, mode, LIVE_DATASET)
+            rid = runner.plan_run_id(snap.case_id, mode, LIVE_DATASET, LIVE_OVERRIDES)
             done = finished_run(runs_root, rid)  # the same snapshot twice: the run already exists
             status = (
                 finished_status(done)
                 if done
-                else job_status(runner.submit(LIVE_DATASET, snap.case_id, mode, rid))
+                else job_status(runner.submit(LIVE_DATASET, snap.case_id, mode, rid, LIVE_OVERRIDES))
             )
             first = first or status
             if rid not in run_ids:
                 run_ids.append(rid)
         assert first is not None  # live.ai_modes is never empty (settings)
-        return JSONResponse(first.model_dump(mode="json"), status_code=202)
+        code = 200 if first.state == "done" else 202  # as POST /runs for a finished run
+        return JSONResponse(first.model_dump(mode="json"), status_code=code)
 
     return router
