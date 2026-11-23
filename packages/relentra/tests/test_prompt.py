@@ -129,14 +129,23 @@ def test_the_repair_turn_adds_the_output_and_the_errors() -> None:
     )
 
 
-#: From the lead's render of the dev cases' graphs (review of #347): names the briefs used that are
-#: not graph nodes, and nodes they left out. The model can select only nodes (08 §3.3).
-_NOT_NODES = {"ob": ("redis-cart",), "ss": ("carts-db", "catalogue-db", "orders-db", "user-db")}
-_MISSING_NODES = {"ob": ("frontend-external",), "ss": ("session", "rabbitmq-exporter")}
+#: The graph nodes of each system in the RE2 runs (the lead's and Annapurna's review of #446; Istio
+#: artefacts seen in a few runs are left out). The model can select only nodes (08 §3.3).
+_NODES = {
+    "ob": (
+        "adservice", "cartservice", "checkoutservice", "currencyservice", "emailservice", "frontend",
+        "frontend-external", "paymentservice", "productcatalogservice", "recommendationservice",
+        "redis", "shippingservice",
+    ),
+    "ss": (
+        "carts", "catalogue", "front-end", "orders", "payment", "queue-master", "rabbitmq",
+        "rabbitmq-exporter", "session", "shipping", "user",
+    ),
+}  # fmt: skip
 
 
-@pytest.mark.parametrize("system", sorted(_NOT_NODES))
-def test_briefs_name_graph_nodes_only(system: str) -> None:
+@pytest.mark.parametrize("system", sorted(_NODES))
+def test_each_brief_bullet_names_one_node_and_every_node_has_one(system: str) -> None:
     brief = load_prompt_files(system, "re2-" + system, [], SETTINGS).brief
-    assert not [name for name in _NOT_NODES[system] if name in brief]
-    assert all(f"- {name} " in brief for name in _MISSING_NODES[system])
+    bullets = [line[2:].split(" ", 1)[0] for line in brief.splitlines() if line.startswith("- ")]
+    assert sorted(bullets) == sorted(_NODES[system])
