@@ -10,13 +10,16 @@ import casesSynth from "../fixtures/cases-synth.json";
 import datasets from "../fixtures/datasets.json";
 import runsSynth from "../fixtures/runs-synth.json";
 import confirmedAlert from "../fixtures/synth-confirmed/alert.json";
+import confirmedCard from "../fixtures/synth-confirmed/card.json";
 import confirmedEvidence from "../fixtures/synth-confirmed/evidence.json";
 import confirmedStatus from "../fixtures/synth-confirmed/status.json";
 import confirmedVerdict from "../fixtures/synth-confirmed/verdict.json";
 import inconclusiveAlert from "../fixtures/synth-inconclusive/alert.json";
+import inconclusiveCard from "../fixtures/synth-inconclusive/card.json";
 import inconclusiveStatus from "../fixtures/synth-inconclusive/status.json";
 import inconclusiveVerdict from "../fixtures/synth-inconclusive/verdict.json";
 import noFaultAlert from "../fixtures/synth-no-fault/alert.json";
+import noFaultCard from "../fixtures/synth-no-fault/card.json";
 import noFaultStatus from "../fixtures/synth-no-fault/status.json";
 import noFaultVerdict from "../fixtures/synth-no-fault/verdict.json";
 
@@ -26,9 +29,14 @@ export const NO_FAULT = noFaultStatus.run_id;
 export { confirmedEvidence, confirmedStatus, confirmedVerdict };
 
 const runs: Record<string, Record<string, unknown>> = {
-  [CONFIRMED]: { "": confirmedStatus, verdict: confirmedVerdict, alert: confirmedAlert },
-  [INCONCLUSIVE]: { "": inconclusiveStatus, verdict: inconclusiveVerdict, alert: inconclusiveAlert },
-  [NO_FAULT]: { "": noFaultStatus, verdict: noFaultVerdict, alert: noFaultAlert },
+  [CONFIRMED]: { "": confirmedStatus, verdict: confirmedVerdict, card: confirmedCard, alert: confirmedAlert },
+  [INCONCLUSIVE]: {
+    "": inconclusiveStatus,
+    verdict: inconclusiveVerdict,
+    card: inconclusiveCard,
+    alert: inconclusiveAlert,
+  },
+  [NO_FAULT]: { "": noFaultStatus, verdict: noFaultVerdict, card: noFaultCard, alert: noFaultAlert },
 };
 
 /** Paths (without /api/v1) whose response a test replaces, e.g. `/runs/<id>/verdict`. */

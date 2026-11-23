@@ -1,0 +1,68 @@
+% The incident card and its narration, Explain lane (X-13, #50). No slot exists yet: the lead
+% inputs it from 03-design.tex (proposed: a subsection "The incident card and narration" before
+% "Receipts and replay"), so this file has no heading of its own. Sources: docs/02 §2 P3-P4,
+% §5.2, §6.10; engines 10 §2-§6; 03 §11; code packages/causivra (narrate.py, checker.py,
+% placeholders.py, fmt.py, prose.py, replay.py). Every constant is a design default from
+% config/causivra.yaml or engines 10 §4, fixed a priori.
+\eng{Causivra} turns the sealed verdict into an incident card and never changes it.
+Almost all of the card is deterministic: the title, status, root, candidate set and confidence copied from the verdict; an evidence table of at most 20 atoms (the leader's trial atoms, its claim checks that hold, and the atoms behind each runner-up's first failed trial); a timeline of the alert, the onsets and every change on a decision-pool candidate, decoys included; the root's propagation path; a why-not line per runner-up, chosen by its first failed trial; the verifier's asks; and next steps from a fixed playbook per fault class, which suggest read-only checks and never act on the system.
+Only the summary, two to five sentences, is designed to be written by the model; with the AI off, or whenever narration fails, it is written from templates instead.
+The LLM narration and the claim checker described below were added after the code was frozen for the results runs, so every card in this paper's experiments, AI arms included, has template prose; we describe the narrator as designed and tested, and Section~\ref{sec:results} reports no result for it.
+In one industrial experience report on LLM-based test-failure analysis, practitioners valued pointers to relevant evidence even when they rejected the proposed root cause, and found confidence values hard to interpret~\cite{westermo2026}; the card therefore shows a set, a status and cited atoms, never a probability.
+
+\paragraph{Placeholders instead of values}
+The model sees the status, the confidence level, the root and runner-up as role placeholders with their fault class and indicator also as placeholders, the root's trial outcomes by identifier, the path as service placeholders, and the evidence table as rows of atom identifier, label, kind and unit, \emph{without the values}.
+It must write a value as \code{{E<id>.value}} and a service as \code{{ROOT}}, \code{{RUNNER_UP}} or \code{{SVC:<node>}}; the other placeholders give an atom's unit, label, candidate or window, the confidence level, margin and set size, the status and the onset time.
+Code fills every placeholder from the verdict and the evidence table through one number formatter (three significant figures, round half to even, counts as integers), the same filler that fills the template sentences.
+Withholding the values removes the model's main source of digits to copy; this is a design choice, and its effect on rejections is not measured: the ablation that shows the values is specified but neither built nor run.
+The reply schema is flat: two to five sentences, each a text of at most 300 characters and one to four citations drawn from an enumeration of the evidence table's atoms.
+A card whose table is empty gets template prose without a call.
+
+\paragraph{The claim checker}
+Each sentence is checked before filling by eight rules in a fixed order (Table~\ref{tab:checker}); the first failing rule is reported at its first offending token.
+C1--C3 check the placeholders, C4--C7 look only at the text outside them, and C8 limits the raw sentence's length and shape.
+Together they make three properties hold by construction for every sentence that reaches the card: each measured value comes from a cited atom or from the verdict, each service name was resolved against the case's own services, and each sentence cites at least one atom.
+C7 adds a weaker, lexical guarantee that the wording is no more certain than the status.
+The checker does not judge meaning: a sentence may cite the right atom and still draw the wrong conclusion from it, and whether every service a sentence mentions is the candidate of an atom it cites is not enforced, only measurable from the card.
+C6 is strict, and rejects ordinary words that happen to be service names (OpenTelemetry Demo has services named \emph{cart} and \emph{payment}); we have not measured its false-rejection rate, and the rule stays strict a priori.
+All word lists are configuration, fixed before the results runs.
+
+\begin{table}[t]
+\caption{Claim-checker rules, applied to each narrated sentence before its placeholders are filled. C4--C7 read only the text outside placeholders and C8 the raw sentence; the word lists are configuration.}
+\label{tab:checker}
+\small
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\toprule
+Rule & Rejects a sentence when \dots \\
+\midrule
+C1 syntax & a brace is unbalanced or nested, or a placeholder is outside the grammar \\
+C2 resolvable & a placeholder cannot be filled on this card, e.g.\ \code{{ROOT}} under \NOFAULT or an atom not in the table \\
+C3 citation & it cites nothing, cites an atom outside the table, or uses an atom placeholder without citing that atom \\
+C4 raw digits & a digit appears outside an allowed token (trial ids, \code{p50}--\code{p99}, \code{4xx}, \code{5xx}, \code{HTTP/2}, \code{k8s}) \\
+C5 quantities & a percent sign or a quantity word appears (\emph{two} to \emph{twenty}, \emph{twice}, \emph{doubled}, \emph{half}, \emph{tenfold}, \emph{percent}, \dots) \\
+C6 entities & a service or component name appears as plain text, or an identifier-shaped token (snake, kebab or camel case) outside an allow-list \\
+C7 status honesty & a certainty phrase (\emph{confirmed}, \emph{definitely}, \emph{proven}, \emph{the root cause is}, \dots) appears and the status is not \st{CONFIRMED} \\
+C8 shape & it exceeds 300 characters or 40 words, holds more than one sentence, or does not end in a full stop \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{One repair, then templates}
+If any sentence of the first reply fails, a second call resends the conversation with the reply and a list of (sentence, rule, token) for each failure.
+If the second reply also has a failing sentence, or a call raises a provider error, or the recorded latency of the calls passes the 60\,s narration budget, all model sentences are discarded and the summary falls back to template prose; model and template sentences are never mixed.
+Template sentences are fixed per status (for example, ``\code{{ROOT}} is the only member of the candidate set and passed every mandatory trial.''), go through the same grammar and filler, and must pass the same checker, which parametrised tests enforce on the synthetic cases and on every template under its status.
+So a card always has a summary whose values come from atoms; what the model can add is wording, not facts.
+
+\paragraph{The narrator block}
+Each card records how its summary was written in a \code{narrator} block: the path (\code{llm} or \code{template}), the model name on the LLM path, the number of narration calls (0--2) and the number of sentences the checker rejected across them.
+The Markdown card prints it as ``prose: template'' or ``prose: LLM \textless model\textgreater, checked'', and \code{card_hash} covers it, so a reader can tell model prose from template prose and replay can tell when that changed.
+
+\paragraph{Replay of the narrative}
+Narration calls go through the same cassette as the proposer's, under their own purpose, and are not part of the proposer's agent trace.
+Replay (\S\ref{sec:receipts}) compares \code{verdict_hash} and the agent-trace head first and \code{card_hash} last.
+A run whose verdict and trace reproduce but whose card differs exits with code~6, a pass for the decision and a fail for the explanation; a narration call missing from the cassette falls back to template prose, so a run whose recorded card had LLM prose then replays as a narrative mismatch, not a verdict mismatch (exit~2), when its verdict and trace reproduce: exit~6, or exit~5 under environment drift that is not allowed, while a run whose recorded card already had template prose replays with exit~0.
+To help diagnosis, the replay report also names the first intermediate artefact whose hash differs from the record.
+
+Because the results runs predate the narrator, their cards are template prose, so a Tier-1 exit~6 there can come only from a difference in deterministic card output.
+Tier-1 replay of the recorded runs exited with code~6 on \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/replay.tier1_outcomes.6} of them (\S\ref{sec:rq6}).
+\leadq{the exit-6 count is in Tier-1 \code{replay_summary.json} (\code{tier1.outcomes}); its key here is provisional. The narration metrics of 04 §7 (fallback rate, checker rejections per rule, entity--atom consistency) have no source run, because narration and the checker (\#458, \#461) merged after \code{results-code-v1}, so they are left out rather than given a placeholder that would print a trivial value.}
