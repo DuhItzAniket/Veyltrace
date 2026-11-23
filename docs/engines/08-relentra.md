@@ -392,7 +392,7 @@ Excluded from the key (recorded in the entry for audit): provider kind, `base_ur
 | Mode | Behaviour |
 |---|---|
 | `off` | `veyltrace_llm` refuses every call (`AIDisabled`) |
-| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record`; even then it checks every entry before deleting any, and refuses (deleting nothing) when one is not a cassette file ([02 §4.1](../02-architecture.md#41-run-directory)) |
+| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record`; even then it checks every entry before deleting any, and refuses (deleting nothing) when one is not a cassette file ([02 §4.1](../02-architecture.md#41-run-directory)). A later step of the same run (Causivra's narration, 10 §3.2) opens it with `append`: it keeps the earlier entries and refuses a request that was already recorded |
 | `replay` | look up key and occurrence; miss → `CassetteMiss`; never opens a socket |
 
 ### 5.3 `agent_trace.jsonl`

@@ -63,7 +63,8 @@ def _finite_float(token: str) -> float:
 
 
 class LLMClient:
-    """Calls in one AI mode; `cassette_dir` is required unless the mode is off."""
+    """Calls in one AI mode; `cassette_dir` is required unless the mode is off. `append` (record
+    only) adds this engine's calls to the run's cassette that an earlier step recorded into."""
 
     def __init__(
         self,
@@ -73,6 +74,7 @@ class LLMClient:
         *,
         provider: Provider | None = None,
         force_record: bool = False,
+        append: bool = False,
     ) -> None:
         if mode not in AI_MODES:
             raise ValueError(f"ai mode must be one of {AI_MODES}, got {mode!r}")
@@ -87,7 +89,11 @@ class LLMClient:
         if mode == "record":
             self._provider = provider if provider is not None else provider_for(settings)
             self._cassette = Cassette(
-                cassette_dir, "record", force_record=force_record, recorded_with=settings.audit()
+                cassette_dir,
+                "record",
+                force_record=force_record,
+                append=append,
+                recorded_with=settings.audit(),
             )
         else:
             self._cassette = Cassette(cassette_dir, "replay")

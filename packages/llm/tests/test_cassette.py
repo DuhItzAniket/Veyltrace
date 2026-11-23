@@ -147,3 +147,20 @@ def test_mode_guards_and_pickling(tmp_path: Path) -> None:
         Cassette(tmp_path, "replay").record(*CALLS[0])
     miss = pickle.loads(pickle.dumps(CassetteMiss("k" * 64, "why")))
     assert (miss.key, miss.detail) == ("k" * 64, "why")
+
+
+def test_a_later_step_appends_to_the_recording(tmp_path: Path) -> None:
+    """Relentra records first; Causivra appends its narration, and replay serves both."""
+    first = Cassette(tmp_path / "c", "record", recorded_with=AUDIT)
+    for request, completion in CALLS[:2]:
+        first.record(request, completion)
+    later = Cassette(tmp_path / "c", "record", append=True, recorded_with=AUDIT)
+    later.record(*CALLS[2])
+    _record(tmp_path / "whole")
+    for name in sorted(p.name for p in (tmp_path / "whole").iterdir()):
+        assert (tmp_path / "c" / name).read_bytes() == (tmp_path / "whole" / name).read_bytes()
+    with pytest.raises(CassetteNotEmpty, match="already holds"):
+        later.record(*CALLS[0])
+    with pytest.raises(ValueError, match="exclude"):
+        Cassette(tmp_path / "c", "record", append=True, force_record=True)
+    assert Cassette(tmp_path / "empty", "record", append=True).record(*CALLS[2]) == 0
