@@ -30,7 +30,12 @@ function Headline({ verdict }: { verdict: Verdict }) {
 
 export function StatusBanner({ verdict, alert, aiMode }: { verdict: Verdict; alert: Alert; aiMode: string }) {
   const c = verdict.confidence;
-  const top = verdict.ranked[0];
+  const root = verdict.root;
+  // The root's own row; never a stand-in under NO_FAULT or a leaderless INCONCLUSIVE (06 §5.3 rule 1).
+  const top =
+    root === null
+      ? undefined
+      : verdict.ranked.find((r) => r.service === root.service && r.component === root.component);
   const passed = top?.trials.filter((t) => t.result === "pass").length ?? 0;
   return (
     <section aria-label="Verdict" className={`banner status-${verdict.status}`}>
@@ -45,7 +50,8 @@ export function StatusBanner({ verdict, alert, aiMode }: { verdict: Verdict; ale
       </p>
       {top !== undefined && (
         <p>
-          {passed} of {top.trials.length} trials passed for {top.service}
+          {passed} of {top.trials.length} trials passed for {top.service} (all trials run; the verdict does
+          not mark which are mandatory)
         </p>
       )}
       {verdict.asks.length > 0 && (
