@@ -1,0 +1,58 @@
+% §3.4 The proposer, Explain lane (X-13, #50). Input by 03-design.tex through
+% \lanesection{explain-proposer}, after the lead's opening paragraph of §3.4, so this file has no
+% heading of its own. Sources: docs/02 §2 P1-P3, §5.2, §6.8; engines 08 §3-§5; 03 §9;
+% ADRs 20261030-ak-propose-verify-trust-model, 20261030-ak-local-first-llm,
+% 20261122-cl-proposals-rank, 20261121-ak-r16-cut-list; code packages/relentra (brief.py,
+% schema.py, reply.py, prompt.py, normalize.py), unchanged since results-code-v1.
+% Every constant is a design default from config/relentra.yaml or config/llm.yaml, fixed a priori.
+\eng{Relentra} runs in \code{brief} mode: one constrained model call over code-computed evidence cards, and at most one repair call.
+A code-owned, multi-turn \code{investigate} mode with read-only tools was specified as an ablation and cut before the results runs (its experiments are listed as not run), so we do not evaluate it.
+Evidence-card prompting has matched tool-heavy agents at a fraction of their tokens \citeneeded{EviRCA; the notes cite it without an identifier (sota\_methods §Q3)}, and one listwise LLM pass over a deterministic shortlist added accuracy in DecompRCA~\cite{decomprca2026}; on a CPU laptop the token budget is the binding constraint.
+
+\paragraph{What the model sees}
+The prompt has a fixed system message, a short description of the benchmark system (its services, their roles and datastores, never fault or flag names), the evidence cards, a pool list and the output schema.
+The cards are a deterministic text rendering by \eng{FaultLoom}: a case header (onset relative to the alert, entry services, telemetry sources, earliest onsets), then one card per slate candidate with its rank, the rule table's mode, fault class and indicator, its fused score and up to $k=6$ atoms chosen by a fixed kind priority, each printed with its identifier, kind and value; the card adds the candidate's top-ranked path, its latest change and ``against'' facts, such as a callee with a larger internal anomaly, to counter anchoring on rank.
+The deck ends with the predicate library and each parameter's range.
+After the cards come the next ten services by fused score, so the model can propose a candidate the slate missed.
+Every measured value in the prompt was computed by code from the run's artefacts (atoms, onsets, fused scores) and is printed to three significant figures; the model never sees raw telemetry, the alert-time hint, the verdict or any answer key.
+Text that comes from the system, such as log templates, is fenced and labelled as data, and the system message tells the model never to follow instructions inside it.
+If the prompt's estimated size exceeds 12{,}288 tokens, code rebuilds the cards with fewer atoms, down to $k=3$; if it still does not fit, the run makes no call.
+
+\paragraph{A closed, flat schema}
+The output schema is built per case and contains only closed enumerations and bounded strings: no \code{oneOf}, no recursion, no free-form keys, since constrained decoders in open runtimes handle flat schemas far better than nested ones \citeneeded{the llama.cpp and Ollama schema-coverage figures of verified\_agents §Q5 have no identifier}.
+A reply holds at most three proposals and three asks.
+A proposal names a \code{service} from the graph's nodes, a \code{fault_class} from the taxonomy without \code{unknown}, an \code{indicator}, one to four claims, up to four requested trials and a rationale of at most 280 characters.
+A claim names a \code{predicate} from the library and fills three generic slots, \code{signal} (a series signal of the case), \code{other} (a graph node) and a number \code{x}, and cites up to three atom identifiers from the cards; code maps the slots to the predicate's named arguments, so one flat object covers the whole library.
+The number \code{x} is the threshold the model wants tested, such as $k$ in \code{zscore_above}, not a measurement: \eng{FaultLoom} evaluates the predicate on stored data.
+Every enumeration is sorted, so the schema, and with it the recording key, depends only on the case and the configuration.
+
+\paragraph{Validation, repair and salvage}
+The runtime decodes against the schema, and code checks the reply again, because a provider may ignore the schema: it parses the JSON, checks every enumeration and limit, and passes each mapped claim through \eng{FaultLoom}'s own argument validator, the one the claim pass uses.
+If anything fails, one repair call resends the conversation with the reply and a code-generated list of the failing parts (for example, a claim whose predicate needs an \code{other} service).
+If the repaired reply still fails, salvage drops each invalid claim, then each proposal left with an invalid hypothesis or no valid claim, and records every drop; a reply that is not JSON yields nothing.
+A run ends \code{complete} if a valid proposal remains or the reply was valid, \code{failed} after a provider error or with nothing valid, and \code{budget_exhausted} if the prompt did not fit; a failed proposer leaves the verdict as it would be with the AI off on the same evidence.
+Normalisation merges proposals with the same service and fault class, removes duplicate claims, keeps at most five hypotheses, sorts claims and proposals canonically and derives their identifiers from hashes of their content, so \code{proposals.json} depends on the \emph{set} the model proposed, not on its order or wording.
+The only field that records the reply's order is a \code{rank} kept for the agent-only baseline, which the verifier never reads.
+\leadq{H2c measures order invariance of the verdict; the repair rate and the failed-run rate below are proposer outcomes that \code{bench_summary} 1.1 does not hold, so their keys are provisional and need a producer (agent-trace \code{repair} and \code{proposals.status} per run).}
+On RE2 under the oracle alert, the repair call ran in \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/proposal_outcomes.repaired}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/proposal_outcomes.repaired} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/proposal_outcomes.repaired} of \code{veyltrace:brief} runs on OB, SS and TT, and \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/proposal_outcomes.status_failed}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/proposal_outcomes.status_failed} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/proposal_outcomes.status_failed} of runs ended \code{failed}.
+
+\paragraph{Model and budgets}
+The default model is Qwen3.5-9B at Q4\_K\_M quantisation, served locally by Ollama with a single slot and prompt caching off, with the weights' SHA-256 pinned in configuration; the fallback for weak CPUs is the 4B model~\cite{qwen35card}.
+Sampling uses the model card's non-thinking settings (temperature 0.7, top-$p$ 0.8, top-$k$ 20, presence penalty 1.5) with a seed derived from the case identifier and a seed index, and the configuration hash covers all of them, so each seed is its own run.
+The budgets are structural: at most two calls per case, at most 1{,}024 output tokens per call, the prompt limit above and the schema's own limits.
+The $\leq 180$\,s per case on a CPU laptop is a design target, not a cut-off inside \code{brief} mode; RQ5 measures it (\S\ref{sec:rq5}).
+Budget decisions read only recorded token counts and recorded latency, so replay makes the same decisions.
+
+\paragraph{Recording}
+All model traffic goes through one client library, which accepts only \code{localhost} endpoints unless a remote one is explicitly allowed, and records every call in the cassette described in \S\ref{sec:receipts}; a provider error is recorded too and is reproduced on replay, never retried.
+\eng{Relentra} also writes \code{agent_trace.jsonl}, a hash chain with one line per call (the cassette key and the hash of the response) and one per state transition from a closed list: start, cards built, prompt built, validated, validation failed, repair, each dropped claim or proposal, provider error, prompt over budget, done and failed.
+The chain's last hash enters the receipt, so a replay that does not take the same path through validation, repair and salvage fails even when the verdict matches.
+
+\paragraph{Why proposals never decide}
+The model's output reaches the verdict through two narrow channels, both checked by code.
+A proposed service joins the decision pool only if it is a graph node and one of its supporting claims holds for it in the claim pass, and then it must pass T10 as well as T1--T4.
+A claim's predicate and arguments are evaluated for every pool candidate, and only those results, with fixed weights and a clip at $\pm 0.3$, move $V(c)$ (\S\ref{sec:evidence}, \S\ref{sec:verifier}).
+The rationale, the fault class and indicator, the requested trials, the citations, the rank and the model's asks set no part of the verdict, and the model never sees the verdict it feeds.
+So the worst a misled or failing proposer can do is add a candidate whose supporting claim code has verified, and request checks that run for every candidate; it cannot remove a slate candidate, lower one with a false claim, or state a number the verifier uses.
+We chose this over an LLM verifier, which in one study did not reduce errors in which the model misread the meaning of the telemetry~\cite{diagguard2026}, and over checking claims only for the proposed candidate, which would let true but irrelevant facts raise the model's favourite alone.
+Section~\ref{sec:rq2} tests the resulting properties: proposer lift (H2a), robustness to a planted decoy proposal (H2b) and invariance to proposal order (H2c).
