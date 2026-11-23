@@ -21,17 +21,29 @@ from veyltrace_contracts import models
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.hashing import sha256_json, sha256_text_lf
+from veyltrace_core.rng import seed_int
 from veyltrace_llm.cassette import CassetteMiss
 from veyltrace_llm.client import JsonReply, LLMClient
 from veyltrace_llm.errors import ProviderError
 from veyltrace_llm.request import Message
 
-__all__ = ["PROMPTS", "PURPOSE", "Narration", "NarrationSettings", "narrate", "narration_settings", "schema"]
+__all__ = [
+    "PROMPTS",
+    "PURPOSE",
+    "Narration",
+    "NarrationSettings",
+    "narrate",
+    "narration_settings",
+    "sampler_params",
+    "schema",
+]
 
 #: The cassette purpose of every narration call, the repair included (10 §3.2 step 3).
 PURPOSE: Final = "causivra.narrate"
 PROMPTS: Final = ("prompts/system.md", "prompts/narrate.md", "prompts/repair.md")
 _PACKAGE: Final = Path(__file__).parent
+#: Relentra's sampler keys sent as they are (08 §3.8); the seed and max_tokens are Causivra's own.
+SAMPLER_KEYS: Final = ("temperature", "top_p", "top_k", "presence_penalty", "thinking")
 #: Fixed schema limits (10 §3.2 step 2); a sentence's text limit is the checker's `max_chars` (C8).
 MIN_SENTENCES: Final = 2
 MAX_CITES: Final = 4
@@ -39,11 +51,14 @@ MAX_CITES: Final = 4
 
 @dataclass(frozen=True)
 class NarrationSettings:
-    """`narration.*` of config/causivra.yaml (10 §4) that the call loop reads."""
+    """`narration.*` of config/causivra.yaml (10 §4); `scope` must be `summary` in v0.1."""
 
+    enabled: bool
     max_sentences: int
     max_attempts: int
+    max_tokens: int
     budget_ms: float
+    show_values: bool
 
 
 @dataclass(frozen=True)
@@ -69,14 +84,35 @@ def narration_settings(section: Mapping[str, Any]) -> NarrationSettings:
     narration: Mapping[str, object] = cast(Mapping[str, object], raw) if isinstance(raw, Mapping) else {}
     sentences = _at_least(narration.get("max_sentences"), MIN_SENTENCES)
     attempts = _at_least(narration.get("max_attempts"), 1)
+    tokens = _at_least(narration.get("max_tokens"), 1)
     budget = narration.get("budget_ms")
-    if sentences is None or attempts is None:
+    enabled, show = narration.get("enabled"), narration.get("show_values")
+    if sentences is None or attempts is None or tokens is None:
         raise ConfigError(
-            f"causivra.narration: max_sentences ≥ {MIN_SENTENCES} and max_attempts ≥ 1 must be ints"
+            f"causivra.narration: max_sentences ≥ {MIN_SENTENCES}, max_attempts ≥ 1 and max_tokens ≥ 1"
+            " must be ints"
         )
     if isinstance(budget, bool) or not isinstance(budget, int | float) or budget <= 0:
         raise ConfigError(f"causivra.narration.budget_ms must be a positive number, got {budget!r}")
-    return NarrationSettings(sentences, attempts, float(budget))
+    if not isinstance(enabled, bool) or not isinstance(show, bool):
+        raise ConfigError("causivra.narration.enabled and show_values must be bools")
+    if narration.get("scope") != "summary":
+        raise ConfigError(
+            f"causivra.narration.scope must be 'summary' in v0.1, got {narration.get('scope')!r}"
+        )
+    return NarrationSettings(enabled, sentences, attempts, tokens, float(budget), show)
+
+
+def sampler_params(relentra: Mapping[str, Any], case_id: str, max_tokens: int) -> dict[str, Any]:
+    """The seven sampler parameters (03 §9.1): Relentra's values, seed `causivra.seed/<i>` (10 §3.2)."""
+    raw: object = relentra.get("sampler")
+    sampler: Mapping[str, object] = cast(Mapping[str, object], raw) if isinstance(raw, Mapping) else {}
+    index = _at_least(sampler.get("seed_index"), 0)
+    missing = [k for k in SAMPLER_KEYS if k not in sampler]
+    if missing or index is None:
+        raise ConfigError(f"relentra.sampler needs {missing or ['seed_index']} for the narration call")
+    params: dict[str, Any] = {k: sampler[k] for k in SAMPLER_KEYS}
+    return params | {"seed": seed_int(case_id, f"causivra.seed/{index}"), "max_tokens": max_tokens}
 
 
 def _read(name: str) -> str:
@@ -124,11 +160,16 @@ def _messages(
     verdict: models.Verdict, ctx: FillContext, kinds: Mapping[str, str], path: Sequence[str],
     settings: NarrationSettings, checker: CheckerSettings,
 ) -> tuple[Message, ...]:  # fmt: skip
-    """System and user messages (10 §3.2 step 1): no atom value is shown."""
+    """System and user messages (10 §3.2 step 1): no atom value is shown unless `show_values`."""
     text, allowed = _verdict_lines(verdict, ctx, path)
-    rows = [f"{a} | {t.label} | {kinds.get(a, '')} | {t.unit or ''}" for a, t in sorted(ctx.table.items())]
+    rows = [  # values only in the show_values ablation (10 §9)
+        f"{a} | {t.label} | {kinds.get(a, '')} | {t.unit or ''}"
+        + (f" | {t.value}" if settings.show_values else "")
+        for a, t in sorted(ctx.table.items())
+    ]
     user = Template(_read(PROMPTS[1])).substitute(
-        atom=min(ctx.table), verdict=text, evidence="\n".join(rows), placeholders=", ".join(allowed),
+        atom=min(ctx.table), columns=" | value" if settings.show_values else "", verdict=text,
+        evidence="\n".join(rows), placeholders=", ".join(allowed),
         max_sentences=settings.max_sentences, max_words=checker.max_words,
     )  # fmt: skip
     return Message("system", _read(PROMPTS[0])), Message("user", user)

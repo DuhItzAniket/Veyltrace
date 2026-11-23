@@ -16,6 +16,7 @@ from veyltrace_causivra.narrate import (
     NarrationSettings,
     narrate,
     narration_settings,
+    sampler_params,
     schema,
 )
 from veyltrace_causivra.placeholders import FillContext, RunnerUp, TableAtom
@@ -24,6 +25,7 @@ from veyltrace_core.canonical import canonical_json
 from veyltrace_core.config import load_section_file, resolve_config
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.ids import AIMode
+from veyltrace_core.rng import seed_int
 from veyltrace_core.testing import repo_root
 from veyltrace_llm.client import LLMClient
 from veyltrace_llm.fake import FakeProvider, FakeReply
@@ -34,7 +36,10 @@ NODES = frozenset({"payment", "cart", "checkout"})
 CHECKER = checker_settings(
     dict(resolve_config({}, config_dir=repo_root() / "config", ai_mode="off").engine("causivra"))
 )
-SETTINGS = NarrationSettings(max_sentences=5, max_attempts=2, budget_ms=60_000.0)
+SETTINGS = NarrationSettings(
+    enabled=True, max_sentences=5, max_attempts=2, max_tokens=300, budget_ms=60_000.0, show_values=False
+)
+CONFIG = resolve_config({}, config_dir=repo_root() / "config", ai_mode="record")
 PARAMS: dict[str, Any] = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5,
     "thinking": False, "seed": 1, "max_tokens": 300}  # fmt: skip
 GOOD = [
@@ -67,13 +72,14 @@ def run(
     make_verdict: Callable[..., models.Verdict], tmp_path: Path
 ) -> Callable[..., tuple[Narration, FakeProvider]]:
     def go(
-        *replies: FakeReply, mode: AIMode = "record", ctx: FillContext | None = None, seed: int = 1
-    ) -> tuple[Narration, FakeProvider]:
+        *replies: FakeReply, mode: AIMode = "record", ctx: FillContext | None = None, seed: int = 1,
+        settings: NarrationSettings = SETTINGS,
+    ) -> tuple[Narration, FakeProvider]:  # fmt: skip
         client, provider = _client(tmp_path, *replies, mode=mode)
         narration = narrate(
             verdict=make_verdict("LIKELY"), ctx=ctx or _ctx(), kinds={ATOM: "internal_anomaly"},
             path=["checkout", "payment"], entities=NODES, client=client,
-            params={**PARAMS, "seed": seed}, settings=SETTINGS, checker=CHECKER,
+            params={**PARAMS, "seed": seed}, settings=settings, checker=CHECKER,
         )  # fmt: skip
         return narration, provider
 
@@ -158,8 +164,29 @@ def test_the_latency_budget_stops_narration(run: Callable[..., tuple[Narration, 
 
 
 def test_narration_settings_are_validated() -> None:
-    good = {"narration": {"max_sentences": 5, "max_attempts": 2, "budget_ms": 60000}}
+    good = dict(CONFIG.engine("causivra"))
     assert narration_settings(good) == SETTINGS
-    for bad in ({"max_sentences": 1}, {"max_attempts": 0}, {"budget_ms": True}):
+    bad_values = ({"max_sentences": 1}, {"max_attempts": 0}, {"max_tokens": 0}, {"budget_ms": True},
+        {"enabled": "yes"}, {"show_values": None}, {"scope": "all"})  # fmt: skip
+    for bad in bad_values:
         with pytest.raises(ConfigError):
             narration_settings({"narration": {**good["narration"], **bad}})
+
+
+def test_the_sampler_is_relentras_with_causivras_seed() -> None:
+    relentra = dict(CONFIG.engine("relentra"))
+    params = sampler_params(relentra, "a1b2c3d4e5f6", 300)
+    seed = seed_int("a1b2c3d4e5f6", "causivra.seed/0")
+    assert params == {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5,
+        "thinking": False, "seed": seed, "max_tokens": 300}  # fmt: skip
+    with pytest.raises(ConfigError):
+        sampler_params({"sampler": {"temperature": 0.7}}, "a1b2c3d4e5f6", 300)
+
+
+def test_show_values_adds_the_value_column(run: Callable[..., tuple[Narration, FakeProvider]]) -> None:
+    shown = replace(SETTINGS, show_values=True)
+    _, provider = run(FakeReply.json({"sentences": GOOD}), settings=shown)
+    user = provider.calls[0].messages[1].content
+    assert (
+        "unit | value)" in user and f"{ATOM} | cpu anomaly (incident) | internal_anomaly | z | 9.42" in user
+    )
