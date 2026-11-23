@@ -4,6 +4,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 
+import { CaseList } from "./views/CaseList";
 import { RunView } from "./views/RunView";
 
 export function AppRoutes() {
@@ -16,7 +17,7 @@ export function AppRoutes() {
       </header>
       <main>
         <Routes>
-          <Route path="/" element={<p>The case list arrives with the next X-05 slice.</p>} />
+          <Route path="/" element={<CaseList />} />
           <Route path="/runs/:runId" element={<RunView />} />
           <Route path="*" element={<p>No such page.</p>} />
         </Routes>

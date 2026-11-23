@@ -6,6 +6,9 @@ import { MemoryRouter } from "react-router";
 import { vi } from "vitest";
 
 import { AppRoutes } from "../App";
+import casesSynth from "../fixtures/cases-synth.json";
+import datasets from "../fixtures/datasets.json";
+import runsSynth from "../fixtures/runs-synth.json";
 import confirmedStatus from "../fixtures/synth-confirmed/status.json";
 
 export const CONFIRMED = confirmedStatus.run_id;
@@ -30,6 +33,9 @@ function route(method: string, url: URL, overrides: Overrides): Response {
   const path = url.pathname.replace(/^\/api\/v1/, "");
   if (path in overrides) return json(overrides[path]);
   if (method === "POST" && path === "/runs") return json(confirmedStatus, 200);
+  if (path === "/datasets") return json(datasets);
+  if (path === "/cases" && url.searchParams.get("dataset") === "synth") return json(casesSynth);
+  if (path === "/runs" && url.searchParams.get("dataset") === "synth") return json(runsSynth);
   if (path === `/runs/${CONFIRMED}`) return json(confirmedStatus);
   return notFound();
 }
