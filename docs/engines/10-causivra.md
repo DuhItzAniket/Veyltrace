@@ -39,7 +39,7 @@ Why: practitioners value evidence pointers more than a proposed root cause and f
 | Narration cassette entries | `cassette/` | `ai.mode = replay` |
 | Config | `config/causivra.yaml`, `config/llm.yaml` | §4 |
 | Playbooks | `packages/causivra/src/veyltrace_causivra/playbooks.yaml` (package data, so an installed wheel ships it) | next steps |
-| Prompts | `packages/causivra/prompts/{system,narrate,repair}.md` | narration; hashes join `run_manifest.ai.prompt_sha256` ([08 §3.5](08-relentra.md#35-prompts-and-system-briefs)) |
+| Prompts | `packages/causivra/src/veyltrace_causivra/prompts/{system,narrate,repair}.md` (package data, like Relentra's) | narration; hashes join `run_manifest.ai.prompt_sha256` ([08 §3.5](08-relentra.md#35-prompts-and-system-briefs)) |
 
 ### 2.2 Outputs
 
