@@ -9,7 +9,8 @@ description = "Veyltrace engine 10 (Causivra): incident card, receipt and replay
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-dependencies = ["veyltrace-core", "veyltrace-contracts"]
+# veyltrace-llm: the model client for card narration (10 §3.2); only relentra, causivra and gateway may use it.
+dependencies = ["veyltrace-core", "veyltrace-contracts", "veyltrace-llm"]
 
 # Engine entry point (AGENTS §5): the pipeline resolves engines by this name, never by import path.
 [project.entry-points."veyltrace.engines"]
@@ -22,6 +23,7 @@ replay = "veyltrace_causivra.replay:main"
 [tool.uv.sources]
 veyltrace-core = { workspace = true }
 veyltrace-contracts = { workspace = true }
+veyltrace-llm = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/veyltrace_causivra"]

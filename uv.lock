@@ -1261,12 +1261,14 @@ source = { editable = "packages/causivra" }
 dependencies = [
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
+    { name = "veyltrace-llm" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
+    { name = "veyltrace-llm", editable = "packages/llm" },
 ]
 
 [[package]]
