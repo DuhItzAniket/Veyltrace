@@ -1,4 +1,4 @@
-import { cleanup, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -129,5 +129,40 @@ describe("run view: candidate set", () => {
     const line = set.getByText(/^Split-conformal set at α =/);
     expect(line.textContent).toContain("α = 0.1 (q̂ = ∞): contains the true root in ≥ 1 − α");
     expect(within(line).getByRole("link", { name: "∞" }).getAttribute("href")).toBe("#def-q_hat");
+  });
+});
+
+describe("run view: evidence table", () => {
+  it("pages all atoms and filters them by candidate on the server", async () => {
+    const calls = stubGateway();
+    renderAt(`/runs/${CONFIRMED}`);
+    const region = within(await screen.findByRole("region", { name: "Evidence" }));
+    expect(await region.findByText("235 atoms, showing 1–50")).toBeTruthy();
+    fireEvent.change(region.getByLabelText("Candidate"), { target: { value: "payment" } });
+    expect(await region.findByText("40 atoms, showing 1–40")).toBeTruthy();
+    const last = calls.filter((c) => c.url.pathname.endsWith("/evidence")).at(-1);
+    expect(last?.url.searchParams.get("candidate")).toBe("payment");
+    const rows = within(region.getByRole("table")).getAllByRole("row").slice(1);
+    expect(rows.every((r) => r.textContent.includes("payment"))).toBe(true);
+  });
+
+  it("moves to the next page", async () => {
+    stubGateway();
+    renderAt(`/runs/${CONFIRMED}`);
+    const region = within(await screen.findByRole("region", { name: "Evidence" }));
+    await region.findByText("235 atoms, showing 1–50");
+    fireEvent.click(region.getByRole("button", { name: "Next page" }));
+    expect(await region.findByText("235 atoms, showing 51–100")).toBeTruthy();
+  });
+
+  it("opens the atom drawer from an atom link with the row and its refs", async () => {
+    stubGateway();
+    renderAt(`/runs/${CONFIRMED}?ev_candidate=payment&ev_kind=internal_anomaly`);
+    const region = within(await screen.findByRole("region", { name: "Evidence" }));
+    fireEvent.click(await region.findByRole("link", { name: "Ed5c1d9ce83" }));
+    const atom = within(await screen.findByRole("region", { name: "Atom Ed5c1d9ce83" }));
+    expect(await atom.findByText("internal_anomaly")).toBeTruthy();
+    expect(atom.getByText("8 z")).toBeTruthy();
+    expect(atom.getByText("payment|payment|log_error_rate|logs")).toBeTruthy();
   });
 });

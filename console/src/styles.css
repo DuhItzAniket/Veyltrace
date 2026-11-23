@@ -81,6 +81,15 @@ ul.plain {
   border-radius: 1rem;
   padding: 0.1rem 0.7rem;
 }
+.drawer {
+  border-left: 4px solid #1f5fbf;
+  padding-left: 1rem;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

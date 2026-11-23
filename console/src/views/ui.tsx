@@ -1,5 +1,7 @@
-// Small shared pieces of the console views: the error line, the pager, number display and the
-// links verdict-field numbers need (docs/06 §5.3 rule 2).
+// Small shared pieces: error line, pager, number display and the links every number needs
+// (docs/06 §5.3 rule 2: atoms link to their row, verdict fields to their definition).
+import { Link, useSearchParams } from "react-router";
+
 import { ApiError } from "../api";
 
 export function Failure({ error }: { error: Error }) {
@@ -14,6 +16,28 @@ export function Failure({ error }: { error: Error }) {
 /** Display only: 4 significant digits; the full artifact value stays in the title. */
 export function num(x: number): string {
   return Number(x.toPrecision(4)).toString();
+}
+
+/** URL search with one key set (or removed), so selection survives in a shared link. */
+export function useSearchWith(): (changes: Record<string, string | null>) => string {
+  const [params] = useSearchParams();
+  return (changes) => {
+    const next = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(changes)) {
+      if (value === null) next.delete(key);
+      else next.set(key, value);
+    }
+    return `?${next.toString()}`;
+  };
+}
+
+export function AtomLink({ id }: { id: string }) {
+  const searchWith = useSearchWith();
+  return (
+    <Link to={{ search: searchWith({ atom: id }) }}>
+      <code>{id}</code>
+    </Link>
+  );
 }
 
 /**
