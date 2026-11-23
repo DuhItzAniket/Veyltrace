@@ -1,12 +1,17 @@
-// Verdict sections of the run view (docs/06 §5.2 a–b, §5.3): status banner, conformal candidate
-// set and the glossary its numbers link to. Abstentions get the same prominence as CONFIRMED, and
-// the status is always text plus shape, never colour alone.
-import type { Alert, Verdict } from "../../../contracts/generated/ts/api";
-import { Field } from "./ui";
+// Verdict sections of the run view (docs/06 §5.2 a–c, §5.3): status banner, conformal candidate
+// set, ranked table with trial badges and the trial drawer. Abstentions get the same prominence
+// as CONFIRMED, and status and trial results are always text plus shape, never colour alone.
+import { useSearchParams } from "react-router";
+
+import type { Alert, Verdict, VerdictRanked, VerdictRankedTrials } from "../../../contracts/generated/ts/api";
+import { AtomLink, Field } from "./ui";
 
 type Status = Verdict["status"];
+type TrialId = VerdictRankedTrials["id"];
 
 const SHAPE: Record<Status, string> = { CONFIRMED: "✔", LIKELY: "◐", INCONCLUSIVE: "?", NO_FAULT: "∅" };
+const BADGE: Record<VerdictRankedTrials["result"], string> = { pass: "●", fail: "✖", untestable: "○" };
+const TRIALS: TrialId[] = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10"];
 
 function Headline({ verdict }: { verdict: Verdict }) {
   const root = verdict.root;
@@ -93,6 +98,99 @@ export function CandidateSet({ verdict }: { verdict: Verdict }) {
               {m.service}
               {m.component === null ? "" : `/${m.component}`} · V <Field name="v" value={m.v} /> ·
               nonconformity <Field name="nonconformity" value={m.nonconformity} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** `service` or `service/component`: the table and drawer name a candidate the same way. */
+function candidateName(r: VerdictRanked): string {
+  return r.component === null ? r.service : `${r.service}/${r.component}`;
+}
+
+export function RankedTable({ verdict }: { verdict: Verdict }) {
+  const [params, setParams] = useSearchParams();
+  // Keyed by rank, which is unique per row; a service can appear on more than one row.
+  const open = (rank: number, id: TrialId) => {
+    const next = new URLSearchParams(params);
+    next.set("trial", id);
+    next.set("rank", String(rank));
+    setParams(next);
+  };
+  return (
+    <table>
+      <caption>Ranked candidates</caption>
+      <thead>
+        <tr>
+          <th scope="col">Rank</th>
+          <th scope="col">Candidate</th>
+          <th scope="col">Origin</th>
+          <th scope="col">Fused score</th>
+          <th scope="col">V</th>
+          <th scope="col">Fault class</th>
+          <th scope="col">Indicator</th>
+          <th scope="col">Trials</th>
+        </tr>
+      </thead>
+      <tbody>
+        {verdict.ranked.map((r) => (
+          <tr key={r.rank}>
+            <td>{r.rank}</td>
+            <th scope="row">{candidateName(r)}</th>
+            <td>{r.origin}</td>
+            <td>
+              <Field name="fused_score" value={r.fused_score} />
+            </td>
+            <td>
+              <Field name="v" value={r.v} />
+            </td>
+            <td>{r.fault_class}</td>
+            <td>{r.indicator}</td>
+            <td className="badges">
+              {r.trials.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className={`badge ${t.result}`}
+                  onClick={() => {
+                    open(r.rank, t.id);
+                  }}
+                >
+                  <span aria-hidden="true">{BADGE[t.result]}</span> {t.id} {t.result}
+                </button>
+              ))}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** The trial drawer: the selected badge's result, reason and atoms (from `?trial=&rank=`). */
+export function TrialPanel({ verdict }: { verdict: Verdict }) {
+  const [params] = useSearchParams();
+  const id = TRIALS.find((t) => t === params.get("trial"));
+  const row = verdict.ranked.find((r) => String(r.rank) === params.get("rank"));
+  const trial = row?.trials.find((t) => t.id === id);
+  if (row === undefined || trial === undefined) return null;
+  const name = candidateName(row);
+  return (
+    <section aria-label={`Trial ${trial.id} of ${name}`} className="drawer">
+      <h3>
+        Trial {trial.id} of {name}
+      </h3>
+      <p>{trial.reason === null ? trial.result : `${trial.result}: ${trial.reason}`}</p>
+      {trial.atoms.length === 0 ? (
+        <p>No atoms.</p>
+      ) : (
+        <ul>
+          {trial.atoms.map((a) => (
+            <li key={a}>
+              <AtomLink id={a} />
             </li>
           ))}
         </ul>

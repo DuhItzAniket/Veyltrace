@@ -1,6 +1,5 @@
-// Console v0 (X-05, docs/06 §5.2): the case list and the run view, built in slices. Server state
-// lives in TanStack Query, UI selection in the URL; the live view, graph, timeline chart and
-// receipt arrive with X-10.
+// Console v0 (X-05, docs/06 §5.2): the case list and the run view. Server state lives in TanStack
+// Query, UI selection in the URL; the live view, graph, timeline chart and receipt arrive with X-10.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Link, Route, Routes } from "react-router";
 
