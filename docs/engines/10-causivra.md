@@ -166,7 +166,7 @@ Applied to the raw LLM sentence (before filling) in this order, each rule over t
 | C1 syntax | a `{…}` does not match the grammar, or braces are unbalanced | — |
 | C2 resolvable | a placeholder fails its "valid when" condition (§3.3), e.g. `{ROOT}` under `NO_FAULT` | — |
 | C3 citation | `cites` empty, a cite not in `evidence_table`, or an atom placeholder whose atom is not in `cites` | — |
-| C4 raw digits | any `[0-9]` except inside an allowed whole token | `checker.allowed_digit_tokens` = `T1`…`T10`, `p50`, `p90`, `p95`, `p99`, `4xx`, `5xx`, `k8s`, `HTTP/2` |
+| C4 raw digits | any `[0-9]` except inside an allowed whole token (a digit inside an identifier-shaped token is C6's, so `paymentservice-v2` reports C6) | `checker.allowed_digit_tokens` = `T1`…`T10`, `p50`, `p90`, `p95`, `p99`, `4xx`, `5xx`, `k8s`, `HTTP/2` |
 | C5 quantities | `%`, or a quantity word | `checker.quantity_words` = two … twenty, twice, thrice, double(d), triple(d), quadrupled, half, halved, tenfold, dozen, hundred(s), thousand(s), million(s), percent, percentage |
 | C6 entities | a token equal (case-insensitive) to a node, a `case_manifest.services` entry or an evidence `component`; or an identifier-shaped token (`[a-z0-9]+([-_][a-z0-9]+)+`, or lower→upper camel case) not in the allow-list | `checker.allowed_compound_words` = end-to-end, runner-up, follow-up, self-time, change-induced, low-confidence, medium-confidence, high-confidence, real-time, in-flight, gRPC |
 | C7 status honesty | a certainty word when `status` ≠ `CONFIRMED` | `checker.certainty_words` = confirmed, certainly, definitely, proven, undoubtedly, "the root cause is" |

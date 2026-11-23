@@ -13,7 +13,7 @@ from typing import Any, Final
 from veyltrace_causivra.placeholders import FillContext, fill
 from veyltrace_contracts import models
 
-__all__ = ["ASKS_SENTENCE", "SENTENCES", "join_phrases", "strongest", "summary"]
+__all__ = ["ASKS_SENTENCE", "SENTENCES", "join_phrases", "strongest", "summary", "template_sentences"]
 
 _SIGNAL: Final = "Its strongest internal signal was {E*.label} at {E*.value} {E*.unit}."
 _MARGIN: Final = (
@@ -74,7 +74,21 @@ def summary(
     evidence_kinds: dict[str, str],
     ask_phrases: Mapping[str, str],
 ) -> list[dict[str, Any]]:
-    """card.summary for template prose. `evidence_kinds` maps each table atom to its kind.
+    """card.summary for template prose: `template_sentences`, filled."""
+    return [
+        {"text": fill(text, cites, ctx), "cites": cites}
+        for text, cites in template_sentences(verdict, ctx, evidence_kinds, ask_phrases)
+    ]
+
+
+def template_sentences(
+    verdict: models.Verdict,
+    ctx: FillContext,
+    evidence_kinds: dict[str, str],
+    ask_phrases: Mapping[str, str],
+) -> list[tuple[str, list[str]]]:
+    """The raw template sentences and their cites, before filling: what the claim checker reads
+    (10 §7 "Template safety"). `evidence_kinds` maps each table atom to its kind.
 
     The asks sentence names only the ask kinds the verdict carries, each once in first-occurrence
     order, so a verdict with only context asks never mentions telemetry or trials; without asks it
@@ -89,7 +103,7 @@ def summary(
     leader_atoms = [a for a, atom in ctx.table.items() if atom.candidate == leader]
     signal = strongest((a for a in leader_atoms if evidence_kinds.get(a) == INTERNAL_KIND), ctx)
     kinds = list(dict.fromkeys(ask.kind for ask in verdict.asks))
-    out: list[dict[str, Any]] = []
+    out: list[tuple[str, list[str]]] = []
     for template in SENTENCES[verdict.status]:
         text, cites = template, list(leader_atoms)
         if ASK_PHRASES in template:
@@ -104,5 +118,5 @@ def summary(
             continue
         if verdict.status == "NO_FAULT":
             cites = []
-        out.append({"text": fill(text, cites, ctx), "cites": cites})
+        out.append((text, cites))
     return out
