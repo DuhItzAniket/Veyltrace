@@ -7,7 +7,7 @@
 % Every constant is a design default from config/relentra.yaml or config/llm.yaml, fixed a priori.
 \eng{Relentra} runs in \code{brief} mode: one constrained model call over code-computed evidence cards, and at most one repair call.
 A code-owned, multi-turn \code{investigate} mode with read-only tools was specified as an ablation and cut before the results runs (its experiments are listed as not run), so we do not evaluate it.
-Evidence-card prompting has matched tool-heavy agents at a fraction of their tokens \citeneeded{EviRCA; the notes cite it without an identifier (sota\_methods §Q3)}, and one listwise LLM pass over a deterministic shortlist added accuracy in DecompRCA~\cite{decomprca2026}; on a CPU laptop the token budget is the binding constraint.
+EviRCA, which shows the model only deterministic evidence cards through a few read-only tools, outperformed earlier OpenRCA baselines with 15--26 times fewer tokens~\cite{evirca2026}, and one listwise LLM pass over a deterministic shortlist added accuracy in DecompRCA~\cite{decomprca2026}; on a CPU laptop the token budget is the binding constraint.
 
 \paragraph{What the model sees}
 The prompt has a fixed system message, a short description of the benchmark system (its services, their roles and datastores, never fault or flag names), the evidence cards, a pool list and the output schema.
@@ -19,7 +19,7 @@ Text that comes from the system, such as log templates, is fenced and labelled a
 If the prompt's estimated size exceeds 12{,}288 tokens, code rebuilds the cards with fewer atoms, down to $k=3$; if it still does not fit, the run makes no call.
 
 \paragraph{A closed, flat schema}
-The output schema is built per case and contains only closed enumerations and bounded strings: no \code{oneOf}, no recursion, no free-form keys, since constrained decoders in open runtimes handle flat schemas far better than nested ones \citeneeded{the llama.cpp and Ollama schema-coverage figures of verified\_agents §Q5 have no identifier}.
+The output schema is built per case and contains only closed enumerations and bounded strings: no \code{oneOf}, no recursion, no free-form keys, because in JSONSchemaBench open constrained-decoding engines covered most simple function-call schemas but far fewer complex ones~\cite{jsonschemabench2025}.
 A reply holds at most three proposals and three asks.
 A proposal names a \code{service} from the graph's nodes, a \code{fault_class} from the taxonomy without \code{unknown}, an \code{indicator}, one to four claims, up to four requested trials and a rationale of at most 280 characters.
 A claim names a \code{predicate} from the library and fills three generic slots, \code{signal} (a series signal of the case), \code{other} (a graph node) and a number \code{x}, and cites up to three atom identifiers from the cards; code maps the slots to the predicate's named arguments, so one flat object covers the whole library.
@@ -37,11 +37,11 @@ The only field that records the reply's order is a \code{rank} kept for the agen
 On RE2 under the oracle alert, the repair call ran in \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/proposal_outcomes.repaired}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/proposal_outcomes.repaired} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/proposal_outcomes.repaired} of \code{veyltrace:brief} runs on OB, SS and TT, and \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/proposal_outcomes.status_failed}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/proposal_outcomes.status_failed} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/proposal_outcomes.status_failed} of runs ended \code{failed}.
 
 \paragraph{Model and budgets}
-The default model is Qwen3.5-9B at Q4\_K\_M quantisation, served locally by Ollama with a single slot and prompt caching off, with the weights' SHA-256 pinned in configuration; the fallback for weak CPUs is the 4B model~\cite{qwen35card}.
-Sampling uses the model card's non-thinking settings (temperature 0.7, top-$p$ 0.8, top-$k$ 20, presence penalty 1.5) with a seed derived from the case identifier and a seed index, and the configuration hash covers all of them, so each seed is its own run.
+The default model is Qwen3.5-9B at Q4\_K\_M quantisation, served locally by Ollama with a single slot, with the weights' SHA-256 pinned in configuration; the fallback for weak CPUs is the 4B model.
+Sampling uses the model card's non-thinking settings (temperature 0.7, top-$p$ 0.8, top-$k$ 20, presence penalty 1.5)~\cite{qwen35card} with a seed derived from the case identifier and a seed index, and the configuration hash covers all of them, so each seed is its own run.
 The budgets are structural: at most two calls per case, at most 1{,}024 output tokens per call, the prompt limit above and the schema's own limits.
 The $\leq 180$\,s per case on a CPU laptop is a design target, not a cut-off inside \code{brief} mode; RQ5 measures it (\S\ref{sec:rq5}).
-Budget decisions read only recorded token counts and recorded latency, so replay makes the same decisions.
+The prompt limit is checked on a byte-count estimate of the prompt, so it depends only on the inputs, and \code{brief} mode has no latency cut-off: token counts and latency are recorded for reporting, so replay makes the same decisions.
 
 \paragraph{Recording}
 All model traffic goes through one client library, which accepts only \code{localhost} endpoints unless a remote one is explicitly allowed, and records every call in the cassette described in \S\ref{sec:receipts}; a provider error is recorded too and is reproduced on replay, never retried.
@@ -53,6 +53,7 @@ The model's output reaches the verdict through two narrow channels, both checked
 A proposed service joins the decision pool only if it is a graph node and one of its supporting claims holds for it in the claim pass, and then it must pass T10 as well as T1--T4.
 A claim's predicate and arguments are evaluated for every pool candidate, and only those results, with fixed weights and a clip at $\pm 0.3$, move $V(c)$ (\S\ref{sec:evidence}, \S\ref{sec:verifier}).
 The rationale, the fault class and indicator, the requested trials, the citations, the rank and the model's asks set no part of the verdict, and the model never sees the verdict it feeds.
-So the worst a misled or failing proposer can do is add a candidate whose supporting claim code has verified, and request checks that run for every candidate; it cannot remove a slate candidate, lower one with a false claim, or state a number the verifier uses.
+The proposer's reach is therefore bounded, not nil: it can add candidates whose supporting claim code has verified, and through the predicates it requests, which code evaluates for every candidate, it can raise or lower any pool candidate's verified score within the $\pm 0.3$ clip and so reorder the pool, which is what the planted-decoy test (H2b) measures.
+It cannot remove a slate candidate, and it cannot supply a number the verifier uses.
 We chose this over an LLM verifier, which in one study did not reduce errors in which the model misread the meaning of the telemetry~\cite{diagguard2026}, and over checking claims only for the proposed candidate, which would let true but irrelevant facts raise the model's favourite alone.
 Section~\ref{sec:rq2} tests the resulting properties: proposer lift (H2a), robustness to a planted decoy proposal (H2b) and invariance to proposal order (H2c).
