@@ -29,3 +29,16 @@ jobs:
 live:
   # The OTLP receiver and alert watcher run only on the demo laptop (06 §6; built in X-10).
   enabled: false
+  # The receiver's own listener, loopback like the API (06 §3.6); not the Collector's own 4318 (06 §6).
+  otlp_host: "127.0.0.1"
+  otlp_port: 4319
+  # Largest OTLP request body, compressed or not; bigger is 413 (06 §3.3, §6; a priori).
+  max_body_mb: 16
+  # Buffer retention by data time: the 20-min baseline plus the 8-min incident window of
+  # 02 §5.1, plus margin (06 §3.4, §6).
+  buffer_minutes: 30
+  # Buffer byte cap; the oldest batches are evicted first (06 §3.4, §6; a priori, *estimate*).
+  buffer_max_mb: 512
+  # /health reports live.receiving while the last batch is at most this old (s; a priori:
+  # longer than the Collector's export and scrape intervals in the lab).
+  receiving_s: 60

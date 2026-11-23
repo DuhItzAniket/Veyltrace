@@ -36,4 +36,5 @@ packages = ["src/veyltrace_gateway"]
 # pydantic: the gateway-only envelopes in api_models.py (06 §3.1). starlette: FastAPI's base
 # HTTPException, which the router raises for unknown routes; FastAPI documents registering the
 # error handler on it (errors.py). It ships with fastapi, so it adds no dependency.
-allow = ["fastapi", "pydantic", "starlette", "uvicorn"]
+# pyarrow: the live buffer's canonical tables (buffer.py; 06 §3.4).
+allow = ["fastapi", "pyarrow", "pydantic", "starlette", "uvicorn"]

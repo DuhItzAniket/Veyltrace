@@ -219,6 +219,7 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `live.max_body_mb` | 16 | MB | a priori |
 | `live.buffer_minutes` | 30 | min | 02 §5.1 windows + margin |
 | `live.buffer_max_mb` | 512 | MB | a priori (*estimate*) |
+| `live.receiving_s` | 60 | s | a priori; `/health` `live.receiving` while the last OTLP batch is at most this old (X-10) |
 | `live.snapshot_before_min` | 20 | min | 02 §5.1 baseline start |
 | `live.settle_s` / `live.manual_settle_s` | 120 / 0 | s | a priori; trade-off with the 5-minute demo target (§8) |
 | `live.system` | `ob` | enum | provisional manifest for `detect_alert` |
