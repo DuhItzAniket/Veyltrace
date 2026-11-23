@@ -35,6 +35,7 @@ class LiveSettings:
     max_body_mb: int
     buffer_minutes: int
     buffer_max_mb: int
+    future_tolerance_s: int
     receiving_s: int
     snapshot_before_min: int
     ai_modes: tuple[AIMode, ...]
@@ -113,6 +114,7 @@ def _live(body: Mapping[str, Any]) -> LiveSettings:
         max_body_mb=_positive(body, "live.max_body_mb"),
         buffer_minutes=_positive(body, "live.buffer_minutes"),
         buffer_max_mb=_positive(body, "live.buffer_max_mb"),
+        future_tolerance_s=_positive(body, "live.future_tolerance_s"),
         receiving_s=_positive(body, "live.receiving_s"),
         snapshot_before_min=_positive(body, "live.snapshot_before_min"),
         ai_modes=_live_modes(body),

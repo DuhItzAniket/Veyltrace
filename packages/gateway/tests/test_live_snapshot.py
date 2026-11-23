@@ -30,13 +30,14 @@ def _gauge(*points: tuple[int, float]) -> pa.Table:
 
 
 def test_the_window_and_the_id_depend_only_on_rows_and_trigger(tmp_path: Path) -> None:
-    a, b = LiveBuffer(30, 512), LiveBuffer(30, 512)
+    a, b = LiveBuffer(30, 512, 300), LiveBuffer(30, 512, 300)
     a.add("spans", _spans(T - 25 * MIN, T - MIN), "s1")  # 25 min before: outside a 20-min window
     a.add("spans", _spans(T + 1), "s2")  # after the trigger: outside
     a.add("metrics", _gauge((T - MIN, 0.5)), "m1")
     a.add("metrics", _gauge((T - MIN, 0.5)), "m2")  # the same point in a second request
     b.add("metrics", _gauge((T - MIN, 0.5)), "x")  # another arrival order, same rows
     b.add("spans", _spans(T - MIN), "y")
+    b.add("spans", _spans(T + 1), "z")  # so both triggers are T: newest data is after the click
     snap = write_snapshot(a, tmp_path / "a", T, 20, "manual")
     again = write_snapshot(b, tmp_path / "b", T, 20, "manual")
     assert snap is not None and again is not None and snap.snapshot_id == again.snapshot_id
@@ -62,9 +63,20 @@ def test_the_window_and_the_id_depend_only_on_rows_and_trigger(tmp_path: Path) -
 
 
 def test_an_empty_window_is_none_and_a_key_conflict_is_refused(tmp_path: Path) -> None:
-    buffer = LiveBuffer(30, 512)
+    buffer = LiveBuffer(30, 512, 300)
     assert write_snapshot(buffer, tmp_path, T, 20, "manual") is None
     buffer.add("metrics", _gauge((T - MIN, 0.5)), "m1")
     buffer.add("metrics", _gauge((T - MIN, 0.9)), "m2")  # same key, another value
     with pytest.raises(ContractValidationError, match="duplicate key"):
         write_snapshot(buffer, tmp_path, T, 20, "manual")
+
+
+def test_the_trigger_is_capped_at_the_newest_data_so_the_hint_is_inside_the_span(tmp_path: Path) -> None:
+    buffer = LiveBuffer(30, 512, 300)
+    buffer.add("spans", _spans(T - 5 * MIN, T - 3_000_000_000), "late")  # newest row 3 s before the click
+    snap = write_snapshot(buffer, tmp_path, T, 20, "manual")
+    assert snap is not None and snap.t_trigger_ns == T - 3_000_000_000 and snap.rows["spans"] == 2
+    again = write_snapshot(buffer, tmp_path, T + 60_000_000_000, 20, "manual")  # a second click, no new data
+    assert again is not None and again.snapshot_id == snap.snapshot_id
+    meta = json.loads((tmp_path / "live" / snap.snapshot_id / "snapshot.json").read_bytes())
+    assert meta["t_trigger_ns"] == T - 3_000_000_000  # data_start_ns <= hint <= data_end_ns (core alert)

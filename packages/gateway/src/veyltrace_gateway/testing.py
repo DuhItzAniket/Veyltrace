@@ -2,8 +2,14 @@
 
 Why a stub: Infralume's converter (`veyltrace_infralume.otlp`, O-07) does not exist yet, and the
 gateway must not implement it (06 §3.3). `StubConverter` maps only the few OTLP fields the tests
-send onto canonical rows, with no normalisation or scrubbing, so the receiver, buffer and snapshot
-can be tested end to end through the same seam the real module will use. Never used at runtime.
+send onto canonical rows, with no normalisation or scrubbing. The receiver, buffer and snapshot
+can then be tested end to end through the converter seam the receiver defines (#468), which the
+real module will use.
+
+Why in `src/`: the integration test (`tests/integration/test_explain_live.py`) needs it too, and
+under pytest's importlib mode a module in a package's `tests/` folder cannot be imported from
+there. `veyltrace_core.testing` sets the precedent. No runtime module may import this one, and
+`test_live_buffer.py` checks that, so it can never become a fallback converter.
 """
 
 from __future__ import annotations

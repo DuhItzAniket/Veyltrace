@@ -1,0 +1,98 @@
+/* Console v0 styles (docs/06 §5.4): system fonts, AA contrast, visible focus, no motion. Status
+   colours always come with a text word and a shape (06 §5.3 rule 6). */
+:root {
+  font-family: system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #ffffff;
+  line-height: 1.45;
+}
+body {
+  margin: 0 auto;
+  max-width: 76rem;
+  padding: 0 1rem 3rem;
+}
+:focus-visible {
+  outline: 3px solid #1f5fbf;
+  outline-offset: 2px;
+}
+table {
+  border-collapse: collapse;
+  margin: 0.5rem 0 1rem;
+}
+caption {
+  text-align: left;
+  font-weight: 600;
+}
+th,
+td {
+  border-bottom: 1px solid #c8c8c8;
+  padding: 0.3rem 0.6rem;
+  text-align: left;
+  vertical-align: top;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+ul.plain {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.banner {
+  border: 3px solid #555555;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+.banner h3 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+.headline {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.status-CONFIRMED {
+  border-color: #1e6b34;
+}
+.status-LIKELY {
+  border-color: #1f5fbf;
+}
+.status-INCONCLUSIVE {
+  border-color: #8a5a00;
+}
+.status-NO_FAULT {
+  border-color: #444444;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+.chips li {
+  border: 1px solid #555555;
+  border-radius: 1rem;
+  padding: 0.1rem 0.7rem;
+}
+.drawer {
+  border-left: 4px solid #1f5fbf;
+  padding-left: 1rem;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

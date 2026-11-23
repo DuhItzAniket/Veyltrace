@@ -57,7 +57,7 @@ def _app(buffer: LiveBuffer | None, tmp_path: Path) -> FastAPI:
 def test_route_errors(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("VEYLTRACE_DATA", str(tmp_path / "data"))
     assert _post(_app(None, tmp_path), "/live/status")[1]["error"]["code"] == "live_disabled"
-    app = _app(LiveBuffer(30, 512), tmp_path)
+    app = _app(LiveBuffer(30, 512, 300), tmp_path)
     assert _post(app, "/live/diagnose") == (
         409,
         {"error": {"code": "buffer_empty", "message": "no live data in the last 20 min"}},
