@@ -53,12 +53,23 @@ The SHA-256 is the model layer of the Ollama manifest (`~/.ollama/models/manifes
 
 **No `llama-bench` run (lead decision, 2026-11-23).** `llama-bench` exists to choose a model per laptop (02 §12), and the model is already chosen and pinned. RQ5's cost numbers come from the pipeline's own per-case records (04 §2), not from `llama-bench`. Installing llama.cpp on the recording host just before R-16 was not worth the download and machine time.
 
-The speed that matters here is a brief-sized call through Ollama. It is measured with `llm_bench` (a prompt of about 7,300 characters through the Ollama API) just before the first R-16 AI run, when Ollama has to be started anyway. The raw output is pasted below unchanged, with its conditions. A run at 06:45 on 23 Nov was skipped because free RAM was 3.0 GB, and the 9B needs about 5 GB; a number taken under memory pressure would mislead.
+The speed that matters here is a brief-sized call through Ollama, measured with `llm_bench` (three calls with a prompt of about 7,300 characters, JSON format, `num_ctx` 16384, `num_predict` 1024, after one warm-up load). The "brief-sized call" column projects 3,250 prompt and 700 output tokens from the measured rates. Calls 2 and 3 reuse Ollama's prompt cache, so their prompt rate is higher.
 
-Conditions: *to fill at measurement time* (charger, power mode, other apps, date).
+Conditions: charger plugged in (battery 100%), Windows power mode Balanced, freshly restarted laptop (7.5 GB of 15.7 GB RAM free), only the Claude desktop app open, 2026-11-23 13:52 IST, Ollama 0.40.16.
+
+| Model | Quant | Backend | Loaded size (`ollama ps`) | Prompt (t/s, first call) | Output (t/s) | Brief-sized call |
+|---|---|---|---|---|---|---|
+| Qwen3.5-9B | Q4_K_M | Ollama `llamacpp` runner, 47%/53% CPU/GPU | 6.7 GB (3.5 GB in VRAM) | 908 | 8.8–9.5 | about 78–80 s |
+
+Raw output, pasted unchanged:
 
 ```text
-<raw llm_bench output and `ollama ps` here, before the first R-16 AI run>
+qwen3.5:9b rep0: prompt 3326 tok in 3.7s (908 tok/s); output 422 tok in 44.6s (9.5 tok/s); total 48.3s; brief-sized call ~78s
+qwen3.5:9b rep1: prompt 3326 tok in 0.9s (3615 tok/s); output 899 tok in 101.7s (8.8 tok/s); total 102.6s; brief-sized call ~80s
+qwen3.5:9b rep2: prompt 3326 tok in 0.9s (3647 tok/s); output 1024 tok in 115.6s (8.9 tok/s); total 116.5s; brief-sized call ~80s
+  loaded qwen3.5:9b size=6.7GB vram=3.5GB
+NAME          ID              SIZE      PROCESSOR          CONTEXT    RUNNER      UNTIL              
+qwen3.5:9b    56671c2ab938    6.7 GB    47%/53% CPU/GPU    16384      llamacpp    4 minutes from now
 ```
 
 **Default model for this laptop:** Qwen3.5-9B Q4_K_M, pinned for all AI arms (04 §4, §10.7).
