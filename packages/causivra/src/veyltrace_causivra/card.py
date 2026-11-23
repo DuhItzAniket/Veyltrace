@@ -23,7 +23,7 @@ from veyltrace_causivra.render_md import render_card
 from veyltrace_contracts import models
 from veyltrace_contracts.registry import CONTRACTS
 from veyltrace_core.context import AIManifest, EngineResult, RunContext
-from veyltrace_core.errors import ContractValidationError
+from veyltrace_core.errors import ContractValidationError, UsageError
 from veyltrace_core.hashing import self_hash
 from veyltrace_core.log import get_logger
 from veyltrace_llm.client import LLMClient
@@ -33,6 +33,10 @@ from veyltrace_llm.settings import settings_from as llm_settings
 __all__ = ["CARD_MD", "TEMPLATE_NARRATOR", "Narrator", "build_card", "run_card"]
 
 ENGINE: Final = "causivra"
+#: Narration's own subdirectory of the run's cassette: Relentra's files stay as step 7 wrote them,
+#: so a run restarted after step 7 still finds them unchanged, and a re-run card step replaces
+#: only its own recording.
+NARRATION_CASSETTE: Final = "narration"
 _log = get_logger(__name__)
 CARD_MD: Final = "card.md"
 
@@ -119,17 +123,20 @@ def run_card(ctx: RunContext, provider: Provider | None = None) -> EngineResult:
         )
     onsets = ctx.read_model("onsets", models.Onsets) if ctx.exists("onsets") else None
     nodes = {str(r["node"]) for r in _rows(ctx, "graph.nodes", ["node"])} | set(manifest.services)
-    narration = narration_settings(ctx.config.section(ENGINE))
+    section = ctx.config.section(ENGINE)
     llm = llm_settings(ctx.config.section("llm"))
     told: list[Narration] = []
     narrator: Narrator | None = None
-    if ctx.ai_mode != "off" and narration.enabled:
-        # Relentra (step 7) recorded first; narration adds its calls to the same cassette.
-        client = LLMClient(
-            llm, ctx.ai_mode, ctx.cassette_dir, provider=provider, append=ctx.ai_mode == "record"
-        )
+    # A config locked before narration existed (a results-code-v1 receipt) has no `narration`
+    # section: its card was template prose, and replay must rebuild it as such.
+    narration = narration_settings(section) if ctx.ai_mode != "off" and "narration" in section else None
+    if narration is not None and narration.enabled:
+        if ctx.cassette_dir is None:
+            raise UsageError(f"ai mode {ctx.ai_mode} needs a cassette directory")
+        client = LLMClient(llm, ctx.ai_mode, ctx.cassette_dir / NARRATION_CASSETTE, provider=provider,
+            force_record=ctx.ai_mode == "record")  # fmt: skip
         params = sampler_params(ctx.config.section("relentra"), manifest.case_id, narration.max_tokens)
-        checker = checker_settings(ctx.config.section(ENGINE))
+        checker = checker_settings(section)
 
         def told_by_llm(
             v: models.Verdict, fill: FillContext, kinds: Mapping[str, str], path: Sequence[str]

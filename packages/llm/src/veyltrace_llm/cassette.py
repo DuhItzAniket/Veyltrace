@@ -12,9 +12,7 @@ Layout in the run directory:
 Every file is canonical JSON, written atomically, with no timestamps, so recording the same calls
 twice gives the same bytes. Replay is strict: a missing key, a missing occurrence or an entry whose
 request does not hash to its key raises `CassetteMiss`; nothing is ever fetched (rule 4). Record
-refuses a non-empty directory unless `force_record` (rule 5), which first clears it, or `append`:
-a later step of the same run adds its calls to the earlier steps' recording (the pipeline has
-already cleared the run directory), and may not record a request that was there before it opened.
+refuses a non-empty directory unless `force_record` (rule 5), which first clears it.
 """
 
 from __future__ import annotations
@@ -91,7 +89,6 @@ class Cassette:
         mode: CassetteMode,
         *,
         force_record: bool = False,
-        append: bool = False,
         recorded_with: Mapping[str, Any] | None = None,
     ) -> None:
         self.directory = Path(directory)
@@ -99,17 +96,7 @@ class Cassette:
         self._recorded_with = dict(recorded_with or {})
         self._entries: dict[str, dict[str, Any]] = {}
         self._replayed: Counter[str] = Counter()
-        self._before: frozenset[str] = frozenset()
-        if mode == "record" and append:
-            if force_record:
-                raise ValueError("append and force_record exclude each other")
-            index = self.directory / INDEX_FILE
-            rows = cast(list[dict[str, Any]], json.loads(textio.read_bytes(index))) if index.is_file() else []
-            self._before = frozenset(str(row["key"]) for row in rows)
-            for key in sorted(self._before):
-                self._load(key)
-            self.directory.mkdir(parents=True, exist_ok=True)
-        elif mode == "record":
+        if mode == "record":
             self._prepare_record(force_record)
         elif mode != "replay":
             raise ValueError(f"cassette mode must be record or replay, got {mode!r}")
@@ -134,8 +121,6 @@ class Cassette:
         if self.mode != "record":
             raise ValueError("record() needs a cassette in record mode")
         key = request.key
-        if key in self._before:
-            raise CassetteNotEmpty(f"{self.directory} already holds request {key}; re-record the whole run")
         entry = self._entries.setdefault(
             key,
             {

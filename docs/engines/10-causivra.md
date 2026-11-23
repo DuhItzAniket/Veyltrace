@@ -118,7 +118,7 @@ All template strings in steps 1–8 are trusted code text, filled by the same fi
                                  "items": {"enum": "<evidence_table atom_ids>"}}}}}}}
    ```
 
-3. **Attempt 1** via `veyltrace_llm.call_json(purpose="causivra.narrate", …)`; sampler and seed rules as Relentra ([08 §3.8](08-relentra.md#38-model-runtime-and-sampler)): the `relentra.sampler.*` values and `seed_index`, with seed purpose `causivra.seed/<seed_index>` and `narration.max_tokens`. The calls join the run's cassette after Relentra's (append).
+3. **Attempt 1** via `veyltrace_llm.call_json(purpose="causivra.narrate", …)`; sampler and seed rules as Relentra ([08 §3.8](08-relentra.md#38-model-runtime-and-sampler)): the `relentra.sampler.*` values and `seed_index`, with seed purpose `causivra.seed/<seed_index>` and `narration.max_tokens`. The calls are recorded in the cassette's own subdirectory `cassette/narration/`, so Relentra's entries stay as step 7 wrote them.
 4. Run the checker (§3.4) on every sentence. If any sentence fails, **attempt 2** = same messages + output + `repair.md` listing `(sentence index, rule ID, offending token)`.
 5. If attempt 2 also has a failing sentence, or a provider error occurs at any point: discard all LLM sentences and use template prose (§3.5); `narrator.path = template`.
 6. Otherwise fill placeholders (§3.3) → `summary`. `narrator = {path: llm, model: <name>, attempts, checker_failures}`.

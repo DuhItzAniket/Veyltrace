@@ -16,6 +16,7 @@ from string import Template
 from typing import Any, Final, cast
 
 from veyltrace_causivra.checker import CheckerSettings, Finding, check_sentence
+from veyltrace_causivra.fmt import format_number
 from veyltrace_causivra.placeholders import FillContext, fill
 from veyltrace_contracts import models
 from veyltrace_core import textio
@@ -164,7 +165,7 @@ def _messages(
     text, allowed = _verdict_lines(verdict, ctx, path)
     rows = [  # values only in the show_values ablation (10 §9)
         f"{a} | {t.label} | {kinds.get(a, '')} | {t.unit or ''}"
-        + (f" | {t.value}" if settings.show_values else "")
+        + (f" | {format_number(t.value, ctx.sig_digits)}" if settings.show_values else "")
         for a, t in sorted(ctx.table.items())
     ]
     user = Template(_read(PROMPTS[1])).substitute(

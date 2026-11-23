@@ -383,7 +383,7 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 
 Excluded from the key (recorded in the entry for audit): provider kind, `base_url`, timeouts, thread count, `num_ctx`, keep-alive, streaming flags. Replay never contacts a provider, so the key must not depend on which runtime recorded it.
 
-**Layout:** `cassette/<key>.json` = `{key, request, recorded_with, responses: [ {content, error, usage: {tokens_in, tokens_out}, latency_ms, runtime: {provider, version}} … ]}` (`recorded_with` = the runtime settings excluded from the key; `content` or `error` is null, never absent), plus `cassette/index.json` = sorted `[{key, purpose, n}]`. `responses` are in occurrence order: the n-th identical request in a run gets the n-th response. Files are written atomically (temp file + rename) and contain no timestamps (P3).
+**Layout:** `cassette/<key>.json` = `{key, request, recorded_with, responses: [ {content, error, usage: {tokens_in, tokens_out}, latency_ms, runtime: {provider, version}} … ]}` (`recorded_with` = the runtime settings excluded from the key; `content` or `error` is null, never absent), plus `cassette/index.json` = sorted `[{key, purpose, n}]`. `responses` are in occurrence order: the n-th identical request in a run gets the n-th response. Files are written atomically (temp file + rename) and contain no timestamps (P3). Causivra's narration calls go to a second cassette of the same layout in `cassette/narration/` ([10 §3.2](10-causivra.md#32-llm-narration-aimode--record--replay)), so Relentra's files stay as step 7 wrote them.
 
 **Directory hash:** `cassette_sha256` = SHA-256(canonical_json(sorted `[{name: relative path, sha256}]`)) over all cassette files. Core must compute it the same way (OQ-4).
 
@@ -392,7 +392,7 @@ Excluded from the key (recorded in the entry for audit): provider kind, `base_ur
 | Mode | Behaviour |
 |---|---|
 | `off` | `veyltrace_llm` refuses every call (`AIDisabled`) |
-| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record`; even then it checks every entry before deleting any, and refuses (deleting nothing) when one is not a cassette file ([02 §4.1](../02-architecture.md#41-run-directory)). A later step of the same run (Causivra's narration, 10 §3.2) opens it with `append`: it keeps the earlier entries and refuses a request that was already recorded |
+| `record` | call provider; append response or error; return. Refuses to write into an existing non-empty `cassette/` unless `--force-record`; even then it checks every entry before deleting any, and refuses (deleting nothing) when one is not a cassette file ([02 §4.1](../02-architecture.md#41-run-directory)) |
 | `replay` | look up key and occurrence; miss → `CassetteMiss`; never opens a socket |
 
 ### 5.3 `agent_trace.jsonl`
