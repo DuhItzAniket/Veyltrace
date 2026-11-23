@@ -7,7 +7,9 @@ converter is passed in (`OtlpConverter`), so the real module drops in unchanged;
 receiver answers 503 and the Collector retries. The request shape is the OTLP protobuf-JSON
 mapping, the same as one line of a lab capture's `otlp/*.jsonl` (proposed on #24). Protobuf
 bodies are 415 until `opentelemetry-proto` is a dependency (OTLP/HTTP: an unsupported content
-type MUST be 415). Gzip is accepted; the size limit applies before and after decompression.
+type MUST be 415). Gzip is accepted; the size limit applies before and after decompression. An
+unreadable body is 400 (OTLP: not retried); a converter failure is 500 (retried), so a converter
+bug drops no data. A batch the buffer refuses is acknowledged as an OTLP partial success.
 """
 
 # No `from __future__ import annotations`: FastAPI reads the route annotations at creation.
@@ -16,24 +18,26 @@ import json
 import zlib
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Final, Protocol
+from typing import Any, Final, Protocol, cast
 
 import pyarrow as pa
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
-from veyltrace_core.errors import ContractValidationError
-from veyltrace_gateway.buffer import LiveBuffer
+from veyltrace_core.log import get_logger
+from veyltrace_gateway.buffer import BYTES_PER_MIB, AddResult, LiveBuffer
 from veyltrace_gateway.errors import ApiError, add_error_handlers
 
 __all__ = ["SIGNALS", "OtlpConverter", "ReceiverCounters", "create_otlp_app"]
 
-#: OTLP/HTTP path → (converter function, buffer source).
-SIGNALS: Final = {"traces": ("spans", "spans"), "metrics": ("metrics", "metrics"), "logs": ("logs", "logs")}
+#: OTLP/HTTP path → buffer source, and the partial-success field naming what was rejected.
+SIGNALS: Final = {"traces": "spans", "metrics": "metrics", "logs": "logs"}
+_REJECTED: Final = {"traces": "rejectedSpans", "metrics": "rejectedDataPoints", "logs": "rejectedLogRecords"}
 _JSON: Final = "application/json"
 _GZIP_WBITS: Final = 16 + zlib.MAX_WBITS
-_BYTES_PER_MB: Final = 1024 * 1024
+_LOG: Final = get_logger(__name__)
+Converts = Callable[[Mapping[str, Any], Mapping[str, Any]], tuple[pa.Table, Mapping[str, int]]]
 
 
 class OtlpConverter(Protocol):
@@ -56,7 +60,8 @@ class OtlpConverter(Protocol):
 
 @dataclass
 class ReceiverCounters:
-    """Request outcomes since start (06 §3.3 "a counter"); the scrub counters are summed."""
+    """Request outcomes since start (06 §3.3 "a counter"), scrub counters summed; rejections are
+    logged too, and `/live/status` (#469) reports the counts."""
 
     accepted: int = 0
     duplicate: int = 0
@@ -65,7 +70,7 @@ class ReceiverCounters:
 
 
 async def _body(request: Request, limit: int) -> bytes:
-    """The raw body, refused past `limit` while it streams in (413)."""
+    """The raw body, refused past `limit` while it streams in and again after gzip (413)."""
     chunks: list[bytes] = []
     size = 0
     async for chunk in request.stream():
@@ -74,8 +79,11 @@ async def _body(request: Request, limit: int) -> bytes:
             raise ApiError(413, "body_too_large", f"OTLP body exceeds {limit} bytes")
         chunks.append(chunk)
     raw = b"".join(chunks)
-    if request.headers.get("content-encoding", "identity").lower() != "gzip":
+    encoding = request.headers.get("content-encoding", "identity").strip().lower()
+    if encoding == "identity":
         return raw
+    if encoding != "gzip":  # OTLP/HTTP defines only gzip
+        raise ApiError(415, "unsupported_encoding", f"content-encoding {encoding!r}: send gzip or none")
     inflater = zlib.decompressobj(_GZIP_WBITS)
     try:
         data = inflater.decompress(raw, limit + 1)
@@ -83,6 +91,8 @@ async def _body(request: Request, limit: int) -> bytes:
         raise ApiError(400, "malformed_body", f"bad gzip body: {exc}") from None
     if len(data) > limit or inflater.unconsumed_tail:
         raise ApiError(413, "body_too_large", f"decompressed OTLP body exceeds {limit} bytes")
+    if not inflater.eof or inflater.unused_data:
+        raise ApiError(400, "malformed_body", "truncated or multi-member gzip body")
     return data
 
 
@@ -98,38 +108,56 @@ def create_otlp_app(
     app = FastAPI(title="Veyltrace OTLP receiver", docs_url=None, redoc_url=None, openapi_url=None)
     add_error_handlers(app)
     tally = counters if counters is not None else ReceiverCounters()
-    limit = max_body_mb * _BYTES_PER_MB
+    limit = max_body_mb * BYTES_PER_MIB
+
+    def ingest(convert: Converts, signal: str, raw: bytes) -> tuple[AddResult, int, Mapping[str, int]]:
+        """Decode, convert and buffer one body; runs in a worker thread, off the event loop."""
+        try:
+            decoded: object = json.loads(raw)
+        except ValueError as exc:  # also bad UTF-8
+            raise ApiError(400, "malformed_body", f"{type(exc).__name__}: {exc}") from None
+        if not isinstance(decoded, dict):
+            raise ApiError(400, "malformed_body", "expected a JSON object")
+        table, scrub = convert(cast(dict[str, Any], decoded), convert_settings)
+        digest = hashlib.sha256(signal.encode() + b"\0" + raw).hexdigest()
+        return buffer.add(SIGNALS[signal], table, digest), table.num_rows, scrub
 
     async def receive(signal: str, request: Request) -> JSONResponse:
         try:
-            return await convert(signal, request)
-        except ApiError:
+            if converter is None:
+                raise ApiError(
+                    503, "converter_unavailable", "Infralume's OTLP converter is not installed yet"
+                )
+            media = request.headers.get("content-type", "").split(";")[0].strip().lower()
+            if media != _JSON:
+                raise ApiError(415, "unsupported_media_type", f"{media or 'no content type'}: send {_JSON}")
+            functions: dict[str, Converts] = {
+                "traces": converter.spans, "metrics": converter.metrics, "logs": converter.logs,
+            }  # fmt: skip
+            raw = await _body(request, limit)
+            outcome, rows, scrub = await run_in_threadpool(ingest, functions[signal], signal, raw)
+        except ApiError as exc:
             tally.rejected += 1
+            _LOG.warning(
+                "otlp_rejected", signal=signal, status=exc.status, code=exc.code, message=exc.message
+            )
             raise
-
-    async def convert(signal: str, request: Request) -> JSONResponse:
-        if converter is None:
-            raise ApiError(503, "converter_unavailable", "Infralume's OTLP converter is not installed yet")
-        media = request.headers.get("content-type", "").split(";")[0].strip().lower()
-        if media != _JSON:
-            raise ApiError(415, "unsupported_media_type", f"{media or 'no content type'}: send {_JSON}")
-        raw = await _body(request, limit)
-        function, source = SIGNALS[signal]
-        try:
-            decoded: object = json.loads(raw)
-            if not isinstance(decoded, dict):
-                raise ValueError("expected a JSON object")
-            table, scrub = await run_in_threadpool(getattr(converter, function), decoded, convert_settings)
-            fresh = buffer.add(source, table, hashlib.sha256(signal.encode() + b"\0" + raw).hexdigest())
-        except (ValueError, KeyError, TypeError, ContractValidationError) as exc:
-            raise ApiError(400, "malformed_body", f"{type(exc).__name__}: {exc}") from None
-        if fresh:
-            tally.accepted += 1
-            for key, count in scrub.items():
-                tally.scrub[key] = tally.scrub.get(key, 0) + int(count)
-        else:
+        except Exception as exc:  # a converter bug or a RecursionError: 500, so the Collector retries
+            tally.rejected += 1
+            _LOG.warning("otlp_failed", signal=signal, error=f"{type(exc).__name__}: {exc}")
+            raise ApiError(500, "conversion_failed", f"{type(exc).__name__}: {exc}") from None
+        if outcome == "duplicate":
             tally.duplicate += 1
-        return JSONResponse({})  # Export*ServiceResponse: full success, no partial_success
+            return JSONResponse({})
+        tally.accepted += 1
+        for key, count in scrub.items():
+            tally.scrub[key] = tally.scrub.get(key, 0) + int(count)
+        if outcome == "accepted":
+            return JSONResponse({})  # Export*ServiceResponse: full success
+        # The buffer refused the batch (it logs and counts that): an OTLP partial success.
+        return JSONResponse(
+            {"partialSuccess": {_REJECTED[signal]: str(rows), "errorMessage": f"buffer: {outcome}"}}
+        )
 
     def route_for(signal: str) -> Callable[[Request], Awaitable[JSONResponse]]:
         async def route(request: Request) -> JSONResponse:
