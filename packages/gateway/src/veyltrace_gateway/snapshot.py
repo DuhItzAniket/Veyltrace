@@ -6,10 +6,17 @@ and it enters through `snapshot.json`, which is hashed into the id. The layout i
 to Observe on #24 (OQ-6): `${VEYLTRACE_DATA}/live/<snapshot_id>/{metrics,logs,spans,events}.parquet`
 in canonical shape (core's writers sort and hash them) and `snapshot.json` = `{snapshot_id,
 t_trigger_ns, trigger}`. `events.parquet` is empty: live has no change feed. The id is
-`veyltrace_core.ids.snapshot_id`, so the same rows and trigger always give the same id. The case
+`veyltrace_core.ids.snapshot_id`, so the same rows and trigger always give the same id; the
+trigger kind is recorded but not hashed (06 §3.4), so it may overwrite `snapshot.json`. The case
 id is `case_id(snapshot_id)`, because the snapshot id is `otlp_live`'s canonical case key (01
 §3.2), and `${VEYLTRACE_DATA}/index/live.json` maps it to the snapshot folder, as for every
 dataset (01 §2).
+
+The trigger is the requested time (the click) capped at the newest buffered data time. Rows reach
+the buffer seconds after their data time (Collector batching, scrapes), so a trigger at the click
+would lie after `data_end_ns`, and core's alert step would reject the case as `hint_outside_span`
+(`core.alert.reject_hint_outside_span`). The newest data time is the latest moment we have data
+for. A repeated click with no new data therefore gives the same snapshot.
 """
 
 from __future__ import annotations
@@ -69,11 +76,16 @@ def _window(buffer: LiveBuffer, source: str, start_ns: int, end_ns: int) -> pa.T
 
 
 def write_snapshot(
-    buffer: LiveBuffer, data_root: Path, t_trigger_ns: int, before_min: int, trigger: Trigger
+    buffer: LiveBuffer, data_root: Path, at_ns: int, before_min: int, trigger: Trigger
 ) -> Snapshot | None:
-    """Write the window [t_trigger − before_min, t_trigger] (the manual settle is 0, 06 §6) and
-    return it, or None when the window holds no rows. Raises ContractValidationError when two
-    different rows share a unique key (the converter's combine rule did not cover them)."""
+    """Write the window [t_trigger − before_min, t_trigger], where t_trigger = min(at_ns, newest
+    buffered data time) (the manual settle is 0, 06 §6), and return it, or None when the window
+    holds no rows. Raises ContractValidationError when two different rows share a unique key (the
+    converter's combine rule did not cover them)."""
+    newest = buffer.stats().newest_ns
+    if newest is None:
+        return None
+    t_trigger_ns = min(at_ns, newest)
     start = t_trigger_ns - before_min * _NS_PER_MIN
     tables = {source: _window(buffer, source, start, t_trigger_ns) for source in TELEMETRY}
     if not any(t.num_rows for t in tables.values()):
@@ -81,7 +93,7 @@ def write_snapshot(
     payloads = {source: encode(TELEMETRY[source], table) for source, table in tables.items()}
     sid = snapshot_id([sha256_bytes(p) for p in payloads.values()], t_trigger_ns)
     folder = data_root / SNAPSHOT_DIR / sid
-    with _LOCK:
+    with _LOCK:  # files first, index last: a crash leaves a folder no case id points to
         for source, payload in payloads.items():
             textio.write_bytes(folder / f"{source}.parquet", payload)
         meta = {"snapshot_id": sid, "t_trigger_ns": t_trigger_ns, "trigger": trigger}
