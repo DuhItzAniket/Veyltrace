@@ -1359,6 +1359,7 @@ version = "0.1.0"
 source = { editable = "packages/gateway" }
 dependencies = [
     { name = "fastapi" },
+    { name = "pyarrow" },
     { name = "pydantic" },
     { name = "uvicorn" },
     { name = "veyltrace-contracts" },
@@ -1368,6 +1369,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.162.2" },
+    { name = "pyarrow", specifier = ">=17" },
     { name = "pydantic", specifier = ">=2.9" },
     { name = "uvicorn", specifier = ">=0.54.0" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
