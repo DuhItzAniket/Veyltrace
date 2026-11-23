@@ -1,9 +1,10 @@
 // Run view (docs/06 §5.2 "/runs/:runId"): progress until the run is done, then the verdict
-// sections a–b. Every value shown is an artifact value.
+// sections a–b and the evidence table (d). Every value shown is an artifact value.
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
 
 import { api } from "../api";
+import { AtomPanel, EvidenceTable } from "./Evidence";
 import { Failure } from "./ui";
 import { CandidateSet, Glossary, StatusBanner } from "./Verdict";
 
@@ -21,6 +22,8 @@ function FinishedRun({ runId, aiMode }: { runId: string; aiMode: string }) {
     <>
       <StatusBanner verdict={v} alert={alert.data} aiMode={aiMode} />
       <CandidateSet verdict={v} />
+      <AtomPanel runId={runId} />
+      <EvidenceTable runId={runId} services={v.ranked.map((r) => r.service)} />
       <Glossary />
     </>
   );
