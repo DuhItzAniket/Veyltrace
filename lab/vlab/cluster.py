@@ -10,6 +10,7 @@ import hashlib
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -101,3 +102,47 @@ def cpu_limits(pins: Mapping[str, Any], field: str = "limits") -> dict[str, str]
                 if cpu is not None:
                     limits[str(doc["metadata"]["name"])] = str(cpu)
     return limits
+
+
+#: The Collector manifest `lab/up.py` applies; capture campaigns always use it unchanged.
+COLLECTOR_FILE = OB_DIR / "collector.yaml"
+#: The live-mode exporter to the gateway's OTLP receiver (06 §3.3); 0.164.0 names the otlphttp
+#: exporter `otlp_http`, as it renames kubeletstats to `kubelet_stats`. JSON because the receiver
+#: answers protobuf with 415 until `opentelemetry-proto` is a gateway dependency.
+LIVE_EXPORTER = "otlp_http/gateway"
+#: Pod-template annotation carrying the endpoint, so switching live export on or off changes the
+#: template and restarts the Collector (a ConfigMap change alone does not).
+LIVE_ANNOTATION = "veyllab/live-export"
+
+
+def live_endpoint_problem(endpoint: str) -> str | None:
+    """Why `endpoint` cannot be the exporter's base URL, or None (otlp_http appends /v1/<signal>)."""
+    parts = urlsplit(endpoint)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return f"live export endpoint {endpoint!r} must be http(s)://host:port"
+    if parts.path not in ("", "/") or parts.query or parts.fragment:
+        return f"live export endpoint {endpoint!r} must have no path: the exporter adds /v1/<signal>"
+    return None
+
+
+def collector_manifest_live(endpoint: str, path: Path = COLLECTOR_FILE) -> str:
+    """The Collector manifest with the otlp_http exporter added to every pipeline (live mode only).
+
+    Everything else, the file exporters included, stays as committed, so the spool of a live run
+    is the same as a capture's. Comments are not kept: the result is applied, never committed.
+    """
+    with path.open(encoding="utf-8") as fh:
+        docs = [d for d in yaml.safe_load_all(fh) if d]
+    for doc in docs:
+        if doc["kind"] == "ConfigMap":
+            config = yaml.safe_load(doc["data"]["config.yaml"])
+            config["exporters"][LIVE_EXPORTER] = {
+                "endpoint": endpoint, "encoding": "json", "compression": "gzip",
+            }  # fmt: skip
+            for pipeline in config["service"]["pipelines"].values():
+                pipeline["exporters"].append(LIVE_EXPORTER)
+            doc["data"]["config.yaml"] = yaml.safe_dump(config, sort_keys=False)
+        elif doc["kind"] == "Deployment":
+            meta = doc["spec"]["template"]["metadata"]
+            meta.setdefault("annotations", {})[LIVE_ANNOTATION] = endpoint
+    return yaml.safe_dump_all(docs, sort_keys=False)
