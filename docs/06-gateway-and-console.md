@@ -122,7 +122,7 @@ The gateway and console read these artifacts for display only and never write th
 - Default bind `127.0.0.1` for both listeners. A non-loopback `api.host` or `live.otlp_host` needs the explicit start flag `--allow-lan` and prints a warning; used only for the split demo.
 - No authentication in v1: anyone who can reach the port can read every run and start runs. That is acceptable on a single-user laptop bound to loopback and is stated in the README; a hosted deployment would need auth first ([02 §10](02-architecture.md#10-deployment-shapes), "Cloud (later)").
 - CORS allows only `api.cors_origins` (default the Vite dev origin `http://127.0.0.1:5173`); the production console is served by the gateway from `console/dist` on the same origin.
-- Reaching a loopback-bound OTLP listener from the Collector inside kind (via `host.docker.internal` on Docker Desktop) is unverified → OQ-7.
+- The Collector inside kind reaches the loopback-bound OTLP listener through `host.docker.internal` on Docker Desktop, so the live demo needs no `--allow-lan` (OQ-7, measured on 2026-11-24 for #489).
 
 ## 4. MCP server
 
@@ -278,7 +278,7 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | OQ-4 | The requested `verify_hypothesis(service, fault_class, predicates[])` has no case reference | `run_id` is a required input |
 | OQ-5 | `detect_alert` scans the whole buffer every 10 s; its cost on 30 min of spans is unmeasured | Call it as is; if it exceeds 1 s per call, pass only the last `slo.window_s + slo.gap_s` plus a margin of data |
 | OQ-6 | `snapshot.json` field names are described as "snapshot id, trigger time" in engines/01 | `snapshot_id`, `t_trigger_ns`, `trigger`; confirm with Observe at X-10 |
-| OQ-7 | Can the Collector in kind reach a gateway bound to Windows loopback through `host.docker.internal`? | Verify at X-10; fallback: run the gateway inside WSL2, or bind the OTLP listener to the Docker network interface with `--allow-lan` |
+| OQ-7 | ~~Can the Collector in kind reach a gateway bound to Windows loopback through `host.docker.internal`?~~ | *Resolved 2026-11-24 (#489), measured:* yes. Docker Desktop 29.8.2 (WSL2) forwards `host.docker.internal:4319` from the kind pod to the gateway on Windows `127.0.0.1:4319`, with the default `live.otlp_host` and no `--allow-lan`. With `lab/up.py --profile ob --live-export` and Online Boutique running, `/health` showed `live.receiving: true` in every sample over 5 min, and it turned false 60 s after `up` ran again without the flag. The WSL2 and `--allow-lan` fallbacks were not needed |
 | OQ-8 | Live demo with AI on cannot meet ≤ 5 min on a CPU-only laptop (§8) | *Resolved in 02 §10 and 07 M3 (2026-10-30):* the ≤ 5 min target is AI-off; the AI-on result is shown on the split or cassette demo |
 
 [sm-a1]: ../research_notes/Veyltrace%20v2%20SOTA%20root%20cause%20analysis/stack_and_market.md#a1-opentelemetry-in-2026-collector-distributions-otlp-ingestion-in-python-semantic-convention-stability-profiles-ebpf-obibeyla-minimal-footprint
