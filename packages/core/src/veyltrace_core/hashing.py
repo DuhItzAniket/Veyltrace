@@ -43,6 +43,8 @@ FILE_CHUNK_BYTES = 1 << 20
 GENESIS_HASH = "0" * 64
 #: Joins the parts of a hash-keyed selection; ASCII unit separator, which never occurs in ids.
 FRACTION_SEPARATOR = "\x1f"
+#: Any run of CRs before a LF is one line break, the same rule as veyltrace_llm (#224).
+_CR_RUN_LF = re.compile(rb"\r+\n")
 # fraction() maps the first 16 hex (64 bits) of a hash onto [0, 1) (core_api_spec §1).
 _FRACTION_HEX = 16
 _FRACTION_DENOMINATOR = 2**64
@@ -84,12 +86,14 @@ def sha256_file(path: Path) -> str:
 
 
 def sha256_text_lf(path: Path) -> str:
-    """Return the SHA-256 of a text file after CRLF -> LF.
+    """Return the SHA-256 of a text file after every run of CRs before a LF becomes one LF.
 
-    Prompts, briefs and uv.lock are hashed this way so that a CRLF checkout on Windows hashes the
-    same as LF on Linux (08 §3.5). Lone CR is left alone.
+    Prompts, briefs, experiment YAMLs and uv.lock are hashed this way so that a CRLF checkout on
+    Windows hashes the same as LF on Linux (08 §3.5). The rule is veyltrace_llm's cassette-key
+    rule (#224, D1 (a) on #227): it is idempotent, so a file converted to CRLF twice (CR CR LF)
+    still hashes as LF. A CR not followed by LF is left alone.
     """
-    return sha256_bytes(Path(path).read_bytes().replace(b"\r\n", b"\n"))
+    return sha256_bytes(_CR_RUN_LF.sub(b"\n", Path(path).read_bytes()))
 
 
 def _as_mapping(obj: Mapping[str, Any] | BaseModel) -> Mapping[str, Any]:

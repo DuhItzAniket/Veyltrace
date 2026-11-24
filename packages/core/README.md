@@ -42,7 +42,7 @@ This README is the shared reference other lanes build against. It documents what
 |---|---|
 | `canonical_json_str(obj) -> str`, `normalize(obj)` | Decoded form for the `*_json` str columns; normalised JSON value. |
 | `sha256_bytes(b)`, `sha256_json(obj)`, `sha256_file(path)` | Lowercase 64-hex, no prefix. `sha256_file` streams in 1 MiB chunks. |
-| `sha256_text_lf(path)` | Hash after CRLF→LF (prompts, briefs, `uv.lock`). |
+| `sha256_text_lf(path)` | Hash after CR…CRLF→LF (prompts, briefs, experiment YAMLs, `uv.lock`). |
 | `self_hash(contract, obj)`, `verify_self_hash(contract, obj)` | `verdict_hash` and `card_hash`. Excluded fields come from the generated registry; `verdict` also excludes `run_id` (D-4). |
 | `manifest_hash(entries: Iterable[(name, sha256)])` | One hash over a set of named files, sorted by name (cassette, prompt and schema hashes). |
 | `chain_hash(prev_hash, line)`, `verify_chain(lines, *, start_seq=0, …) -> str \| None` | The agent_trace hash chain. Genesis is `GENESIS_HASH = "0"*64`. Raises `ChainBroken(seq)`. |
