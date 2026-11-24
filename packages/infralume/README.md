@@ -4,7 +4,7 @@ Engine 1 of Veyltrace v2 (Observe lane). Infralume ingests one case from a bench
 
 - Adapters: `rcaeval` (RE1/RE2/RE3) and `nezha`; entry point group `veyltrace.adapters`.
 - `veyltrace data fetch <name>` (`rcaeval`, `nezha`): downloads into `${VEYLTRACE_DATA}`, never into the repo.
-- Not here: the OTLP → canonical converter (`veyltrace_infralume.otlp`) and the `otlp_live` adapter are not built yet: in progress under O-07 (#24), for the live demo. The `veyllab` adapter is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
+- The OTLP → canonical converter (`veyltrace_infralume.otlp`: `spans`, `metrics`, `logs`) is built (O-07). Not here yet: the `otlp_live` adapter, in review (#508). The `veyllab` adapter is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
 
 Spec: [docs/engines/01-infralume.md](../../docs/engines/01-infralume.md). Rules for agents: [AGENTS.md](AGENTS.md).
 

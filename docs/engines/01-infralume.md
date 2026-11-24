@@ -1,6 +1,6 @@
 # 01 · Infralume — ingest any source into one canonical telemetry store and scrub leakage
 
-> Status: built (O-01, O-08, O-09; O-07 converter in progress), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.1](../02-architecture.md), §4 (step 0), §5.1 · Contracts: [docs/03-contracts.md §2.1–2.5](../03-contracts.md) · Last updated: 2026-11-24
+> Status: built (O-01, O-07 converter, O-08, O-09; `otlp_live` in review, #508), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.1](../02-architecture.md), §4 (step 0), §5.1 · Contracts: [docs/03-contracts.md §2.1–2.5](../03-contracts.md) · Last updated: 2026-11-24
 
 ## 1. Purpose and scope
 
@@ -8,13 +8,13 @@ Infralume is the only engine that touches raw data. It reads one case from a ben
 
 **In scope**
 
-- Adapters: `rcaeval` (RE1, RE2, RE3) and `nezha` are built. `otlp_live` is not built yet: in progress under O-07 (#24), for the live demo. `veyllab` is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
+- Adapters: `rcaeval` (RE1, RE2, RE3) and `nezha` are built. `otlp_live` is in review (#508, O-07), for the live demo. `veyllab` is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
 - The dataset fetchers behind `veyltrace data fetch <name>` (`rcaeval`, `nezha`).
 - Canonical table construction, service-name normalisation, the span error-status rule.
 - Leakage scrubbing, the opaque `case_id`, the `sources` map.
 - The alert hint: `t_alert_hint_ns` (null under the detected protocol) and `hint_source` in `case_manifest`.
 - Robustness hooks (O-09): `sources.drop`, the change-event overlay used by RCAEval-C (§3.10), and the config key `alert.shift_s`, which core's alert step applies.
-- The OTLP → canonical converter library for the gateway and, later, `veyllab` (§3.9). Not built yet: in progress under O-07 (#24), for the live demo.
+- The OTLP → canonical converter library for the gateway and, later, `veyllab` (§3.9), built under O-07 (#24).
 
 **Out of scope**
 
@@ -30,7 +30,7 @@ Infralume is the only engine that touches raw data. It reads one case from a ben
 
 | Input | Read by | Notes |
 |---|---|---|
-| Raw case folder or capture under `${VEYLTRACE_DATA}` | adapter only | located through the private index `${VEYLTRACE_DATA}/index/<dataset>.json` (`case_id → relative path`; one file per dataset id, e.g. `re2-ob`, `nezha-tt`), written by the fetcher; never copied into a run directory |
+| Raw case folder or capture under `${VEYLTRACE_DATA}` | adapter only | located through the private index `${VEYLTRACE_DATA}/index/<dataset>.json` (`case_id → relative path`; one file per dataset id, e.g. `re2-ob`, `nezha-tt`), written by the fetcher, or by the gateway for `live` (#24); never copied into a run directory |
 | `config/infralume.yaml` | all steps | §4 |
 | Optional events overlay file under `${VEYLTRACE_DATA}/overlays/` | §3.10 | written by the RCAEval-C generator (O-13); path given through `events.overlay_path` |
 
@@ -66,7 +66,7 @@ A source that is absent or dropped is written as a schema-valid table with zero 
 | `rcaeval` | Hugging Face case name `{release}{system}_{service}_{fault}_{rep}`, lowercase, e.g. `re2ob_checkoutservice_cpu_1` (the HF directory name). A Zenodo path `RE2/RE2-OB/<svc>_<fault>/<rep>` is converted to the same string. One mislabelled Zenodo folder (RE3-TT `ts-route-service_f6`, really F3) is relabelled first, so both mirrors give one id. |
 | `nezha` | `nezha-{system}-{date}-{index}` (index = 0-based order of the fault in the day's fault list, by `inject_time`), e.g. `nezha-ob-2022-08-22-0` |
 | `veyllab` (not built, §3.3) | the capture id (already opaque, set by the lab packager) |
-| `otlp_live` (not built yet, §3.3) | the snapshot id written by the gateway |
+| `otlp_live` (in review, §3.3) | the snapshot id written by the gateway |
 
 The canonical key encodes ground truth for RCAEval (the folder name is the label, [rcaeval_facts §Dataset layout][rf-layout]). It exists only inside the adapter and the private index. `case_id` hides it from engines; it is not a secret against a deliberate brute-force over 735 names, and it is not meant to be.
 
@@ -106,7 +106,7 @@ Hint sanity: if the hint lies outside `[data_start_ns, data_end_ns]` (two RE1-OB
 
 **`veyllab`** — not built: moved to v1.1 (lead decision, 23 Nov 2026; ADR 20261124-as-observe-cuts-v1-1). The plan: it reads a packaged capture from `${VEYLTRACE_DATA}/veyllab/<dataset>/<capture_id>/`, the layout in [05 §9](../05-fault-lab-and-dataset.md): `otlp/{traces,metrics,logs}.jsonl` (protobuf-JSON mapping, already scrubbed by the packager), `events.jsonl` in `telemetry.events` shape, `oracle_alert.json` (`{"t_alert_ns": …}` → hint, `hint_source = oracle`), `capture.json` (`capture_id`, `system`). Raw captures and answer keys stay under `lab/captures/`, which Infralume never reads. Conversion uses the OTLP converter (§3.9); scrubbing is re-applied (idempotent).
 
-**`otlp_live`** — not built yet: in progress under O-07 (#24), for the live demo. The plan: it reads a gateway snapshot: canonical-shape Parquet for the four sources plus `snapshot.json` (`snapshot_id`, trigger time). It re-applies normalisation and scrubbing (both idempotent) and writes `t_alert_hint_ns` = trigger time, `hint_source = live`, `dataset = live`. `synth` cases do not go through this reader: `veyltrace_core.synth` registers its own adapter (§1).
+**`otlp_live`** — in review (#508, O-07), for the live demo. It reads a gateway snapshot: canonical-shape Parquet for the four sources plus `snapshot.json` (`snapshot_id`, trigger time). It re-applies normalisation and scrubbing (both idempotent) and writes `t_alert_hint_ns` = trigger time, `hint_source = live`, `dataset = live`. `synth` cases do not go through this reader: `veyltrace_core.synth` registers its own adapter (§1).
 
 ### 3.4 Service-name normalisation
 
@@ -130,7 +130,7 @@ Let `C` be the set of non-null, non-NaN `status_code` values over all spans of t
 2. Otherwise, per span: if `code ≥ 100`, HTTP: `error` iff `code ≥ 500`. If `1 ≤ code < 100`, gRPC: `error` (any non-zero gRPC code).
 3. `code` null, NaN or 0 is never an error.
 
-`status` = `error` when the rule says so; `ok` when a code is present and not an error (and, under rule 1, the code is 1); `unset` otherwise. For OTLP sources (§3.9, not built yet) the native OTel status will win: `STATUS_CODE_ERROR → error`; for `UNSET` spans the HTTP/gRPC rule is applied to `http.response.status_code` / `rpc.grpc.status_code`.
+`status` = `error` when the rule says so; `ok` when a code is present and not an error (and, under rule 1, the code is 1); `unset` otherwise. For OTLP sources (§3.9) the native OTel status wins: `STATUS_CODE_ERROR → error`; for `UNSET` spans the HTTP/gRPC rule is applied to `http.response.status_code`, else `http.status_code` (the name before semconv 1.21, which older SDKs still send; lead decision on #24), else `rpc.grpc.status_code`.
 
 Known limit: under rule 1, gRPC `CANCELLED` (1) is read as OTel ok. Rule 1 only fires when no other code appears in the whole case.
 
@@ -163,7 +163,7 @@ Infralume reads the run's protocol (shared key `alert.protocol` in `config/core.
 | `rcaeval` | `inject_time.txt` × 10⁹ | `oracle` |
 | `nezha` | fault-list `inject_time` (UTC) of the case | `oracle` |
 | `veyllab` (not built, §3.3) | `oracle_alert.json` | `oracle` |
-| `otlp_live` (not built yet, §3.3) | watcher breach time or "Diagnose now" time | `live` |
+| `otlp_live` (in review, §3.3) | watcher breach time or "Diagnose now" time | `live` |
 | `synth` | as written by the generator | as written |
 | no published time | null | `none` |
 
@@ -188,9 +188,7 @@ Core then adds `alert.shift_s` (recorded as `alert.shift_ns`) and computes the c
 
 ### 3.9 OTLP → canonical converter (O-07)
 
-**Status.** Not built yet: in progress under O-07 (#24), for the live demo. No `otlp` module or `otlp.*` config key is in the package today. This section is the plan.
-
-Module `veyltrace_infralume.otlp`: pure functions from decoded `ExportTraceServiceRequest`, `ExportMetricsServiceRequest`, `ExportLogsServiceRequest` (protobuf objects or the protobuf-JSON mapping, [stack_and_market §A1][sm]) to Arrow tables in canonical shape, already normalised and scrubbed. No I/O, no sockets. To be used by the gateway's live buffer (X-10) and, in v1.1, by `veyllab`.
+Module `veyltrace_infralume.otlp`: pure functions `spans`, `metrics` and `logs`, each `(request, settings) -> (table, scrub counts)`. `request` is one decoded `ExportTraceServiceRequest`, `ExportMetricsServiceRequest` or `ExportLogsServiceRequest` in the protobuf-JSON mapping ([stack_and_market §A1][sm]): lowerCamelCase fields, hex ids, 64-bit integers as strings; the gateway decodes protobuf itself, so Infralume has no protobuf dependency. `settings` is the `infralume` config section. The table is in canonical shape, already normalised and scrubbed; the counts are `dropped_attributes` and `dropped_rows` (interface agreed on #24). No I/O, no sockets, no clock, no state between calls. Used by `veyllab` and by the gateway's live buffer (X-10).
 
 | OTLP | Canonical |
 |---|---|
@@ -199,7 +197,7 @@ Module `veyltrace_infralume.otlp`: pure functions from decoded `ExportTraceServi
 | span ids (bytes) | lowercase hex; empty parent → null |
 | `SPAN_KIND_*` | `kind` lowercase |
 | span name | `operation` |
-| status + `http.response.status_code` / `rpc.grpc.status_code` | `status`, `status_code` (§3.5) |
+| status + `http.response.status_code`, else `http.status_code`, else `rpc.grpc.status_code` | `status`, `status_code` (§3.5) |
 | span attributes (scrubbed) | `attrs_json` (canonical JSON) |
 | Gauge point | `value`; `metric_type = gauge` |
 | monotonic cumulative Sum | `value`; `metric_type = counter`; name gets suffix `_total` if missing (Prometheus naming, so Signalyth's counter rule applies) |
@@ -208,6 +206,8 @@ Module `veyltrace_infralume.otlp`: pure functions from decoded `ExportTraceServi
 | log `time_unix_nano` (or `observed_time_unix_nano` if 0) | `t_ns` |
 | `severity_number` 1–4/5–8/9–12/13–16/17–20/21–24 | `TRACE/DEBUG/INFO/WARN/ERROR/FATAL` |
 | log body (non-string → canonical JSON) | `body` |
+
+Built as agreed on #24, where the table is silent: no per-system alias is applied (a request does not name its system); a resource without a usable `service.name` is dropped and logged; the HTTP/gRPC rule for UNSET spans never uses §3.5 rule 1; a non-monotonic cumulative Sum is a gauge; delta Sums and Histograms, exponential Histograms and Summaries are skipped and logged; a request that is not OTLP/JSON (ids must be 32 and 16 hex characters) raises `CaseRejected("invalid_capture")`; a field proto3 JSON leaves out reads as its default, so a span, point or log record without a time is dropped and logged (§6), and an enum name this code does not know reads as unspecified. `otlp.metric_label_keys` is a named constant in the module until the key can be added to `config/infralume.yaml` without regenerating the golden verdicts (#256).
 
 The name encoding stays even with `attrs_json?`, because the 03 key (`service, component, name, t_ns`) does not include `attrs_json` and must stay unique (open question 1).
 
@@ -263,7 +263,7 @@ Isolation: the fetcher needs HTTP, which engines 1–7 must not import (AGENTS �
 | `scrub.drop_services` | `[flagd, flagd-ui, chaos-controller-manager, chaos-daemon, chaos-dashboard, chaos-dns-server]` | — | [02 §6.1](../02-architecture.md); flag-key leak risk [benchmarks_and_testbed §Q3][bt] |
 | `status.otel_code_set` | `[0, 1, 2]` | — | §3.5 |
 | `status.http_error_min` | `500` | — | §3.5 |
-| `otlp.metric_label_keys` | `[http.response.status_code, http.route, rpc.method]` | — | planned (§3.9): not in the file yet, it arrives with the converter (O-07); a priori; HTTP stable semconv, RPC release candidate ([stack_and_market §A1][sm]) |
+| `otlp.metric_label_keys` | `[http.response.status_code, http.route, rpc.method]` | — | not a key of the file: the named constant `METRIC_LABEL_KEYS` in `otlp.py`, until a new key can be added without regenerating goldens on another machine (#256, lead decision on #24); a priori; HTTP stable semconv, RPC release candidate ([stack_and_market §A1][sm]) |
 | `duckdb.threads` | `1` | — | deterministic aggregates ([rcaeval_facts §Engineering][rf-eng]); read by `veyltrace_core.duck.connect`, which ingest does not call today (§5) |
 | `duckdb.memory_limit` | `1GB` | — | share of the 3 GB budget (§8) |
 | `fetch.rcaeval.hf_repo` | `phamquiluan/RCAEval` | — | [rcaeval_facts §Downloads and licence][rf-downloads]; a constant in `fetch/rcaeval.py`, not a key of the file, as `data fetch` has no run config |
@@ -278,7 +278,7 @@ The Zenodo record (14590730) has no key or constant: `--source zenodo` is not bu
 - Ingest uses no DuckDB today (Arrow and NumPy only, §8). Any later aggregate goes through `veyltrace_core.duck.connect` with `threads = 1`; exact functions only (no `approx_*`).
 - Output order is the 03 key; ties (e.g. identical log rows) are broken by all remaining columns.
 - `canonical_json` for `attrs_json`, `detail_json` and the manifest.
-- Allowed imports: `duckdb`, `pyarrow`, `numpy`, stdlib. `opentelemetry-proto`/`protobuf` arrive with the converter (O-07) and are not on the package's allow-list yet. Banned: any HTTP client, `socket`, LLM clients, `torch`, `transformers`. The `fetch` subpackage is the only network code and is unreachable from `api.py`.
+- Allowed imports: `duckdb`, `pyarrow`, `numpy`, stdlib. The converter takes the protobuf-JSON mapping as plain dicts, so there is no protobuf dependency (§3.9). Banned: any HTTP client, `socket`, LLM clients, `torch`, `transformers`. The `fetch` subpackage is the only network code and is unreachable from `api.py`.
 - Infralume never reads `answer_key` files, `cases.parquet`, `root_cause*` files, or fault-list root-cause fields, and never opens a path under `bench/` or `lab/` ([02 §9](../02-architecture.md), rule 3; the isolation test scans for those path literals). Data roots come only from `${VEYLTRACE_DATA}`.
 
 ## 6. Missing data and failure behaviour
@@ -307,7 +307,7 @@ The Zenodo record (14590730) has no key or constant: `--source zenodo` is not bu
 | Hint outside the data span | written unchanged, warning logged; core's alert step rejects the case by default (§11, question 8) |
 | No published alert time | `t_alert_hint_ns = null`, `hint_source = none` (only the detected protocol can run) |
 | `alert.protocol = detected` | `t_alert_hint_ns = null`, `hint_source = none`, whatever the dataset publishes |
-| Malformed OTLP payload (planned, §3.9) | rejected (`invalid_capture`) naming the file; no partial output |
+| Malformed OTLP payload (§3.9) | rejected (`invalid_capture`) naming the file; no partial output |
 | Unknown columns | metrics: every column not named `time*` is read as a metric; logs: stored in `attrs_json`; spans: not read |
 
 ## 7. Tests
@@ -342,7 +342,7 @@ Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocatio
 |---|---|---|---|
 | O-00 | done (planned by M0, Tue 3 Nov) | stub `run(ctx)` (runs the `synth` adapter from `veyltrace_core.synth`); fixtures | e2e on `synth-01` through Observe |
 | O-01 | done (planned Phase 1, by M1 Sun 8 Nov) | fetcher for `rcaeval`; `rcaeval` adapter (RE1 metrics; RE2/RE3 metrics, logs, traces); scrub + test; manifest with alert hint; error rule | all RE2 cases ingest; scrub test passes; ≤ 10 s/case |
-| O-07 | in progress (#24; planned Phase 2, by M2 Sun 15 Nov) | OTLP converter and `otlp_live`, for the live demo. The `veyllab` adapter ([05 §9](../05-fault-lab-and-dataset.md) layout) is moved to v1.1 | live snapshots ingest |
+| O-07 | converter done (#500, #501); `otlp_live` in review (#508) (planned Phase 2, by M2 Sun 15 Nov) | OTLP converter and `otlp_live`, for the live demo. The `veyllab` adapter ([05 §9](../05-fault-lab-and-dataset.md) layout) is moved to v1.1 | live snapshots ingest |
 | O-08 | done (planned Phase 3, by M3 Sun 22 Nov) | `nezha` adapter and fetcher. `fse26_tt` is cut | Nezha cases ingest |
 | O-09 | done (planned Phase 3) | `sources.drop`; `alert.shift_s` wiring (applied by core); `events.overlay_path` (for O-13) | bench can drive all hooks |
 | O-13 | Phase 3 (Observe-owned, in `bench/decoys/`) | RCAEval-C generator writing overlays; see [04-causync §3.6](04-causync.md) | decoys reproducible from seed |

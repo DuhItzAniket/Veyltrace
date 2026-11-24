@@ -1364,6 +1364,7 @@ dependencies = [
     { name = "uvicorn" },
     { name = "veyltrace-contracts" },
     { name = "veyltrace-core" },
+    { name = "veyltrace-infralume" },
 ]
 
 [package.metadata]
@@ -1374,6 +1375,7 @@ requires-dist = [
     { name = "uvicorn", specifier = ">=0.54.0" },
     { name = "veyltrace-contracts", editable = "contracts/generated/python" },
     { name = "veyltrace-core", editable = "packages/core" },
+    { name = "veyltrace-infralume", editable = "packages/infralume" },
 ]
 
 [[package]]

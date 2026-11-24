@@ -1,10 +1,14 @@
 """Start or stop a lab profile (05 §3, §4).
 
     uv run python lab/up.py --profile ob [--dry-run]
+    uv run python lab/up.py --profile ob --live-export [URL]   # live demo only (06 §3.3)
     uv run python lab/up.py --profile ob --down
     uv run python lab/up.py --vendor          # download and hash the pinned OB manifest
 
 The `ob` and `otel` profiles never run together (02 §10): each refuses while the other is up.
+`--live-export` adds the Collector's otlp_http exporter to the gateway (default URL:
+`gateway_otlp_endpoint` in pins.yaml); without it the committed Collector manifest is applied
+unchanged, as every capture campaign needs. Running `up` again without it switches export off.
 """
 
 from __future__ import annotations
@@ -19,7 +23,18 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from vlab import LAB_DIR
-from vlab.cluster import OB_DIR, helm, kubectl, load_pins, manifest_path, manifest_problem, sums_path
+from vlab.cluster import (
+    COLLECTOR_FILE,
+    OB_DIR,
+    collector_manifest_live,
+    helm,
+    kubectl,
+    live_endpoint_problem,
+    load_pins,
+    manifest_path,
+    manifest_problem,
+    sums_path,
+)
 from vlab.shell import Runner
 
 TOOLS = ("docker", "kind", "kubectl", "helm")
@@ -51,7 +66,7 @@ def missing_tools(*, down: bool = False) -> list[str]:
     return [t for t in (("kind",) if down else TOOLS) if shutil.which(t) is None]
 
 
-def up_ob(runner: Runner, pins: Mapping[str, Any]) -> int:
+def up_ob(runner: Runner, pins: Mapping[str, Any], live_export: str | None = None) -> int:
     problem = manifest_problem(pins)
     if problem:
         print(f"up: {problem}", file=sys.stderr)
@@ -74,7 +89,10 @@ def up_ob(runner: Runner, pins: Mapping[str, Any]) -> int:
         )
     )  # fmt: skip
     obs = str(pins["obs_namespace"])
-    runner.run(kubectl(pins, "apply", "-f", str(OB_DIR / "collector.yaml")))
+    if live_export is None:
+        runner.run(kubectl(pins, "apply", "-f", str(COLLECTOR_FILE)))
+    else:
+        runner.run(kubectl(pins, "apply", "-f", "-"), stdin=collector_manifest_live(live_export))
     runner.run(
         kubectl(
             pins, "-n", obs, "rollout", "status", "deploy/veyllab-collector", f"--timeout={COLLECTOR_TIMEOUT}"
@@ -122,6 +140,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--down", action="store_true", help="delete the profile's cluster")
     ap.add_argument("--dry-run", action="store_true", help="print every command; touch nothing")
     ap.add_argument("--vendor", action="store_true", help="download the pinned OB manifest")
+    ap.add_argument(
+        "--live-export", nargs="?", const="", metavar="URL",
+        help="also export OTLP/HTTP JSON to the gateway (live demo; default: pins gateway_otlp_endpoint)",
+    )  # fmt: skip
     args = ap.parse_args(argv)
     pins = load_pins()
     if args.vendor:
@@ -131,6 +153,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if not args.dry_run and (missing := missing_tools(down=args.down)):
         print(f"up: missing tools on PATH: {', '.join(missing)} (05 §2)", file=sys.stderr)
         return 1
+    live_export: str | None = args.live_export
+    if live_export is not None:
+        live_export = live_export or str(pins["gateway_otlp_endpoint"])
+        if problem := live_endpoint_problem(live_export):
+            print(f"up: {problem}", file=sys.stderr)
+            return 1
     runner = Runner(dry_run=args.dry_run)
     if args.profile == "otel":
         if kind_cluster_exists(runner, pins):
@@ -138,7 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         print("up: profile otel is not implemented yet (X-06)", file=sys.stderr)
         return 2
-    return down_ob(runner, pins) if args.down else up_ob(runner, pins)
+    return down_ob(runner, pins) if args.down else up_ob(runner, pins, live_export)
 
 
 if __name__ == "__main__":

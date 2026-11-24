@@ -17,7 +17,7 @@ In: raw case under `${VEYLTRACE_DATA}`, `config/infralume.yaml`, optional events
 - Scrubbing and normalisation must stay idempotent (property tests).
 - Absent and dropped sources look identical: zero-row table, `sources.<s> = false`.
 - Determinism: sorted file discovery, exact functions, `canonical_json`; DuckDB (not used by ingest today) only through `veyltrace_core.duck.connect` with `threads = 1`.
-- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `duckdb`, `pyarrow`, `numpy`, stdlib (`opentelemetry-proto`/`protobuf` arrive with the converter, O-07). Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`.
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `duckdb`, `pyarrow`, `numpy`, stdlib (the OTLP converter takes plain dicts: no protobuf dependency). Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`.
 - Exception: `veyltrace_infralume/fetch/` (entry-point group `veyltrace.fetchers`) may use stdlib `urllib.request` and is never imported by `api.py` or adapters. It is the single network exemption ([02 §6.1, §9](../../docs/02-architecture.md)); the isolation test enforces it.
 
 ## Commands
