@@ -1,0 +1,100 @@
+% §3.1 Observe part of the pipeline, Observe lane (O-12, #48). Input by 03-design.tex through
+% \lanesection{observe-pipeline}, after the lead's two paragraphs of §3.1, so this file has no
+% heading of its own. Sources: docs/02 §6.1-§6.5; engines 01 §3.1-§3.10, 02 §3, 03 §3.1-§3.8,
+% 04 §3.1-§3.6, 05 §3.3-§3.7, each checked against the code at results-code-v1 (#505, #506).
+% Every constant is a design default from config/{infralume,signalyth,anomara,causync,causalith}.yaml,
+% fixed a priori. No result number is typed here: measured shares are left to \leadq notes.
+The five Observe engines turn one case's raw telemetry into the facts that the Reason engines score: canonical tables, typed series, anomaly scores with onsets, clock offsets with a change timeline, and a dependency graph.
+
+\paragraph{Ingest and leakage scrubbing}
+\eng{Infralume} is the only engine that reads raw data.
+One adapter per dataset family converts a case into four canonical tables (metrics, logs, spans and change events) over the full available time span, plus a manifest that lists the services, the sources present and the hash of every input file.
+A source that the dataset lacks and a source that the telemetry ablation drops are written the same way, as an empty table with its flag cleared, so later engines cannot tell the two apart.
+Adapters exist for RCAEval~\cite{rcaeval2024}, in the Parquet and CSV layouts of its two mirrors, and for Nezha~\cite{nezha2023}; a converter for OTLP export requests serves the live demonstration and no experiment.
+Values are kept as observed: unobserved metric points are dropped and never forward-filled, and timestamps stay in source time.
+Service names pass through one idempotent rule: lowercase, strip the suffixes that Kubernetes generates for pods, apply a per-system alias map where traces and metrics name a service differently, and fold a \code{-db} suffix into its service as a component, as RCAEval's scorer does.
+Span status codes are read as OpenTelemetry codes only when every code in the case is 0, 1 or 2; otherwise a span is an error if its HTTP code is at least 500 or its gRPC code is non-zero.
+
+In RCAEval the case folder is named after the faulty service and the fault, and answer files sit next to the telemetry, so ingest is also where leakage must stop.
+First, engines see a case only through an identifier that is the first twelve hex digits of the SHA-256 of its canonical name.
+Second, each adapter may open only an allow-list of file names; any other name, such as the root-cause file, raises an error.
+Third, a scrubber removes every attribute whose key names a feature flag, chaos, a fault or an injection, drops the rows of fault-injection tooling, replaces any token of the folder name in any string by a placeholder, and hashes the flag keys of flag-change events.
+Log bodies are otherwise left unchanged, because rewriting words such as ``fault'' would destroy legitimate evidence.
+A test plants such tokens in a raw case and asserts that none survives in any output and that scrubbing twice equals scrubbing once; the same assertions run on one real case of each of five RCAEval suites.
+The published injection time is read only as the alert hint of \S\ref{sec:pipeline}, and under the detected-alert protocol the hint is written as null, so the injection time never reaches an engine.
+
+Nezha publishes one folder per collection day, not per case.
+The adapter cuts one case per entry of the day's fault list, 12 minutes either side of the fault as in RCAEval, clipped to the midpoint between neighbouring faults so that no row belongs to two cases.
+It reads the fault list only for the fault times, and it lists a case's log and trace files in the manifest by position, because their real names are the clock minute of the fault.
+Nezha records logs and traces only for about three minutes around each fault and metrics once a minute, so the baseline window of \S\ref{sec:pipeline} holds few metric points and no logs or spans; we run Nezha as pre-registered and report this as a limit of the dataset.
+\leadq{the counts behind this sentence (cases with fewer than three baseline metric points, cases with baseline logs or spans) are in engines/01 §3.3 but in no file under \code{bench/results/}; they need a committed source before \S\ref{sec:datasets} or \S\ref{sec:threats} can print them.}
+
+\paragraph{Signals}
+\eng{Signalyth} turns rows into typed series.
+Every series carries a family and a class: \emph{internal} (CPU, memory, disk, network, self time, error logs and log templates), \emph{external} (latency and errors) or \emph{context} (traffic), which is the split that the evidence atoms of \S\ref{sec:evidence} rely on~\cite{prism2026}.
+Metric series keep their native observation times, and trace and log series use 10\,s buckets aligned to the epoch.
+Count series (request rate, log rate, template counts) are zero-filled over the whole span once a service has any row of that source, so that a dead service shows as silence and not as missing data, while quantiles and ratios stay missing in buckets without requests.
+A metric is converted from a counter to a per-second rate if its name follows the Prometheus counter suffixes or if it passes a shape test (non-negative and almost always increasing); the shape test skips the memory, latency and disk families, so that a leaking gauge is not mistaken for a counter.
+
+For traces, an \emph{entry span} of a service is a span whose parent is missing or in another service, and a \emph{visit} is an entry span with its same-service descendants.
+A span's self time is its duration minus the time covered by its children; the uncovered time of a client span is a \emph{gap} (network and client overhead) that is reported on the call edge and charged to no service.
+RCAEval spans carry no span kind, so a span is inferred to be a client span only if its parent is in the same service and its single child is in another one; without the first condition a server span that makes one downstream call would lose its own entry span.
+Per service, Signalyth writes the p50 and p99 of entry-span latency, the error rate, the request rate and the p50 and p99 of visit self time; quantiles are exact, and a bucket with fewer than five values gets none.
+Per caller--callee pair and window it writes an edge row with the call count, the error rate, the callee's latency and the gap.
+
+The critical path of a trace follows CRISP~\cite{crisp2022}: starting from the end of the root span, it steps back to the child that finished last before the current point and charges the time not covered by children to the span's own service, or to the gap for a client span.
+For every trace the charged self times and the gap sum to the root's duration, which a property test checks.
+A trace is used if its longest root's subtree holds at least 80\% of its spans, and it is \emph{slow} if that root lasts longer than the baseline p95 of roots with the same entry operation.
+Per window and service, the critical-path table holds the service's mean share of root duration over all used traces and its summed share over the slow ones, the two inputs of the spectrum atom $\text{SP}(c)$.
+
+For logs, Signalyth masks identifiers, addresses, timestamps, durations and numbers with word-bounded patterns and mines templates with Drain3~\cite{drain3}.
+Drain's result depends on the order of its input, so each service gets a fresh miner that is fed the distinct masked messages by descending count and then by text, and a template's identifier is a hash of the service and the template text.
+A line is error-level if its severity says so or if its body matches a fixed lexicon (exception and stack-trace markers, gRPC failure codes, refused or timed-out connections, HTTP 5xx).
+The log series are the line rate, the error-line rate and a count per template.
+
+The series and the template identifiers cover the whole span and do not depend on the alert time; only the edge table, the per-window template counts and the critical-path table do.
+An alert-shift run (\S\ref{sec:rq4}) therefore changes the windows but not the series behind them.
+
+\paragraph{Anomalies and onsets}
+\eng{Anomara} scores every series against its baseline window with a robust $z$,
+\begin{equation}
+z_t = \frac{x_t - \operatorname{med}_B}{s_B}, \qquad
+s_B = \max\bigl(1.4826\,\text{MAD}_B,\; \text{IQR}_B / 1.349,\; \varepsilon,\; 0.02\,\lvert\operatorname{med}_B\rvert\bigr),
+\end{equation}
+where $\varepsilon$ is a fixed floor per family and unit (1\,ms for latency, 1\,MiB for memory), because a flat baseline otherwise gives a scale near zero and an unbounded score.
+The score of a series is the largest $\lvert z \rvert$ that persists with one sign for three consecutive steps of the incident window, and the series is anomalous at a score of 3 or more.
+Persistence is a deliberate difference from BARO's maximum over single points~\cite{baro2024}; a second detector, \code{nsigma}, keeps the raw maximum for parity with that baseline.
+A step is the series' \emph{effective} step: RCAEval stores one metric row per second for values that change about every 15\,s, so we take the median run of equal values, never less than the spacing of the observations.
+\leadq{a near-constant series gets a much coarser step and can end with too few baseline steps to be scored (\#245, deferred to v1.1). On three RE2 development cases this was a small share of metric series, almost all \code{socket}; the share is in engines/03 §3.1 but not under \code{bench/results/}, so \S\ref{sec:threats} can name the limit but not yet the number.}
+
+The \emph{onset} of an anomalous series is the start of its first persistent run.
+A Bayesian online change-point detector~\cite{bocpd}, run per series with fixed priors and a constant hazard of $1/100$ per step, may move that onset back, within a fixed lead, to where a ramp began.
+A fourth detector, \code{silence}, marks a series that drops to zero or stops reporting for at least 60\,s and three steps after a baseline in which it reported; buckets after the last observation of that source anywhere in the case do not count, so a truncated case is not read as every service going silent.
+Each service gets an internal and an external onset, the earliest over its series of that class, and the incident onset is the second-earliest external onset over services, which one noisy early series cannot set, clamped to $[t_\text{alert}-60\,\text{s},\, t_\text{alert}+300\,\text{s}]$.
+
+The detected-alert protocol uses a function of this engine.
+It scans the p99 latency and the error rate of the entry services in 10\,s buckets, scores each bucket against a trailing baseline with the same scale floor, and reports the start of the first breach that persists.
+Each decision uses only the trailing baseline and the buckets that confirm the breach, as an online watcher would, and the function sees neither the alert hint nor the windows.
+If nothing breaches, the case has no alert and counts as a miss.
+
+\paragraph{Clocks and changes}
+\eng{Causync} estimates how far the sources' clocks are apart and publishes offsets; it never rewrites a timestamp.
+For traces, each client span $[t_1, t_4]$ and its server span $[t_2, t_3]$ in another service give the on-wire estimate $\theta = \bigl((t_2 - t_1) + (t_3 - t_4)\bigr)/2$ of the callee's clock minus the caller's, under symmetric network delay \citeneeded{NTP on-wire offset, RFC 5905; engines/04 names it without a URL}.
+Client-side overhead biases $\theta$ by small amounts, so the median $\theta$ of a service pair is applied only where the data shows skew: it must exceed a minimum size, and a minimum share of server spans must stick out of their client spans.
+Logs are aligned through the spans that their lines name, and otherwise, like metrics, by the lag that best correlates the changes of their traffic series with the reference source, which resolves only whole steps.
+Every later comparison of onsets allows a tolerance equal to the coarsest source step, with the upper quartile of the metric series' effective steps as the metrics step.
+
+Deploy, configuration, flag, scale, commit and deliberate-restart events form the change timeline; crash restarts are symptoms and are left out.
+For a change at $t_c$ on an entity with onset $O$, Causync writes the proximity $\exp(-\max(0, O - t_c)/\tau)$ with $\tau = 300$\,s, set to zero when the change comes later than the onset plus the tolerance, and it flags the latest change before each onset.
+Where a service has replicas, it also writes a peer contrast, the mean anomaly of the changed replicas minus the median over the unchanged ones, the changed-versus-control comparison of Gandalf and of Meta's service health checks~\cite{gandalf2020,metahealth2026}.
+These values use a change's time, entity and kind and the anomaly scores, and never the system or actor that recorded it, so the true and the decoy changes of RCAEval-C (\S\ref{sec:protocols}) differ in nothing that the engines read.
+RCAEval itself has no change events: the timeline is then empty and the change channel abstains.
+
+\paragraph{Dependency graph}
+\eng{Causalith} builds the graph from what the system shows and learns no structure from the series.
+Edges come from observed calls in traces, from deploy and configuration events whose details name another service, and from log lines of one service that mention another, and every edge records which of these it came from.
+A service whose name is an ordinary word, such as \code{user} or \code{carts}, counts as mentioned only inside a host-and-port, a URL or a gRPC package name.
+A trace edge is \emph{anomalous} if its callee p99 latency or its gap rises by a fixed ratio and a minimum amount, if its error rate rises, or if it had calls in the baseline window and none in the incident window.
+The entry services come from one rule shared with the alert function: a per-system hint taken from the system's architecture, kept only for services that appear in an observed cross-service call when the case has traces, and otherwise the services that call others and are never called.
+For every service Causalith lists the cheapest simple paths to an entry service against the call direction, found with Yen's algorithm, where a hop costs more if neither the edge nor the caller is anomalous.
+It also provides the restricted conditional-independence test behind the intervention atoms~\cite{idi2025}: a ridge regression of a candidate's series on its callees' series and its own load, fitted on the baseline window only, after which the candidate counts as not explained by its parents if the residual's persistent robust $z$ in the incident window is still 3 or more.
