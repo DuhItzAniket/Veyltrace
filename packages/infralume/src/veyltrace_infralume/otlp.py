@@ -11,12 +11,13 @@ between calls, and no protobuf dependency (the gateway decodes protobuf itself).
 Choices the spec table leaves open (listed on #24): no per-system alias is applied, because a
 request does not say which system it is; a resource without a usable `service.name` is dropped
 and logged; the HTTP/gRPC status rule never uses the case-level OTel reading of §3.5 rule 1, so a
-span's status does not depend on the other spans of its request. This slice has `spans`;
-`metrics` and `logs` follow in #499.
+span's status does not depend on the other spans of its request; a non-monotonic cumulative Sum
+is a gauge; delta data, exponential histograms and summaries are skipped and logged.
 """
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
@@ -25,6 +26,7 @@ from typing import Any, Final, Literal, cast
 import pyarrow as pa
 import pyarrow.compute as pc
 
+from veyltrace_core.canonical import canonical_json_str, normalize
 from veyltrace_core.errors import CaseRejected
 from veyltrace_core.io import contract_info
 from veyltrace_core.log import get_logger
@@ -33,11 +35,15 @@ from veyltrace_infralume.names import InvalidName, NameRules
 from veyltrace_infralume.scrub import Scrubber, ScrubRules
 from veyltrace_infralume.status import ERROR, OK, StatusRules, span_status
 
-__all__ = ["spans"]
+__all__ = ["METRIC_LABEL_KEYS", "logs", "metrics", "spans"]
 
 _pc: Any = pc  # pyarrow-stubs type compute kernels with Unknown parts (as rcaeval_tables)
 _log = get_logger(__name__)
 
+#: `otlp.metric_label_keys` (01 §4: a priori; HTTP stable semconv, RPC release candidate). A named
+#: constant until the key can be added to config/infralume.yaml: a new key changes every run's
+#: config hash, and the golden verdicts cannot be regenerated before #256 is closed.
+METRIC_LABEL_KEYS: Final = ("http.response.status_code", "http.route", "rpc.method")
 #: Span attributes holding the HTTP status code (the current name, else the pre-1.21 one: lead
 #: decision on #24), else the gRPC one (01 §3.5).
 _CODE_KEYS: Final = ("http.response.status_code", "http.status_code", "rpc.grpc.status_code")
@@ -46,6 +52,13 @@ _NO_SYSTEM: Final = "other"
 # OTLP enums by number (opentelemetry-proto); the JSON mapping may also carry the name.
 _KINDS: Final = ("unspecified", "internal", "server", "client", "producer", "consumer")
 _STATUS: Final = ("unset", OK, ERROR)
+_TEMPORALITY: Final = ("unspecified", "delta", "cumulative")
+_LEVELS: Final = ("TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL")
+_PER_LEVEL: Final = 4  # severity numbers 1–4 are TRACE…TRACE4, 5–8 DEBUG…, up to 24 (01 §3.9)
+_SEVERITIES: Final = (
+    "unspecified",
+    *(f"{lv}{i if i > 1 else ''}".lower() for lv in _LEVELS for i in range(1, _PER_LEVEL + 1)),
+)
 _TOPS: Final = frozenset({"resourceSpans", "resourceMetrics", "resourceLogs"})
 _HEX: Final = re.compile(r"[0-9a-fA-F]+")
 _TRACE_HEX: Final = 32  # hex characters of a 16-byte trace id; a span id has 8 bytes
@@ -201,6 +214,99 @@ def _spans(request: Json, rules: _Rules) -> pa.Table:
     return distinct_spans(_finish(cols, "telemetry.spans", rules))
 
 
+def _points(metric: Json) -> Iterator[tuple[str, str, Json, object]] | None:
+    """(name, metric_type, point, raw value) per series point of one metric (01 §3.9 table), or
+    None for a kind the table has no row for."""
+    name = str(metric.get("name", ""))  # proto3 JSON leaves out an empty or zero field
+    if "gauge" in metric:
+        return ((name, "gauge", p, _number(p)) for p in _items(metric["gauge"], "dataPoints"))
+    data: Json = metric.get("sum", metric.get("histogram", {}))
+    kind = _enum(data.get("aggregationTemporality", 0), _TEMPORALITY, "AGGREGATION_TEMPORALITY_")
+    if _TEMPORALITY[kind] != "cumulative":
+        return None
+    if "sum" in metric:
+        if data.get("isMonotonic") is not True:
+            return ((name, "gauge", p, _number(p)) for p in _items(data, "dataPoints"))
+        total = name if name.endswith("_total") else f"{name}_total"
+        return ((total, "counter", p, _number(p)) for p in _items(data, "dataPoints"))
+    return (
+        (f"{name}_{part}", "counter", p, _int(p.get(part, 0)) if part == "count" else p.get(part))
+        for p in _items(data, "dataPoints")
+        for part in ("count", "sum")
+    )
+
+
+def _number(point: Json) -> object:
+    """A number point's value; None when it has none (the no-recorded-value flag)."""
+    return _int(point["asInt"]) if "asInt" in point else point.get("asDouble")
+
+
+def _metrics(request: Json, rules: _Rules) -> pa.Table:
+    series: dict[tuple[str, str, str, int], tuple[str, str | None, str | None, list[float]]] = {}
+    skipped = untimed = 0
+    for who, metric in _records(request, "resourceMetrics", "scopeMetrics", "metrics", rules):
+        points = _points(metric)
+        if points is None:
+            skipped += 1
+            continue
+        unit = str(metric["unit"]) if metric.get("unit") else None
+        for base, metric_type, point, raw in points:
+            value = math.nan if raw is None else float(cast("Any", raw))
+            if not math.isfinite(value):  # 01 §6: NaN/inf points are dropped
+                continue
+            t_ns = _int(point.get("timeUnixNano", 0))
+            if t_ns == 0:  # 01 §6: no timestamp
+                untimed += 1
+                continue
+            if who is None:
+                rules.scrub.dropped_rows += 1
+                continue
+            attrs = _attrs(point)
+            labels = {k: attrs[k] for k in METRIC_LABEL_KEYS if k in attrs}
+            text = ",".join(
+                f"{k}={v if isinstance(v, str) else canonical_json_str(normalize(v))}"
+                for k, v in sorted(labels.items())
+            )
+            name = rules.scrub.text(f"{base}{{{text}}}" if labels else base)
+            key = (who[0], who[1], name, t_ns)
+            series.setdefault(key, (metric_type, unit, rules.scrub.attrs(labels), []))[3].append(value)
+    if skipped or untimed:
+        _log.info("infralume.otlp_metrics_skipped", metrics=skipped, untimed_points=untimed)
+    rows = [  # equal keys are combined: counters summed, gauges averaged (01 §3.9); fsum is exact
+        (t, *who, kind, attrs, math.fsum(vs) / (1 if kind == "counter" else len(vs)), unit, "otlp")
+        for (*who, t), (kind, unit, attrs, vs) in series.items()
+    ]
+    names = ("t_ns", "service", "component", "name", "metric_type", "attrs_json", "value", "unit",
+             "source_system")  # fmt: skip
+    cols = {n: [r[i] for r in rows] for i, n in enumerate(names)}
+    return _finish(cols, "telemetry.metrics", rules)
+
+
+def _logs(request: Json, rules: _Rules) -> pa.Table:
+    names = ("t_ns", "service", "component", "severity", "body", "trace_id", "span_id", "attrs_json")
+    cols: dict[str, list[Any]] = {n: [] for n in names}
+    untimed = 0
+    for who, record in _records(request, "resourceLogs", "scopeLogs", "logRecords", rules):
+        t_ns = _int(record.get("timeUnixNano", 0)) or _int(record.get("observedTimeUnixNano", 0))
+        if t_ns == 0:  # 01 §6: a log without a timestamp is dropped
+            untimed += 1
+            continue
+        if who is None:
+            rules.scrub.dropped_rows += 1
+            continue
+        level = _enum(record.get("severityNumber", 0), _SEVERITIES, "SEVERITY_NUMBER_")
+        body = _any(record.get("body", {}))
+        text = body if isinstance(body, str) else "" if body is None else canonical_json_str(normalize(body))
+        row = (t_ns, who[0], who[1], _LEVELS[(level - 1) // _PER_LEVEL] if level else None,
+               rules.scrub.text(text), _hex(record.get("traceId"), _TRACE_HEX),
+               _hex(record.get("spanId"), _SPAN_HEX), rules.scrub.attrs(_attrs(record)))  # fmt: skip
+        for name, value in zip(names, row, strict=True):
+            cols[name].append(value)
+    if untimed:
+        _log.info("infralume.rows_dropped", source="logs", rows=untimed)
+    return _finish(cols, "telemetry.logs", rules)
+
+
 def _convert(
     build: Callable[[Json, _Rules], pa.Table], top: str, request: Json, settings: Json
 ) -> tuple[pa.Table, Mapping[str, int]]:
@@ -225,3 +331,14 @@ def spans(request: Json, settings: Json) -> tuple[pa.Table, Mapping[str, int]]:
     """One ExportTraceServiceRequest → `telemetry.spans` and the scrub counts. Spans that end
     before they start, and repeats of a (trace, span) id, are dropped (01 §6)."""
     return _convert(_spans, "resourceSpans", request, settings)
+
+
+def metrics(request: Json, settings: Json) -> tuple[pa.Table, Mapping[str, int]]:
+    """One ExportMetricsServiceRequest → `telemetry.metrics` and the scrub counts; one row per
+    (service, component, name, t_ns), with the label keys of 01 §3.9 folded into the name."""
+    return _convert(_metrics, "resourceMetrics", request, settings)
+
+
+def logs(request: Json, settings: Json) -> tuple[pa.Table, Mapping[str, int]]:
+    """One ExportLogsServiceRequest → `telemetry.logs` and the scrub counts."""
+    return _convert(_logs, "resourceLogs", request, settings)
