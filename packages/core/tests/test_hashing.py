@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -74,6 +75,31 @@ def test_sha256_text_lf_ignores_crlf_only(tmp_path: Path) -> None:
     cr.write_bytes("a →\rb\r".encode())
     assert sha256_text_lf(lf) == sha256_text_lf(crlf) == sha256_file(lf)
     assert sha256_text_lf(cr) != sha256_text_lf(lf)
+
+
+def test_sha256_text_lf_folds_cr_runs_before_lf(tmp_path: Path) -> None:
+    """#224: a file converted to CRLF twice hashes as LF, like veyltrace_llm's cassette keys; a CR
+    run not followed by LF stays."""
+    lf, twice, mixed = tmp_path / "lf.txt", tmp_path / "twice.txt", tmp_path / "mixed.txt"
+    lf.write_bytes(b"a\nb\n")
+    twice.write_bytes(b"a\r\r\nb\r\r\r\n")
+    mixed.write_bytes(b"a\r\rb\n")
+    assert sha256_text_lf(twice) == sha256_text_lf(lf)
+    assert sha256_text_lf(mixed) == sha256_file(mixed)
+
+
+@given(st.lists(st.sampled_from([b"a", b"\r", b"\n", b"\r\n", b"\r\r\n"]), max_size=40))
+def test_sha256_text_lf_is_idempotent(parts: list[bytes]) -> None:
+    """The normalised bytes hash as themselves and as the raw file: normalising is a fixed point."""
+    raw = b"".join(parts)
+    once = raw
+    while b"\r\n" in once:
+        once = once.replace(b"\r\n", b"\n")
+    with tempfile.TemporaryDirectory() as tmp:
+        raw_path, once_path = Path(tmp) / "raw.txt", Path(tmp) / "once.txt"
+        raw_path.write_bytes(raw)
+        once_path.write_bytes(once)
+        assert sha256_text_lf(raw_path) == sha256_text_lf(once_path) == sha256_file(once_path)
 
 
 # ----------------------------------------------------------------------------------------------
