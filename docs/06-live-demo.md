@@ -12,7 +12,7 @@ The gateway's live path is merged: the receiver, buffer, snapshot writer, `/api/
 |---|---|---|---|
 | G1 converter and adapter | No OTLP converter is installed. The only converter is the test stub in `veyltrace_gateway.testing` (tests only), and there is no `otlp_live` adapter, so `POST /live/diagnose` answers 503 `adapter_missing` | O-07 `veyltrace_infralume.otlp` and the `otlp_live` adapter (Observe lane, #24, open) | `uv run python -c "import veyltrace_infralume.otlp"` exits 0, and `uv run python -c "from veyltrace_core.adapters import find_adapter; print(find_adapter('live'))"` prints an adapter, not `None` |
 | G2 converter wired into the CLI | `python -m veyltrace_gateway` passes no converter (`_start_receiver` in `__main__.py` calls `create_otlp_app(buffer, None, …)`), so every `POST /v1/*` answers 503 and `/live/diagnose` answers 503 `converter_missing` | the real O-07 converter replaces this stub seam: the gateway must depend on `veyltrace-infralume` (the lead adds it to `SPEC_ENGINE_DEPS` in `tests/test_workspace.py`), then `__main__` passes `veyltrace_infralume.otlp` | after start-up, `requests.accepted` in `/live/status` grows (B.1 step 8) |
-| G3 Collector → gateway | `lab/ob/collector.yaml` has only `file/*` exporters; how the Collector in kind reaches the gateway is unsettled (06 §11 OQ-7) | #489 (Explain, open): `otlphttp` exporter with `encoding: json` (protobuf bodies get 415 until `opentelemetry-proto` is a dependency) and the OQ-7 route | `/api/v1/health` shows `live.receiving: true` while Online Boutique runs |
+| G3 Collector → gateway | Closed by #489: `lab/up.py --profile ob --live-export` adds the `otlp_http/gateway` exporter (`encoding: json`, `compression: gzip`; protobuf bodies get 415 until `opentelemetry-proto` is a dependency) to `http://host.docker.internal:4319`, which reaches the gateway on Windows loopback (06 §11 OQ-7, measured 24 Nov). Without the flag the committed `lab/ob/collector.yaml` is applied, so campaigns are unchanged | — | `/api/v1/health` shows `live.receiving: true` while Online Boutique runs |
 
 The console on `main` has the case list (`/`) and the run view (`/runs/:runId`): run progress (polled every 2 s), status banner, candidate set, ranked table with trial badges and trial drawer, evidence table with atom drawer, and the card's propagation path and timeline as plain lists. **It has no live view, no "Diagnose now" button, no receipt or replay view and no card summary or narrator line.** So in both parts the live status and "Diagnose now" are calls to the gateway API from a terminal, the receipt is the JSON route opened in a browser tab, and replay is the CLI. The alert watcher is cut to v1.1 (#227), so a person triggers every diagnosis. No ADR on `main` records the console cuts; [20261123-cl-explain-scope-cuts](adr/20261123-cl-explain-scope-cuts.md) covers only X-11 and X-12.
 
@@ -52,11 +52,11 @@ Acceptance for #43: injected fault → AI-off verdict on screen ≤ 5 min; RAM m
 ### B.1 Pre-flight checklist (start ≥ 40 min before the injection)
 
 1. [ ] Gates G1–G3 of §0 are closed on the branch you run, and `uv sync --all-packages` and `pnpm -C console install` have run on it.
-2. [ ] Local edits to `config/gateway.yaml`, **not committed**: `live.enabled: true`, and `live.ai_modes: ["off"]` (laptop 1 has no LLM; 06 §3.4). If the OQ-7 route from #489 needs a non-loopback `live.otlp_host`, set it as #489 records.
+2. [ ] Local edits to `config/gateway.yaml`, **not committed**: `live.enabled: true`, and `live.ai_modes: ["off"]` (laptop 1 has no LLM; 06 §3.4). Leave `live.otlp_host` at `127.0.0.1`: the OQ-7 route (#489) reaches loopback.
 3. [ ] `$env:VEYLTRACE_DATA` is unset (default `~/veyltrace-data`) or points outside the repo; the data root refuses a path inside a git work tree.
-4. [ ] Docker Desktop is running. `uv run python lab/up.py --profile ob` ends with `up: profile ob ready; frontend at http://127.0.0.1:8080/`.
+4. [ ] Docker Desktop is running. `uv run python lab/up.py --profile ob --live-export` ends with `up: profile ob ready; frontend at http://127.0.0.1:8080/`.
 5. [ ] `uv run python lab/campaign.py --cleanup` (removes leftover chaos objects and restores the overlay; run it before the warm-up, as it restarts the app), then `kubectl --context kind-veyllab -n veyllab-obs rollout status deploy/veyllab-collector` and `(Invoke-WebRequest http://127.0.0.1:8080/ -UseBasicParsing).StatusCode` → 200.
-6. [ ] Gateway, in its own terminal: `uv run python -m veyltrace_gateway` (add `--allow-lan` only if the OQ-7 route needs it; it prints a no-auth warning).
+6. [ ] Gateway, in its own terminal: `uv run python -m veyltrace_gateway`, without `--allow-lan` (the OQ-7 route reaches loopback, #489).
 7. [ ] Console, in its own terminal: `pnpm -C console dev`, then open `http://127.0.0.1:5173/`.
 8. [ ] `Invoke-RestMethod http://127.0.0.1:8000/api/v1/health` shows `live.enabled` and `live.receiving` true; `(Invoke-RestMethod http://127.0.0.1:8000/api/v1/live/status).requests` shows `accepted` growing and `rejected` at 0.
 9. [ ] Gateway PID (the Python process that owns port 8000; the OTLP receiver and the job runner run inside it): `$gw = (Get-NetTCPConnection -LocalPort 8000 -State Listen).OwningProcess; $gw`.
@@ -104,24 +104,24 @@ The job runner is a thread of the gateway process (`jobs.workers = 1`), so the g
 
 ### B.4 Results (fill in on Thu 26 Nov; copy into #43)
 
-| Item | Attempt 1 | Attempt 2 |
-|---|---|---|
-| Branch and commit | | |
-| Gates G1–G3 closed by (PRs) | | |
-| OQ-7 route used | | |
-| T0 injection | | |
-| T1 Diagnose now (T1 − T0) | | |
-| T2 snapshot written (T2 − T1) | | |
-| T3 run done (T3 − T2) | | |
-| T4 verdict on screen; **T4 − T0 (≤ 5 min?)** | | |
-| Verdict status, confidence level, candidate set | | |
-| Replay exit code | | |
-| Gateway peak MiB / now MiB | | |
-| kind node MiB (`docker stats`) | | |
-| VM MiB (`vmmem*`) | | |
-| Buffer MiB, `requests.rejected`, `dropped` | | |
-| `perf_check.py` pipeline peak MiB (or "not measured") | | |
-| Power, other apps open | | |
+| Item | Attempt 1 | Attempt 2 | Route check, 24 Nov (#489) |
+|---|---|---|---|
+| Branch and commit | | | `explain/489-collector-exporter`, tested at 0ed789d5 (before its rebase); the receiver ran the test stub converter, not O-07 |
+| Gates G1–G3 closed by (PRs) | | | G3 only |
+| OQ-7 route used | | | `host.docker.internal:4319` → gateway on Windows `127.0.0.1:4319`, no `--allow-lan` (Docker Desktop 29.8.2, WSL2) |
+| T0 injection | | | — |
+| T1 Diagnose now (T1 − T0) | | | — |
+| T2 snapshot written (T2 − T1) | | | — |
+| T3 run done (T3 − T2) | | | — |
+| T4 verdict on screen; **T4 − T0 (≤ 5 min?)** | | | — |
+| Verdict status, confidence level, candidate set | | | — |
+| Replay exit code | | | — |
+| Gateway peak MiB / now MiB | | | 98 / 98 (buffer empty: the stub converter buffers no rows, so this is the gateway without telemetry; `live.buffer_max_mb` caps the buffer at 512) |
+| kind node MiB (`docker stats`) | | | 1.742–1.785 GiB with the exporter on, 1.83–1.84 GiB in the 90 s after switching it off (Docker Desktop VM 19.44 GiB) |
+| VM MiB (`vmmem*`) | | | — |
+| Buffer MiB, `requests.rejected`, `dropped` | | | 0; 530 of 1,602 (traces and metrics: the test stub cannot map OB data); none |
+| `perf_check.py` pipeline peak MiB (or "not measured") | | | — |
+| Power, other apps open | | | — |
 
 ### B.5 If it fails
 
