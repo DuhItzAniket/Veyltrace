@@ -266,7 +266,7 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | X-05 | console v0: case list, run view (status, candidate set, ranked table, evidence) | M2 — "console shows a verdict" |
 | X-10 | live: receiver, buffer, snapshot, watcher; console live view, graph, timeline, receipt view | M3, 22 Nov — injected fault → AI-off verdict on screen ≤ 5 min |
 | X-12 | MCP server | M4 (cut 4th) |
-| X-13 | demo script, 3-minute video, console polish | M4 |
+| X-13 | demo script, 3-minute video, console polish; script and rehearsal runbook in [06-live-demo](06-live-demo.md) | M4 |
 
 ## 11. Open questions
 
