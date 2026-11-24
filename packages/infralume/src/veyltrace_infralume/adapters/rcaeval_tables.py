@@ -29,10 +29,12 @@ __all__ = [
     "SEVERITY",
     "SPAN_COLUMNS",
     "UNITS",
+    "distinct_spans",
     "epoch_ns",
     "logs_table",
     "metrics_table",
     "spans_table",
+    "typed_table",
 ]
 
 # pyarrow-stubs type compute kernels with Unknown parts; core's io.py uses the same Any alias.
@@ -101,7 +103,7 @@ def _strings(values: Vec) -> pa.Array[Any]:
     return pa.array(values, pa.string())
 
 
-def _table(columns: Mapping[str, Any], contract: str | None = None) -> pa.Table:
+def typed_table(columns: Mapping[str, Any], contract: str | None = None) -> pa.Table:
     """A table from named columns, typed as the contract's fields when one is named (pa.table's
     stub overloads carry Unknown parts)."""
     if contract is None:
@@ -176,7 +178,7 @@ def metrics_table(raw: pa.Table, rules: NameRules, scrub: Scrubber) -> pa.Table:
     def repeat(i: int) -> Vec:
         return np.repeat(np.array([p[i] for p in parts], dtype=object), sizes)
 
-    table = _table({
+    table = typed_table({
         "t_ns": np.concatenate([p[0] for p in parts]), "service": _strings(repeat(2)),
         "component": _strings(repeat(3)), "name": scrub.text_column(_strings(repeat(4))),
         "value": np.concatenate([p[1] for p in parts]), "unit": _strings(repeat(5)),
@@ -205,7 +207,7 @@ def logs_table(raw: pa.Table, rules: NameRules, scrub: Scrubber) -> pa.Table:
     records: list[dict[str, object]] = (
         cast("list[dict[str, object]]", raw.select(extras).to_pylist()) if extras else [{}] * n
     )
-    table = _table({
+    table = typed_table({
         "t_ns": epoch_ns(_np(raw.column("timestamp"), np.int64)), "service": _strings(service),
         "component": _strings(component),
         "severity": pa.array([SEVERITY.get(str(v).strip().lower()) if v else None for v in level],
@@ -242,7 +244,7 @@ def spans_table(raw: pa.Table, rules: NameRules, status: StatusRules, scrub: Scr
     as_float = code
     codes = _pc.cast(_pc.round(_pc.if_else(_pc.is_nan(as_float), None, as_float)), pa.int32())
     parent = _col(raw, "parentSpanID", pa.string())
-    table = _table({
+    table = typed_table({
         "trace_id": _col(raw, "traceID", pa.string()), "span_id": _col(raw, "spanID", pa.string()),
         "parent_span_id": _pc.if_else(_pc.equal(parent, ""), None, parent), "service": _strings(service),
         "component": _strings(_unless_equal(component, service)),
@@ -253,6 +255,12 @@ def spans_table(raw: pa.Table, rules: NameRules, status: StatusRules, scrub: Scr
         "status": span_status(_array(_pc.cast(codes, pa.int64())), status),
         "status_code": codes,
     }, "telemetry.spans")  # fmt: skip
+    return scrub.drop_rows(distinct_spans(table), ("service", "component"))
+
+
+def distinct_spans(table: pa.Table) -> pa.Table:
+    """`telemetry.spans` rows in canonical order without spans that end before they start and
+    without repeats of a (trace, span) id: the first in key order is kept; both logged (01 §6)."""
     valid = table.filter(_pc.greater_equal(table.column("end_ns"), table.column("start_ns")))
     # key order, then every remaining column (01 §5), so which duplicate survives never depends on row order
     by = ("trace_id", "start_ns", "span_id", *(c for c in valid.column_names if c not in _SPAN_KEY))
@@ -268,4 +276,4 @@ def spans_table(raw: pa.Table, rules: NameRules, status: StatusRules, scrub: Scr
             negative=table.num_rows - valid.num_rows,
             duplicate=valid.num_rows - kept.num_rows,
         )
-    return scrub.drop_rows(kept, ("service", "component"))
+    return kept
