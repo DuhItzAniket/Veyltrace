@@ -1807,6 +1807,148 @@
         "title": "Hypothesis",
         "type": "object"
       },
+      "LiveRequest": {
+        "additionalProperties": false,
+        "description": "`POST /live/diagnose` and `/live/snapshot` body (06 §3.4): minutes of data before the\ntrigger, default `live.snapshot_before_min`.",
+        "properties": {
+          "before_min": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Before Min"
+          }
+        },
+        "title": "LiveRequest",
+        "type": "object"
+      },
+      "LiveSnapshot": {
+        "additionalProperties": false,
+        "description": "`POST /live/snapshot` (06 §3.4): the content-derived id of the snapshot written.",
+        "properties": {
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "snapshot_id"
+        ],
+        "title": "LiveSnapshot",
+        "type": "object"
+      },
+      "LiveStatus": {
+        "additionalProperties": false,
+        "description": "`live_status` (06 §3.4) without the watcher fields: the alert watcher is cut to v1.1\n(#227), so its state and last alert time arrive with it. Rows and bytes are per source;\ndata times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies,\n`dropped` the batches the buffer refused by reason, and `scrub` the converter's counters.",
+        "properties": {
+          "bytes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Bytes",
+            "type": "object"
+          },
+          "dropped": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Dropped",
+            "type": "object"
+          },
+          "newest_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Newest Ns"
+          },
+          "oldest_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Ns"
+          },
+          "receiving": {
+            "title": "Receiving",
+            "type": "boolean"
+          },
+          "requests": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Requests",
+            "type": "object"
+          },
+          "rows": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Rows",
+            "type": "object"
+          },
+          "run_ids": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Run Ids",
+            "type": "array"
+          },
+          "scrub": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Scrub",
+            "type": "object"
+          },
+          "seconds_since_last_batch": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds Since Last Batch"
+          },
+          "snapshots": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          }
+        },
+        "required": [
+          "receiving",
+          "seconds_since_last_batch",
+          "rows",
+          "bytes",
+          "oldest_ns",
+          "newest_ns",
+          "requests",
+          "dropped",
+          "scrub",
+          "snapshots",
+          "run_ids"
+        ],
+        "title": "LiveStatus",
+        "type": "object"
+      },
       "Onsets": {
         "additionalProperties": false,
         "description": "Per-service external and internal onsets and the incident onset t_onset, written\nby Anomara as onsets.json (03 §4.2). Onsets are in source time; consumers add the\nalignment offset of the recorded *_onset_source (and service).",
@@ -3935,6 +4077,214 @@
           }
         },
         "summary": "Get Health"
+      }
+    },
+    "/api/v1/live/diagnose": {
+      "post": {
+        "operationId": "post_diagnose_api_v1_live_diagnose_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LiveRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Post Diagnose"
+      }
+    },
+    "/api/v1/live/snapshot": {
+      "post": {
+        "operationId": "post_snapshot_api_v1_live_snapshot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/LiveRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Post Snapshot"
+      }
+    },
+    "/api/v1/live/status": {
+      "get": {
+        "operationId": "get_status_api_v1_live_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Status"
       }
     },
     "/api/v1/runs": {

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from veyltrace_contracts.models import (
     AgentTraceLine,
@@ -33,6 +33,9 @@ __all__ = [
     "Health",
     "HealthAI",
     "HealthLive",
+    "LiveRequest",
+    "LiveSnapshot",
+    "LiveStatus",
     "ReplayReport",
     "RunRequest",
     "RunStatus",
@@ -159,3 +162,35 @@ class ReplayReport(_Envelope):
     exit_code: int | None
     meaning: str | None
     error: str | None
+
+
+class LiveRequest(_Envelope):
+    """`POST /live/diagnose` and `/live/snapshot` body (06 §3.4): minutes of data before the
+    trigger, default `live.snapshot_before_min`."""
+
+    before_min: int | None = Field(default=None, ge=1)
+
+
+class LiveSnapshot(_Envelope):
+    """`POST /live/snapshot` (06 §3.4): the content-derived id of the snapshot written."""
+
+    snapshot_id: str
+
+
+class LiveStatus(_Envelope):
+    """`live_status` (06 §3.4) without the watcher fields: the alert watcher is cut to v1.1
+    (#227), so its state and last alert time arrive with it. Rows and bytes are per source;
+    data times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies,
+    `dropped` the batches the buffer refused by reason, and `scrub` the converter's counters."""
+
+    receiving: bool
+    seconds_since_last_batch: float | None
+    rows: dict[str, int]
+    bytes: dict[str, int]
+    oldest_ns: int | None
+    newest_ns: int | None
+    requests: dict[str, int]
+    dropped: dict[str, int]
+    scrub: dict[str, int]
+    snapshots: list[str]
+    run_ids: list[str]

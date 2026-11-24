@@ -18,6 +18,7 @@ from dataclasses import replace
 
 from veyltrace_core.errors import ConfigError
 from veyltrace_gateway.buffer import LiveBuffer
+from veyltrace_gateway.otlp import ReceiverCounters
 from veyltrace_gateway.settings import GatewaySettings, check_bind, load_settings
 
 
@@ -54,8 +55,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from veyltrace_gateway.app import create_app
 
-    buffer = _start_receiver(settings, listener) if listener is not None else None
-    uvicorn.run(create_app(settings, live=buffer), host=settings.host, port=settings.port)
+    buffer, counters = _start_receiver(settings, listener) if listener is not None else (None, None)
+    uvicorn.run(create_app(settings, live=buffer, counters=counters), host=settings.host, port=settings.port)
     return 0
 
 
@@ -68,8 +69,10 @@ def _bind(host: str, port: int) -> socket.socket:
         raise ConfigError(f"cannot listen for OTLP on {host}:{port}: {exc}") from None
 
 
-def _start_receiver(settings: GatewaySettings, listener: socket.socket) -> LiveBuffer:
-    """Serve the OTLP receiver on `listener` in a daemon thread; return the buffer it fills."""
+def _start_receiver(
+    settings: GatewaySettings, listener: socket.socket
+) -> tuple[LiveBuffer, ReceiverCounters]:
+    """Serve the OTLP receiver on `listener` in a daemon thread; return its buffer and counters."""
     import uvicorn
 
     from veyltrace_core.config import load_section_file
@@ -77,11 +80,14 @@ def _start_receiver(settings: GatewaySettings, listener: socket.socket) -> LiveB
 
     live = settings.live
     buffer = LiveBuffer(live.buffer_minutes, live.buffer_max_mb, live.future_tolerance_s)
+    counters = ReceiverCounters()
     # The converter arrives with O-07 (#24); until then the receiver answers 503.
-    app = create_otlp_app(buffer, None, load_section_file("infralume"), max_body_mb=live.max_body_mb)
+    app = create_otlp_app(
+        buffer, None, load_section_file("infralume"), max_body_mb=live.max_body_mb, counters=counters
+    )
     server = uvicorn.Server(uvicorn.Config(app, host=live.otlp_host, port=live.otlp_port))
     threading.Thread(target=server.run, args=([listener],), name="veyltrace-otlp", daemon=True).start()
-    return buffer
+    return buffer, counters
 
 
 if __name__ == "__main__":

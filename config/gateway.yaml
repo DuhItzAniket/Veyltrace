@@ -47,3 +47,10 @@ live:
   # /health reports live.receiving while the last batch is at most this old (s; a priori:
   # longer than the Collector's export and scrape intervals in the lab).
   receiving_s: 60
+  # "Diagnose now" snapshots [t_trigger - this, t_trigger]: the 20-min baseline start of 02 §5.1
+  # (06 §3.4, §6). The manual settle is 0 (06 §6 live.manual_settle_s), so it has no key until
+  # the alert watcher, with its own settle, returns in v1.1 (#227).
+  snapshot_before_min: 20
+  # Runs queued per snapshot, AI off first so its verdict appears first (06 §3.4). On a single
+  # demo laptop with the 9B model, set [off] (02 §10).
+  ai_modes: ["off", "record"]

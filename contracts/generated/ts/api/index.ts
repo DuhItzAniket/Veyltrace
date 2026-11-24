@@ -265,6 +265,31 @@ export interface Hypothesis {
   service: string;
 }
 
+/** `POST /live/diagnose` and `/live/snapshot` body (06 §3.4): minutes of data before the trigger, default `live.snapshot_before_min`. */
+export interface LiveRequest {
+  before_min?: number | null;
+}
+
+/** `POST /live/snapshot` (06 §3.4): the content-derived id of the snapshot written. */
+export interface LiveSnapshot {
+  snapshot_id: string;
+}
+
+/** `live_status` (06 §3.4) without the watcher fields: the alert watcher is cut to v1.1 (#227), so its state and last alert time arrive with it. Rows and bytes are per source; data times are ns; `requests` counts the receiver's accepted, duplicate and rejected bodies, `dropped` the batches the buffer refused by reason, and `scrub` the converter's counters. */
+export interface LiveStatus {
+  bytes: Record<string, number>;
+  dropped: Record<string, number>;
+  newest_ns: number | null;
+  oldest_ns: number | null;
+  receiving: boolean;
+  requests: Record<string, number>;
+  rows: Record<string, number>;
+  run_ids: string[];
+  scrub: Record<string, number>;
+  seconds_since_last_batch: number | null;
+  snapshots: string[];
+}
+
 /** Onsets of one service; *_source and its onset are null together (enforced by the allOf below). */
 export interface OnsetsPerService {
   external_onset_ns: number | null;

@@ -8,7 +8,8 @@ from veyltrace_core.testing import repo_root
 from veyltrace_gateway.export_openapi import OPENAPI_PATH, export
 
 CONFIG = repo_root() / "config"
-#: The routes of 06 §3.2 that X-04 builds (live routes arrive with X-10).
+#: The routes of 06 §3.2 that X-04 builds and the live routes of 06 §3.4 that X-10 builds (the
+#: live series and event stream are cut to v1.1, #227).
 ROUTES = (
     "/health", "/datasets", "/cases", "/cases/{dataset}/{case_id}", "/runs", "/runs/{run_id}",
     "/runs/{run_id}/events", "/runs/{run_id}/alert", "/runs/{run_id}/slate", "/runs/{run_id}/proposals",
@@ -16,6 +17,7 @@ ROUTES = (
     "/runs/{run_id}/receipt", "/runs/{run_id}/run-manifest", "/runs/{run_id}/evidence",
     "/runs/{run_id}/evidence/{atom_id}", "/runs/{run_id}/graph", "/runs/{run_id}/series",
     "/runs/{run_id}/onsets", "/runs/{run_id}/changes", "/runs/{run_id}/replay",
+    "/live/status", "/live/snapshot", "/live/diagnose",
 )  # fmt: skip
 
 
