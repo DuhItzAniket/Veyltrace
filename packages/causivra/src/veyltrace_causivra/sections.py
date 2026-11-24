@@ -7,7 +7,7 @@ evidence table. Lists are sorted as 10 §2.2 states.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import Any, Final
 
 from veyltrace_causivra.assemble import CardSettings, args_of, first_failed, why_not_runners
@@ -56,8 +56,17 @@ def timeline(
     onsets: models.Onsets | None,
     changes: Sequence[Mapping[str, Any]],
     rows: Sequence[Mapping[str, Any]],
+    table: Collection[str],
 ) -> list[dict[str, Any]]:
-    """Alert, incident onset, the root's onsets and the pool's changes inside the windows."""
+    """Alert, incident onset, the root's onsets and the pool's changes inside the windows.
+
+    A change is on the pool when its entity is a ranked service or component, or when a
+    change_proximity atom for it has a ranked service as candidate: `changes` has no service
+    column, so this is how a deploy on another replica of a ranked service is found (#329).
+    Cites keep only the atoms in `table`, the evidence table's atom ids, so every cited atom is
+    visible on the card (decision D2).
+    """
+    shown = frozenset(table)
     label = f"alert ({alert.protocol}{', windows clamped' if alert.clamped else ''})"
     entries: list[dict[str, Any]] = [{"t_ns": alert.t_alert_ns, "label": label, "cites": []}]
     if onsets is not None:
@@ -69,6 +78,7 @@ def timeline(
                 str(r["atom_id"])
                 for r in rows
                 if r["kind"] == "onset_precedence"
+                and str(r["atom_id"]) in shown
                 and r["candidate"] == root.service
                 and args_of(r).get("scope") in ONSET_SCOPES
             )
@@ -78,16 +88,22 @@ def timeline(
             ):
                 if t_ns is not None:
                     entries.append({"t_ns": t_ns, "label": f"{root.service} {which} onset", "cites": cites})
-    pool = {r.service for r in verdict.ranked} | {r.component for r in verdict.ranked if r.component}
+    services = {r.service for r in verdict.ranked}
+    pool = services | {r.component for r in verdict.ranked if r.component}
+    proximity = [r for r in rows if r["kind"] == "change_proximity"]
+    near: dict[str, set[str]] = {}  # change_id -> candidates of its change_proximity atoms
+    for r in proximity:
+        near.setdefault(str(args_of(r).get("change_id")), set()).add(str(r["candidate"]))
     start, end = alert.windows.baseline[0], alert.windows.incident[1]  # half-open [start, end)
     for change in changes:
         t_ns = int(change["t_ns"])
-        if str(change["entity"]) in pool and start <= t_ns < end:
-            change_id = str(change["change_id"])
+        change_id = str(change["change_id"])
+        on_pool = str(change["entity"]) in pool or bool(near.get(change_id, set()) & services)
+        if on_pool and start <= t_ns < end:
             cites = sorted(
                 str(r["atom_id"])
-                for r in rows
-                if r["kind"] == "change_proximity" and args_of(r).get("change_id") == change_id
+                for r in proximity
+                if str(r["atom_id"]) in shown and args_of(r).get("change_id") == change_id
             )
             entries.append(
                 {"t_ns": t_ns, "label": f"{change['entity']} {change['kind']} change", "cites": cites}

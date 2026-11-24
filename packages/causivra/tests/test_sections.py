@@ -1,7 +1,8 @@
 """Timeline, path, why-not and asks (10 §3.1 steps 4–7) on the hand-made scenario (conftest).
 
 A deploy change on payment lies inside the windows; a config change on redis (not in the decision
-pool) and a restart before the baseline window do not reach the timeline.
+pool) and a restart before the baseline window do not reach the timeline. The synth-03 test moves
+the cart deploy to another replica (#329).
 """
 
 from __future__ import annotations
@@ -14,9 +15,11 @@ from typing import Any
 
 import pytest
 
-from veyltrace_causivra import assemble, sections
+from veyltrace_causivra import api, assemble, sections
 from veyltrace_causivra.assemble import CardSettings
 from veyltrace_contracts import models
+from veyltrace_core import io
+from veyltrace_core.testing import fixture_run_dir, make_context
 
 MakeVerdict = Callable[..., models.Verdict]
 T0 = 1_767_225_600_000_000_000
@@ -103,7 +106,8 @@ def _table(
 def test_timeline(
     make_verdict: MakeVerdict, scenario: SimpleNamespace, alert: models.Alert, onsets: models.Onsets
 ) -> None:
-    entries = sections.timeline(make_verdict(), alert, onsets, CHANGES, scenario.evidence)
+    every = {str(r["atom_id"]) for r in scenario.evidence}  # a table that holds every atom
+    entries = sections.timeline(make_verdict(), alert, onsets, CHANGES, scenario.evidence, every)
     t0, s = T0, S
     assert [(e["t_ns"], e["label"], e["cites"]) for e in entries] == [
         (t0 + 1100 * s, "payment deploy change", [scenario.a_change]),
@@ -116,8 +120,53 @@ def test_timeline(
 
 def test_timeline_without_onsets_holds_the_alert_only(make_verdict: MakeVerdict, alert: models.Alert) -> None:
     clamped = alert.model_copy(update={"clamped": True})
-    entries = sections.timeline(make_verdict(), clamped, None, [], [])
+    entries = sections.timeline(make_verdict(), clamped, None, [], [], set())
     assert entries == [{"t_ns": alert.t_alert_ns, "label": "alert (oracle, windows clamped)", "cites": []}]
+
+
+def test_timeline_cites_only_atoms_the_evidence_table_holds(
+    make_verdict: MakeVerdict,
+    scenario: SimpleNamespace,
+    card_settings: CardSettings,
+    alert: models.Alert,
+    onsets: models.Onsets,
+) -> None:
+    """#329 finding 1 (D2): the payment change atom is in no trial, so the table lacks it and the
+    change line cites nothing; the onset atom (payment's T2) stays cited."""
+    verdict = make_verdict()
+    shown = {t["atom_id"] for t in _table(verdict, scenario, card_settings)}
+    assert scenario.a_change not in shown and scenario.a_onset in shown
+    entries = sections.timeline(verdict, alert, onsets, CHANGES, scenario.evidence, shown)
+    by_label = {e["label"]: e["cites"] for e in entries}
+    assert by_label["payment deploy change"] == []
+    assert by_label["payment internal onset"] == by_label["payment external onset"] == [scenario.a_onset]
+    assert all(a in shown for e in entries for a in e["cites"])
+
+
+def test_timeline_keeps_a_change_on_another_replica_of_a_ranked_service(
+    make_verdict: MakeVerdict, scenario: SimpleNamespace, alert: models.Alert
+) -> None:
+    """#329 finding 2: a component-scope change whose entity is not ranked is kept when a
+    change_proximity atom with its change_id has a ranked service as candidate; without one it is not."""
+    replica = {"change_id": CHANGE_ID, "t_ns": T0 + 1100 * S, "entity": "payment-0", "kind": "deploy"}
+    orphan = {"change_id": "C0000000004", "t_ns": T0 + 1110 * S, "entity": "cart-9", "kind": "deploy"}
+    every = {str(r["atom_id"]) for r in scenario.evidence}
+    entries = sections.timeline(make_verdict(), alert, None, [replica, orphan], scenario.evidence, every)
+    changes = [(e["label"], e["cites"]) for e in entries if e["label"].endswith("change")]
+    assert changes == [("payment-0 deploy change", [scenario.a_change])]
+
+
+def test_synth_03_lists_the_cart_deploy_on_either_replica(tmp_path: Path) -> None:
+    """#329 finding 2 on the committed fixtures: ranked holds (cart, cart-1); the deploy moved from
+    cart-1 to cart-0 must still reach the card, because FaultLoom's change_proximity atom for it has
+    cart as candidate."""
+    run_dir = fixture_run_dir("synth-03", tmp_path, through="causentra")
+    rows = io.read_table("changes", run_dir).to_pylist()
+    assert [r["entity"] for r in rows if r["kind"] == "deploy"] == ["cart-1"]
+    io.write("changes", [{**r, "entity": "cart-0"} if r["entity"] == "cart-1" else r for r in rows], run_dir)
+    assert api.run(make_context("causivra", run_dir, phase="card", ai_mode="off")).status == "ok"
+    labels = [e.label for e in io.read_model("card", run_dir, models.Card).timeline]
+    assert "cart-0 deploy change" in labels and "cart-1 deploy change" not in labels
 
 
 def test_path(make_verdict: MakeVerdict, scenario: SimpleNamespace) -> None:
