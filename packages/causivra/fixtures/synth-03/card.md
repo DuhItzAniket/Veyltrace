@@ -32,11 +32,11 @@
 
 ## Timeline
 
-- 00:18:00 UTC — cart-1 deploy change (cites: Ea59a066a7a)
+- 00:18:00 UTC — cart-1 deploy change
 - 00:22:00 UTC — alert (oracle)
 - 00:22:00 UTC — incident onset
-- 00:22:00 UTC — payment external onset (cites: E30ea86ddc2, Ecd2417b504)
-- 00:22:00 UTC — payment internal onset (cites: E30ea86ddc2, Ecd2417b504)
+- 00:22:00 UTC — payment external onset (cites: E30ea86ddc2)
+- 00:22:00 UTC — payment internal onset (cites: E30ea86ddc2)
 
 ## Path
 
@@ -63,5 +63,5 @@ prose: template
 ---
 
 verdict_hash: `7b6cf9207bcc608263ebbcdea89a85b6a3bd499e52a475f93fcd84c2ddded56a`  
-card_hash: `b89dd9ccbce75677ff8a1dc3ed9548d60084e3c06d1f46674a009ebeb35ed412`  
+card_hash: `b66ee887b3250fe47ce5a765f698c8b841269678383edd72214f602708d5bdfa`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

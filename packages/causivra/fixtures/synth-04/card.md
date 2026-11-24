@@ -36,8 +36,8 @@
 
 - 00:21:00 UTC — catalog deploy change (cites: E1a3227d1c7)
 - 00:22:00 UTC — alert (oracle)
-- 00:22:00 UTC — catalog external onset (cites: E09d7fef8c9, Ec60a81fd6f)
-- 00:22:00 UTC — catalog internal onset (cites: E09d7fef8c9, Ec60a81fd6f)
+- 00:22:00 UTC — catalog external onset (cites: E09d7fef8c9)
+- 00:22:00 UTC — catalog internal onset (cites: E09d7fef8c9)
 - 00:22:00 UTC — incident onset
 
 ## Path
@@ -69,5 +69,5 @@ prose: template
 ---
 
 verdict_hash: `4991735f0bd9b5cc493398c965939e0b66ccaec09abc48b009b0cd7b5c80e968`  
-card_hash: `aa857df630665865a720d90995deabeda148fbc4e66fc1abceedb7ad129de19b`  
+card_hash: `04aba6a54fb3fdfc59fb0c97db44ab04c5ecbe71b746481af224deeba3ebe564`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

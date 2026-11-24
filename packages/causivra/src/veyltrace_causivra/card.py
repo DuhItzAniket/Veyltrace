@@ -89,7 +89,7 @@ def build_card(
         "summary": told.summary
         if told is not None and told.summary is not None
         else summary(verdict, ctx, kinds, settings.ask_phrases),
-        "timeline": sections.timeline(verdict, alert, onsets, changes, evidence),
+        "timeline": sections.timeline(verdict, alert, onsets, changes, evidence, atoms.keys()),
         "path": path,
         "evidence_table": table,
         "why_not": sections.why_not(verdict, ctx, settings),

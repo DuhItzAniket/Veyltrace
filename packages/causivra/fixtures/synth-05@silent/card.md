@@ -31,8 +31,8 @@
 ## Timeline
 
 - 00:22:00 UTC — alert (oracle)
-- 00:22:00 UTC — cart external onset (cites: E2e0bd9e9a2, Ed16b111d18)
-- 00:22:00 UTC — cart internal onset (cites: E2e0bd9e9a2, Ed16b111d18)
+- 00:22:00 UTC — cart external onset (cites: E2e0bd9e9a2)
+- 00:22:00 UTC — cart internal onset (cites: E2e0bd9e9a2)
 - 00:22:00 UTC — incident onset
 
 ## Path
@@ -60,5 +60,5 @@ prose: template
 ---
 
 verdict_hash: `942d9c5f4c64d6fdb06be94ff53ab5a09ea6075d7982464c6e39ee41975adea9`  
-card_hash: `b2ff9a8af3feee7018f1d5f85addc3d8bcf3c7f790bd89f21bcbeeeeb71b12c1`  
+card_hash: `f302b86e7147505b07b2b9b5972449006e8debfa92f5066204c063f80ecd16c2`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`

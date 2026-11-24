@@ -34,8 +34,8 @@
 
 ## Timeline
 
-- 00:22:00 UTC — checkout external onset (cites: E39040cc71a, E58f665f302)
-- 00:22:00 UTC — checkout internal onset (cites: E39040cc71a, E58f665f302)
+- 00:22:00 UTC — checkout external onset (cites: E39040cc71a)
+- 00:22:00 UTC — checkout internal onset (cites: E39040cc71a)
 - 00:22:00 UTC — incident onset
 - 00:22:10 UTC — alert (detected)
 
@@ -65,5 +65,5 @@ prose: template
 ---
 
 verdict_hash: `fb54166aa01760a9282f6778ba68010a12ee7bc1728ae2167dc362925479b34d`  
-card_hash: `b8c077a315728f4558b97aa856eaaa0895b64eaa9c177c002591f4322015e0e1`  
+card_hash: `b744b7a17dfbe439c3e50e68db0a500663e85a3c153f648a7698cff2af05fbca`  
 replay: `uv run veyltrace replay <run dir>/receipt.json`
