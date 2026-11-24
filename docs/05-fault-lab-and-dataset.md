@@ -102,7 +102,7 @@ processors:
   batch: {}
 exporters:
   file/spool: {path: /veyllab/spool/otlp.jsonl, format: json, rotation: {}}
-  otlphttp/gateway: {endpoint: "<gateway OTLP endpoint>"}   # live mode only
+  otlp_http/gateway: {endpoint: "<gateway OTLP endpoint>", encoding: json, compression: gzip}   # live mode only: lab/up.py --live-export
 service:
   pipelines:
     traces:  {receivers: [otlp], processors: [memory_limiter, filter/scrub, k8sattributes, batch], exporters: [file/spool]}
