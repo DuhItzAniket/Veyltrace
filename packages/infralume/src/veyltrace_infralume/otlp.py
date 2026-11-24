@@ -44,8 +44,9 @@ _log = get_logger(__name__)
 #: constant until the key can be added to config/infralume.yaml: a new key changes every run's
 #: config hash, and the golden verdicts cannot be regenerated before #256 is closed.
 METRIC_LABEL_KEYS: Final = ("http.response.status_code", "http.route", "rpc.method")
-#: Span attributes holding the HTTP, else gRPC, status code (01 §3.5).
-_CODE_KEYS: Final = ("http.response.status_code", "rpc.grpc.status_code")
+#: Span attributes holding the HTTP status code (the current name, else the pre-1.21 one: lead
+#: decision on #24), else the gRPC one (01 §3.5).
+_CODE_KEYS: Final = ("http.response.status_code", "http.status_code", "rpc.grpc.status_code")
 #: The system whose aliases apply: none, as one request does not name its system (#24).
 _NO_SYSTEM: Final = "other"
 # OTLP enums by number (opentelemetry-proto); the JSON mapping may also carry the name.
@@ -60,6 +61,8 @@ _SEVERITIES: Final = (
 )
 _TOPS: Final = frozenset({"resourceSpans", "resourceMetrics", "resourceLogs"})
 _HEX: Final = re.compile(r"[0-9a-fA-F]+")
+_TRACE_HEX: Final = 32  # hex characters of a 16-byte trace id; a span id has 8 bytes
+_SPAN_HEX: Final = 16
 
 type Json = Mapping[str, Any]
 
@@ -87,20 +90,21 @@ def _int(value: object) -> int:
 
 
 def _enum(value: object, names: tuple[str, ...], prefix: str) -> int:
-    """An enum given as its number or its name; a number this code does not know reads as 0."""
+    """An enum given as its number or its name; one this code does not know reads as 0."""
     if isinstance(value, str) and not value.isdigit():
-        return names.index(value.removeprefix(prefix).lower())
+        name = value.removeprefix(prefix).lower()
+        return names.index(name) if name in names else 0
     number = _int(value)
     return number if 0 <= number < len(names) else 0
 
 
-def _hex(value: object) -> str | None:
-    """A trace or span id as lowercase hex; empty or absent → None. Base64 (what a plain protobuf
-    to JSON dump writes for bytes) is refused: OTLP/JSON ids are hex."""
+def _hex(value: object, length: int) -> str | None:
+    """A trace (32) or span (16) id as lowercase hex; empty or absent → None. Base64 (what a plain
+    protobuf to JSON dump writes for bytes: 24 or 12 characters) is refused: OTLP/JSON ids are hex."""
     if value in (None, ""):
         return None
-    if not isinstance(value, str) or _HEX.fullmatch(value) is None:
-        raise ValueError(f"id {value!r} is not hex")
+    if not isinstance(value, str) or len(value) != length or _HEX.fullmatch(value) is None:
+        raise ValueError(f"id {value!r} is not {length} hex characters")
     return value.lower()
 
 
@@ -118,7 +122,7 @@ def _any(value: Json) -> object:
 
 
 def _attrs(obj: Json, key: str = "attributes") -> dict[str, object]:
-    return {str(kv["key"]): _any(kv.get("value", {})) for kv in _items(obj, key)}
+    return {str(kv.get("key", "")): _any(kv.get("value", {})) for kv in _items(obj, key)}
 
 
 def _identity(resource: Json, names: NameRules) -> tuple[str, str] | Literal[False] | None:
@@ -177,24 +181,31 @@ def _spans(request: Json, rules: _Rules) -> pa.Table:
              "start_ns", "end_ns", "status", "status_code", "attrs_json")  # fmt: skip
     cols: dict[str, list[Any]] = {n: [] for n in names}
     native: list[str] = []
+    untimed = 0
     for who, span in _records(request, "resourceSpans", "scopeSpans", "spans", rules):
         if who is None:
             rules.scrub.dropped_rows += 1
             continue
+        start = _int(span.get("startTimeUnixNano", 0))  # proto3 JSON leaves out a zero field
+        if start == 0:  # 01 §6: no timestamp
+            untimed += 1
+            continue
         attrs = _attrs(span)
         codes = [v for k in _CODE_KEYS if isinstance(v := attrs.get(k), int) and not isinstance(v, bool)]
-        trace, span_id = _hex(span.get("traceId")), _hex(span.get("spanId"))
+        trace, span_id = _hex(span.get("traceId"), _TRACE_HEX), _hex(span.get("spanId"), _SPAN_HEX)
         if trace is None or span_id is None:
             raise ValueError("a span has no traceId or spanId")
         kind = _KINDS[_enum(span.get("kind", 0), _KINDS, "SPAN_KIND_")]
-        row = (trace, span_id, _hex(span.get("parentSpanId")), who[0], who[1] if who[1] != who[0] else None,
-               rules.scrub.text(str(span.get("name", ""))), kind, _int(span["startTimeUnixNano"]),
-               _int(span["endTimeUnixNano"]), None, codes[0] if codes else None,
+        row = (trace, span_id, _hex(span.get("parentSpanId"), _SPAN_HEX), who[0],
+               who[1] if who[1] != who[0] else None, rules.scrub.text(str(span.get("name", ""))), kind,
+               start, _int(span.get("endTimeUnixNano", 0)), None, codes[0] if codes else None,
                rules.scrub.attrs(attrs))  # fmt: skip
         for name, value in zip(names, row, strict=True):
             cols[name].append(value)
         status: Json = span.get("status", {})
         native.append(_STATUS[_enum(status.get("code", 0), _STATUS, "STATUS_CODE_")])
+    if untimed:
+        _log.info("infralume.rows_dropped", source="spans", rows=untimed)
     if not native:
         return _finish(cols, "telemetry.spans", rules)
     # 01 §3.5: the native status wins; an UNSET span gets the HTTP/gRPC rule on its code.
@@ -206,7 +217,7 @@ def _spans(request: Json, rules: _Rules) -> pa.Table:
 def _points(metric: Json) -> Iterator[tuple[str, str, Json, object]] | None:
     """(name, metric_type, point, raw value) per series point of one metric (01 §3.9 table), or
     None for a kind the table has no row for."""
-    name = str(metric["name"])
+    name = str(metric.get("name", ""))  # proto3 JSON leaves out an empty or zero field
     if "gauge" in metric:
         return ((name, "gauge", p, _number(p)) for p in _items(metric["gauge"], "dataPoints"))
     data: Json = metric.get("sum", metric.get("histogram", {}))
@@ -219,7 +230,7 @@ def _points(metric: Json) -> Iterator[tuple[str, str, Json, object]] | None:
         total = name if name.endswith("_total") else f"{name}_total"
         return ((total, "counter", p, _number(p)) for p in _items(data, "dataPoints"))
     return (
-        (f"{name}_{part}", "counter", p, _int(p[part]) if part == "count" else p.get(part))
+        (f"{name}_{part}", "counter", p, _int(p.get(part, 0)) if part == "count" else p.get(part))
         for p in _items(data, "dataPoints")
         for part in ("count", "sum")
     )
@@ -232,7 +243,7 @@ def _number(point: Json) -> object:
 
 def _metrics(request: Json, rules: _Rules) -> pa.Table:
     series: dict[tuple[str, str, str, int], tuple[str, str | None, str | None, list[float]]] = {}
-    skipped = 0
+    skipped = untimed = 0
     for who, metric in _records(request, "resourceMetrics", "scopeMetrics", "metrics", rules):
         points = _points(metric)
         if points is None:
@@ -242,6 +253,10 @@ def _metrics(request: Json, rules: _Rules) -> pa.Table:
         for base, metric_type, point, raw in points:
             value = math.nan if raw is None else float(cast("Any", raw))
             if not math.isfinite(value):  # 01 §6: NaN/inf points are dropped
+                continue
+            t_ns = _int(point.get("timeUnixNano", 0))
+            if t_ns == 0:  # 01 §6: no timestamp
+                untimed += 1
                 continue
             if who is None:
                 rules.scrub.dropped_rows += 1
@@ -253,10 +268,10 @@ def _metrics(request: Json, rules: _Rules) -> pa.Table:
                 for k, v in sorted(labels.items())
             )
             name = rules.scrub.text(f"{base}{{{text}}}" if labels else base)
-            key = (who[0], who[1], name, _int(point["timeUnixNano"]))
+            key = (who[0], who[1], name, t_ns)
             series.setdefault(key, (metric_type, unit, rules.scrub.attrs(labels), []))[3].append(value)
-    if skipped:
-        _log.info("infralume.otlp_metrics_skipped", metrics=skipped)
+    if skipped or untimed:
+        _log.info("infralume.otlp_metrics_skipped", metrics=skipped, untimed_points=untimed)
     rows = [  # equal keys are combined: counters summed, gauges averaged (01 §3.9); fsum is exact
         (t, *who, kind, attrs, math.fsum(vs) / (1 if kind == "counter" else len(vs)), unit, "otlp")
         for (*who, t), (kind, unit, attrs, vs) in series.items()
@@ -283,8 +298,8 @@ def _logs(request: Json, rules: _Rules) -> pa.Table:
         body = _any(record.get("body", {}))
         text = body if isinstance(body, str) else "" if body is None else canonical_json_str(normalize(body))
         row = (t_ns, who[0], who[1], _LEVELS[(level - 1) // _PER_LEVEL] if level else None,
-               rules.scrub.text(text), _hex(record.get("traceId")), _hex(record.get("spanId")),
-               rules.scrub.attrs(_attrs(record)))  # fmt: skip
+               rules.scrub.text(text), _hex(record.get("traceId"), _TRACE_HEX),
+               _hex(record.get("spanId"), _SPAN_HEX), rules.scrub.attrs(_attrs(record)))  # fmt: skip
         for name, value in zip(names, row, strict=True):
             cols[name].append(value)
     if untimed:

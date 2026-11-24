@@ -46,8 +46,13 @@ def _resource(service: str | None, **more: object) -> dict[str, Any]:
     return {"attributes": _kv(**named, **more)}
 
 
+def _sid(short: str) -> str:
+    """A 16-hex span id from a two-character test id."""
+    return short.rjust(16, "0") if len(short) == 2 else short
+
+
 def _span(span_id: str, start: int = T, end: int = T + 5, **fields: Any) -> dict[str, Any]:
-    base = {"traceId": TRACE, "spanId": span_id, "name": "GET /cart", "kind": 2,
+    base = {"traceId": TRACE, "spanId": _sid(span_id), "name": "GET /cart", "kind": 2,
             "startTimeUnixNano": str(start), "endTimeUnixNano": str(end)}  # fmt: skip
     return base | fields
 
@@ -79,7 +84,13 @@ def test_spans_are_canonical(infralume_cfg: EngineConfig) -> None:
         (
             _resource("Cart_Service", k8s__pod__name=POD),
             [
-                _span("0B", parentSpanId="0a", kind="SPAN_KIND_CLIENT", status={"code": 2}, attributes=child),
+                _span(
+                    "0B",
+                    parentSpanId=_sid("0a"),
+                    kind="SPAN_KIND_CLIENT",
+                    status={"code": 2},
+                    attributes=child,
+                ),
                 _span("0a", parentSpanId="", attributes=_kv(http__response__status_code=503)),
             ],
         ),
@@ -88,11 +99,11 @@ def test_spans_are_canonical(infralume_cfg: EngineConfig) -> None:
     assert table.schema.equals(arrow_schema("telemetry.spans"))
     root, child = _rows(table)
     assert root == {
-        "trace_id": TRACE.lower(), "span_id": "0a", "parent_span_id": None, "service": "cart-service",
+        "trace_id": TRACE.lower(), "span_id": _sid("0a"), "parent_span_id": None, "service": "cart-service",
         "component": POD, "operation": "GET /cart", "kind": "server", "start_ns": T, "end_ns": T + 5,
         "status": "error", "status_code": 503, "attrs_json": '{"http.response.status_code":503}',
     }  # fmt: skip
-    assert (child["span_id"], child["parent_span_id"], child["kind"]) == ("0b", "0a", "client")
+    assert (child["span_id"], child["parent_span_id"], child["kind"]) == (_sid("0b"), _sid("0a"), "client")
     assert (child["status"], child["status_code"]) == ("error", 0)  # the native status wins (§3.5)
     assert child["attrs_json"] == '{"peer":"redis","rpc.grpc.status_code":0}'
     assert counts == {"dropped_attributes": 1, "dropped_rows": 0}
@@ -117,6 +128,10 @@ def test_spans_are_canonical(infralume_cfg: EngineConfig) -> None:
         (0, {"rpc__grpc__status_code": 0}, "ok", 0),
         (0, {"rpc__grpc__status_code": 1}, "error", 1),  # CANCELLED: never read as OTel ok
         (0, {"rpc__grpc__status_code": 14, "http__response__status_code": 200}, "ok", 200),
+        (0, {"http__status_code": 503}, "error", 503),  # pre-1.21 semconv name (lead decision, #24)
+        (0, {"http__status_code": 200, "rpc__grpc__status_code": 14}, "ok", 200),
+        (0, {"http__status_code": 200, "http__response__status_code": 500}, "error", 500),
+        ("STATUS_CODE_FROM_A_NEWER_SDK", {}, "unset", None),  # an unknown enum name reads as 0
     ],
 )
 def test_span_status_rule(
@@ -128,15 +143,17 @@ def test_span_status_rule(
 
 
 def test_spans_dropped(infralume_cfg: EngineConfig) -> None:
+    # proto3 JSON leaves out a zero field: a span without a start time has no timestamp (01 §6)
+    untimed = {k: v for k, v in _span("11").items() if k != "startTimeUnixNano"}
     request = _traces(
-        (_resource("cart"), [_span("0a"), _span("0a", end=T + 9), _span("0c", end=T - 1)]),
+        (_resource("cart"), [_span("0a"), _span("0a", end=T + 9), _span("0c", end=T - 1), untimed]),
         (_resource("flagd"), [_span("0d")]),  # fault tool: scrub.drop_services
         (_resource("istio-proxy"), [_span("0e")]),  # sidecar: normalise.drop_containers
         (_resource(None), [_span("0f")]),  # no service.name
         (_resource("unknown_service:java"), [_span("10")]),  # no valid name
     )
     table, counts = otlp.spans(request, infralume_cfg)
-    assert [(r["span_id"], r["end_ns"]) for r in _rows(table)] == [("0a", T + 5)]
+    assert [(r["span_id"], r["end_ns"]) for r in _rows(table)] == [(_sid("0a"), T + 5)]
     assert counts == {"dropped_attributes": 0, "dropped_rows": 2}
 
 
@@ -162,6 +179,29 @@ def test_metric_kinds(infralume_cfg: EngineConfig) -> None:
         ("lat_count", "counter", 4.0, "ms"), ("lat_sum", "counter", 9.5, "ms"), ("queue", "gauge", 3.0, None),
     ]  # fmt: skip
     encode("telemetry.metrics", table)
+
+
+def test_metric_fields_proto3_json_leaves_out(infralume_cfg: EngineConfig) -> None:
+    """A zero `count`, an empty name or a zero time has no key in proto3 JSON; none rejects the request."""
+    idle = {"timeUnixNano": str(T), "bucketCounts": ["0"]}  # count = 0 and no sum
+    request = _metrics(
+        _resource("cart"),
+        {"name": "lat", "histogram": {"aggregationTemporality": 2, "dataPoints": [idle]}},
+        {
+            "name": "zero",
+            "gauge": {"dataPoints": [{"timeUnixNano": str(T), "asInt": "0"}, {"asDouble": 1.0}]},
+        },
+        {"gauge": {"dataPoints": [_point(2.0)]}},
+    )
+    rows = _rows(otlp.metrics(request, infralume_cfg)[0])
+    assert [(r["name"], r["value"]) for r in rows] == [("", 2.0), ("lat_count", 0.0), ("zero", 0.0)]
+
+
+@pytest.mark.parametrize("field", ["traceId", "spanId"])
+def test_log_ids_must_be_hex_of_the_right_length(infralume_cfg: EngineConfig, field: str) -> None:
+    record = {"timeUnixNano": str(T), field: "123456789012"}  # base64 length, digits only
+    with pytest.raises(CaseRejected):
+        otlp.logs(_logs(_resource("cart"), record), infralume_cfg)
 
 
 def test_metric_labels_and_combining(infralume_cfg: EngineConfig) -> None:
@@ -191,7 +231,7 @@ def test_logs_are_canonical(infralume_cfg: EngineConfig) -> None:
     request = _logs(
         _resource("cart"),
         {"timeUnixNano": str(T + 2), "severityNumber": 9, "body": {"stringValue": "fault injected? no"},
-         "traceId": TRACE, "spanId": "0A", "attributes": _kv(chaos__kind="pod", thread="main")},
+         "traceId": TRACE, "spanId": _sid("0A"), "attributes": _kv(chaos__kind="pod", thread="main")},
         {"timeUnixNano": "0", "observedTimeUnixNano": str(T + 1),
          "severityNumber": "SEVERITY_NUMBER_ERROR2", "body": {"kvlistValue": {"values": _kv(b=1, a="x")}}},
         {"timeUnixNano": str(T), "severityNumber": 99, "traceId": ""},
@@ -203,7 +243,7 @@ def test_logs_are_canonical(infralume_cfg: EngineConfig) -> None:
         (T, None, ""), (T + 1, "ERROR", '{"a":"x","b":1}'), (T + 2, "INFO", "fault injected? no"),
     ]  # fmt: skip
     last = _rows(table)[-1]
-    assert (last["trace_id"], last["span_id"]) == (TRACE.lower(), "0a")
+    assert (last["trace_id"], last["span_id"]) == (TRACE.lower(), _sid("0a"))
     assert last["attrs_json"] == '{"thread":"main"}'
     assert _rows(table)[0]["trace_id"] is None
     assert counts == {"dropped_attributes": 1, "dropped_rows": 0}
@@ -231,6 +271,13 @@ def test_handmade_capture_lines(infralume_cfg: EngineConfig, name: str, convert:
         assert (table.to_pylist(), dict(counts)) == (want["rows"], want["scrub"])
 
 
+def test_unknown_kind_and_keyless_attribute(infralume_cfg: EngineConfig) -> None:
+    """A newer SDK's enum name, or an attribute whose empty key proto3 JSON left out, fails nothing."""
+    span = _span("0a", kind="SPAN_KIND_FROM_A_NEWER_SDK", attributes=[{"value": {"stringValue": "x"}}])
+    (row,) = _rows(otlp.spans(_traces((_resource("cart"), [span])), infralume_cfg)[0])
+    assert (row["kind"], row["attrs_json"]) == ("unspecified", '{"":"x"}')
+
+
 def test_empty_requests(infralume_cfg: EngineConfig) -> None:
     for convert, contract in ((otlp.spans, "spans"), (otlp.metrics, "metrics"), (otlp.logs, "logs")):
         table, counts = convert({}, infralume_cfg)
@@ -248,8 +295,10 @@ def test_empty_requests(infralume_cfg: EngineConfig) -> None:
         _traces((_resource("cart"), [_span("W1Yx8Q==")])),  # a base64 id
         _traces((_resource("cart"), [_span("")])),
         _traces((_resource("cart"), [_span("0a", startTimeUnixNano=1.5)])),
-        _traces((_resource("cart"), [_span("0a", kind="SPAN_KIND_NOPE")])),
-        _traces(({"attributes": [{"value": {}}]}, [_span("0a")])),
+        _traces((_resource("cart"), [_span("123456789012")])),  # base64 length, digits only
+        _traces((_resource("cart"), [_span("0a", traceId="1" * 24)])),
+        _traces((_resource("cart"), [_span("0a", parentSpanId="0a")])),
+        _traces(({"attributes": "x"}, [_span("0a")])),
     ],
 )
 def test_malformed_request_is_rejected(infralume_cfg: EngineConfig, request_: Any) -> None:
