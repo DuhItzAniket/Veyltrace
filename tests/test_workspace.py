@@ -97,6 +97,9 @@ SPEC_ENGINE_DEPS["causivra"] = ("veyltrace-llm",)
 # The Nezha answer keys (#451) take case keys, fault order and service names from Infralume's Nezha
 # layout and name rules, so key and run share one id and one service name (#436 review).
 SPEC_ENGINE_DEPS["bench"] = ("veyltrace-causentra", "veyltrace-infralume")
+# 06 §3.3: the live receiver decodes OTLP through Infralume's converter veyltrace_infralume.otlp (O-07, #24);
+# the gateway passes it to create_otlp_app instead of the test stub (X-10, #43; G2 in docs/06-live-demo.md).
+SPEC_ENGINE_DEPS["gateway"] = ("veyltrace-infralume",)
 WHEEL_EXTRA = {"bench": ["decoys/veyltrace_decoys", "stats/veyltrace_stats"]}  # Observe's (#326, #357)
 
 
