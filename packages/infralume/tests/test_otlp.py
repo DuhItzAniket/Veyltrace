@@ -7,7 +7,9 @@ the gateway send (#24): lowerCamelCase, hex ids, 64-bit integers as strings. No 
 from __future__ import annotations
 
 import copy
+import json
 import random
+from pathlib import Path
 from typing import Any
 
 import pyarrow as pa
@@ -25,6 +27,7 @@ from veyltrace_infralume.scrub import Scrubber, ScrubRules
 T = 1_764_000_000_000_000_000
 TRACE = "5B8EFFF798038103D269B633813FC60C"
 POD = "cartservice-579b9bff58-t2dbm"
+FIXTURES = Path(__file__).parents[1] / "fixtures" / "handmade" / "otlp"
 
 
 def _kv(**attrs: object) -> list[dict[str, Any]]:
@@ -212,6 +215,20 @@ def test_severity_ranges(infralume_cfg: EngineConfig, severity: int) -> None:
     levels = ("TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL")
     request = _logs(_resource("cart"), {"timeUnixNano": str(T), "severityNumber": severity})
     assert _rows(otlp.logs(request, infralume_cfg)[0])[0]["severity"] == levels[(severity - 1) // 4]
+
+
+@pytest.mark.parametrize(
+    ("name", "convert"), [("traces", otlp.spans), ("metrics", otlp.metrics), ("logs", otlp.logs)]
+)
+def test_handmade_capture_lines(infralume_cfg: EngineConfig, name: str, convert: Any) -> None:
+    """Each line of the handmade `otlp/*.jsonl` files (the lab capture shape) converts to the
+    reviewed rows and scrub counts in `expected.json`."""
+    lines = (FIXTURES / f"{name}.jsonl").read_text(encoding="utf-8").splitlines()
+    expected = json.loads((FIXTURES / "expected.json").read_text(encoding="utf-8"))[name]
+    assert len(lines) == len(expected)
+    for line, want in zip(lines, expected, strict=True):
+        table, counts = convert(json.loads(line), infralume_cfg)
+        assert (table.to_pylist(), dict(counts)) == (want["rows"], want["scrub"])
 
 
 def test_empty_requests(infralume_cfg: EngineConfig) -> None:
