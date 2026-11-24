@@ -1,12 +1,14 @@
 # 02 · Signalyth — turn canonical telemetry into typed signals: series, call edges, log templates, critical paths
 
-> Status: v0.1-draft · Lane: Observe · Master: [docs/02-architecture.md §6.2](../02-architecture.md) · Contracts: [docs/03-contracts.md §3](../03-contracts.md) (reads §2, §2.6 `alert`) · Last updated: 2026-10-30
+> Status: built (O-02, O-03), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.2](../02-architecture.md) · Contracts: [docs/03-contracts.md §3](../03-contracts.md) (reads §2, §2.6 `alert`) · Last updated: 2026-11-24
 
 ## 1. Purpose and scope
 
 Signalyth converts raw rows into the typed signals every later engine uses. Each output series carries a `family` and a `klass` tag; the internal-versus-external split drives PRISM-style scoring in FaultLoom and Causatrix ([02 §6.2](../02-architecture.md); PRISM split described in [rcaeval_facts §Anomaly scoring methods][rf-methods]).
 
 **In scope**: metric normalisation (units, counter → rate), the `family`/`klass` tagging table, trace series (latency p50/p99, error rate, request rate, self-time), the call-edge table, the critical-path table, Drain3 log templates and log series.
+
+**Modules** (`veyltrace_signalyth`): `metrics.py` (§3.2), `spans.py` (§3.3), `paths.py` (edges and §3.4), `loglines.py`, `templates.py`, `logseries.py` (§3.5); entry point `api.py:run`.
 
 **Out of scope**: anomaly scores and onsets (Anomara); clock alignment (Causync — Signalyth uses source times); the dependency graph and entry detection (Causalith); LLM template refinement (an ablation arm only, [novel_building_blocks §Q2][nbb]; not scheduled in [07](../07-roadmap.md)).
 
@@ -16,11 +18,11 @@ Signalyth converts raw rows into the typed signals every later engine uses. Each
 
 | Contract | Fields used |
 |---|---|
-| `case_manifest` | `case_id`, `data_start_ns`, `data_end_ns`, `sources`, `services` |
+| `case_manifest` | `data_start_ns`, `data_end_ns`, `sources` (`case_id` comes from the run context; service sets come from the rows) |
 | `alert` | `windows.baseline`, `windows.incident` (03 §2.6) |
 | `telemetry.metrics` | `t_ns, service, component, name, value, unit` |
 | `telemetry.spans` | `trace_id, span_id, parent_span_id, service, operation, kind, start_ns, end_ns, status` |
-| `telemetry.logs` | `t_ns, service, component, severity, body` |
+| `telemetry.logs` | `t_ns, service, severity, body` |
 
 `telemetry.events` is not read.
 
@@ -53,7 +55,7 @@ Count-type series (`rps`, `log_rate`, `log_error_rate`, `tmpl:*`) are **zero-fil
 
 ### 3.2 Metrics
 
-1. **Map name → signal, family, klass** with the first matching rule (case-insensitive regex on `name`). The table is config (`metrics.family_rules`); defaults:
+1. **Map name → signal, family, klass** with the first matching rule (case-insensitive regex on `name`). The table is config (`metrics.family_rules`): each rule is `{pattern, signal, family, klass}` with optional `exact` (the raw name that keeps itself as the signal) and `quantile`; `signal: "{name}"` means the sanitised raw name, and the last rule must match everything. Defaults:
 
 | # | Pattern on `name` | `signal` | `family` | `klass` |
 |---|---|---|---|---|
@@ -62,7 +64,7 @@ Count-type series (`rps`, `log_rate`, `log_error_rate`, `tmpl:*`) are **zero-fil
 | 2 | `^mem$\|memory\|working_set\|rss\|heap` | `mem` | `mem` | `internal` |
 | 3 | `^diskio$\|disk\|^container[_.-]fs\|blkio` | `diskio` if name is `diskio`, else `disk` | `disk` | `internal` |
 | 4 | `^socket$\|socket\|network\|tcp\|_rx\|_tx\|receive\|transmit` | `socket` if name is `socket`, else `net` | `net` | `internal` |
-| 5 | `latency\|duration\|response_time` | `latency_p{q}` when a quantile is in the name (`-50`, `-90`, `p99`, `quantile=0.99`), else `latency` | `latency` | `external` |
+| 5 | `latency\|duration\|response_time` | `latency_p{q}` when a quantile is in the name (`-50`, `_90`, `p99`, `_p99`, `quantile="0.99"`; a fraction is multiplied by 100), else `latency` | `latency` | `external` |
 | 6 | `^error$\|error\|fail\|5xx` | `error` | `errors` | `external` |
 | 7 | `^workload$\|request\|rps\|qps\|throughput` | `workload` if name is `workload`, else `rps` | `traffic` | `context` |
 | 8 | anything else | sanitised name | `other` | `context` |
@@ -71,7 +73,7 @@ Internal = cpu/mem/disk/socket and external = latency/error follows PRISM's prop
 
 If two raw names map to the same `signal` for one (`service`, `component`), all of them use `"{signal}:{sanitised raw name}"` instead. Sanitising replaces `|` and whitespace with `-`.
 
-2. **Units** (to canonical, written in `unit`): latency → `ms` (`s × 1000`, `us ÷ 1000`); memory → `bytes` from `B`, `kB`, `MB`, `GB` (powers of 10) or `KiB`, `MiB`, `GiB` (powers of 2), while a memory series in any other unit (a percentage, an unknown or missing unit) keeps its unit and value; everything else unchanged (RCAEval CPU unit is unverified, [rcaeval_facts §Dataset layout][rf-layout]).
+2. **Units** (to canonical, written in `unit`): latency → `ms` (`s × 1000`, `us ÷ 1000`); memory → `bytes` from `B`, `kB`, `MB`, `GB` (powers of 10) or `KiB`, `MiB`, `GiB` (powers of 2), while a memory series in any other unit (a percentage, an unknown or missing unit) keeps its unit and value; everything else unchanged (CPU keeps its source unit; RCAEval does not document it, [rcaeval_facts §Dataset layout][rf-layout]).
 
 3. **Counter → per-second rate.** A metric is a counter if (a) its name matches `metrics.counter_name_patterns` (`_total$`, `_count$`, `_sum$`, `_bucket$`; Prometheus naming, and Infralume's OTLP converter appends `_total` to monotonic sums), or (b) the shape test passes: `metrics.counter_shape_test` is on, family ∉ {`mem`, `latency`, `disk`}, all values ≥ 0, at least `min_increases` (10) increases, and ≥ 99% of value changes are increases, where a drop to < 10% of the previous value counts as a reset, not a decrease. Rate between consecutive observations `(t₁, v₁) → (t₂, v₂)`: `(v₂ − v₁)/(t₂ − t₁)`, or `v₂/(t₂ − t₁)` on a reset. For a counter matched by name a reset is any decrease (Prometheus reset semantics); for a shape-detected counter it is a drop to < `reset_ratio` of the previous value, the same rule as the shape test, so the small dips the test admits stay small steps instead of becoming spikes; written at `t₂`; the first point is dropped; `unit` becomes `<unit>/s` (or `1/s`). Families excluded from the shape test protect memory-leak gauges, which are monotone by nature.
 
@@ -79,7 +81,7 @@ If two raw names map to the same `signal` for one (`service`, `component`), all 
 
 Per trace, in a single pass over spans sorted by (`trace_id`, `start_ns`, `span_id`):
 
-1. **Parents.** Use `parent_span_id`. If every non-first span of a trace lacks a parent and `traces.reconstruct_parents = if_missing`, rebuild parents by time containment: `parent(b) = argmin_{a: svc(a) ≠ svc(b), start_a ≤ start_b, end_b ≤ end_a} duration(a)` ([rcaeval_facts §Traces][rf-traces]); a span with the same interval as `b` qualifies only if it comes before `b` in (`start_ns`, `span_id`) order, so identical intervals never parent each other. Spans whose parent is not in the trace are **orphans** and start their own subtree. A parent cycle (a span that is its own ancestor) fails the step with a contract error naming the trace.
+1. **Parents.** Use `parent_span_id`. If no span of a trace carries a `parent_span_id` (and the trace has more than one span) and `traces.reconstruct_parents = if_missing`, rebuild parents by time containment; a trace with even one parent id is left as it is: `parent(b) = argmin_{a: svc(a) ≠ svc(b), start_a ≤ start_b, end_b ≤ end_a} duration(a)` ([rcaeval_facts §Traces][rf-traces]); a span with the same interval as `b` qualifies only if it comes before `b` in (`start_ns`, `span_id`) order, so identical intervals never parent each other. Spans whose parent is not in the trace are **orphans** and start their own subtree. A parent cycle (a span that is its own ancestor) fails the step with a contract error naming the trace.
 2. **Client spans.** A span is client-like if `kind = client`, or (when `kind = unspecified` and `traces.infer_client_spans`) its parent is in the same service, it has exactly one child, that child is in another service, and the child lies inside it within `traces.skew_tolerance_ms`. The same-service parent is what a real client span has; without it, a kind-less server span that makes one downstream call (every RCAEval span is kind-less) would lose its service's entry span, incoming edge and critical-path share (lead decision, review of #192).
 3. **Entry span of a service** = a span whose parent is null, an orphan, or in another service, and which is not client-like. Each entry span starts a **visit**: the entry span plus its same-service descendants, stopping at children in other services.
 4. **Self-time.** For a non-client span: `self = duration − |∪ children intervals clipped to the span|`. For a client-like span: `self = 0`; its uncovered time is **gap** (network plus client overhead) and is reported on edges, not charged to any service. Visit self-time = Σ self over the visit's spans.
@@ -97,7 +99,7 @@ Per trace, in a single pass over spans sorted by (`trace_id`, `start_ns`, `span_
 
 Quantiles are exact and linear-interpolated (numpy `method="linear"`, same as DuckDB `quantile_cont`); a bucket with fewer than `traces.min_spans_per_quantile` (5) values gets no quantile point. `component` = service for trace series (spans' `component` is optional and often absent).
 
-**Edges** (`signal_cube.edges`), per window: every parent→child pair where the child is an entry span of service B and the parent (or the client-like span wrapping it) is in service A ≠ B. `calls` = number of pairs. `error_rate` = pairs where the child or its client span has `status = error`, divided by `calls`. `p50/p99_callee_ms` from child durations. When a client-like parent exists: `p50/p99_caller_ms` from client durations and `p50/p99_gap_ms` from per-pair `client − child`; otherwise these four are null (03 §3.2). Pairs with fewer than `traces.min_spans_per_quantile` samples give null quantiles.
+**Edges** (`signal_cube.edges`), per window: every parent→child pair where the child is an entry span of service B and the parent (or the client-like span wrapping it) is in service A ≠ B. An orphan or root entry span has no edge, and a pair whose child starts outside both windows is not counted. `calls` = number of pairs. `error_rate` = pairs where the child or its client span has `status = error`, divided by `calls`. `p50/p99_callee_ms` from child durations. `p50/p99_caller_ms` (client durations) and `p50/p99_gap_ms` (per-pair `client − child`) are computed over the pairs of the edge that have a client-like parent, and are null when fewer than `traces.min_spans_per_quantile` such pairs exist (03 §3.2); so on an edge with both wrapped and unwrapped pairs, `calls` is larger than the sample behind the gap quantiles. Gap is not clipped and can be negative under clock skew. Callee quantiles are null below the same sample size.
 
 ### 3.4 Critical path (CRISP-style)
 
@@ -107,9 +109,10 @@ CRISP walks back from the end of a span, choosing the child that finished last b
 walk(s, lo, hi):                      # s is on the critical path during [lo, hi]
     t = hi
     for c in children(s) sorted by (end desc, start desc, span_id asc):
-        e = min(c.end, t) if c.end - t <= tol else None   # child ending after t overlaps the path: skip
-        if e is None or e <= lo: continue
-        b = max(c.start, lo)
+        if t <= lo: break                  # the path already reaches the start of the interval
+        if c.end - t > tol: continue       # child ending after t overlaps the path: skip
+        e = min(c.end, t); b = max(c.start, lo)
+        if e <= lo or b >= e: continue     # nothing of the child lies in (lo, t]
         charge(s, e, t)                # time in s not covered by children
         walk(c, b, e)
         t = b
@@ -117,14 +120,14 @@ walk(s, lo, hi):                      # s is on the critical path during [lo, hi
 charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to gap
 ```
 
-- **Root.** Roots are spans with no parent in the trace. The primary root is the longest (ties: earlier start, then smaller `span_id`). A trace is CP-eligible if the primary root's subtree holds ≥ `cp.min_tree_fraction` (0.8) of its spans; other orphan subtrees are ignored.
+- **Root.** Roots are spans with no parent in the trace. The primary root is the longest (ties: earlier start, then smaller `span_id`). A trace is CP-eligible if the primary root's subtree holds ≥ `cp.min_tree_fraction` (0.8) of its spans; other orphan subtrees are ignored. A trace whose primary root has zero duration, or starts outside both windows, is not eligible.
 - **Clock skew.** Children are clipped to the parent's interval; a child ending more than `tol = traces.skew_tolerance_ms` after the current point is treated as overlapping and skipped. Skew is not corrected here (Causync estimates it later).
 - **Invariant.** For each trace, Σ self over services + gap = root duration. Property-tested.
 - **Cap.** At most `cp.max_traces_per_window` eligible traces per window, chosen by ascending `sha256(case_id ‖ trace_id)` (deterministic, no RNG).
 
 **Built (O-02).** Edges and visits take the window of the child's (entry span's) `start_ns`. `cp_self_ms_p50/p99` use every trace on which the service is on the path (no `min_spans_per_quantile`), and the slow-trace p95 is taken over the baseline window's eligible traces after the cap. On RCAEval, where every span is kind-less, only a span whose parent is in its own service can be inferred client-like (§3.3 step 2), so a server span that makes one downstream call keeps its entry span, incoming edge, trace series and critical-path share; the `traces.infer_client_spans` arm (§9) measures what inference adds.
 
-**Table** per (window, service): `traces` = eligible traces where the service's CP self-time > 0; `cp_self_ms_p50/p99` over those traces; `cp_share_mean` = Σ over all eligible traces in the window of (service CP self / root duration) ÷ number of eligible traces (absent traces count as 0). Hence Σ over services of `cp_share_mean` ≤ 1; the remainder is gap.
+**Table** per (window, service), one row per service with at least one span in the window's eligible traces (a service that is never on the path has `traces = 0`, `cp_self_ms_p50 = cp_self_ms_p99 = 0.0` and `cp_share_mean = 0`): `traces` = eligible traces where the service's CP self-time > 0; `cp_self_ms_p50/p99` over those traces; `cp_share_mean` = Σ over all eligible traces in the window of (service CP self / root duration) ÷ number of eligible traces (absent traces count as 0). Hence Σ over services of `cp_share_mean` ≤ 1; the remainder is gap.
 
 **Slow-trace spectrum** (03 §3.4; input to Causatrix's `cp_sbfl`): `traces_total` = number of eligible traces in the window after the cap (the population of `cp_share_mean`; same value on every row of the window). A trace is **slow** if its primary root's duration exceeds the baseline-window p95 (exact, linear) of root durations for the same entry operation (root `service`, `operation`); an operation with fewer than `traces.min_spans_per_quantile` baseline roots has no p95, so its traces are never slow (a priori). `traces_slow` = slow eligible traces on which the service's CP self-time > 0; `cp_share_sum_slow` = Σ over those traces of (service CP self / root duration).
 
@@ -132,11 +135,11 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 
 ### 3.5 Logs and templates
 
-1. **Line text.** First non-empty line of `body`, truncated to `logs.first_line_max_chars` (512). Multi-line stack traces keep their first line for mining; the error lexicon reads the full body.
-2. **Masking** in DuckDB `regexp_replace`, fixed order: UUID → `<UUID>`; IPv4 with optional port → `<IP>`; hex runs of ≥ 8 → `<HEX>`; ISO-8601 timestamps → `<TS>`; numbers with duration units → `<DUR>`; then word-bounded numbers `\b\d+(\.\d+)?\b` → `<NUM>`. Word boundaries keep names such as `svc1` intact; a bare `\d+` mask over-merges ([rcaeval_facts §Engineering][rf-eng]).
+1. **Line text.** From the first non-whitespace character of `body` to the end of that line, trailing whitespace removed, then truncated to `logs.first_line_max_chars` (512) before masking. Multi-line stack traces keep their first line for mining; the error lexicon reads the full body.
+2. **Masking** in DuckDB `regexp_replace`, fixed order: UUID → `<UUID>`; IPv4 with optional port → `<IP>`; word-bounded runs of ≥ 8 hex characters (so also 8 or more decimal digits) → `<HEX>`; ISO-8601 timestamps → `<TS>`; numbers with duration units → `<DUR>`; then word-bounded numbers `\b\d+(\.\d+)?\b` → `<NUM>`. Word boundaries keep names such as `svc1` intact; a bare `\d+` mask over-merges ([rcaeval_facts §Engineering][rf-eng]).
 3. **Distinct messages.** `GROUP BY service, masked` with total counts over the whole data range.
 4. **Drain3**, one fresh in-memory `TemplateMiner` per service, services A→Z; within a service feed distinct masked messages ordered by (count desc, text asc). Config: `sim_th = 0.4`, `depth = 4`, `max_children = 100`, `max_clusters = None`, no Drain3 masking (done in step 2), no persistence. Drain is order-dependent, so the order rule is what makes templates reproducible ([rcaeval_facts §Engineering][rf-eng]; [02 §6.2](../02-architecture.md)). Record the cluster ID returned for each message; after the last message, each cluster's final template text is its `template`.
-5. **IDs.** `template_id = "T" + sha256(canonical_json([service, template]))[:8]`. Clusters of one service with identical final text are merged. A collision of the 8-hex prefix within a case raises an error.
+5. **IDs.** `template_id = "T" + sha256(canonical_json([service, template]))[:8]`. Clusters of one service with identical final text are merged. A collision of the 8-hex prefix within a case raises a `signal_cube.templates` contract error.
 6. **Counts.** Join lines back through (service, masked) → template: `count_baseline`, `count_incident` from line timestamps in each `alert.windows` window; `first_seen_ns` = earliest line of the template in the data range.
 7. **Error level.** A line is error-level if `severity ∈ {ERROR, FATAL}` or its full body matches the lexicon (`logs.error_lexicon`, case-sensitive unless marked):
 
@@ -153,13 +156,13 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 
 | `signal` | Value | `family` | `klass` | `unit` |
 |---|---|---|---|---|
-| `log_rate` | lines / bucket seconds | `logs` | `context` (open question 1) | `1/s` |
+| `log_rate` | lines / bucket seconds | `logs` | `context` | `1/s` |
 | `log_error_rate` | error-level lines / bucket seconds | `logs` | `internal` | `1/s` |
 | `tmpl:{template_id}` | lines of the template in the bucket | `logs` | `internal` | `count` |
 
 `tmpl:` series are written only for templates with total count ≥ `logs.min_template_count` (3, a priori), at most `logs.max_template_series_per_service` (200) per service by (total count desc, `template_id` asc). The `templates` table lists every template.
 
-**Built (O-03).** Masks and the lexicon are RE2 patterns in `config/signalyth.yaml`, applied in DuckDB (`regexp_replace`, `regexp_matches`), so they behave the same on every machine. The line text starts at the first non-whitespace character of the body and loses trailing whitespace; truncation comes before masking. The hex mask is word-bounded and also takes a run of 8 or more decimal digits. `log_rate`, `log_error_rate` and `tmpl:*` are all zero-filled on the grid from `data_start_ns` to `data_end_ns` for every service with a log row, and a line outside that range is counted in `templates` but in no series. Window counts are half-open, as for edges. The miner is built from an explicit config, so a `drain3.ini` in the working directory is never read; a Drain3 failure is logged and returned in the step's notes.
+**Built (O-03).** Masks and the lexicon are RE2 patterns in `config/signalyth.yaml`, applied in DuckDB (`regexp_replace`, `regexp_matches`), so they behave the same on every machine. `log_rate`, `log_error_rate` and `tmpl:*` are all zero-filled on the grid from `data_start_ns` to `data_end_ns` for every service with a log row, and a line outside that range is counted in `templates` but in no series. Window counts are half-open, as for edges. The miner is built from an explicit config, so a `drain3.ini` in the working directory is never read; a Drain3 failure is logged and returned in the step's notes.
 
 ### 3.6 Summary klass table
 
@@ -190,7 +193,7 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 | `metrics.counter_shape.min_increase_share` | `0.99` | ratio | a priori |
 | `metrics.counter_shape.reset_ratio` | `0.1` | ratio | a priori |
 | `metrics.counter_shape.exclude_families` | `[mem, latency, disk]` | — | protects leak gauges |
-| `traces.reconstruct_parents` | `if_missing` | — | [rcaeval_facts §Traces][rf-traces] |
+| `traces.reconstruct_parents` | `if_missing` (or `never`) | — | [rcaeval_facts §Traces][rf-traces] |
 | `traces.infer_client_spans` | `true` | — | RCAEval spans have no kind |
 | `traces.skew_tolerance_ms` | `1.0` | ms | a priori |
 | `traces.min_spans_per_quantile` | `5` | count | a priori |
@@ -206,15 +209,15 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 | `logs.max_template_series_per_service` | `200` | count | a priori cost cap |
 | `logs.error_lexicon` | §3.5 step 7 | — | a priori ([rcaeval_facts §Logs][rf-logs]) |
 | `duckdb.threads` | `1` | — | determinism ([rcaeval_facts §Engineering][rf-eng]) |
-| `duckdb.memory_limit` | `1.5GB` | bytes | §8 |
+| `duckdb.memory_limit` | `1.5GB` | size string | §8; bounds log processing only (§5) |
 
 ## 5. Determinism and isolation
 
 - Services processed A→Z; traces by `trace_id`; children by the sort in §3.4; Drain3 input by (count desc, text asc). No set or dict iteration without sorting.
-- Exact quantiles only; DuckDB single-threaded for aggregates; final arithmetic in float64 numpy.
+- Exact quantiles only. Metrics, traces, edges and the critical path are NumPy/pyarrow (float64, int64 ns); DuckDB (single-threaded, in memory) is used only for log masking, the lexicon, counts and log series.
 - Trace caps and sampling use SHA-256 of IDs, never RNG.
 - Drain3 runs in memory with no persistence handler; never import `drain3` Redis or Kafka persistence modules.
-- Allowed imports: `duckdb`, `pyarrow`, `numpy`, `drain3`, stdlib. Banned per AGENTS §4.3.
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `duckdb`, `pyarrow`, `numpy`, `drain3`, stdlib. Banned per AGENTS §4.3.
 
 ## 6. Missing data and failure behaviour
 
@@ -227,9 +230,10 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 | Parent cycle in a trace | the step fails with a `telemetry.spans` contract error naming the trace |
 | Only orphan-heavy traces | excluded from the critical path; series and edges still computed |
 | Child outside parent (skew) | clipped (§3.4) |
-| Span `kind` missing | treated as `unspecified`; client inference applies |
-| Log body empty | dropped from mining; still counts in `log_rate` |
-| Drain3 raises | fall back to the masked string as the template for that service, logged as a warning; reported by bench |
+| Span `kind` = `unspecified` (Infralume writes it when the source has no kind) | client inference applies (§3.3 step 2) |
+| Span with `end_ns < start_ns` | treated as zero-length |
+| Log body empty | not mined, in no template; still counts in `log_rate` (and in `log_error_rate` by severity) |
+| Drain3 raises | fall back to the masked strings as that service's templates; logged as a warning and returned in the step's notes (the step still ends `ok`) |
 | A window empty | that window's `edges`/`critical_path` rows absent; `count_*` = 0 |
 
 ## 7. Tests
@@ -243,15 +247,15 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 - synth-04 (change-induced regression): latency or self-time of one service rises after the change time recorded in events.
 - synth-05 (no fault): baseline and incident distributions of every series are similar (fixture comparison only).
 
-**Property (hypothesis)**: random span trees → Σ self + gap = root duration, every self ≥ 0, every share in [0, 1], Σ `cp_share_mean` ≤ 1, `traces_slow` ≤ `traces` ≤ `traces_total`, `cp_share_sum_slow` ≤ `traces_slow`; shuffled input rows → byte-identical outputs; Drain3 templates invariant to input row order; counter rate ≥ 0 for any monotone-with-resets sequence; series values independent of windows (move windows, compare `series`).
+**Property (hypothesis)**: random span trees → Σ self + gap = root duration, every self ≥ 0, Σ `cp_share_mean` ≤ 1, `traces_slow` ≤ `traces` ≤ `traces_total`, `cp_share_sum_slow` ≤ `traces_slow`; Drain3 templates invariant to message order; counter rate ≥ 0 for any monotone-with-resets sequence. Window independence of `series` is a fixed test on synth-01 (move the windows, compare bytes). *Not built:* a test that shuffles the engine's input rows and compares output bytes.
 
-**Two-laptop check** (O-03): template tables from two machines are byte-identical on 3 real cases.
+**Two-laptop check** (O-03): template tables from two machines are byte-identical on 3 real cases. This is a manual check; no automated test or recorded result is in the repository.
 
-**Real-case smoke**: RE2-OB, RE2-SS (no traces), RE2-TT, RE3-OB (stack traces): schema-valid, sorted, two runs identical, time within §8.
+**Real-case smoke** (`tests/test_real_cases.py`, skipped when no data is fetched): the first fetched case of RE2-OB, RE2-SS (no traces) and RE2-TT: schema-valid, sorted, two runs identical, step time within the 30 s run budget (the 10 s of §8 is an estimate). RE3-OB is not covered.
 
 ## 8. Performance budget
 
-Per RE2 case: ≤ 10 s and ≤ 1.5 GB peak RSS (*estimate*, allocation of the 30 s / 3 GB budget). Drivers: RE2-TT spans (median ≈ 778k, max 1.54 M per case) and logs (median ≈ 268k lines) ([rcaeval_facts §Metric step and windows][rf-step]). Mining runs on distinct masked messages only, expected to be hundreds to low thousands per case (*estimate*, [rcaeval_facts §Engineering][rf-eng]). Critical path is the hot loop; if O-11 measures it above 4 s on RE2-TT, lower `cp.max_traces_per_window` and record the change in an ADR.
+Per RE2 case: ≤ 10 s and ≤ 1.5 GB peak RSS (*estimate*, allocation of the 30 s / 3 GB budget). Drivers: RE2-TT spans (median ≈ 778k, max 1.54 M per case) and logs (median ≈ 268k lines) ([rcaeval_facts §Metric step and windows][rf-step]). Mining runs on distinct masked messages only, expected to be hundreds to low thousands per case (*estimate*, [rcaeval_facts §Engineering][rf-eng]). Critical path is the hot loop. Measured for O-11 (#36, 23 Nov 2026, Apple M4, one RE2-TT case with 1.14 M spans and no logs, AI off): the Signalyth step takes 6.6 s, most of it in the critical-path walk, and adds about 0.9 GB to the process's peak RSS. That is one case on a fast machine; the slowest-laptop measurement is open. Any change to `cp.max_traces_per_window` is v1.1 work and needs an ADR.
 
 ## 9. Evaluation hooks and ablations
 
@@ -267,17 +271,17 @@ Per RE2 case: ≤ 10 s and ≤ 1.5 GB peak RSS (*estimate*, allocation of the 30
 
 | ID | When | Scope | Acceptance (summary) |
 |---|---|---|---|
-| O-00 | by M0, Tue 3 Nov | stub writing schema-valid outputs; synth fixtures | e2e on `synth-01` |
-| O-02 | Phase 1, by M1 Sun 8 Nov | metrics + traces: series, klass tags, edges, self-time, critical path | golden + 3 real cases; sorted; deterministic |
-| O-03 | Phase 1, by M1 | logs: Drain3 templates with order rules; counts; error rates | same templates across two runs and two laptops |
-| O-11 | Phase 3, by M3 | performance pass | ≤ 30 s and ≤ 3 GB per RE2 case (deterministic path), measured on the slowest laptop |
+| O-00 | done | stub writing schema-valid outputs; synth fixtures | e2e on `synth-01` |
+| O-02 | done | metrics + traces: series, klass tags, edges, self-time, critical path | golden + 3 real cases; sorted; deterministic |
+| O-03 | done | logs: Drain3 templates with order rules; counts; error rates | same templates across two runs and two laptops |
+| O-11 | measurement open (#36) | performance pass | ≤ 30 s and ≤ 3 GB per RE2 case (deterministic path), measured on the slowest laptop |
 | O-12 | Phase 4 | docs, fixtures, paper section on signals | reviewed by lead |
 
 ## 11. Open questions
 
 | # | Question | Default if unresolved |
 |---|---|---|
-| 1 | 02 §6.2 lists "own logs" as internal. Total log volume tracks traffic, so `log_rate` is tagged `context`; error lines and templates stay `internal`. | as tabled in §3.6 |
+| 1 | *Resolved in code:* 02 §6.2 lists "own logs" as internal. Total log volume tracks traffic, so `log_rate` is tagged `context`; error lines and templates stay `internal`. | — |
 | 2 | Gap time on the critical path is charged to no service (Σ shares ≤ 1). Network faults then show up on edges, not in `critical_path`. Should FaultLoom's `critical_path_share` atom also see gap? | gap stays unattributed; FaultLoom uses `edges` gap for network evidence |
 | 3 | Error lines are often written by the caller, not the faulty callee ([rcaeval_facts §Logs][rf-logs]); `log_error_rate` is still tagged internal to the logging service. Caller-blame is handled by Causalith's log-mention edges, not here. | unchanged |
 | 4 | `other`-family metrics are tagged `context` so they never count as internal evidence. | as tabled |
