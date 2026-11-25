@@ -47,7 +47,7 @@ flowchart LR
 | Method | Path | Request | Response (contract or envelope) | Notes |
 |---|---|---|---|---|
 | GET | `/api/v1/health` | — | `health` (envelope) | `{status: ok \| degraded, version, code_commit, ai: {default_mode, provider, model, reachable}, live: {enabled, receiving}}`; `reachable` from a cheap provider probe in `veyltrace_llm` |
-| GET | `/api/v1/datasets` | — | `[dataset_summary]` | dataset id, case count; a dataset is known when an adapter accepts it and it is an adapter's literal name, a folder under the runs root or a fetched index (X-04) |
+| GET | `/api/v1/datasets` | — | `[dataset_summary]` | dataset id, case count; a dataset is known when an adapter accepts it and it is an adapter's literal name, a folder under the runs root or a fetched index (X-04); so `live` is listed whenever the `otlp_live` adapter is installed, with 0 cases until the first snapshot, and each "Diagnose now" snapshot in `index/live.json` is one more case (§3.4) |
 | GET | `/api/v1/cases?dataset=&limit=&offset=` | — | page of `case_summary` | `case_id`, `dataset`, `system`, `sources`, `runs: [run_id]`; never answer keys or hints; `system` and `sources` from the last finished run by run id (runs with different overrides, such as `infralume.sources.drop`, can differ), null before the first run |
 | GET | `/api/v1/cases/{dataset}/{case_id}` | — | `case_manifest` (03 §2.1) | the console does not display `t_alert_hint_ns` |
 | POST | `/api/v1/runs` | `run_request` `{dataset, case_id, ai_mode: off \| record \| replay}` | 202 `run_status`; 200 if a finished run with that `run_id` exists | 409 when `ai_mode = replay` and the run has no cassette |
