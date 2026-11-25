@@ -1,6 +1,8 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { RunStatus } from "../../../contracts/generated/ts/api";
+import { ApiError } from "../api";
 import {
   CONFIRMED,
   INCONCLUSIVE,
@@ -10,6 +12,7 @@ import {
   renderAt,
   stubGateway,
 } from "../test/gateway";
+import { pollInterval } from "./RunView";
 
 afterEach(() => {
   cleanup();
@@ -177,6 +180,24 @@ describe("run view: ranked table, trial drawer, path and timeline", () => {
     expect(trial.getByText("fail: explained_by_callee:payment")).toBeTruthy();
   });
 
+  it("names a service ranked twice once in the evidence candidate filter", async () => {
+    const [r1, r2, ...rest] = confirmedVerdict.ranked;
+    if (r1 === undefined || r2 === undefined) throw new Error("fixture has fewer than 2 ranked rows");
+    stubGateway({
+      [`/runs/${CONFIRMED}/verdict`]: {
+        ...confirmedVerdict,
+        ranked: [r1, { ...r2, service: r1.service, component: `${r1.service}-2` }, ...rest],
+      },
+    });
+    renderAt(`/runs/${CONFIRMED}`);
+    const region = within(await screen.findByRole("region", { name: "Evidence" }));
+    const options = within(region.getByLabelText("Candidate"))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect(options.filter((o) => o === r1.service)).toHaveLength(1);
+    expect(new Set(options).size).toBe(options.length);
+  });
+
   it("opens a trial's reason and atoms, and an atom link shows the evidence row", async () => {
     stubGateway();
     renderAt(`/runs/${CONFIRMED}`);
@@ -241,5 +262,26 @@ describe("run view: evidence table", () => {
     expect(await atom.findByText("internal_anomaly")).toBeTruthy();
     expect(atom.getByText("8 z")).toBeTruthy();
     expect(atom.getByText("payment|payment|log_error_rate|logs")).toBeTruthy();
+  });
+});
+
+describe("run view: status polling", () => {
+  const status = (state: RunStatus["state"]) => ({ ...confirmedStatus, state }) as RunStatus;
+
+  it("polls while the run is queued or running and stops when it ended", () => {
+    expect(pollInterval(undefined, null)).toBe(2000);
+    expect(pollInterval(status("queued"), null)).toBe(2000);
+    expect(pollInterval(status("running"), null)).toBe(2000);
+    expect(pollInterval(status("done"), null)).toBe(false);
+    expect(pollInterval(status("failed"), null)).toBe(false);
+  });
+
+  it("stops polling a run the gateway does not know, and keeps polling through other errors", async () => {
+    expect(pollInterval(undefined, new ApiError(404, "run_not_found", "no run"))).toBe(false);
+    expect(pollInterval(status("running"), new ApiError(503, "http_error", "HTTP 503"))).toBe(2000);
+    expect(pollInterval(undefined, new TypeError("Failed to fetch"))).toBe(2000);
+    stubGateway();
+    renderAt("/runs/0123456789abcdef");
+    expect((await screen.findByRole("alert")).textContent).toContain("not_found");
   });
 });
