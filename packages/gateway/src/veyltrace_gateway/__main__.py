@@ -83,7 +83,12 @@ def _start_receiver(
     counters = ReceiverCounters()
     # The converter arrives with O-07 (#24); until then the receiver answers 503.
     app = create_otlp_app(
-        buffer, None, load_section_file("infralume"), max_body_mb=live.max_body_mb, counters=counters
+        buffer,
+        None,
+        load_section_file("infralume"),
+        max_body_mb=live.max_body_mb,
+        retry_after_s=live.retry_after_s,
+        counters=counters,
     )
     server = uvicorn.Server(uvicorn.Config(app, host=live.otlp_host, port=live.otlp_port))
     threading.Thread(target=server.run, args=([listener],), name="veyltrace-otlp", daemon=True).start()

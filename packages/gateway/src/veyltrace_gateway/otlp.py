@@ -8,8 +8,10 @@ receiver answers 503 and the Collector retries. The request shape is the OTLP pr
 mapping, the same as one line of a lab capture's `otlp/*.jsonl` (proposed on #24). Protobuf
 bodies are 415 until `opentelemetry-proto` is a dependency (OTLP/HTTP: an unsupported content
 type MUST be 415). Gzip is accepted; the size limit applies before and after decompression. An
-unreadable body is 400 (OTLP: not retried); a converter failure is 500 (retried), so a converter
-bug drops no data. A batch the buffer refuses is acknowledged as an OTLP partial success.
+unreadable body is 400 (OTLP: not retried). A converter failure is 503 with `Retry-After`, which
+OTLP/HTTP clients retry (they retry only 429/502/503/504, never 500), so a converter bug drops no
+data while the client's retry budget lasts. A batch the buffer refuses is acknowledged as an OTLP
+partial success.
 """
 
 # No `from __future__ import annotations`: FastAPI reads the route annotations at creation.
@@ -103,14 +105,17 @@ def create_otlp_app(
     convert_settings: Mapping[str, Any],
     *,
     max_body_mb: int,
+    retry_after_s: int,
     counters: ReceiverCounters | None = None,
 ) -> FastAPI:
-    """The receiver app; it shares `buffer` (and `counters`) with the API app."""
+    """The receiver app; it shares `buffer` (and `counters`) with the API app. `retry_after_s` is
+    the `Retry-After` of a converter failure (`live.retry_after_s`)."""
     app = FastAPI(title="Veyltrace OTLP receiver", docs_url=None, redoc_url=None, openapi_url=None)
     add_error_handlers(app)
     tally = counters if counters is not None else ReceiverCounters()
     tally.converter_installed = converter is not None
     limit = max_body_mb * BYTES_PER_MIB
+    retry_after = str(retry_after_s)
 
     def ingest(convert: Converts, signal: str, raw: bytes) -> tuple[AddResult, int, Mapping[str, int]]:
         """Decode, convert and buffer one body; runs in a worker thread, off the event loop."""
@@ -144,10 +149,12 @@ def create_otlp_app(
                 "otlp_rejected", signal=signal, status=exc.status, code=exc.code, message=exc.message
             )
             raise
-        except Exception as exc:  # a converter bug or a RecursionError: 500, so the Collector retries
+        except Exception as exc:  # a converter bug or a RecursionError: 503, so the Collector retries
             tally.rejected += 1
             _LOG.warning("otlp_failed", signal=signal, error=f"{type(exc).__name__}: {exc}")
-            raise ApiError(500, "conversion_failed", f"{type(exc).__name__}: {exc}") from None
+            raise ApiError(
+                503, "conversion_failed", f"{type(exc).__name__}: {exc}", {"Retry-After": retry_after}
+            ) from None
         if outcome == "duplicate":
             tally.duplicate += 1
             return JSONResponse({})

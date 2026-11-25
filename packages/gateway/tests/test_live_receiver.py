@@ -62,7 +62,13 @@ def _send(  # `_call` plus the response headers
 def _receiver(converter: StubConverter | None = None, **kw: Any) -> tuple[Any, LiveBuffer, ReceiverCounters]:
     buffer, counters = LiveBuffer(30, 512, 300), ReceiverCounters()
     app = create_otlp_app(
-        buffer, converter or StubConverter(), {}, max_body_mb=1, retry_after_s=RETRY_S, counters=counters, **kw
+        buffer,
+        converter or StubConverter(),
+        {},
+        max_body_mb=1,
+        retry_after_s=RETRY_S,
+        counters=counters,
+        **kw,
     )
     return app, buffer, counters
 
