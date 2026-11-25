@@ -26,8 +26,10 @@ The published injection time is read only as the alert hint of \S\ref{sec:pipeli
 Nezha publishes one folder per collection day, not per case.
 The adapter cuts one case per entry of the day's fault list, 12 minutes either side of the fault as in RCAEval, clipped to the midpoint between neighbouring faults so that no row belongs to two cases.
 It reads the fault list only for the fault times, and it lists a case's log and trace files in the manifest by position, because their real names are the clock minute of the fault.
-Nezha records logs and traces only for about three minutes around each fault and metrics once a minute, so the baseline window of \S\ref{sec:pipeline} holds few metric points and no logs or spans; we run Nezha as pre-registered and report this as a limit of the dataset.
-\leadq{the counts behind this sentence (cases with fewer than three baseline metric points, cases with baseline logs or spans) are in engines/01 §3.3 but in no file under \code{bench/results/}; they need a committed source before \S\ref{sec:datasets} or \S\ref{sec:threats} can print them.}
+Nezha records logs and traces only for about three minutes around each fault and metrics once a minute, so the baseline window of \S\ref{sec:pipeline} holds few metric points and no observed log line or span.
+What the engines see there is not an absence, however: the count series of the next paragraph are zero-filled from the start of the metrics, before logs and traces were collected, so their baseline is zeros that were never observed.
+On Nezha, log and trace anomalies therefore largely mark where collection starts, in every service that logs, and not the fault; we run Nezha as pre-registered and report this as a limit of the dataset and of our zero-fill rule.
+\leadq{two sets of counts behind these sentences need a committed source under \code{bench/results/} before \S\ref{sec:datasets} or \S\ref{sec:threats} can print them: the baseline counts in engines/01 §3.3 (cases with fewer than three baseline metric points, cases with baseline logs or spans), and the anomaly counts by source in \#514, finding 1. If the lead declares Nezha not run (\#514), this paragraph changes again.}
 
 \paragraph{Signals}
 \eng{Signalyth} turns rows into typed series.
