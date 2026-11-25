@@ -2,15 +2,15 @@
 
 > Status: v0.1 · Lane: Explain · Issues: X-13 (#50), X-10 (#43) · Parent spec: [06 Gateway and console](06-gateway-and-console.md) · Lab: [05](05-fault-lab-and-dataset.md), [docs/team/cl.md](team/cl.md) (laptop 1) · Last updated: 2026-11-24
 
-Part A is the 3-minute video, which a person records after the rehearsal. Part B is the Thu 26 Nov rehearsal that checks X-10's acceptance: injected fault → AI-off verdict on screen in ≤ 5 min, with RAM measured and recorded. Every command below exists on `main` at 4252d202 unless §0 lists it as missing.
+Part A is the 3-minute video, which a person records after the rehearsal. Part B is the Thu 26 Nov rehearsal that checks X-10's acceptance: injected fault → AI-off verdict on screen in ≤ 5 min, with RAM measured and recorded. Every command below exists on `main` at 2e9a7348 unless §0 lists it as missing.
 
-## 0. What exists today and what is still missing (24 Nov, `main` 4252d202)
+## 0. What exists today and what is still missing (24 Nov, `main` 2e9a7348)
 
 The gateway's live path is merged: the receiver, buffer, snapshot writer, `/api/v1/live/{status,snapshot,diagnose}` and the round-trip test (#473, #474, #476, #477, #491). **It does not yet run end to end against the lab.** The rehearsal can only start once gates G1–G3 below are closed:
 
 | Gate | Today on `main` | Closed by | How to check |
 |---|---|---|---|
-| G1 converter and adapter | No OTLP converter is installed. The only converter is the test stub in `veyltrace_gateway.testing` (tests only), and there is no `otlp_live` adapter, so `POST /live/diagnose` answers 503 `adapter_missing` | O-07 `veyltrace_infralume.otlp` and the `otlp_live` adapter (Observe lane, #24, open) | `uv run python -c "import veyltrace_infralume.otlp"` exits 0, and `uv run python -c "from veyltrace_core.adapters import find_adapter; print(find_adapter('live'))"` prints an adapter, not `None` |
+| G1 converter and adapter | O-07's converter `veyltrace_infralume.otlp` is merged (#500, #501) and the gateway depends on Infralume (#507), but there is no `otlp_live` adapter, so `POST /live/diagnose` answers 503 `adapter_missing` (it checks the adapter before the converter) | the `otlp_live` adapter (Observe lane, #508, open) | `uv run python -c "import veyltrace_infralume.otlp"` exits 0 (already true), and `uv run python -c "from veyltrace_core.adapters import find_adapter; print(find_adapter('live'))"` prints an adapter, not `None` |
 | G2 converter wired into the CLI | `python -m veyltrace_gateway` passes no converter (`_start_receiver` in `__main__.py` calls `create_otlp_app(buffer, None, …)`), so every `POST /v1/*` answers 503 and `/live/diagnose` answers 503 `converter_missing` | the real O-07 converter replaces this stub seam: the gateway must depend on `veyltrace-infralume` (the lead adds it to `SPEC_ENGINE_DEPS` in `tests/test_workspace.py`), then `__main__` passes `veyltrace_infralume.otlp` | after start-up, `requests.accepted` in `/live/status` grows (B.1 step 8) |
 | G3 Collector → gateway | Closed by #489: `lab/up.py --profile ob --live-export` adds the `otlp_http/gateway` exporter (`encoding: json`, `compression: gzip`; protobuf bodies get 415 until `opentelemetry-proto` is a dependency) to `http://host.docker.internal:4319`, which reaches the gateway on Windows loopback (06 §11 OQ-7, measured 24 Nov). Without the flag the committed `lab/ob/collector.yaml` is applied, so campaigns are unchanged | — | `/api/v1/health` shows `live.receiving: true` while Online Boutique runs |
 
@@ -100,7 +100,7 @@ The job runner is a thread of the gateway process (`jobs.workers = 1`), so the g
 | WSL / Docker VM as a whole | `Get-Process vmmem* \| Select-Object Name, @{n='MiB';e={[math]::Round($_.WorkingSet64/1MB)}}` | the VM process is `vmmem` or `vmmemWSL`, depending on the setup |
 | Buffer bytes (Arrow, not RSS) | `(Invoke-RestMethod http://127.0.0.1:8000/api/v1/live/status).bytes` | cap `live.buffer_max_mb` = 512 |
 
-`scripts/observe/perf_check.py` measures the pipeline alone (peak RSS per case in a child process, budget 3 GB). It reads cases through the dataset adapter's `list_cases`, so `uv run python scripts/observe/perf_check.py live --runs-root <temp dir>` works only if the O-07 `otlp_live` adapter lists snapshots. That is unverified until O-07 lands; if it does not, record "not measured" for that row.
+`scripts/observe/perf_check.py` measures the pipeline alone (peak RSS per case in a child process, budget 3 GB). It reads cases through the dataset adapter's `list_cases`, so `uv run python scripts/observe/perf_check.py live --runs-root <temp dir>` works only if the O-07 `otlp_live` adapter lists snapshots. That is unverified until the adapter lands (#508); if it does not, record "not measured" for that row.
 
 ### B.4 Results (fill in on Thu 26 Nov; copy into #43)
 
