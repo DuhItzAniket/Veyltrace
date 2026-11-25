@@ -287,7 +287,9 @@ def _command_main(name: str) -> Callable[[list[str]], int] | None:
 def replay(
     ctx: typer.Context,
     receipt: str = typer.Argument(..., help="Path to receipt.json (forwarded verbatim)."),
-    full: bool = typer.Option(False, "--full", help="Re-hash the raw inputs and re-run steps 0-10."),
+    full: bool = typer.Option(
+        False, "--full", help="Re-hash the raw inputs and re-run steps 0-10 (not built in v1.0: exits 1)."
+    ),
 ) -> None:
     fn = _command_main(REPLAY_COMMAND)
     if fn is None:

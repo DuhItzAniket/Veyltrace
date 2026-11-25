@@ -1,6 +1,6 @@
 # 01 · Infralume — ingest any source into one canonical telemetry store and scrub leakage
 
-> Status: built (O-01, O-07 converter, O-08, O-09; `otlp_live` in review, #508), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.1](../02-architecture.md), §4 (step 0), §5.1 · Contracts: [docs/03-contracts.md §2.1–2.5](../03-contracts.md) · Last updated: 2026-11-24
+> Status: built (O-01, O-07 converter, O-08, O-09), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.1](../02-architecture.md), §4 (step 0), §5.1 · Contracts: [docs/03-contracts.md §2.1–2.5](../03-contracts.md) · Last updated: 2026-11-24
 
 ## 1. Purpose and scope
 
@@ -8,7 +8,7 @@ Infralume is the only engine that touches raw data. It reads one case from a ben
 
 **In scope**
 
-- Adapters: `rcaeval` (RE1, RE2, RE3) and `nezha` are built. `otlp_live` is in review (#508, O-07), for the live demo. `veyllab` is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
+- Adapters: `rcaeval` (RE1, RE2, RE3) and `nezha` are built. `otlp_live` is built (#508, O-07), for the live demo. `veyllab` is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
 - The dataset fetchers behind `veyltrace data fetch <name>` (`rcaeval`, `nezha`).
 - Canonical table construction, service-name normalisation, the span error-status rule.
 - Leakage scrubbing, the opaque `case_id`, the `sources` map.
@@ -66,7 +66,7 @@ A source that is absent or dropped is written as a schema-valid table with zero 
 | `rcaeval` | Hugging Face case name `{release}{system}_{service}_{fault}_{rep}`, lowercase, e.g. `re2ob_checkoutservice_cpu_1` (the HF directory name). A Zenodo path `RE2/RE2-OB/<svc>_<fault>/<rep>` is converted to the same string. One mislabelled Zenodo folder (RE3-TT `ts-route-service_f6`, really F3) is relabelled first, so both mirrors give one id. |
 | `nezha` | `nezha-{system}-{date}-{index}` (index = 0-based order of the fault in the day's fault list, by `inject_time`), e.g. `nezha-ob-2022-08-22-0` |
 | `veyllab` (not built, §3.3) | the capture id (already opaque, set by the lab packager) |
-| `otlp_live` (in review, §3.3) | the snapshot id written by the gateway |
+| `otlp_live` | the snapshot id written by the gateway |
 
 The canonical key encodes ground truth for RCAEval (the folder name is the label, [rcaeval_facts §Dataset layout][rf-layout]). It exists only inside the adapter and the private index. `case_id` hides it from engines; it is not a secret against a deliberate brute-force over 735 names, and it is not meant to be.
 
@@ -106,7 +106,7 @@ Hint sanity: if the hint lies outside `[data_start_ns, data_end_ns]` (two RE1-OB
 
 **`veyllab`** — not built: moved to v1.1 (lead decision, 23 Nov 2026; ADR 20261124-as-observe-cuts-v1-1). The plan: it reads a packaged capture from `${VEYLTRACE_DATA}/veyllab/<dataset>/<capture_id>/`, the layout in [05 §9](../05-fault-lab-and-dataset.md): `otlp/{traces,metrics,logs}.jsonl` (protobuf-JSON mapping, already scrubbed by the packager), `events.jsonl` in `telemetry.events` shape, `oracle_alert.json` (`{"t_alert_ns": …}` → hint, `hint_source = oracle`), `capture.json` (`capture_id`, `system`). Raw captures and answer keys stay under `lab/captures/`, which Infralume never reads. Conversion uses the OTLP converter (§3.9); scrubbing is re-applied (idempotent).
 
-**`otlp_live`** — in review (#508, O-07), for the live demo. It reads a gateway snapshot: canonical-shape Parquet for the four sources plus `snapshot.json` (`snapshot_id`, trigger time). It re-applies normalisation and scrubbing (both idempotent) and writes `t_alert_hint_ns` = trigger time, `hint_source = live`, `dataset = live`. `synth` cases do not go through this reader: `veyltrace_core.synth` registers its own adapter (§1).
+**`otlp_live`** — built (#508, O-07), for the live demo. It reads a gateway snapshot: canonical-shape Parquet for the four sources plus `snapshot.json` (`snapshot_id`, trigger time). It re-applies normalisation and scrubbing (both idempotent) and writes `t_alert_hint_ns` = trigger time, `hint_source = live`, `dataset = live`. The snapshot id is the canonical case key, found through `index/live.json`; `system` is `other` and no per-system alias applies, because a snapshot does not name its system; a missing, unreadable or foreign `snapshot.json`, or a Parquet file that fails its contract, rejects the case as `invalid_capture`. `synth` cases do not go through this reader: `veyltrace_core.synth` registers its own adapter (§1).
 
 ### 3.4 Service-name normalisation
 
@@ -163,7 +163,7 @@ Infralume reads the run's protocol (shared key `alert.protocol` in `config/core.
 | `rcaeval` | `inject_time.txt` × 10⁹ | `oracle` |
 | `nezha` | fault-list `inject_time` (UTC) of the case | `oracle` |
 | `veyllab` (not built, §3.3) | `oracle_alert.json` | `oracle` |
-| `otlp_live` (in review, §3.3) | watcher breach time or "Diagnose now" time | `live` |
+| `otlp_live` | watcher breach time or "Diagnose now" time | `live` |
 | `synth` | as written by the generator | as written |
 | no published time | null | `none` |
 
@@ -342,7 +342,7 @@ Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocatio
 |---|---|---|---|
 | O-00 | done (planned by M0, Tue 3 Nov) | stub `run(ctx)` (runs the `synth` adapter from `veyltrace_core.synth`); fixtures | e2e on `synth-01` through Observe |
 | O-01 | done (planned Phase 1, by M1 Sun 8 Nov) | fetcher for `rcaeval`; `rcaeval` adapter (RE1 metrics; RE2/RE3 metrics, logs, traces); scrub + test; manifest with alert hint; error rule | all RE2 cases ingest; scrub test passes; ≤ 10 s/case |
-| O-07 | converter done (#500, #501); `otlp_live` in review (#508) (planned Phase 2, by M2 Sun 15 Nov) | OTLP converter and `otlp_live`, for the live demo. The `veyllab` adapter ([05 §9](../05-fault-lab-and-dataset.md) layout) is moved to v1.1 | live snapshots ingest |
+| O-07 | converter (#500, #501) and `otlp_live` (#508) done (planned Phase 2, by M2 Sun 15 Nov) | OTLP converter and `otlp_live`, for the live demo. The `veyllab` adapter ([05 §9](../05-fault-lab-and-dataset.md) layout) is moved to v1.1 | live snapshots ingest |
 | O-08 | done (planned Phase 3, by M3 Sun 22 Nov) | `nezha` adapter and fetcher. `fse26_tt` is cut | Nezha cases ingest |
 | O-09 | done (planned Phase 3) | `sources.drop`; `alert.shift_s` wiring (applied by core); `events.overlay_path` (for O-13) | bench can drive all hooks |
 | O-13 | Phase 3 (Observe-owned, in `bench/decoys/`) | RCAEval-C generator writing overlays; see [04-causync §3.6](04-causync.md) | decoys reproducible from seed |

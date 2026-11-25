@@ -47,10 +47,10 @@ Non-engine components:
 | `contracts/` | JSON Schemas (source of truth) + generated Python/TS models | Reason (lead) |
 | `packages/core` (`veyltrace_core`) | canonical JSON, hashing, IDs, config, pipeline runner and its **alert step** (writes `alert`), CLI, synthetic case generator, test helpers | Reason (lead) |
 | `packages/llm` (`veyltrace_llm`) | LLM provider adapters (Ollama / llama.cpp / OpenAI-compatible), JSON-schema-constrained calls, cassette record/replay | Explain |
-| `packages/gateway` | FastAPI HTTP API, live OTLP receiver hosting, MCP server | Explain |
+| `packages/gateway` | FastAPI HTTP API, live OTLP receiver hosting (the MCP server is cut to v1.1, X-12) | Explain |
 | `console/` | React + TypeScript UI | Explain |
 | `bench/` | dataset loaders, baselines, metrics, statistics, experiment runner, result tables | Reason |
-| `lab/` | laptop testbed (Online Boutique, OTel Demo), fault catalog, load, capture packager, answer keys | Explain |
+| `lab/` | laptop testbed (Online Boutique; the OTel Demo profile is cut to v1.1, 07 §1.1 item 5), fault catalog, load, capture packager, answer keys | Explain |
 
 ### 3.1 Why these boundaries
 
@@ -133,7 +133,7 @@ config.lock.json  run_manifest.json  receipt.json  [receipt.json.minisig]
 |---|---|---|---|
 | **Offline case** | one benchmark case folder or lab capture | CLI `veyltrace diagnose --dataset re2-ob --case <id>` | all experiments |
 | **Batch** | a whole dataset | `veyltrace bench run <experiment.yaml>` | paper tables |
-| **Live** | OTLP stream from the lab cluster | gateway's alert watcher (SLO breach on entry service) or "Diagnose now" button | demo |
+| **Live** | OTLP stream from the lab cluster | "Diagnose now" button (v1.0); the gateway's alert watcher (SLO breach on entry service) is cut to v1.1 | demo |
 | **Replay** | a `receipt.json` | `veyltrace replay <receipt.json>` | audit, CI |
 
 Live mode is offline mode on a snapshot: when triggered, the gateway freezes the last *W* minutes of the in-memory buffer to Parquet (with hashes) and runs the same pipeline. There is one code path for analysis (`veyltrace_core.pipeline.run_case`), so every live verdict is replayable.
@@ -272,8 +272,8 @@ Rankers (each a pure function over evidence/graph; each also reported alone as a
 
 - **Card:** title, status, root cause, candidate set, confidence, timeline, propagation path, evidence table, why-not for runner-ups, asks, next steps (deterministic playbook per fault class).
 - **Prose under a claim checker:** the LLM writes sentences with placeholders (`{E3f…a1.value}`, `{ROOT}`); code fills numbers and names. The checker rejects any sentence with a raw number, an entity outside the enum, or no atom citation. Two failures → template prose. Numeric hallucination is impossible by construction.
-- **Receipt:** `receipt.json` = run manifest (input hashes, config hash, code commit, `uv.lock` hash, model GGUF SHA-256, prompt and schema hashes, calibration hash) + `agent_trace` head hash + `verdict_hash`, wrapped as an in-toto Statement (`predicateType: https://veyltrace.dev/rca-verdict/v1`). Optional local signing (minisign) for the demo `[verified_agents §Q7]`.
-- **Replay** (`veyltrace replay <receipt>`): by default, re-hash the stored outputs of steps 0–4, `config.lock.json`, the calibration file and the cassette; then re-run steps 5–10 and compare hashes. `--full` re-hashes the raw inputs and re-runs steps 0–10. Exit codes: 0 ok, 1 error, 2 verdict hash or agent-trace head mismatch, 3 inputs missing/changed, 4 invalid config, 5 environment drift (Python major.minor, library versions or `uv.lock` differ; OS is reported but not compared), 6 narrative mismatch only.
+- **Receipt:** `receipt.json` = run manifest (input hashes, config hash, code commit, `uv.lock` hash, model GGUF SHA-256, prompt and schema hashes, calibration hash) + `agent_trace` head hash + `verdict_hash`, wrapped as an in-toto Statement (`predicateType: https://veyltrace.dev/rca-verdict/v1`). Optional local signing (minisign) is not built in v1.0 `[verified_agents §Q7]`.
+- **Replay** (`veyltrace replay <receipt>`): by default, re-hash the stored outputs of steps 0–4, `config.lock.json`, the calibration file and the cassette; then re-run steps 5–10 and compare hashes. `--full` (re-hash the raw inputs and re-run steps 0–10) is not built in v1.0 and exits 1 ([10 §3.9](engines/10-causivra.md)). Exit codes: 0 ok, 1 error, 2 verdict hash or agent-trace head mismatch, 3 inputs missing/changed, 4 invalid config, 5 environment drift (Python major.minor, library versions or `uv.lock` differ; OS is reported but not compared), 6 narrative mismatch only.
 - **End-of-run order:** 10a Causivra writes `card` → core writes `config.lock.json` and `run_manifest.json` (which lists every artifact except itself and the receipt) → 10b Causivra writes `receipt`. Engines that call an LLM (Relentra, Causivra) report their prompt, schema and cassette hashes to core through an `ai_manifest` field on `EngineResult`; core copies them into `run_manifest.ai`.
 
 ## 7. Contracts (overview)
@@ -296,9 +296,9 @@ Rules:
 | Graph | networkx | small graphs (≤ 100 nodes) |
 | Models | Pydantic v2 generated from JSON Schema (datamodel-code-generator); TS via json-schema-to-typescript / openapi-typescript | CI fails on drift |
 | LLM runtime | llama.cpp `llama-server` (`-np 1`, `cache_prompt: false`, fixed seed) or Ollama (`OLLAMA_NUM_PARALLEL=1`, fixed `seed`, `temperature` per config); JSON-schema constrained decoding. Regeneration tests use llama.cpp; Ollama is the easy default for development | cassette replay is the guarantee |
-| API | FastAPI; MCP server (official Python SDK) | MCP lets other agents call `verify_hypothesis` |
-| UI | React + Vite + TypeScript, ECharts (time series), Cytoscape.js (graph) | |
-| Lab | Docker Desktop + WSL2 (raise to 11–12 GB), Online Boutique on kind, OTel Demo 3.x on Compose, Chaos Mesh, OTel Collector contrib with `memory_limiter` | Train Ticket does not fit 16 GB |
+| API | FastAPI; MCP server (official Python SDK), cut to v1.1 (X-12) | MCP lets other agents call `verify_hypothesis` |
+| UI | React + Vite + TypeScript; ECharts (time series) and Cytoscape.js (graph) are cut to v1.1 | v1.0 shows the timeline and path as lists ([06](06-gateway-and-console.md) §5.2) |
+| Lab | Docker Desktop + WSL2 (raise to 11–12 GB), Online Boutique on kind, Chaos Mesh, OTel Collector contrib with `memory_limiter`; OTel Demo 3.x on Compose is cut to v1.1 | Train Ticket does not fit 16 GB |
 | Quality | ruff, pyright, pytest + hypothesis, eslint, prettier, vitest, pre-commit, towncrier, Conventional Commits | |
 | CI | GitHub Actions, pinned `ubuntu-24.04` only (public repo → free minutes; [10 §5.3](10-sdlc-and-quality.md)) | |
 
@@ -347,4 +347,4 @@ Rules:
 | Default local model per laptop | M0 `llama-bench` | Qwen3.5-9B Q4_K_M, else 4B |
 | FSE'26 TrainTicket set usable (size/format/licence)? | M1 | drop to "stretch" |
 | Calibration family split (per system vs pooled) | M2 | per benchmark family, LOSO reported |
-| Lab dataset target size | M2 | ≥ 120 validated cases |
+| Lab dataset target size | v1.1 (cut from M2; v1.0 has the demo captures) | ≥ 120 validated cases |
