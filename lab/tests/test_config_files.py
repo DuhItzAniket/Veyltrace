@@ -64,3 +64,33 @@ def test_overlay_patches_exist() -> None:
     for resource in kust["resources"]:
         if resource.startswith(".."):
             assert (OB_DIR / "overlay" / resource / "kustomization.yaml").is_file(), resource
+
+
+def test_app_metrics_and_logs_are_named_by_their_deployment() -> None:
+    """kubelet_stats and file_log resources carry no `service.name`, and Infralume drops a resource
+    without one (01 §3.9), so every lab metric and log was dropped (#43). The pods are found by
+    uid (their connection IP is the node's), and an app pod is named after its deployment."""
+    config = _collector_config()
+    association = config["processors"]["k8s_attributes"]["pod_association"]
+    sources = [s for rule in association for s in rule["sources"]]
+    assert {"from": "resource_attribute", "name": "k8s.pod.uid"} in sources
+    assert {"from": "connection"} in sources  # OTLP pushed by the app keeps the IP association
+    namespace = load_pins()["app_namespace"]
+    transform = config["processors"]["transform/service_name"]
+    assert set(transform) == {"error_mode", "metric_statements", "log_statements"}
+    for signal in ("metric", "log"):
+        [block] = transform[f"{signal}_statements"]
+        assert block["context"] == "resource"
+        [statement] = block["statements"]
+        assert statement.startswith(
+            'set(attributes["service.name"], attributes["k8s.deployment.name"]) where '
+        )
+        assert 'attributes["service.name"] == nil' in statement
+        assert 'attributes["k8s.deployment.name"] != nil' in statement
+        assert f'attributes["k8s.namespace.name"] == "{namespace}"' in statement
+    pipelines = config["service"]["pipelines"]
+    for signal in ("metrics", "logs"):
+        procs = pipelines[signal]["processors"]
+        order = [procs.index(p) for p in ("k8s_attributes", "transform/service_name", "filter/scrub")]
+        assert order == sorted(order), signal
+    assert "transform/service_name" not in pipelines["traces"]["processors"]

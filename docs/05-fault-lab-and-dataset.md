@@ -104,7 +104,8 @@ receivers:
       - {name: deployments, group: apps, mode: watch}
 processors:
   memory_limiter: {check_interval: 1s, limit_mib: 448, spike_limit_mib: 96}   # a priori, under a 512Mi limit
-  k8s_attributes: {}      # runs first, so OTLP data carries its namespace for the scrub
+  k8s_attributes: {pod_association: [k8s.pod.uid, connection]}   # runs first, so OTLP data carries its namespace for the scrub; kubelet_stats and file_log resources are matched by uid
+  transform/service_name: {}   # metrics and logs only: an app pod without service.name gets k8s.deployment.name (#43)
   filter/scrub: {}        # drop chaos-mesh namespace and flagd telemetry, chaos k8s events (§11)
   transform/scrub: {}     # delete feature_flag.* and chaos-mesh.org/* attributes (§11)
   batch: {}
@@ -113,7 +114,7 @@ exporters:
   file/metrics: {path: /veyllab/spool/metrics.jsonl, format: json, rotation: {max_megabytes: 100, max_backups: 100}}
   file/logs:    {path: /veyllab/spool/logs.jsonl,    format: json, rotation: {max_megabytes: 100, max_backups: 100}}
 service:
-  pipelines:   # processors in every pipeline: [memory_limiter, k8s_attributes, filter/scrub, transform/scrub, batch]
+  pipelines:   # processors in every pipeline: [memory_limiter, k8s_attributes, filter/scrub, transform/scrub, batch]; metrics and logs add transform/service_name after k8s_attributes
     traces:  {receivers: [otlp], exporters: [file/traces]}
     metrics: {receivers: [otlp, kubelet_stats], exporters: [file/metrics]}
     logs:    {receivers: [otlp, file_log, k8s_objects], exporters: [file/logs]}
@@ -122,6 +123,8 @@ service:
 Container limit 512 MiB, `GOMEMLIMIT=400MiB` (75–80% of the limit; `memory_limiter` refuses data above its threshold) ([stack_and_market §A1][sm-a1]). The capture path deliberately uses the file exporter instead of Prometheus, Jaeger or Loki: no extra databases, and every capture is a set of hashable files ([bt §Q4][bt-q4]).
 
 **Live mode** (the demo only, [06 §3.3](06-gateway-and-console.md#33-live-otlphttp-receiver)): `uv run python lab/up.py --profile ob --live-export [URL]` applies the same manifest with one more exporter, `otlp_http/gateway` (`encoding: json`, `compression: gzip`), added to all three pipelines next to the file exporters. The default URL is `gateway_otlp_endpoint` in `pins.yaml` (`http://host.docker.internal:4319`); the URL must be `http(s)://host:port` with no path. A pod-template annotation carries the endpoint, so switching restarts the Collector. Without the flag the committed `collector.yaml` is applied unchanged, as every capture campaign needs, and running `up` again without it switches export off.
+
+**Service names.** Infralume drops a resource without `service.name` ([01 §3.9](engines/01-infralume.md#39-otlp--canonical-converter-o-07)), and `kubelet_stats` and `file_log` set none. So in the metrics and logs pipelines `transform/service_name`, after `k8s_attributes`, names an app pod's resources after its deployment, as OB's own `OTEL_SERVICE_NAME` names its spans. Pods outside `veyllab-app` stay unnamed and are dropped (#43).
 
 ### 3.4 Chaos Mesh 2.8.7
 
