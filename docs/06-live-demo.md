@@ -1,6 +1,6 @@
 # 06a · Live demo script and X-10 rehearsal runbook
 
-> Status: v0.1 · Lane: Explain · Issues: X-13 (#50), X-10 (#43) · Parent spec: [06 Gateway and console](06-gateway-and-console.md) · Lab: [05](05-fault-lab-and-dataset.md), [docs/team/cl.md](team/cl.md) (laptop 1) · Last updated: 2026-11-24
+> Status: v0.1 · Lane: Explain · Issues: X-13 (#50), X-10 (#43) · Parent spec: [06 Gateway and console](06-gateway-and-console.md) · Lab: [05](05-fault-lab-and-dataset.md), [docs/team/cl.md](team/cl.md) (laptop 1) · Last updated: 2026-11-25
 
 Part A is the 3-minute video, which a person records after the rehearsal. Part B is the Thu 26 Nov rehearsal that checks X-10's acceptance: injected fault → AI-off verdict on screen in ≤ 5 min, with RAM measured and recorded. Every command below exists on `main` at 4252d202 unless §0 lists it as missing.
 
@@ -11,8 +11,8 @@ The gateway's live path is merged: the receiver, buffer, snapshot writer, `/api/
 | Gate | Today on `main` | Closed by | How to check |
 |---|---|---|---|
 | G1 converter and adapter | No OTLP converter is installed. The only converter is the test stub in `veyltrace_gateway.testing` (tests only), and there is no `otlp_live` adapter, so `POST /live/diagnose` answers 503 `adapter_missing` | O-07 `veyltrace_infralume.otlp` and the `otlp_live` adapter (Observe lane, #24, open) | `uv run python -c "import veyltrace_infralume.otlp"` exits 0, and `uv run python -c "from veyltrace_core.adapters import find_adapter; print(find_adapter('live'))"` prints an adapter, not `None` |
-| G2 converter wired into the CLI | Wired (#504): `python -m veyltrace_gateway` imports `veyltrace_infralume.otlp` at start-up and passes it to the receiver. Until O-07 is installed (G1), start-up logs `otlp_converter_missing`, every `POST /v1/*` answers 503 and `/live/snapshot` answers 503 `converter_missing` | closes with G1, with no further gateway change | start-up logs no `otlp_converter_missing` line, and `requests.accepted` in `/live/status` grows (B.1 step 8) |
-| G3 Collector → gateway | `lab/ob/collector.yaml` has only `file/*` exporters; how the Collector in kind reaches the gateway is unsettled (06 §11 OQ-7) | #489 (Explain, open): `otlphttp` exporter with `encoding: json` (protobuf bodies get 415 until `opentelemetry-proto` is a dependency) and the OQ-7 route | `/api/v1/health` shows `live.receiving: true` while Online Boutique runs |
+| G2 converter wired into the CLI | Wired (#504): `python -m veyltrace_gateway` imports `veyltrace_infralume.otlp` at start-up and passes it to the receiver. If `veyltrace_infralume.otlp` is not installed, start-up logs `otlp_converter_missing`, every `POST /v1/*` answers 503 and `/live/snapshot` answers 503 `converter_missing` | #507 + #509, with O-07's converter (#500, #501) | start-up logs no `otlp_converter_missing` line, and `requests.accepted` in `/live/status` grows (B.1 step 8) |
+| G3 Collector → gateway | Closed by #489: `lab/up.py --profile ob --live-export` adds the `otlp_http/gateway` exporter (`encoding: json`, `compression: gzip`; protobuf bodies get 415 until `opentelemetry-proto` is a dependency) to `http://host.docker.internal:4319`, which reaches the gateway on Windows loopback (06 §11 OQ-7, measured 24 Nov). Without the flag the committed `lab/ob/collector.yaml` is applied, so campaigns are unchanged | — | `/api/v1/health` shows `live.receiving: true` while Online Boutique runs |
 
 The console on `main` has the case list (`/`) and the run view (`/runs/:runId`): run progress (polled every 2 s), status banner, candidate set, ranked table with trial badges and trial drawer, evidence table with atom drawer, and the card's propagation path and timeline as plain lists. **It has no live view, no "Diagnose now" button, no receipt or replay view and no card summary or narrator line.** So in both parts the live status and "Diagnose now" are calls to the gateway API from a terminal, the receipt is the JSON route opened in a browser tab, and replay is the CLI. The alert watcher is cut to v1.1 (#227), so a person triggers every diagnosis. No ADR on `main` records the console cuts; [20261123-cl-explain-scope-cuts](adr/20261123-cl-explain-scope-cuts.md) covers only X-11 and X-12.
 
@@ -52,11 +52,11 @@ Acceptance for #43: injected fault → AI-off verdict on screen ≤ 5 min; RAM m
 ### B.1 Pre-flight checklist (start ≥ 40 min before the injection)
 
 1. [ ] Gates G1–G3 of §0 are closed on the branch you run, and `uv sync --all-packages` and `pnpm -C console install` have run on it.
-2. [ ] Local edits to `config/gateway.yaml`, **not committed**: `live.enabled: true`, and `live.ai_modes: ["off"]` (laptop 1 has no LLM; 06 §3.4). If the OQ-7 route from #489 needs a non-loopback `live.otlp_host`, set it as #489 records.
+2. [ ] Local edits to `config/gateway.yaml`, **not committed**: `live.enabled: true`, and `live.ai_modes: ["off"]` (laptop 1 has no LLM; 06 §3.4). Leave `live.otlp_host` at `127.0.0.1`: the OQ-7 route (#489) reaches loopback.
 3. [ ] `$env:VEYLTRACE_DATA` is unset (default `~/veyltrace-data`) or points outside the repo; the data root refuses a path inside a git work tree.
-4. [ ] Docker Desktop is running. `uv run python lab/up.py --profile ob` ends with `up: profile ob ready; frontend at http://127.0.0.1:8080/`.
+4. [ ] Docker Desktop is running. `uv run python lab/up.py --profile ob --live-export` ends with `up: profile ob ready; frontend at http://127.0.0.1:8080/`.
 5. [ ] `uv run python lab/campaign.py --cleanup` (removes leftover chaos objects and restores the overlay; run it before the warm-up, as it restarts the app), then `kubectl --context kind-veyllab -n veyllab-obs rollout status deploy/veyllab-collector` and `(Invoke-WebRequest http://127.0.0.1:8080/ -UseBasicParsing).StatusCode` → 200.
-6. [ ] Gateway, in its own terminal: `uv run python -m veyltrace_gateway` (add `--allow-lan` only if the OQ-7 route needs it; it prints a no-auth warning).
+6. [ ] Gateway, in its own terminal: `uv run python -m veyltrace_gateway`, without `--allow-lan` (the OQ-7 route reaches loopback, #489).
 7. [ ] Console, in its own terminal: `pnpm -C console dev`, then open `http://127.0.0.1:5173/`.
 8. [ ] `Invoke-RestMethod http://127.0.0.1:8000/api/v1/health` shows `live.enabled` and `live.receiving` true; `(Invoke-RestMethod http://127.0.0.1:8000/api/v1/live/status).requests` shows `accepted` growing and `rejected` at 0.
 9. [ ] Gateway PID (the Python process that owns port 8000; the OTLP receiver and the job runner run inside it): `$gw = (Get-NetTCPConnection -LocalPort 8000 -State Listen).OwningProcess; $gw`.
@@ -102,26 +102,34 @@ The job runner is a thread of the gateway process (`jobs.workers = 1`), so the g
 
 `scripts/observe/perf_check.py` measures the pipeline alone (peak RSS per case in a child process, budget 3 GB). It reads cases through the dataset adapter's `list_cases`, so `uv run python scripts/observe/perf_check.py live --runs-root <temp dir>` works only if the O-07 `otlp_live` adapter lists snapshots. That is unverified until O-07 lands; if it does not, record "not measured" for that row.
 
-### B.4 Results (fill in on Thu 26 Nov; copy into #43)
+### B.4 Results (dry run Wed 25 Nov, laptop 1; copy into #43)
 
-| Item | Attempt 1 | Attempt 2 |
-|---|---|---|
-| Branch and commit | | |
-| Gates G1–G3 closed by (PRs) | | |
-| OQ-7 route used | | |
-| T0 injection | | |
-| T1 Diagnose now (T1 − T0) | | |
-| T2 snapshot written (T2 − T1) | | |
-| T3 run done (T3 − T2) | | |
-| T4 verdict on screen; **T4 − T0 (≤ 5 min?)** | | |
-| Verdict status, confidence level, candidate set | | |
-| Replay exit code | | |
-| Gateway peak MiB / now MiB | | |
-| kind node MiB (`docker stats`) | | |
-| VM MiB (`vmmem*`) | | |
-| Buffer MiB, `requests.rejected`, `dropped` | | |
-| `perf_check.py` pipeline peak MiB (or "not measured") | | |
-| Power, other apps open | | |
+| Item | Attempt 1 | Attempt 2 | Route check, 24 Nov (#489) |
+|---|---|---|---|
+| Branch and commit | local `dryrun/43` = `main` 2e9a7348 + #509 + #508, merge 99e62baa (+ local `config/gateway.yaml`: `live.enabled: true`, `ai_modes: ["off"]`) | as attempt 1 + #518, merge 8eb2dd0f; the Collector re-applied and restarted, the gateway restarted |
+| Gates G1–G3 closed by (PRs) | G1 #500, #501 + #508 (not merged); G2 #507 + #509 (not merged); G3 #503 | as attempt 1 |
+| OQ-7 route used | `host.docker.internal:4319` → `127.0.0.1:4319`, no `--allow-lan` (Docker Desktop 29.8.2) | as attempt 1 |
+| T0 injection | 14:05:16.17 IST, 25 Nov, after a 20.9-min warm-up | 14:29:54.74 IST, after a 20.7-min warm-up |
+| T1 Diagnose now (T1 − T0) | 14:06:47.10 (90.9 s) | 14:31:25.39 (90.7 s) |
+| T2 snapshot written (T2 − T1) | 14:06:50.36 (3.3 s) | 14:31:47.95 (22.6 s) |
+| T3 run done (T3 − T2) | 14:07:27.76 (37.4 s) | 14:33:10.22 (82.3 s) |
+| T4 verdict on screen; **T4 − T0 (≤ 5 min?)** | 14:07:28.49; **2 min 12 s: pass** | 14:33:11.35; **3 min 17 s: pass** |
+| Verdict status, confidence level, candidate set | INCONCLUSIVE, low, {frontend} (V 0.25); currencyservice 2nd on the slate | INCONCLUSIVE, low, {frontend/frontend-779f47b464-c2jhd} (V 0.225); currencyservice 2nd on the slate |
+| Replay exit code | 0 | 0 |
+| Gateway peak MiB / now MiB | 368 / 286 | 463 / 389 |
+| kind node MiB (`docker stats`) | 1.674–1.692 GiB (every 5 s from T0 to T3) | 1.760–1.787 GiB |
+| VM MiB (`vmmem*`) | `vmmemWSL` 7,999 | `vmmemWSL` 3,095 |
+| Buffer MiB, `requests.rejected`, `dropped` | 28.9 (spans only: metrics 0, logs 0); 0 of 5,072; none | 54.5 (spans 29.8, logs 21.4, metrics 3.3); 0 of 5,490; none |
+| `perf_check.py` pipeline peak MiB (or "not measured") | 257 max, 250 median over both live snapshots; time 18.8 s median, 25.0 s max (budget 30 s) | (same run) |
+| Power, other apps open | mains; Docker Desktop (plus one unrelated container), Claude desktop app with its browser pane | as attempt 1 |
+
+Notes on the 25 Nov dry run:
+
+- T4 was read from a timer in the run view page, not a phone: a script polled for the status banner every 100–250 ms. T0–T3 come from `Get-Date -Format o` in one PowerShell session.
+- Attempt 1 buffered spans only. Infralume dropped every metric and log record: `kubelet_stats` and `file_log` resources carry no `service.name`, and the converter drops a resource without one (01 §3.9). #518 fixes this in the Collector. Attempt 2 ran with it applied.
+- A ConfigMap change alone does not restart the Collector: `lab/up.py` restarts it only when `--live-export` is toggled. After applying a new `collector.yaml`, run `kubectl --context kind-veyllab -n veyllab-obs rollout restart deploy/veyllab-collector`.
+- In attempt 2, T3 − T2 (82 s) is about 3× the same pipeline outside the gateway (`perf_check.py`: 25 s max). The job runner shares the gateway process with the OTLP receiver, which keeps converting batches during the run (*estimate* of the cause, not profiled).
+- Both verdicts are INCONCLUSIVE with frontend leading and currencyservice second. Diagnostic accuracy is not part of #43's acceptance.
 
 ### B.5 If it fails
 

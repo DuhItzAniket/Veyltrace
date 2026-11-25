@@ -28,7 +28,7 @@ Catalog (producer → consumers):
 | Contract | Kind | Producer | Consumers |
 |---|---|---|---|
 | `case_manifest` | JSON | Infralume | all engines, core |
-| `alert` | JSON | core (alert step) | all engines from Signalyth on |
+| `alert` | JSON | core (alert step) | Signalyth, Anomara, Causalith, FaultLoom, Causivra (Causync, Causatrix, Causentra and Relentra do not read it) |
 | `telemetry.metrics` / `.logs` / `.spans` / `.events` | Parquet | Infralume | core alert step (`detect_alert`), Signalyth, Causync, Causalith |
 | `signal_cube.series` / `.edges` / `.templates` / `.critical_path` | Parquet | Signalyth | Anomara, Causalith, FaultLoom, Relentra tools |
 | `anomalies` | Parquet | Anomara | Causync, Causalith, FaultLoom, Relentra tools |
