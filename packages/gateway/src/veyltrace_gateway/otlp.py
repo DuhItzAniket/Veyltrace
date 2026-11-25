@@ -34,7 +34,7 @@ from veyltrace_core.log import get_logger
 from veyltrace_gateway.buffer import BYTES_PER_MIB, AddResult, LiveBuffer
 from veyltrace_gateway.errors import ApiError, add_error_handlers
 
-__all__ = ["SIGNALS", "OtlpConverter", "ReceiverCounters", "create_otlp_app"]
+__all__ = ["SIGNALS", "Converts", "OtlpConverter", "ReceiverCounters", "create_otlp_app"]
 
 #: OTLP/HTTP path → buffer source, and the partial-success field naming what was rejected.
 SIGNALS: Final = {"traces": "spans", "metrics": "metrics", "logs": "logs"}

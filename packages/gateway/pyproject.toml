@@ -42,4 +42,7 @@ packages = ["src/veyltrace_gateway"]
 # error handler on it (errors.py), and run_in_threadpool, which keeps the OTLP converter off the
 # event loop (otlp.py). It ships with fastapi, so it adds no dependency.
 # pyarrow: the live buffer's canonical tables (buffer.py; 06 §3.4).
-allow = ["fastapi", "pyarrow", "pydantic", "starlette", "uvicorn"]
+# veyltrace_infralume.otlp: Infralume's OTLP converter, imported by name at start-up so the gateway
+# runs (receiver 503) while O-07 is not installed (__main__.py; 06 §3.3; 01 §3.9; #24). Only that
+# module: the gateway never imports Infralume's adapters or fetcher.
+allow = ["fastapi", "pyarrow", "pydantic", "starlette", "uvicorn", "veyltrace_infralume.otlp"]

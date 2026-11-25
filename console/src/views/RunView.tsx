@@ -4,13 +4,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "react-router";
 
-import type { Card } from "../../../contracts/generated/ts/api";
-import { api } from "../api";
+import type { Card, RunStatus } from "../../../contracts/generated/ts/api";
+import { ApiError, api } from "../api";
 import { AtomPanel, EvidenceTable } from "./Evidence";
 import { AtomLink, Failure } from "./ui";
 import { CandidateSet, Glossary, RankedTable, StatusBanner, TrialPanel } from "./Verdict";
 
 const POLL_MS = 2000; // run status refresh while queued or running (06 §5.1 polling fallback)
+
+/** Poll while the run is queued or running; stop once it ended or the gateway does not know it
+ * (404 `run_not_found`, e.g. a job lost on a gateway restart), which polling cannot change. */
+export function pollInterval(data: RunStatus | undefined, error: Error | null): number | false {
+  if (data?.state === "done" || data?.state === "failed") return false;
+  if (error instanceof ApiError && error.status === 404) return false;
+  return POLL_MS;
+}
 
 function iso(tNs: number): string {
   return new Date(tNs / 1e6).toISOString(); // display only: ns as a JS number loses precision
@@ -70,7 +78,8 @@ function FinishedRun({ runId, aiMode }: { runId: string; aiMode: string }) {
       <AtomPanel runId={runId} />
       {card.error !== null && <Failure error={card.error} />}
       {card.data !== undefined && <PathAndTimeline card={card.data} />}
-      <EvidenceTable runId={runId} services={v.ranked.map((r) => r.service)} />
+      {/* A service is ranked once per component, but the filter names it once. */}
+      <EvidenceTable runId={runId} services={[...new Set(v.ranked.map((r) => r.service))]} />
       <Glossary />
     </>
   );
@@ -81,8 +90,7 @@ export function RunView() {
   const status = useQuery({
     queryKey: ["run", runId],
     queryFn: () => api.run(runId),
-    refetchInterval: (q) =>
-      q.state.data?.state === "done" || q.state.data?.state === "failed" ? false : POLL_MS,
+    refetchInterval: (q) => pollInterval(q.state.data, q.state.error),
   });
   const s = status.data;
   return (

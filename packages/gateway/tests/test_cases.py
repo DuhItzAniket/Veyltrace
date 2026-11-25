@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -100,6 +101,23 @@ def test_case_manifest_never_carries_the_hint(runs: Path) -> None:
 def test_unknown_or_unrun_cases_are_404(runs: Path, url: str, code: str) -> None:
     status, body = _get(runs, url)
     assert (status, body["error"]["code"]) == (404, code)
+
+
+def test_an_unreadable_newest_run_leaves_the_case_facts_of_an_older_one(runs: Path) -> None:
+    (run_dir,) = runs.glob(f"synth/{RUN_CASE}/*")
+    newest = run_dir.parent / "ffffffffffffffff"  # sorts after every real run id
+    shutil.copytree(run_dir, newest)
+    path = newest / "case_manifest.json"  # as left by another contract major
+    document = json.loads(path.read_text(encoding="utf-8")) | {"schema_version": "99.0.0"}
+    path.write_text(json.dumps(document), encoding="utf-8", newline="\n")
+    try:
+        status, page = _get(runs, "/api/v1/cases?dataset=synth")
+        (ran,) = [c for c in page["items"] if c["case_id"] == RUN_CASE]
+        assert status == 200 and ran["runs"] == [run_dir.name, newest.name] and ran["system"]
+        status, manifest = _get(runs, f"/api/v1/cases/synth/{RUN_CASE}")
+        assert status == 200 and manifest["case_id"] == RUN_CASE
+    finally:
+        shutil.rmtree(newest)
 
 
 def test_cases_needs_a_dataset(runs: Path) -> None:
