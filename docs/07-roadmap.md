@@ -99,7 +99,7 @@ Observe is on the critical path in weeks 1–2. Reason and Explain start on synt
 | R-11 | Bench: oracle vs detected alert protocols; full RE2 run; scorecard v1 with per-system bootstrap CIs | R | 1 | R-10 | M2 table generated from a committed config |
 | X-04 | Gateway v0: FastAPI endpoints ([06](06-gateway-and-console.md)); OpenAPI → TS types | X | 1.5 | X-03 | contract tests pass |
 | X-05 | Console v0: case list, run view, verdict, candidate set, evidence table | X | 2 | X-04 | renders synth + RE2 runs |
-| X-06 | Lab v1: fault catalog automation (≥ 8 fault types), load generator, capture packager + answer keys; OTel Demo profile | X | 2 | X-02 | 8 fault types captured once each |
+| X-06 | Lab v1: fault catalog automation (≥ 8 fault types), load generator, capture packager + answer keys; OTel Demo profile (cut to v1.1, 07 §1.1 item 5) | X | 2 | X-02 | 8 fault types captured once each |
 | X-07 | Relentra v0: `brief` mode with evidence cards and constrained proposals on fixtures (FakeProvider), then on the real model | X | 1.5 | X-01, R-08 fixtures | proposals validate against schema 100% |
 
 ## 5. Phase 3 — Propose–verify and live (Mon 16 – Sun 22 Nov) → M3
@@ -117,7 +117,7 @@ Observe is on the critical path in weeks 1–2. Reason and Explain start on synt
 | X-08 | Relentra v1: budgets, cassette, hash-chained `agent_trace`; `investigate` mode for the ablation | X | 2 | X-07 | 100% replay on recorded RE2 cases |
 | X-09 | Causivra v1: LLM narration with placeholders + claim checker + template fallback; receipt (in-toto); `veyltrace replay` exit codes | X | 2 | X-03, X-08 | replay CLI passes on recorded runs; checker rejects seeded bad sentences |
 | X-10 | Live: gateway OTLP buffer + snapshot + alert watcher; console live view, evidence graph (Cytoscape.js), timeline (ECharts), receipt view | X | 2.5 | X-04, X-05, O-07 | injected fault → AI-off verdict on screen ≤ 5 min; RAM measured and recorded |
-| X-11 | Lab collection: overnight runs on all laptops; validation rule; target ≥ 120 validated cases by M4 | X | 1 | X-06 | daily count posted in standup |
+| X-11 | Lab collection: overnight runs on all laptops; validation rule; target ≥ 120 validated cases by M4 (v1.0: demo captures only; the target moves to v1.1, [ADR](adr/20261123-cl-explain-scope-cuts.md)) | X | 1 | X-06 | daily count posted in standup |
 
 ## 6. Phase 4 — Evaluate, harden, write (Mon 23 – Sun 29 Nov) → M4
 
@@ -129,7 +129,7 @@ Observe is on the critical path in weeks 1–2. Reason and Explain start on synt
 | O-12 | Observe docs final; fixtures refreshed; paper sections on data and signals | O | 1.5 | — | reviewed by lead |
 | X-12 | MCP server: `diagnose`, `verify_hypothesis`, `get_receipt` — *cut 4th* | X | 1 | X-04 | callable from Claude Code / Codex |
 | X-13 | Demo script + 3-minute video; console polish; paper sections on proposer and narration | X | 1.5 | X-10 | video in release assets |
-| X-14 | VeylLab packaging: Parquet + answer keys + Croissant metadata draft | X | 1 | X-11 | ships in v1.0 if ≥ 120 validated cases, else v1.1 |
+| X-14 | VeylLab packaging: Parquet + answer keys + Croissant metadata draft (moved to v1.1, [ADR](adr/20261121-ak-r16-cut-list.md) addendum of 22 Nov) | X | 1 | X-11 | ships in v1.0 if ≥ 120 validated cases, else v1.1 |
 | L-04 | Bug bash (Thu 26 Nov) + full docs review against code | all | 0.5 | — | P0/P1 list empty or assigned |
 
 ## 7. Release (Mon 30 Nov – Tue 1 Dec) → M5
