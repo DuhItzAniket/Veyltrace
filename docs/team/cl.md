@@ -1,8 +1,8 @@
 # C Lakshanaa (`cl`)
 
-> Lane: Explain · GitHub: `@C-LAKSHANAA` · Last updated: 2026-11-10
+> Lane: Explain · GitHub: `@C-LAKSHANAA` · Last updated: 2026-11-25
 
-This file covers one machine (there is no Laptop 2; see below). **Laptop 1** is the lab machine (kind, Online Boutique, Chaos Mesh; X-02, X-06, X-11 captures). **Laptop 2** runs the local LLM (the split demo of [02 §10](../02-architecture.md#10-deployment-shapes)) and is measured separately; its section is filled in on that machine.
+This file covers one machine (there is no Laptop 2; see below). **Laptop 1** is the lab machine (kind, Online Boutique, Chaos Mesh; X-02, X-06, X-11 captures).
 
 ## Laptop 1 (lab)
 
@@ -32,8 +32,8 @@ This file covers one machine (there is no Laptop 2; see below). **Laptop 1** is 
 | kind | `kind version` | kind v0.33.0 go1.26.10 windows/amd64 (built from source on 2026-11-09: GitHub release downloads returned 504) |
 | kubectl | `kubectl version --client` | Client Version: v1.36.1 |
 | Helm | `helm version --short` | v4.3.1+gc0d08d0 |
-| Ollama | `ollama --version` | not installed on this laptop (LLM runs on Laptop 2) |
-| llama.cpp | `llama-cli --version` | not installed on this laptop (LLM runs on Laptop 2) |
+| Ollama | `ollama --version` | not installed on this laptop (AI-arm runs are recorded on the recording host, [ak.md](ak.md#local-llm)) |
+| llama.cpp | `llama-cli --version` | not installed on this laptop (AI-arm runs are recorded on the recording host, [ak.md](ak.md#local-llm)) |
 
 ### Lab measurements (2026-11-09/10)
 
@@ -42,7 +42,7 @@ This file covers one machine (there is no Laptop 2; see below). **Laptop 1** is 
 - On battery the laptop entered Modern Standby repeatedly and the battery fell from 83% to 28% in about an hour under lab load; seven cases were lost (`host_suspended`). **Run campaigns on mains power only.**
 - Lab results: 9 fault types captured, 7 validated by the 05 §8.2 rule (ADRs `20261109-cl-lab-catalog-packager`, `20261110-cl-lab-validation`).
 
-## Laptop 2 (LLM host)
+## No second laptop
 
 **There is no second laptop** (2026-11-24). Laptop 1 has no discrete GPU, so Explain does not run a local LLM here. Every AI-arm run is recorded on Aniket's laptop, the recording host, whose pinned model and measured speeds are in [ak.md](ak.md#local-llm). This laptop runs the deterministic path, the lab, the live demo and the RQ6 second-site replay, which reads the cassettes and makes no model calls.
 
