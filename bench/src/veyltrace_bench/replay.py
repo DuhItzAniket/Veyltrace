@@ -36,7 +36,7 @@ from typing import Any, cast
 
 import pyarrow as pa
 
-from veyltrace_bench import ai_arms
+from veyltrace_bench import agent_only, ai_arms
 from veyltrace_bench.experiment import code_state
 from veyltrace_bench.runner import PRODUCER, child_command
 from veyltrace_contracts.models import BenchManifest, BenchReplaySummary, RunManifest, Verdict
@@ -94,8 +94,14 @@ class Source:
 
     @property
     def arms(self) -> set[str]:
+        """The methods with recorded runs of their own: AI on, and not agent-only, which scores its
+        source arm's run and has no run or verdict of its own (agent_only.source_of; #529)."""
         methods = cast("list[dict[str, Any]]", self.manifest.experiment["methods"])
-        return {m["id"] for m in methods if m.get("ai", {}).get("mode", "off") != "off"}
+        return {
+            m["id"]
+            for m in methods
+            if m.get("ai", {}).get("mode", "off") != "off" and m.get("kind") != agent_only.KIND
+        }
 
 
 def load_sources(results: Path, ids: Sequence[str]) -> list[Source]:
