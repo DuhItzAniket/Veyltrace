@@ -106,7 +106,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "source": "replay/recording/replay.csv tier 1",
         "systems": summarise(rows),
     }
-    (out / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    text = json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    (out / "summary.json").write_text(text, encoding="utf-8", newline="\n")  # LF on every OS
     print(f"rq5: {len(rows)} runs -> {out}")
     return 0
 
