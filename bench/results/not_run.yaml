@@ -2,9 +2,10 @@
 # VeylLab experiments added on 22 Nov (#45, comments 7064827650 and 7075062768).
 # ADR: docs/adr/20261121-ak-r16-cut-list.md. Read by `veyltrace bench tables` (R-17): an entry
 # with no committed results prints "not run" with this reason, which is the text the paper prints.
-# Format: `<experiment_id or 04 §6 cell>: <reason>` (bench/README.md, "Tables and figures").
-# If time remains, they run in this order: the Nezha AI cells, then the remaining RCAEval-C AI
-# cells, then the ±30 s brief cells.
+# Format: `<experiment_id or 04 §6 cell>: <reason>` (bench/README.md, "Tables and figures"), or
+# `<revision id>: {revises: <pre-registered id>}` for a 04 §12 revision.
+# The 21 Nov "run if time remains" order no longer applies: on 25 Nov the lead cut every
+# remaining LLM-heavy AI arm for v1.0 (ADR addendum of 25 Nov, #532); they are candidates for v1.2.
 
 # 07 §1.1 cut item 2: the FSE'26 TrainTicket adapter.
 fse26-oracle-rq1-v1: "stretch dataset; size, format and licence not verified (07 §1.1 cut item 2)"
@@ -13,12 +14,12 @@ fse26-oracle-rq1-v1: "stretch dataset; size, format and licence not verified (07
 re2-oracle-investigate-v1: "`investigate` mode is cut (07 §1.1 cut item 3)"
 re2-oracle-rq3-investigate-v1: "`investigate` mode is cut (07 §1.1 cut item 3)"
 
-# New cut (ADR 20261121-ak-r16-cut-list): the 4 corner cells (pi 0 and 1 × rate 0 and 6/h) bracket the effect.
-rcaevalc-pi0-l2-ai-v1: "LLM budget; the 4 corner cells bracket the effect (ADR 20261121-ak-r16-cut-list)"
-rcaevalc-pi1-l2-ai-v1: "LLM budget; the 4 corner cells bracket the effect (ADR 20261121-ak-r16-cut-list)"
-rcaevalc-pi05-l0-ai-v1: "LLM budget; the 4 corner cells bracket the effect (ADR 20261121-ak-r16-cut-list)"
-rcaevalc-pi05-l2-ai-v1: "LLM budget; the 4 corner cells bracket the effect (ADR 20261121-ak-r16-cut-list)"
-rcaevalc-pi05-l6-ai-v1: "LLM budget; the 4 corner cells bracket the effect (ADR 20261121-ak-r16-cut-list)"
+# New cut (ADR 20261121-ak-r16-cut-list): the RCAEval-C AI mid-grid (21 Nov); the 4 corners followed on 25 Nov (below).
+rcaevalc-pi0-l2-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi1-l2-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi05-l0-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi05-l2-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi05-l6-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
 
 # New cut (ADR 20261121-ak-r16-cut-list): ±30 s is exploratory in 04 §2.
 re2-shift-m30-brief-v1: "±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list)"
@@ -27,6 +28,23 @@ re2-shift-p30-brief-v1: "±30 s is exploratory in 04 §2; LLM budget (ADR 202611
 # New cut (ADR 20261121-ak-r16-cut-list, addendum of 22 Nov; Observe and Explain on #45): VeylLab.
 veyllab-oracle-rq1-v1: "VeylLab: 8 of 120 captures, no adapter yet (X-11, O-07); X-14 moves to v1.1 (ADR 20261121-ak-r16-cut-list)"
 veyllab-oracle-rq2-v1: "VeylLab: 8 of 120 captures, no adapter yet (X-11, O-07); X-14 moves to v1.1 (ADR 20261121-ak-r16-cut-list)"
+
+# New cut (ADR 20261121-ak-r16-cut-list, addendum of 25 Nov, #532): the remaining LLM-heavy AI arms.
+nezha-oracle-brief-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi0-l0-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi0-l6-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi1-l0-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+rcaevalc-pi1-l6-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+re2-detected-rq2-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+re2-shift-m120-brief-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+re2-shift-m60-brief-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+re2-shift-p120-brief-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+re2-shift-p60-brief-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+re3-oracle-rq2-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"
+
+# 04 §12 revisions (2026-11-25, #532): the AI-off arm only; the brief arm is cut (LLM budget).
+re2-oracle-loso-off-v1: {revises: re2-oracle-loso-v1}
+re2-oracle-rq3-off-v1: {revises: re2-oracle-rq3-v1}
 
 # A 04 §6 cell with no experiment YAML.
 cloud-opsbench/agent-only: "optional in 04 §3; no experiment YAML"
