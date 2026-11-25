@@ -65,7 +65,12 @@ def test_otlp_json_to_snapshot_and_queued_live_runs(tmp_path: Path, monkeypatch:
     )
     counters = ReceiverCounters()
     otlp = create_otlp_app(
-        buffer, StubConverter(), {}, max_body_mb=settings.live.max_body_mb, counters=counters
+        buffer,
+        StubConverter(),
+        {},
+        max_body_mb=settings.live.max_body_mb,
+        retry_after_s=settings.live.retry_after_s,
+        counters=counters,
     )
     runner = JobRunner(tmp_path / "runs", commit=FIXTURE_CODE_COMMIT, config_dir=CONFIG)
     api = create_app(

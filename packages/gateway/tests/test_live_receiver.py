@@ -1,5 +1,5 @@
 """The live OTLP/HTTP receiver (06 §3.3; X-10a2): JSON through the converter seam into the buffer,
-retries buffered once, 400/413/415/500/503, partial success, and the CLI listener checks."""
+retries buffered once, 400/413/415/503, partial success, and the CLI listener checks."""
 
 from __future__ import annotations
 
@@ -26,11 +26,19 @@ T0 = 1_700_000_000_000_000_000
 MIN = 60_000_000_000
 JSON = (b"content-type", b"application/json")
 GZ = [JSON, (b"content-encoding", b"gzip")]
+RETRY_S = 7
 
 
 def _call(  # POST `body`; GET when there is no body and no headers
     app: Any, path: str, body: bytes = b"", headers: list[tuple[bytes, bytes]] | None = None
 ) -> tuple[int, Any]:
+    status, _, decoded = _send(app, path, body, headers)
+    return status, decoded
+
+
+def _send(  # `_call` plus the response headers
+    app: Any, path: str, body: bytes = b"", headers: list[tuple[bytes, bytes]] | None = None
+) -> tuple[int, dict[bytes, bytes], Any]:
     method = "GET" if not body and headers is None else "POST"
     scope = {
         "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": method, "scheme": "http",
@@ -48,12 +56,14 @@ def _call(  # POST `body`; GET when there is no body and no headers
 
     asyncio.run(app(scope, receive, send))
     raw = b"".join(m.get("body", b"") for m in sent[1:])
-    return sent[0]["status"], json.loads(raw) if raw else None
+    return sent[0]["status"], dict(sent[0]["headers"]), json.loads(raw) if raw else None
 
 
 def _receiver(converter: StubConverter | None = None, **kw: Any) -> tuple[Any, LiveBuffer, ReceiverCounters]:
     buffer, counters = LiveBuffer(30, 512, 300), ReceiverCounters()
-    app = create_otlp_app(buffer, converter or StubConverter(), {}, max_body_mb=1, counters=counters, **kw)
+    app = create_otlp_app(
+        buffer, converter or StubConverter(), {}, max_body_mb=1, retry_after_s=RETRY_S, counters=counters, **kw
+    )
     return app, buffer, counters
 
 
@@ -83,8 +93,8 @@ def test_json_spans_land_in_the_buffer_and_a_retry_is_buffered_once() -> None:
         (b"{not json", [JSON], 400, "malformed_body"),
         (b"[]", [JSON], 400, "malformed_body"),
         (b"\xff{}", [JSON], 400, "malformed_body"),  # not UTF-8
-        (b'{"resourceSpans": [{"oops": 1}]}', [JSON], 500, "conversion_failed"),  # retried, not dropped
-        (b"[" * 100_000, [JSON], 500, "conversion_failed"),  # RecursionError in json.loads
+        (b'{"resourceSpans": [{"oops": 1}]}', [JSON], 503, "conversion_failed"),  # retried, not dropped
+        (b"[" * 100_000, [JSON], 503, "conversion_failed"),  # RecursionError in json.loads
         (
             gzip.compress(b"{}")[:-4],
             GZ,
@@ -111,8 +121,20 @@ def test_bad_requests(body: bytes, headers: list[tuple[bytes, bytes]], status: i
     assert (counters.accepted, counters.rejected) == (0, 1)  # 06 §3.3: every rejection is counted
 
 
+def test_a_converter_failure_is_a_503_the_collector_retries() -> None:
+    """Regression (#52 bug bash): it was 500, which OTLP/HTTP clients never retry, so the batch was
+    lost. 503 with Retry-After is retried (OTLP/HTTP: 429/502/503/504), so the batch comes back."""
+    app, buffer, counters = _receiver()
+    status, headers, error = _send(app, "/v1/traces", b'{"resourceSpans": [{"oops": 1}]}', [JSON])
+    assert (status, error["error"]["code"]) == (503, "conversion_failed")
+    assert headers[b"retry-after"] == str(RETRY_S).encode()
+    assert (buffer.stats().rows["spans"], counters.rejected) == (0, 1)
+    assert _call(app, "/v1/traces", _spans(2), [JSON]) == (200, {})  # the retry that converts lands
+    assert (buffer.stats().rows["spans"], counters.accepted) == (2, 1)
+
+
 def test_without_a_converter_the_receiver_is_503() -> None:
-    app = create_otlp_app(LiveBuffer(30, 512, 300), None, {}, max_body_mb=1)
+    app = create_otlp_app(LiveBuffer(30, 512, 300), None, {}, max_body_mb=1, retry_after_s=RETRY_S)
     status, error = _call(app, "/v1/logs", b'{"resourceLogs": []}', [JSON])
     assert (status, error["error"]["code"]) == (503, "converter_unavailable")
 
@@ -132,7 +154,7 @@ def test_health_reports_receiving_from_the_buffer() -> None:
     buffer = LiveBuffer(30, 512, 300, clock=lambda: now[0])
     settings = replace(load_settings(CONFIG), live_enabled=True)
     app = create_app(settings, config_dir=CONFIG, live=buffer)
-    otlp = create_otlp_app(buffer, StubConverter(), {}, max_body_mb=1)
+    otlp = create_otlp_app(buffer, StubConverter(), {}, max_body_mb=1, retry_after_s=RETRY_S)
     assert _call(app, "/api/v1/health")[1]["live"] == {"enabled": True, "receiving": False}
     assert _call(otlp, "/v1/traces", _spans(1), [JSON])[0] == 200
     assert _call(app, "/api/v1/health")[1]["live"]["receiving"]
