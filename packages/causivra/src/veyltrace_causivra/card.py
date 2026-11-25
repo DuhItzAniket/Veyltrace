@@ -111,8 +111,9 @@ def run_card(ctx: RunContext, provider: Provider | None = None) -> EngineResult:
     replaces the configured one in tests.
 
     The `{SVC:…}` lexicon is `graph.nodes.node` plus `case_manifest.services` (the entity lexicon
-    of 10 §2.1), so a card stays writable while the graph is empty. The alert hint is never read
-    (the run context redacts it from case_manifest).
+    of 10 §2.1), so a card stays writable while the graph is empty. The checker's C6 lexicon adds
+    the evidence `component` values (10 §3.4), so a component written as plain text is rejected.
+    The alert hint is never read (the run context redacts it from case_manifest).
     """
     settings = settings_from(ctx.config, ctx.config.section("causentra"))
     verdict = ctx.read_model("verdict", models.Verdict)
@@ -123,6 +124,8 @@ def run_card(ctx: RunContext, provider: Provider | None = None) -> EngineResult:
         )
     onsets = ctx.read_model("onsets", models.Onsets) if ctx.exists("onsets") else None
     nodes = {str(r["node"]) for r in _rows(ctx, "graph.nodes", ["node"])} | set(manifest.services)
+    evidence = _rows(ctx, "evidence")
+    entities = frozenset(nodes | {str(r["component"]) for r in evidence if r["component"]})
     section = ctx.config.section(ENGINE)
     llm = llm_settings(ctx.config.section("llm"))
     told: list[Narration] = []
@@ -141,7 +144,7 @@ def run_card(ctx: RunContext, provider: Provider | None = None) -> EngineResult:
         def told_by_llm(
             v: models.Verdict, fill: FillContext, kinds: Mapping[str, str], path: Sequence[str]
         ) -> Narration:
-            told.append(narrate(verdict=v, ctx=fill, kinds=kinds, path=path, entities=frozenset(nodes),
+            told.append(narrate(verdict=v, ctx=fill, kinds=kinds, path=path, entities=entities,
                 client=client, params=params, settings=narration, checker=checker))  # fmt: skip
             return told[-1]
 
@@ -149,7 +152,7 @@ def run_card(ctx: RunContext, provider: Provider | None = None) -> EngineResult:
 
     card = build_card(
         verdict=verdict,
-        evidence=_rows(ctx, "evidence"),
+        evidence=evidence,
         alert=ctx.read_model("alert", models.Alert),
         onsets=onsets,
         changes=_rows(ctx, "changes"),
