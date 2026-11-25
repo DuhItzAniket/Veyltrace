@@ -1,6 +1,6 @@
 # 06a · Live demo script and X-10 rehearsal runbook
 
-> Status: v0.1 · Lane: Explain · Issues: X-13 (#50), X-10 (#43) · Parent spec: [06 Gateway and console](06-gateway-and-console.md) · Lab: [05](05-fault-lab-and-dataset.md), [docs/team/cl.md](team/cl.md) (laptop 1) · Last updated: 2026-11-24
+> Status: v0.1 · Lane: Explain · Issues: X-13 (#50), X-10 (#43) · Parent spec: [06 Gateway and console](06-gateway-and-console.md) · Lab: [05](05-fault-lab-and-dataset.md), [docs/team/cl.md](team/cl.md) (laptop 1) · Last updated: 2026-11-25
 
 Part A is the 3-minute video, which a person records after the rehearsal. Part B is the Thu 26 Nov rehearsal that checks X-10's acceptance: injected fault → AI-off verdict on screen in ≤ 5 min, with RAM measured and recorded. Every command below exists on `main` at 4252d202 unless §0 lists it as missing.
 
@@ -102,26 +102,34 @@ The job runner is a thread of the gateway process (`jobs.workers = 1`), so the g
 
 `scripts/observe/perf_check.py` measures the pipeline alone (peak RSS per case in a child process, budget 3 GB). It reads cases through the dataset adapter's `list_cases`, so `uv run python scripts/observe/perf_check.py live --runs-root <temp dir>` works only if the O-07 `otlp_live` adapter lists snapshots. That is unverified until O-07 lands; if it does not, record "not measured" for that row.
 
-### B.4 Results (fill in on Thu 26 Nov; copy into #43)
+### B.4 Results (dry run Wed 25 Nov, laptop 1; copy into #43)
 
 | Item | Attempt 1 | Attempt 2 | Route check, 24 Nov (#489) |
 |---|---|---|---|
-| Branch and commit | | | `explain/489-collector-exporter`, tested at 0ed789d5 (before its rebase); the receiver ran the test stub converter, not O-07 |
-| Gates G1–G3 closed by (PRs) | | | G3 only |
-| OQ-7 route used | | | `host.docker.internal:4319` → gateway on Windows `127.0.0.1:4319`, no `--allow-lan` (Docker Desktop 29.8.2, WSL2) |
-| T0 injection | | | — |
-| T1 Diagnose now (T1 − T0) | | | — |
-| T2 snapshot written (T2 − T1) | | | — |
-| T3 run done (T3 − T2) | | | — |
-| T4 verdict on screen; **T4 − T0 (≤ 5 min?)** | | | — |
-| Verdict status, confidence level, candidate set | | | — |
-| Replay exit code | | | — |
-| Gateway peak MiB / now MiB | | | 98 / 98 (buffer empty: the stub converter buffers no rows, so this is the gateway without telemetry; `live.buffer_max_mb` caps the buffer at 512) |
-| kind node MiB (`docker stats`) | | | 1.742–1.785 GiB with the exporter on, 1.83–1.84 GiB in the 90 s after switching it off (Docker Desktop VM 19.44 GiB) |
-| VM MiB (`vmmem*`) | | | — |
-| Buffer MiB, `requests.rejected`, `dropped` | | | 0; 530 of 1,602 (traces and metrics: the test stub cannot map OB data); none |
-| `perf_check.py` pipeline peak MiB (or "not measured") | | | — |
-| Power, other apps open | | | — |
+| Branch and commit | local `dryrun/43` = `main` 2e9a7348 + #509 + #508, merge 99e62baa (+ local `config/gateway.yaml`: `live.enabled: true`, `ai_modes: ["off"]`) | as attempt 1 + #518, merge 8eb2dd0f; the Collector re-applied and restarted, the gateway restarted |
+| Gates G1–G3 closed by (PRs) | G1 #500, #501 + #508 (not merged); G2 #507 + #509 (not merged); G3 #503 | as attempt 1 |
+| OQ-7 route used | `host.docker.internal:4319` → `127.0.0.1:4319`, no `--allow-lan` (Docker Desktop 29.8.2) | as attempt 1 |
+| T0 injection | 14:05:16.17 IST, 25 Nov, after a 20.9-min warm-up | 14:29:54.74 IST, after a 20.7-min warm-up |
+| T1 Diagnose now (T1 − T0) | 14:06:47.10 (90.9 s) | 14:31:25.39 (90.7 s) |
+| T2 snapshot written (T2 − T1) | 14:06:50.36 (3.3 s) | 14:31:47.95 (22.6 s) |
+| T3 run done (T3 − T2) | 14:07:27.76 (37.4 s) | 14:33:10.22 (82.3 s) |
+| T4 verdict on screen; **T4 − T0 (≤ 5 min?)** | 14:07:28.49; **2 min 12 s: pass** | 14:33:11.35; **3 min 17 s: pass** |
+| Verdict status, confidence level, candidate set | INCONCLUSIVE, low, {frontend} (V 0.25); currencyservice 2nd on the slate | INCONCLUSIVE, low, {frontend/frontend-779f47b464-c2jhd} (V 0.225); currencyservice 2nd on the slate |
+| Replay exit code | 0 | 0 |
+| Gateway peak MiB / now MiB | 368 / 286 | 463 / 389 |
+| kind node MiB (`docker stats`) | 1.674–1.692 GiB (every 5 s from T0 to T3) | 1.760–1.787 GiB |
+| VM MiB (`vmmem*`) | `vmmemWSL` 7,999 | `vmmemWSL` 3,095 |
+| Buffer MiB, `requests.rejected`, `dropped` | 28.9 (spans only: metrics 0, logs 0); 0 of 5,072; none | 54.5 (spans 29.8, logs 21.4, metrics 3.3); 0 of 5,490; none |
+| `perf_check.py` pipeline peak MiB (or "not measured") | 257 max, 250 median over both live snapshots; time 18.8 s median, 25.0 s max (budget 30 s) | (same run) |
+| Power, other apps open | mains; Docker Desktop (plus one unrelated container), Claude desktop app with its browser pane | as attempt 1 |
+
+Notes on the 25 Nov dry run:
+
+- T4 was read from a timer in the run view page, not a phone: a script polled for the status banner every 100–250 ms. T0–T3 come from `Get-Date -Format o` in one PowerShell session.
+- Attempt 1 buffered spans only. Infralume dropped every metric and log record: `kubelet_stats` and `file_log` resources carry no `service.name`, and the converter drops a resource without one (01 §3.9). #518 fixes this in the Collector. Attempt 2 ran with it applied.
+- A ConfigMap change alone does not restart the Collector: `lab/up.py` restarts it only when `--live-export` is toggled. After applying a new `collector.yaml`, run `kubectl --context kind-veyllab -n veyllab-obs rollout restart deploy/veyllab-collector`.
+- In attempt 2, T3 − T2 (82 s) is about 3× the same pipeline outside the gateway (`perf_check.py`: 25 s max). The job runner shares the gateway process with the OTLP receiver, which keeps converting batches during the run (*estimate* of the cause, not profiled).
+- Both verdicts are INCONCLUSIVE with frontend leading and currencyservice second. Diagnostic accuracy is not part of #43's acceptance.
 
 ### B.5 If it fails
 
