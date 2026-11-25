@@ -1,0 +1,21 @@
+# Revision of the pre-registered re2-oracle-rq3-v1 (04 §12, 2026-11-25; ADR 20261121-ak-r16-cut-list,
+# addendum of 25 Nov): the same experiment with its veyltrace:off arm only. The veyltrace:brief
+# arm is cut for v1.0 (LLM budget: about 800 new model runs on normal windows), so the
+# RQ3 estimates here are for the deterministic path. Nothing else differs from re2-oracle-rq3-v1.
+# bench/results/not_run.yaml maps this id to the pre-registered one ({revises: ...}).
+experiment_id: re2-oracle-rq3-off-v1
+description: "RQ3: conformal coverage, set size, risk-coverage and NO_FAULT on RE2 cross-fit folds, veyltrace:off only (revises re2-oracle-rq3-v1, 04 §12)"
+prereg: false
+rq: [RQ3]
+dataset: {parts: [re2-ob, re2-ss, re2-tt], cases: all, exclude: bench/dev_cases.yaml, normal_windows: rcaeval_pre_injection}
+split: {family: rcaeval-re2, scheme: crossfit2, cluster: [system, service, fault], stratify: [system, fault],
+        seed: 20261108}
+protocol: {alert: oracle, shift_s: 0, sources_drop: [], decoys: null,
+           anonymize_services: false, inject_proposals: null, permute_proposals: null}
+methods:
+  - {id: "veyltrace:off", kind: veyltrace, ai: {mode: "off"}, overrides: {}}
+calibration: {fit: true, alpha: 0.10, no_fault_beta: 0.10}
+metrics: [ac_at_k, retrieval_at_k, coverage, set_size, risk_coverage, no_fault_rates, cost]
+statistics: {primary_metric: ac_at_1, per: system, noninferiority: null, holm_family: null,
+             bootstrap: {resamples: 2000, seed: 1}, permutation: {n: 10000, seed: 2}, mcnemar: true}
+resources: {workers: 1, timeout_s: 600}

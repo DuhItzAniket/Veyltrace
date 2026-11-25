@@ -38,11 +38,16 @@ methods:
   - id: "veyltrace:brief"
     kind: veyltrace
     ai: {{mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1]}}
+  - id: "agent-only:brief"
+    kind: agent_only
+    ai: {{mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1]}}
 calibration: {{fit: false}}
 metrics: [ac_at_k]
 resources: {{workers: 1, timeout_s: 600}}
 """
 FIRST, SECOND = "synth-replay-a", "synth-replay-b"  # b replays a's kept runs (ai_mode replay rows)
+# agent-only:brief scores the brief run (no run of its own, no verdict_hash): RQ6 replays the brief
+# runs once and never looks for an agent-only run (#529, found on the R-16 recording host).
 
 
 @dataclass(frozen=True)
@@ -201,6 +206,23 @@ def test_tier2_regenerates_the_sample_and_keeps_tier1(
         r.run_id for r in replay.sample(replay.recorded_runs(rec.results))
     )
     assert [p.name for p in _kept(rec)] == [p.name for p in _kept(recorded)]  # no run written to bench-ai
+
+
+def test_tier2_accepts_a_regeneration_at_another_commit(recorded: Recorded, tmp_path: Path) -> None:
+    """Regression (#534, R-16 recording host): Tier 2 at the results commit, which comes after the
+    recording tag and has the same run code, marked all 50 runs `regen_failed`, because the
+    regenerated run id hashes the checkout's commit. Same case and config is the same run again."""
+    src = _kept(recorded)[0]
+    regen = shutil.copytree(src, tmp_path / "regen")
+    path = regen / "run_manifest.json"
+    doc = json.loads(textio.read_text(path))
+    doc["code"]["commit"], doc["run_id"] = "f" * 40, "f" * 16  # another commit, so another run id
+    textio.write_bytes(path, json.dumps(doc).encode())
+    assert replay.same_run_config(src, regen)
+    doc["config_sha256"] = "0" * 64  # another config is not the kept run
+    textio.write_bytes(path, json.dumps(doc).encode())
+    assert not replay.same_run_config(src, regen)
+    assert not replay.same_run_config(src, tmp_path / "missing")
 
 
 def test_cli_dry_run(recorded: Recorded, capsys: pytest.CaptureFixture[str]) -> None:

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import runsSynth from "../fixtures/runs-synth.json";
 import { CONFIRMED, renderAt, stubGateway } from "../test/gateway";
 
 afterEach(() => {
@@ -57,5 +58,33 @@ describe("case list", () => {
       case_id: "067c1ba0c360",
       ai_mode: "record",
     });
+  });
+
+  it("shows a failed cases request as an error, not as loading", async () => {
+    stubGateway();
+    renderAt("/?dataset=nope"); // the stub answers 404 for an unknown dataset, as the gateway does
+    expect((await screen.findByRole("alert")).textContent).toContain("not_found");
+    expect(screen.queryByText("Loading cases…")).toBeNull();
+  });
+
+  it("lists a failed run the gateway reports next to the case's finished runs", async () => {
+    const failed = {
+      run_id: "00000000000000a1",
+      dataset: "synth",
+      case_id: "067c1ba0c360",
+      ai_mode: "record",
+      state: "failed",
+      step: 7,
+      step_name: "relentra",
+      error: "the run failed",
+    };
+    stubGateway({ "/runs": [failed, ...runsSynth] });
+    renderAt("/");
+    const row = within((await screen.findByText("067c1ba0c360")).closest("tr") as HTMLElement);
+    const links = row.getAllByRole("link").map((a) => a.textContent);
+    expect(links).toEqual([`${failed.run_id} failed`, `${CONFIRMED} done`]);
+    expect(row.getByRole("link", { name: `${failed.run_id} failed` }).getAttribute("href")).toBe(
+      `/runs/${failed.run_id}`,
+    );
   });
 });

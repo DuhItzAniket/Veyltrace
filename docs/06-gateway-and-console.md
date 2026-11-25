@@ -1,6 +1,6 @@
 # 06 · Gateway, MCP server and console
 
-> Status: v0.1-draft · Lane: Explain · Master: [02 §3](02-architecture.md#3-the-ten-engines) (non-engine components), [§5](02-architecture.md#5-execution-modes) (live mode), [§8](02-architecture.md#8-technology-stack-pinned-at-m0-recorded-in-adrs) (API, UI rows), [§9](02-architecture.md#9-cross-cutting-rules), [§10](02-architecture.md#10-deployment-shapes) (demo shapes), [§11](02-architecture.md#11-out-of-scope-for-v10-do-not-build) · Contracts: [03](03-contracts.md) §2.1, §2.6, §3, §6–12, §14 · Roadmap: X-00, X-04, X-05, X-10, X-12, X-13 · Last updated: 2026-10-30
+> Status: v0.1-draft · Lane: Explain · Master: [02 §3](02-architecture.md#3-the-ten-engines) (non-engine components), [§5](02-architecture.md#5-execution-modes) (live mode), [§8](02-architecture.md#8-technology-stack-pinned-at-m0-recorded-in-adrs) (API, UI rows), [§9](02-architecture.md#9-cross-cutting-rules), [§10](02-architecture.md#10-deployment-shapes) (demo shapes), [§11](02-architecture.md#11-out-of-scope-for-v10-do-not-build) · Contracts: [03](03-contracts.md) §2.1, §2.6, §3, §6–12, §14 · Roadmap: X-00, X-04, X-05, X-10, X-12, X-13 · Last updated: 2026-11-24
 
 ---
 
@@ -8,28 +8,28 @@
 
 | Component | Package | Job |
 |---|---|---|
-| Gateway | `packages/gateway` (`veyltrace_gateway`) | FastAPI HTTP API over run directories; a job runner that calls `veyltrace_core.pipeline.run_case`; the live OTLP receiver, buffer, snapshot and alert watcher; the MCP server |
+| Gateway | `packages/gateway` (`veyltrace_gateway`) | FastAPI HTTP API over run directories; a job runner that calls `veyltrace_core.pipeline.run_case`; the live OTLP receiver, buffer and snapshot. The alert watcher (#227) and the MCP server (X-12) are not built in v1.0; they move to v1.1 |
 | Console | `console/` | React + TypeScript UI over the gateway API |
 
 The gateway holds **no analysis logic**. Every verdict, live ones included, comes from `run_case` on files written to disk, so every verdict is replayable ([02 §5](02-architecture.md#5-execution-modes)). The gateway never writes to the cluster, and v1.0 has no authentication (multi-tenant auth is out of scope, [02 §11](02-architecture.md#11-out-of-scope-for-v10-do-not-build)); both facts are why it binds to loopback by default (§3.6).
 
 ```mermaid
 flowchart LR
-  COL[OTel Collector in lab] -- OTLP/HTTP protobuf --> RX[OTLP receiver /v1/*]
+  COL[OTel Collector in lab] -- OTLP/HTTP JSON --> RX[OTLP receiver /v1/*]
   RX --> CONV[Infralume otlp converter] --> BUF[LiveBuffer: Arrow, 30 min]
-  BUF --> W[Alert watcher] -- breach --> SNAP
-  UI[Console] -- Diagnose now --> SNAP[Snapshot: Parquet + snapshot.json]
+  BUF --> W[Alert watcher, v1.1] -- breach --> SNAP
+  UI[Console] -- Diagnose now, v1.1 --> SNAP[Snapshot: Parquet + snapshot.json]
   SNAP --> JOB[Job runner: run_case]
   API[HTTP API /api/v1] --> JOB
   JOB --> RUNS[(runs/dataset/case_id/run_id)]
   RUNS --> API --> UI
-  MCP[MCP server: stdio] --> JOB
+  MCP[MCP server: stdio, v1.1] --> JOB
   MCP --> RUNS
 ```
 
 ## 2. Runtime model
 
-- One Python process: `uv run python -m veyltrace_gateway` (the `veyltrace` CLI belongs to core; the gateway ships its own module entry). Two listeners: the API (`api.host:api.port`, default `127.0.0.1:8000`) and the OTLP receiver (`live.otlp_host:live.otlp_port`, default `127.0.0.1:4319`, enabled only with `live.enabled`). The MCP server runs as a separate stdio process (`python -m veyltrace_gateway.mcp`) that uses the same service layer.
+- One Python process: `uv run python -m veyltrace_gateway` (the `veyltrace` CLI belongs to core; the gateway ships its own module entry). Two listeners: the API (`api.host:api.port`, default `127.0.0.1:8000`) and the OTLP receiver (`live.otlp_host:live.otlp_port`, default `127.0.0.1:4319`, enabled only with `live.enabled`). `--host` and `--port` override `api.host` and `api.port`. The MCP server (a separate stdio process `python -m veyltrace_gateway.mcp`) is not built in v1.0 (§4).
 - **Job runner:** one worker thread and a FIFO queue (`jobs.workers = 1`), because each run may use up to 3 GB RAM ([02 §9](02-architecture.md#9-cross-cutting-rules)) and the LLM runtime has one slot. `run_id` is computed before the run from (`case_id`, config hash, code commit, `ai.mode`) ([02 §4.1](02-architecture.md#41-run-directory)), so `POST /runs` is idempotent.
 - Run directories are the only state. Restarting the gateway loses only queued jobs and the live buffer.
 
@@ -40,24 +40,24 @@ flowchart LR
 - Base path `/api/v1`; JSON; artifact responses are the **contract objects unchanged**, typed with the generated Pydantic models from `veyltrace_contracts`. The gateway never adds or renames fields of a contract.
 - Gateway-only envelopes (job status, lists, errors, replay report) are the API types of [03 §14](03-contracts.md#14-api-types-gateway): Pydantic models in `veyltrace_gateway.api_models`, exported through `packages/gateway/openapi.json` (§3.5). They never redefine a run artifact.
 - Path parameters are validated before touching the filesystem: `dataset` ∈ known datasets, `case_id` = 12 hex, `run_id` = 16 hex; anything else → 404 (no path traversal).
-- Errors: `{"error": {"code": str, "message": str}}` with HTTP 400/404/409/413/422/503.
+- Errors: `{"error": {"code": str, "message": str}}` with HTTP 400/404/405/409/413/415/422/500/503 (415 only from the OTLP receiver, §3.3). 500 is `artifact_invalid` when `veyltrace_core.io` refuses an artifact (another contract version, a truncated file), `internal_error` for any other failure, and the receiver's `conversion_failed` (#524).
 
 ### 3.2 Routes
 
 | Method | Path | Request | Response (contract or envelope) | Notes |
 |---|---|---|---|---|
-| GET | `/api/v1/health` | — | `health` (envelope) | `{status: ok \| degraded, version, code_commit, ai: {default_mode, provider, model, reachable}, live: {enabled, receiving}}`; `reachable` from a cheap provider probe in `veyltrace_llm` |
-| GET | `/api/v1/datasets` | — | `[dataset_summary]` | dataset id, case count; a dataset is known when an adapter accepts it and it is an adapter's literal name, a folder under the runs root or a fetched index (X-04) |
-| GET | `/api/v1/cases?dataset=&limit=&offset=` | — | page of `case_summary` | `case_id`, `dataset`, `system`, `sources`, `runs: [run_id]`; never answer keys or hints; `system` and `sources` from the last finished run by run id (runs with different overrides, such as `infralume.sources.drop`, can differ), null before the first run |
-| GET | `/api/v1/cases/{dataset}/{case_id}` | — | `case_manifest` (03 §2.1) | the console does not display `t_alert_hint_ns` |
-| POST | `/api/v1/runs` | `run_request` `{dataset, case_id, ai_mode: off \| record \| replay}` | 202 `run_status`; 200 if a finished run with that `run_id` exists | 409 when `ai_mode = replay` and the run has no cassette |
-| GET | `/api/v1/runs?dataset=&case_id=` | — | `[run_status]` | |
+| GET | `/api/v1/health` | — | `health` (envelope) | `{status: ok \| degraded, version, code_commit, ai: {default_mode, provider, model, reachable}, live: {enabled, receiving}}`; built once at start-up from config and the code commit. The provider probe is not built: `status` is always `ok` and `reachable` is null |
+| GET | `/api/v1/datasets` | — | `[dataset_summary]` | dataset id, case count; a dataset is known when an adapter accepts it and it is an adapter's literal name, a folder under the runs root or a fetched index (X-04); so `live` is listed whenever the `otlp_live` adapter is installed, with 0 cases until the first snapshot, and each "Diagnose now" snapshot in `index/live.json` is one more case (§3.4) |
+| GET | `/api/v1/cases?dataset=&limit=&offset=` | — | page of `case_summary` (`{items, total, limit, offset}`; default limit `api.page_limit_max`) | `case_id`, `dataset`, `system`, `sources`, `runs: [run_id]`; never answer keys or hints; `system` and `sources` from the last finished run by run id whose case manifest reads (runs with different overrides, such as `infralume.sources.drop`, can differ), null before the first run |
+| GET | `/api/v1/cases/{dataset}/{case_id}` | — | `case_manifest` (03 §2.1) | from the case's last finished run whose manifest reads, through `veyltrace_core.io`, which redacts `t_alert_hint_ns`; 404 `case_not_run` before the first run; 500 `artifact_invalid` when no run's manifest reads |
+| POST | `/api/v1/runs` | `run_request` `{dataset, case_id, ai_mode: off \| record \| replay}` | 202 `run_status`; 200 if a finished run with that `run_id` exists | 409 `no_cassette` when `ai_mode = replay` and the case has no finished record run with a cassette |
+| GET | `/api/v1/runs?dataset=&case_id=` | — | `[run_status]` | a finished run whose manifest does not read is left out (logged); `GET /runs/{run_id}` answers 500 `artifact_invalid` for it (#524) |
 | GET | `/api/v1/runs/{run_id}` | — | `run_status` | `{run_id, dataset, case_id, ai_mode, state: queued \| running \| done \| failed, step, step_name, error?}`; `step` is core's step index (0–13, `veyltrace_core.steps`) and `step_name` its name |
 | GET | `/api/v1/runs/{run_id}/events` | — | `text/event-stream` | step started/finished, done, failed |
 | GET | `/api/v1/runs/{run_id}/alert` | — | `alert` (03 §2.6) | |
 | GET | `/api/v1/runs/{run_id}/slate` | — | `slate` (03 §8) | |
-| GET | `/api/v1/runs/{run_id}/proposals` | — | `proposals` (03 §9.1) | 404 when AI off |
-| GET | `/api/v1/runs/{run_id}/agent-trace` | — | `[agent_trace line]` (03 §9.2) + `chain_ok: bool` | chain verified server-side |
+| GET | `/api/v1/runs/{run_id}/proposals` | — | `proposals` (03 §9.1) | 404 `artifact_missing` when AI off |
+| GET | `/api/v1/runs/{run_id}/agent-trace` | — | `{lines: [agent_trace line] (03 §9.2), chain_ok: bool}` | chain verified server-side; 404 `artifact_missing` when AI off |
 | GET | `/api/v1/runs/{run_id}/verdict` | — | `verdict` (03 §10) | |
 | GET | `/api/v1/runs/{run_id}/card` | — | `card` (03 §11.1) | |
 | GET | `/api/v1/runs/{run_id}/card.md` | — | `text/markdown` | |
@@ -68,8 +68,8 @@ flowchart LR
 | GET | `/api/v1/runs/{run_id}/graph` | — | `{nodes: [graph.nodes], edges: [graph.edges], paths: [graph.paths]}` | three contract row lists |
 | GET | `/api/v1/runs/{run_id}/series?service=&signal=` | — | `[signal_cube.series rows]` | at most `api.series_max_points` per series (every n-th point, n fixed by length; display only) |
 | GET | `/api/v1/runs/{run_id}/onsets` · `/changes` | — | `onsets` (03 §4.2) · `[changes rows]` (03 §5.2) | timeline annotations |
-| POST | `/api/v1/runs/{run_id}/replay` | — | 202 `replay_report` | runs Causivra's replay command (`veyltrace.commands:replay`) on the run's receipt in the job queue; 503 while that command is not installed |
-| GET | `/api/v1/runs/{run_id}/replay` | — | `replay_report` (envelope; [10 §3.9](engines/10-causivra.md#39-replay)) | exit code 0–6 with meaning |
+| POST | `/api/v1/runs/{run_id}/replay` | — | 202 `replay_report` | runs Causivra's replay command (`veyltrace.commands:replay`) on the run's receipt in the job queue; 503 `replay_unavailable` while that command is not installed |
+| GET | `/api/v1/runs/{run_id}/replay` | — | `replay_report` (envelope; [10 §3.9](engines/10-causivra.md#39-replay)) | `{run_id, state, exit_code, meaning, error}`: exit code 0–6 and its `ReplayExit` name (`ok`, `hash_mismatch`, …); 404 `replay_not_found` when no replay was requested since start-up (replays are kept in memory) |
 
 The gateway and console read these artifacts for display only and never write them ([03 §1](03-contracts.md#1-how-contracts-work), catalog note).
 
@@ -77,54 +77,57 @@ The gateway and console read these artifacts for display only and never write th
 
 | Method | Path | Content types | Response |
 |---|---|---|---|
-| POST | `/v1/traces` | `application/x-protobuf` (required), `application/json` (protobuf-JSON mapping, optional) | `ExportTraceServiceResponse` |
+| POST | `/v1/traces` | `application/x-protobuf` (required; 415 until `opentelemetry-proto` is a dependency), `application/json` (protobuf-JSON mapping; the only type built) | `ExportTraceServiceResponse` |
 | POST | `/v1/metrics` | same | `ExportMetricsServiceResponse` |
 | POST | `/v1/logs` | same | `ExportLogsServiceResponse` |
 
-- Paths and payload shapes follow OTLP/HTTP; gzip `Content-Encoding` is accepted ([stack_and_market §A1][sm-a1]). Decoding uses `opentelemetry-proto` pinned to the same version as the SDKs, to avoid the "invalid protobuf" version-skew failure ([sm §A1][sm-a1]).
+- Paths and payload shapes follow OTLP/HTTP; gzip `Content-Encoding` is accepted ([stack_and_market §A1][sm-a1]). Protobuf decoding (not built yet) is to use `opentelemetry-proto` pinned to the same version as the SDKs, to avoid the "invalid protobuf" version-skew failure ([sm §A1][sm-a1]).
 - Decoded requests go straight into Infralume's converter `veyltrace_infralume.otlp` (Observe lane, O-07), which returns canonical-shape Arrow tables, already normalised and scrubbed ([engines/01](engines/01-infralume.md)). The gateway does not parse telemetry semantics itself.
-- **Built (X-10a, #468).** The JSON path comes first: `application/json` bodies, gzip or not, go to the converter, which is injected as `veyltrace_gateway.otlp.OtlpConverter` (`spans`, `metrics` and `logs`, each `(request, settings) -> (table, scrub counters)`, where `request` is one protobuf-JSON export request and `settings` is the `infralume` section). Without a converter the receiver answers 503, and protobuf bodies get 415 (OTLP/HTTP's answer to an unsupported content type) until `opentelemetry-proto` is a dependency. Until then, the lab Collector's `otlphttp` exporter uses `encoding: json`. A retried request (same path and body digest) is acknowledged and buffered once. A body that can never be read (bad JSON, bad or truncated gzip) is 400, which OTLP does not retry. A converter failure is 500, which the Collector retries, so a converter bug does not drop data. A batch the buffer refuses is answered as an OTLP `partialSuccess`. Only `gzip` encoding is accepted; others get 415. The CLI binds the OTLP socket before starting, so a taken port, or `live.otlp_port` equal to `api.port`, stops it with an error. The lab Collector's exporter is switched on only for the live demo: `uv run python lab/up.py --profile ob --live-export` adds an `otlp_http/gateway` exporter (`encoding: json`, `compression: gzip`; `otlp_http` is the otlphttp exporter's name in Collector 0.164.0) to the traces, metrics and logs pipelines, next to the file exporters, with the endpoint `gateway_otlp_endpoint` from `lab/ob/pins.yaml` (`http://host.docker.internal:4319`); without the flag the committed `lab/ob/collector.yaml` is applied unchanged, so capture campaigns are not affected, and running `up` again without it switches export off (#489). The route is OQ-7. The buffer's "now" is the newest data time it holds, so retention never reads the clock.
+- **Built (X-10a, #468).** The JSON path comes first: `application/json` bodies, gzip or not, go to the converter, which is injected as `veyltrace_gateway.otlp.OtlpConverter` (`spans`, `metrics` and `logs`, each `(request, settings) -> (table, scrub counters)`, where `request` is one protobuf-JSON export request and `settings` is the `infralume` section). Without a converter the receiver answers 503, and protobuf bodies get 415 (OTLP/HTTP's answer to an unsupported content type) until `opentelemetry-proto` is a dependency. Until then, the lab Collector's `otlphttp` exporter uses `encoding: json`. A retried request (same path and body digest) is acknowledged and buffered once. A body that can never be read (bad JSON, bad or truncated gzip) is 400, which OTLP does not retry. A converter failure drops that batch (500, counted); an unreadable capture is 400. A batch the buffer refuses is answered as an OTLP `partialSuccess`. Only `gzip` encoding is accepted; others get 415. The CLI binds the OTLP socket before starting, so a taken port, or `live.otlp_port` equal to `api.port`, stops it with an error. At start-up the CLI imports `veyltrace_infralume.otlp` and passes it to the receiver (#504). While O-07 is not installed, it logs `otlp_converter_missing` and the receiver answers 503. A converter module without `spans`, `metrics` and `logs`, or one whose own imports fail, stops start-up instead. The lab Collector's exporter is switched on only for the live demo: `uv run python lab/up.py --profile ob --live-export` adds an `otlp_http/gateway` exporter (`encoding: json`, `compression: gzip`; `otlp_http` is the otlphttp exporter's name in Collector 0.164.0) to the traces, metrics and logs pipelines, next to the file exporters, with the endpoint `gateway_otlp_endpoint` from `lab/ob/pins.yaml` (`http://host.docker.internal:4319`); without the flag the committed `lab/ob/collector.yaml` is applied unchanged, so capture campaigns are not affected, and running `up` again without it switches export off (#489). The route is OQ-7. The buffer's "now" is the newest data time it holds, so retention never reads the clock.
 - Body larger than `live.max_body_mb` → 413. Malformed body → 400 and a counter. The Collector's own batching and retry provide back-pressure; no queue (Redis, NATS) is used ([stack_and_market §A3][sm-a3]).
+- OTLP/HTTP clients, the Collector included, retry only 429, 502, 503 and 504, so the 500 `conversion_failed` batch is not retried. Every refused request counts in `/live/status` `requests.rejected`.
 
 ### 3.4 Live: buffer, snapshot, alert watcher, "Diagnose now"
 
-**LiveBuffer.** Per source (metrics, logs, spans, events) a list of Arrow record batches with a data-time index. Retention `live.buffer_minutes` = 30 (≥ the 20-minute baseline plus the 8-minute incident window of [02 §5.1](02-architecture.md#51-alert-time-and-windows), plus margin); byte cap `live.buffer_max_mb` = 512 (*estimate*-based); oldest batches are evicted first.
+**LiveBuffer.** Per source (metrics, logs, spans, events; `events` stays empty, as live has no change feed) a list of Arrow record batches with a data-time index. Retention `live.buffer_minutes` = 30 (≥ the 20-minute baseline plus the 8-minute incident window of [02 §5.1](02-architecture.md#51-alert-time-and-windows), plus margin); byte cap `live.buffer_max_mb` = 512 (*estimate*-based); oldest batches are evicted first. A batch over the cap, one more than `live.future_tolerance_s` ahead of the wall clock, or one with a null data time is refused and counted in `dropped` (`too_large`, `future`, `no_time`).
 
 **Snapshot** (on alert or "Diagnose now", trigger time `t_trig`):
 
-1. Wait `live.settle_s` = 120 s (a priori) so the incident window has post-alert data; "Diagnose now" skips the wait by default (`live.manual_settle_s` = 0).
+1. *(Watcher only, v1.1.)* Wait `live.settle_s` = 120 s (a priori) so the incident window has post-alert data; "Diagnose now" skips the wait by default (`live.manual_settle_s` = 0).
 2. Copy rows with data time in [`t_trig` − `live.snapshot_before_min` (20 min), `t_trig` + settle] to `${VEYLTRACE_DATA}/live/<snapshot_id>/{metrics,logs,spans,events}.parquet` (canonical shape) and write `snapshot.json` = `{snapshot_id, t_trigger_ns, trigger: watcher | manual}`, the format Infralume's `otlp_live` adapter reads (field names confirmed with Observe at X-10, OQ-6).
 3. `snapshot_id` = first 32 hex of SHA-256(canonical_json(sorted file hashes, `t_trigger_ns`)): content-derived, so the same snapshot always gets the same id.
 4. Queue a run with `dataset = live`. Infralume writes `t_alert_hint_ns = t_trigger_ns`, `hint_source = live` ([03 §2.1](03-contracts.md#21-case_manifestjson)); core's alert step turns the hint into `alert.json` ([02 §5.1](02-architecture.md#51-alert-time-and-windows)).
 
-**Built (X-10b, #469).** "Diagnose now" uses the click time as `t_trigger_ns` and snapshots [`t_trigger_ns` − `before_min`, `t_trigger_ns`], with no settle (`live.manual_settle_s` = 0 has no key until the watcher returns). For metrics and spans, rows repeated across requests collapse to one; two different rows with one key are 409 `snapshot_conflict`, and an empty window is 409 `buffer_empty`. The case id is `case_id(snapshot_id)`, because the snapshot id is `otlp_live`'s canonical case key (01 §3.2), and `${VEYLTRACE_DATA}/index/live.json` maps it to `live/<snapshot_id>`. The runs are queued with that case id, so they finish once the `otlp_live` adapter is installed (O-07). `live_status` has no watcher fields while the watcher is cut to v1.1 (#227): it reports receiving, seconds since the last batch, rows and bytes per source, the oldest and newest data time, request counts, buffer drops by reason, scrub counts, snapshot ids and live run ids. The runs carry `core.alert.protocol=live`. Diagnose answers 503 `converter_missing` or `adapter_missing` while O-07 is not installed. The trigger is capped at the newest buffered data time (#475), so a repeated click with no new data returns the same run (200 once it has finished).
+**Built (X-10b, #469).** "Diagnose now" uses the click time as `t_trigger_ns` and snapshots [`t_trigger_ns` − `before_min`, `t_trigger_ns`], with no settle (`live.manual_settle_s` = 0 has no key until the watcher returns). For metrics and spans, rows repeated across requests collapse to one; two different rows with one key are 409 `snapshot_conflict`, and an empty window is 409 `buffer_empty`. The case id is `case_id(snapshot_id)`, because the snapshot id is `otlp_live`'s canonical case key (01 §3.2), and `${VEYLTRACE_DATA}/index/live.json` maps it to `live/<snapshot_id>`. The runs are queued with that case id, so they finish once the `otlp_live` adapter is installed (O-07). `live_status` has no watcher fields while the watcher is cut to v1.1 (#227): it reports receiving, seconds since the last batch, rows and bytes per source, the oldest and newest data time, request counts, buffer drops by reason, scrub counts, snapshot ids and live run ids. The runs carry `core.alert.protocol=live`. `POST /live/diagnose` checks the `otlp_live` adapter first (503 `adapter_missing` while #508 is open) and then the receiver's converter (503 `converter_missing`); `POST /live/snapshot` checks only the converter. The trigger is capped at the newest buffered data time (#475), so a repeated click with no new data returns the same run (200 once it has finished).
 
-**Alert watcher** (every `watcher.interval_s` = 10 s): call Anomara's public pure function `veyltrace_anomara.alert.detect_alert(telemetry, manifest, config)` ([engines/03 §3.8](engines/03-anomara.md#38-detect_alerttelemetry--entry-service-slo-breach-detected-alert-protocol)) on the buffer's canonical tables, with an in-memory provisional manifest (`system` from `live.system`, services and sources from the buffer) and `config/anomara.yaml`. The live alert and the detected-alert protocol therefore use one definition of "SLO breach" (10 s buckets, trailing baseline, one-sided robust z ≥ `slo.k` for `slo.persist_steps` buckets). The watcher fires when the returned breach start is later than the last alert plus `watcher.cooldown_s` = 900 s; the breach start becomes `t_trig`. Entry services are found by the shared Causalith rule inside `detect_alert`.
+**Alert watcher.** *Not built in v1.0; cut to v1.1 (#227), with its `watcher.*`, `live.settle_s` and `live.system` keys.* The design (every `watcher.interval_s` = 10 s): call Anomara's public pure function `veyltrace_anomara.alert.detect_alert(telemetry, manifest, config)` ([engines/03 §3.8](engines/03-anomara.md#38-detect_alerttelemetry--entry-service-slo-breach-detected-alert-protocol)) on the buffer's canonical tables, with an in-memory provisional manifest (`system` from `live.system`, services and sources from the buffer) and `config/anomara.yaml`. The live alert and the detected-alert protocol therefore use one definition of "SLO breach" (10 s buckets, trailing baseline, one-sided robust z ≥ `slo.k` for `slo.persist_steps` buckets). The watcher fires when the returned breach start is later than the last alert plus `watcher.cooldown_s` = 900 s; the breach start becomes `t_trig`. Entry services are found by the shared Causalith rule inside `detect_alert`.
 
 **Which AI mode runs live.** Default `live.ai_modes = [off, record]`: the AI-off run is queued first so a verdict appears quickly, then the AI-on run; the console labels both. On a CPU-only laptop the AI-on run may take minutes (§8). On a single demo laptop the AI-on run uses the 4B model, or `live.ai_modes = [off]` is set; the 9B model and the lab likely exceed 16 GB together, so an AI-on demo with it uses the split or cassette demo ([02 §10](02-architecture.md#10-deployment-shapes)).
 
 | Method | Path | Request | Response |
 |---|---|---|---|
-| GET | `/api/v1/live/status` | — | `live_status` (envelope): receiving, seconds since last batch, buffer rows and bytes per source, oldest/newest data time, watcher state (`idle \| breach \| cooldown`), last alert time, live run ids |
-| POST | `/api/v1/live/diagnose` | `{before_min?: int}` | 202 `run_status` of the first queued run |
+| GET | `/api/v1/live/status` | — | `live_status` (envelope): `receiving`, `seconds_since_last_batch`, `rows` and `bytes` per source, `oldest_ns`, `newest_ns`, `requests` (`accepted`, `duplicate`, `rejected`), `dropped`, `scrub`, `snapshots`, `run_ids`. Watcher state and last alert time come with the watcher (v1.1) |
+| POST | `/api/v1/live/diagnose` | `{before_min?: int}` (1 to `live.buffer_minutes`, else 422) | 202 `run_status` of the first queued run; 200 if that run has finished |
 | POST | `/api/v1/live/snapshot` | `{before_min?: int}` | `{snapshot_id}` (snapshot without a run; for debugging) |
-| GET | `/api/v1/live/series?service=&signal=` | — | recent RED series from the buffer, display only |
-| GET | `/api/v1/live/events` | — | `text/event-stream`: alert fired, snapshot written, run progress |
+| GET | `/api/v1/live/series?service=&signal=` | — | recent RED series from the buffer, display only. Not built in v1.0 (v1.1, #227) |
+| GET | `/api/v1/live/events` | — | `text/event-stream`: alert fired, snapshot written, run progress. Not built in v1.0 (v1.1, #227) |
 
 ### 3.5 OpenAPI → TypeScript types
 
 1. `uv run python -m veyltrace_gateway.export_openapi` writes `packages/gateway/openapi.json` (committed). Contract objects appear in it as the generated JSON Schemas, so the OpenAPI document and `contracts/schemas/` cannot disagree.
-2. The lead's `scripts/gen_contracts.py` generates TypeScript from it with `openapi-typescript` into `contracts/generated/ts/api/` ([03 §14](03-contracts.md#14-api-types-gateway); `contracts/generated/ts` is the only place the console may import types from, [AGENTS.md §5](../AGENTS.md)). The console calls the API with `openapi-fetch`, which is types-only and the smallest runtime of the options compared in the notes ([stack_and_market §A5][sm-a5]).
-3. CI fails when `openapi.json` or the generated TS differs from a fresh export (the same drift rule as contracts).
+2. The lead's `scripts/gen_contracts.py` generates TypeScript from its `components.schemas` with its own renderer (not `openapi-typescript`) into `contracts/generated/ts/api/index.ts` ([03 §14](03-contracts.md#14-api-types-gateway); `contracts/generated/ts` is the only place the console may import types from, [AGENTS.md §5](../AGENTS.md)). The plan was `openapi-fetch`, which is types-only and the smallest runtime of the options compared in the notes ([stack_and_market §A5][sm-a5]). The generated module has no `paths` map, so on `main` the console calls the API through a thin typed `fetch` wrapper, `console/src/api.ts`, with one function per route.
+3. CI fails when `openapi.json` differs from a fresh export (`packages/gateway/tests/test_openapi.py`) or the generated TS from a fresh generation (`gen_contracts.py --check`), the same drift rule as contracts.
 
 ### 3.6 Binding, CORS, no auth
 
-- Default bind `127.0.0.1` for both listeners. A non-loopback `api.host` or `live.otlp_host` needs the explicit start flag `--allow-lan` and prints a warning; used only for the split demo.
+- Default bind `127.0.0.1` for both listeners. A non-loopback `api.host` or `live.otlp_host` needs the explicit start flag `--allow-lan` and prints a warning; without it the CLI exits with a config error (exit 4) before opening a socket. Used only for the split demo.
 - No authentication in v1: anyone who can reach the port can read every run and start runs. That is acceptable on a single-user laptop bound to loopback and is stated in the README; a hosted deployment would need auth first ([02 §10](02-architecture.md#10-deployment-shapes), "Cloud (later)").
-- CORS allows only `api.cors_origins` (default the Vite dev origin `http://127.0.0.1:5173`); the production console is served by the gateway from `console/dist` on the same origin.
+- CORS allows only `api.cors_origins` (default the Vite dev origin `http://127.0.0.1:5173`); the production console is to be served by the gateway from `console/dist` on the same origin. Not built on `main`: the gateway serves no static files, so the console runs with `pnpm -C console dev`.
 - The Collector inside kind reaches the loopback-bound OTLP listener through `host.docker.internal` on Docker Desktop, so the live demo needs no `--allow-lan` (OQ-7, measured on 2026-11-24 for #489).
 
 ## 4. MCP server
+
+**Not built in v1.0.** X-12 moves to v1.1 ([ADR 20261123-cl-explain-scope-cuts](adr/20261123-cl-explain-scope-cuts.md)); this section is the v1.1 design, and no `mcp.*` key exists yet.
 
 **Why.** Every major vendor ships an AI SRE agent, but independent benchmarks put agents at ≤ 42% (ITBench-AA) and ≈ 21% exact root-cause sets (OpenRCA 2.0), and 60% of surveyed practitioners name trust as the main barrier ([stack_and_market §B1][sm-b1]). MCP is the interoperability layer those agents use (AWS bring-your-own MCP, Causely's MCP server, HolmesGPT toolsets). Exposing Veyltrace as an MCP verification server lets other agents **ask whether their hypothesis survives code-run checks**, which complements them instead of competing ([stack_and_market §B2][sm-b2]). The searches found no product exposing per-claim verifiers with abstention publicly, but that search was not exhaustive; "first deterministic RCA" must not be claimed.
 
@@ -144,7 +147,7 @@ The gateway and console read these artifacts for display only and never write th
 - `service` enters the decision pool only if it is already in the slate or at least one of its supporting claims holds; T10 is mandatory only for a proposal-origin candidate, so a false claim never lowers a slate candidate ([02 §6.9](02-architecture.md#69-causentra--the-verifier-decides)).
 - MCP inputs are untrusted text from another agent; they are validated against enums and never executed or interpolated into SQL or shell.
 
-The MCP server is 4th on the cut list ([07 §1.1](07-roadmap.md#11-cut-list-if-a-milestone-slips-by--1-day)).
+The MCP server was 4th on the cut list ([07 §1.1](07-roadmap.md#11-cut-list-if-a-milestone-slips-by--1-day)) and was cut on 23 Nov (ADR above).
 
 ## 5. Console
 
@@ -155,29 +158,29 @@ The MCP server is 4th on the cut list ([07 §1.1](07-roadmap.md#11-cut-list-if-a
 | Framework | React + TypeScript 5, `strict: true`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes` | 02 §8; AGENTS.md §5 |
 | Build | Vite 8 (Rolldown; `@vitejs/plugin-react` v6 without Babel) | [sm §A5][sm-a5] |
 | Package manager | pnpm; `pnpm-lock.yaml` touched only by the Explain lane | 08 §6 |
-| Time series | ECharts 6.1, pinned; agents trained on v5 examples emit outdated options, so review generated chart code | [sm §A5][sm-a5] |
-| Graph | Cytoscape.js (analysis-oriented; React Flow only if users edit graphs) | [sm §A5][sm-a5] |
-| API client | `openapi-fetch` with types from `contracts/generated/ts` only; no `any` (`@typescript-eslint/no-explicit-any: error`) | AGENTS.md §5 |
-| Server state | TanStack Query: cache keyed by route and `run_id`; finished-run artifacts are immutable (`staleTime: Infinity`); run status refreshed by SSE events, polling every 2 s as fallback | decision (a priori); avoids a global store |
+| Time series | ECharts 6.1, pinned (`echarts` 6.1.0); agents trained on v5 examples emit outdated options, so review generated chart code. Not used in v1.0: the timeline is a plain list | [sm §A5][sm-a5] |
+| Graph | Cytoscape.js (analysis-oriented; React Flow only if users edit graphs). Pinned, not used in v1.0: the path is a plain list | [sm §A5][sm-a5] |
+| API client | types from `contracts/generated/ts` only; no `any` (`@typescript-eslint/no-explicit-any: error`). `openapi-fetch` is a dependency, but `console/src/api.ts` is a thin typed `fetch` wrapper (§3.5) | AGENTS.md §5 |
+| Server state | TanStack Query: cache keyed by route and `run_id`; finished-run artifacts are immutable (`staleTime: Infinity`); run status refreshed by SSE events, polling every 2 s as fallback. v1.0 polls only; the console does not use the event stream | decision (a priori); avoids a global store |
 | UI state | local component state; selection (candidate, atom, tab) in URL search params so a view can be shared | decision |
 | Routing | React Router | decision |
 
-Exact versions of React, Cytoscape.js, TanStack Query and React Router were not verified in the notes; they are pinned at X-00 in a `chore(deps)` PR.
+Pinned in `console/package.json`: React 19.3.1, Cytoscape.js 3.34.4, TanStack Query 5.107.1, React Router 8.5.1, Vite 8.3.6, `@vitejs/plugin-react` 6.2.1, TypeScript 5.9.3.
 
 ### 5.2 Views
 
 | Route | View | Content |
 |---|---|---|
-| `/` | Case list | datasets, cases (id, system, sources present, latest run status); filters; "Run" button with AI mode |
+| `/` | Case list | datasets, cases (id, system, sources present, each finished run with its status); dataset choice and pages; "Run" button with AI mode |
 | `/runs/:runId` | Run view | sections a–i below |
-| `/live` | Live view | receiving indicator, buffer stats, entry-service RED charts, watcher state, "Diagnose now" (with confirmation), live runs list |
+| `/live` | Live view (not built in v1.0) | receiving indicator, buffer stats, entry-service RED charts, watcher state, "Diagnose now" (with confirmation), live runs list |
 
-Run view sections:
+Run view sections (v1.0 builds a–d; e and f as plain lists of the card's path and timeline; g, h, i not built):
 
 - **a. Status banner.** Status word in text, then `confidence.level`, set size and margin, AI mode (`off`, `record`, `replay`), alert protocol (`oracle`, `detected`, `live`) and a "windows clamped" note from `alert.json`. `INCONCLUSIVE` reads "No single root cause established" with the asks; a present `root` is labelled "leading candidate, not confirmed". `NO_FAULT` reads "No fault detected; the candidate set is empty".
 - **b. Candidate set.** One chip per member with `v` and `nonconformity`; an info line: "Split-conformal set at α = `alpha` (q̂ = `q_hat`): contains the true root in ≥ 1 − α of cases like the calibration cases (marginal guarantee)" ([02 §6.9](02-architecture.md#69-causentra--the-verifier-decides)); a null `q_hat` is shown as ∞. When `verdict.calibration.family = uncalibrated`, the line instead reads "Uncalibrated: set = top candidate only; no coverage guarantee". An empty set is shown as "empty", never hidden.
 - **c. Ranked table.** Rank, service, origin (`slate` or `proposal`), fused score, V, fault class, indicator, and one badge per trial T1–T10 (`pass`, `fail`, `untestable`, as text plus shape). A badge opens the evidence drawer with that trial's atoms and reason.
-- **d. Evidence table.** Paged atoms with filters (candidate, kind, origin); `claim_check` atoms also as a predicate × candidate matrix of `holds`, which makes the symmetric claim pass visible.
+- **d. Evidence table.** Paged atoms with filters (candidate, kind, origin); `claim_check` atoms also as a predicate × candidate matrix of `holds`, which makes the symmetric claim pass visible (the matrix is not built in v1.0).
 - **e. Propagation graph** (Cytoscape.js). Nodes from `graph.nodes`, edges from `graph.edges` (anomalous edges marked), candidate-set members and the card path emphasised; deterministic `breadthfirst` layout from the entry services; a table view of the same data.
 - **f. Timeline** (ECharts 6). Series for the root (or leading candidate), runner-up and entry service; annotations only from artifacts: alert line (`alert.t_alert_ns`), windows (`alert.windows`), onset (`onsets.t_onset_ns`), changes (`changes`, decoys included). The console computes no statistics of its own.
 - **g. Proposals** (AI on). Each proposal, its claims and their `claim_check` results, accepted or rejected with the verdict's reason; `rationale` labelled "model rationale, not verified".
@@ -188,7 +191,7 @@ Run view sections:
 
 1. `INCONCLUSIVE` and `NO_FAULT` get the same prominence as `CONFIRMED`; no view turns an abstention into a "best guess".
 2. Every number in the card, evidence, trials and summary links to its atom (`/evidence/{atom_id}` drawer showing the row and its `refs`). Numbers that are verdict fields (fused score, V, margin, q̂) link to the field and a one-line definition.
-3. Confidence is shown as level + set + "k of n mandatory trials passed", never as a probability; practitioners find numeric confidences hard to interpret ([verified_agents §Q6][va-q6]).
+3. Confidence is shown as level + set + "k of n mandatory trials passed", never as a probability; practitioners find numeric confidences hard to interpret ([verified_agents §Q6][va-q6]). On `main` the banner says "k of n trials passed": the verdict has no field that marks a trial mandatory.
 4. AI provenance is always visible: AI mode, which candidates came from proposals, rejected proposals and reasons, model and GGUF hash, "replayed from cassette" when applicable.
 5. Missing telemetry is visible: sources map, `untestable` trials with reasons, asks.
 6. Colours never carry meaning alone; status uses text and shape as well.
@@ -201,10 +204,12 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 ### 5.5 Console tests
 
 - `pnpm -C console check` = `tsc --noEmit`, `eslint`, `prettier --check`, `vitest run`.
-- Vitest + Testing Library on golden synth artifacts (`synth-01…05` from producers' fixtures, served by a fetch stub): status banner for each status, including `NO_FAULT` with an empty set and `INCONCLUSIVE` without a root; trial badges; atom links open the right row; proposals panel labels rationale as unverified.
-- Optional Playwright smoke test against the gateway in fixture mode (`--fixtures`), run locally, not required in CI.
+- Vitest + Testing Library on gateway responses of three AI-off `synth` runs (`console/src/fixtures/`, captured from a local gateway, served by the fetch stub `src/test/gateway.tsx`): status banner for `CONFIRMED`, `INCONCLUSIVE` and `NO_FAULT`; trial badges; atom links open the right row. The proposals panel test comes with the panel.
+- Optional Playwright smoke test against the gateway in fixture mode, run locally, not required in CI. Not built: the gateway has no `--fixtures` flag.
 
 ## 6. Configuration — `config/gateway.yaml`
+
+Every key the gateway reads is required (no hidden defaults). The rows marked v1.1 are not keys yet.
 
 | Key | Default | Unit | Rationale |
 |---|---|---|---|
@@ -213,7 +218,7 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `api.series_max_points` | 2,000 | points | a priori; chart size |
 | `api.page_limit_max` | 1,000 | rows | a priori |
 | `api.evidence_limit` | 200 | rows | a priori; the evidence route's default page (§3.2) |
-| `jobs.workers` | 1 | threads | RAM and single LLM slot |
+| `jobs.workers` | 1 | threads | RAM and single LLM slot; any other value is refused |
 | `api.events_poll_s` | 0.2 | s | a priori; how often `/runs/{run_id}/events` checks its job |
 | `jobs.default_ai_mode` | `off` | enum | AI on is opt-in |
 | runs root | `runs/` | path | 02 §4.1; read from `config/core.yaml` `paths.runs`, not a gateway key, so the gateway reads the root `run_case` writes (X-04) |
@@ -225,18 +230,18 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `live.future_tolerance_s` | 300 | s | a priori; a batch more than this ahead of the wall clock is refused (X-10) |
 | `live.receiving_s` | 60 | s | a priori; `/health` `live.receiving` while the last OTLP batch is at most this old (X-10) |
 | `live.snapshot_before_min` | 20 | min | 02 §5.1 baseline start |
-| `live.settle_s` / `live.manual_settle_s` | 120 / 0 | s | a priori; trade-off with the 5-minute demo target (§8) |
-| `live.system` | `ob` | enum | provisional manifest for `detect_alert` |
-| `live.ai_modes` | `[off, record]` | list | §3.4 |
-| `watcher.interval_s` / `watcher.cooldown_s` | 10 / 900 | s | a priori |
-| `mcp.transport` | `stdio` | enum | local agents |
-| `mcp.diagnose_timeout_s` | 600 | s | a priori; covers a CPU AI run |
+| `live.settle_s` / `live.manual_settle_s` | 120 / 0 | s | v1.1, with the watcher; a priori; trade-off with the 5-minute demo target (§8). "Diagnose now" uses no settle |
+| `live.system` | `ob` | enum | v1.1; provisional manifest for `detect_alert` |
+| `live.ai_modes` | `[off, record]` | list | §3.4; only `[off]` or `[off, record]` are accepted |
+| `watcher.interval_s` / `watcher.cooldown_s` | 10 / 900 | s | v1.1 (#227); a priori |
+| `mcp.transport` | `stdio` | enum | v1.1 (X-12); local agents |
+| `mcp.diagnose_timeout_s` | 600 | s | v1.1 (X-12); a priori; covers a CPU AI run |
 
 ## 7. Determinism, isolation and safety
 
-- The gateway is not analysis code: it may read the clock (buffer retention, watcher, job queue). The only clock value that enters analysis is the live trigger time, and it enters as a recorded file (`snapshot.json`) hashed into the case inputs, so live verdicts replay like offline ones.
-- The gateway may import `veyltrace_llm` ([02 §9](02-architecture.md#9-cross-cutting-rules)); it uses it only for the health probe. All LLM calls happen inside Relentra and Causivra during runs.
-- It writes only run directories, snapshots and replay reports; it has no Kubernetes or Docker client.
+- The gateway is not analysis code: it may read the clock. On `main` it does so for the buffer's future limit and "seconds since the last batch", and for the "Diagnose now" click time; retention uses the newest data time, not the clock. The only clock value that enters analysis is the live trigger time, and it enters as a recorded file (`snapshot.json`) hashed into the case inputs, so live verdicts replay like offline ones.
+- The gateway may import `veyltrace_llm` ([02 §9](02-architecture.md#9-cross-cutting-rules)), only for the health probe. That probe is not built, so on `main` the gateway does not import it; `/health` reads `config/llm.yaml`. All LLM calls happen inside Relentra and Causivra during runs.
+- It writes only snapshots and `index/live.json` under the data root; run directories are written by `run_case` in its job thread, and replay reports stay in memory. It has no Kubernetes or Docker client.
 
 ## 8. Performance budget
 
@@ -245,17 +250,17 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | Artifact GET (p95) | < 200 ms | target, a priori; files are small JSON/Parquet |
 | OTLP ingest throughput | measure at X-10 | no source quantifies a Python OTLP receiver ([sm §A3][sm-a3]) |
 | Live buffer | ≤ 512 MB | config cap |
-| Live end-to-end, AI off | detection ≈ 20–60 s after onset (10 s buckets × `slo.persist_steps`, plus the 10 s watcher interval) + settle 120 s + snapshot ≤ 5 s + deterministic path ≤ 30 s ([02 §9](02-architecture.md#9-cross-cutting-rules)) ≈ 3–3.6 min | *estimate*; M3 target ≤ 5 min |
+| Live end-to-end, AI off | detection ≈ 20–60 s after onset (10 s buckets × `slo.persist_steps`, plus the 10 s watcher interval) + settle 120 s + snapshot ≤ 5 s + deterministic path ≤ 30 s ([02 §9](02-architecture.md#9-cross-cutting-rules)) ≈ 3–3.6 min | *estimate*; M3 target ≤ 5 min. With the watcher cut (v1.1), a person clicks "Diagnose now" instead, with no settle |
 | Live end-to-end, AI on, CPU | add Relentra ≤ 180 s and narration ≤ 60 s ([08](engines/08-relentra.md), [10](engines/10-causivra.md)) ≈ 7–8 min | *estimate*; exceeds the 5-minute target, hence the AI-off run first; the M3 target is AI-off only, and the AI-on result is shown on the split or cassette demo ([02 §10](02-architecture.md#10-deployment-shapes)) |
 
 ## 9. Gateway tests
 
 - Contract tests: every artifact route returns JSON that validates against the generated schema, on synth fixtures.
 - OpenAPI drift test (§3.5).
-- OTLP round trip: protobuf requests built in the test with `opentelemetry-proto` → receiver → buffer → snapshot → Infralume `otlp_live` reads it → `run_case` finishes (`tests/integration/test_explain_live.py`).
-- Watcher: synthetic span streams with and without a breach; cooldown.
+- OTLP round trip (`tests/integration/test_explain_live.py`): OTLP/JSON requests → receiver with the test stub converter → buffer → "Diagnose now" → snapshot → runs queued with `dataset = live`. Until the `otlp_live` adapter lands (#508) the test checks that the runs fail at the adapter; protobuf requests built with `opentelemetry-proto` come with that dependency.
+- Watcher (v1.1): synthetic span streams with and without a breach; cooldown.
 - Idempotent `POST /runs`; 404 on malformed ids (path traversal attempts).
-- MCP: in-process client calls `diagnose` and `get_receipt` on synth; `verify_hypothesis` rejects unknown services and predicates.
+- MCP (v1.1): in-process client calls `diagnose` and `get_receipt` on synth; `verify_hypothesis` rejects unknown services and predicates.
 
 ## 10. Tasks and milestones
 
@@ -264,8 +269,8 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | X-00 | empty gateway app with `/health`; console Vite scaffold; `pnpm -C console check` passes | M0, 3 Nov |
 | X-04 | gateway v0: case, run and artifact routes; job runner; OpenAPI → TS | M2, 15 Nov |
 | X-05 | console v0: case list, run view (status, candidate set, ranked table, evidence) | M2 — "console shows a verdict" |
-| X-10 | live: receiver, buffer, snapshot, watcher; console live view, graph, timeline, receipt view | M3, 22 Nov — injected fault → AI-off verdict on screen ≤ 5 min |
-| X-12 | MCP server | M4 (cut 4th) |
+| X-10 | live: receiver, buffer, snapshot, watcher; console live view, graph, timeline, receipt view. Not built in v1.0: the watcher (v1.1, #227) and all four console items (no ADR yet) | M3, 22 Nov — injected fault → AI-off verdict on screen ≤ 5 min |
+| X-12 | MCP server | v1.1 ([ADR 20261123-cl-explain-scope-cuts](adr/20261123-cl-explain-scope-cuts.md)) |
 | X-13 | demo script, 3-minute video, console polish; script and rehearsal runbook in [06-live-demo](06-live-demo.md) | M4 |
 
 ## 11. Open questions
@@ -274,10 +279,10 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 |---|---|---|
 | OQ-1 | CCR: gateway envelopes (`run_request`, `run_status`, `case_summary`, `dataset_summary`, `health`, `live_status`, `replay_report`, error) are not 03 contracts, yet the console may only use types from `contracts/generated/ts` | *Resolved in 03 §14 (2026-10-30):* API types come from `packages/gateway/openapi.json` via `scripts/gen_contracts.py` into `contracts/generated/ts/api/`, under the same change process after M1 |
 | OQ-2 | CCR: 03's catalog lists the gateway only for `verdict` and `receipt` and the console only for `card`, but the run view needs `alert`, `slate`, `proposals`, `agent_trace`, `evidence`, `graph.*`, `signal_cube.series`, `onsets`, `changes`, `run_manifest` | *Resolved in 03 §1 (2026-10-30):* the gateway and console may read every run artifact for display and never write them |
-| OQ-3 | CCR: `verify_hypothesis` needs an external proposal and a derived run directory outside the `run_id` rule | `proposals.mode = external` *resolved in 03 §9.1 (2026-10-30)*. Still open: the derived run directory (02 §4.1 and 03 are silent); default `runs/<dataset>/<case_id>/<run_id>-x<12 hex of the proposal hash>/`; until decided, `verify_hypothesis` is disabled |
-| OQ-4 | The requested `verify_hypothesis(service, fault_class, predicates[])` has no case reference | `run_id` is a required input |
-| OQ-5 | `detect_alert` scans the whole buffer every 10 s; its cost on 30 min of spans is unmeasured | Call it as is; if it exceeds 1 s per call, pass only the last `slo.window_s + slo.gap_s` plus a margin of data |
-| OQ-6 | `snapshot.json` field names are described as "snapshot id, trigger time" in engines/01 | `snapshot_id`, `t_trigger_ns`, `trigger`; confirm with Observe at X-10 |
+| OQ-3 | CCR: `verify_hypothesis` needs an external proposal and a derived run directory outside the `run_id` rule | `proposals.mode = external` *resolved in 03 §9.1 (2026-10-30)*. Still open: the derived run directory (02 §4.1 and 03 are silent); default `runs/<dataset>/<case_id>/<run_id>-x<12 hex of the proposal hash>/`; until decided, `verify_hypothesis` is disabled. Moot until X-12 returns in v1.1 |
+| OQ-4 | The requested `verify_hypothesis(service, fault_class, predicates[])` has no case reference | `run_id` is a required input (v1.1, X-12) |
+| OQ-5 | `detect_alert` scans the whole buffer every 10 s; its cost on 30 min of spans is unmeasured | Call it as is; if it exceeds 1 s per call, pass only the last `slo.window_s + slo.gap_s` plus a margin of data (v1.1, with the watcher) |
+| OQ-6 | `snapshot.json` field names are described as "snapshot id, trigger time" in engines/01 | `snapshot_id`, `t_trigger_ns`, `trigger` (written by `veyltrace_gateway.snapshot`); Observe's `otlp_live` adapter (#508, open) confirms them |
 | OQ-7 | ~~Can the Collector in kind reach a gateway bound to Windows loopback through `host.docker.internal`?~~ | *Resolved 2026-11-24 (#489), measured:* yes. Docker Desktop 29.8.2 (WSL2) forwards `host.docker.internal:4319` from the kind pod to the gateway on Windows `127.0.0.1:4319`, with the default `live.otlp_host` and no `--allow-lan`. With `lab/up.py --profile ob --live-export` and Online Boutique running, `/health` showed `live.receiving: true` in every sample over 5 min, and it turned false 60 s after `up` ran again without the flag. The WSL2 and `--allow-lan` fallbacks were not needed |
 | OQ-8 | Live demo with AI on cannot meet ≤ 5 min on a CPU-only laptop (§8) | *Resolved in 02 §10 and 07 M3 (2026-10-30):* the ≤ 5 min target is AI-off; the AI-on result is shown on the split or cassette demo |
 

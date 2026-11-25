@@ -20,6 +20,7 @@ infralume = "veyltrace_infralume.api:run"
 [project.entry-points."veyltrace.adapters"]
 rcaeval = "veyltrace_infralume.adapters.rcaeval:RcaevalAdapter"
 nezha = "veyltrace_infralume.adapters.nezha:NezhaAdapter"
+otlp_live = "veyltrace_infralume.adapters.otlp_live:OtlpLiveAdapter"
 
 # `veyltrace data fetch rcaeval` (01 §3.11): the single network exemption, never imported by api.py.
 [project.entry-points."veyltrace.fetchers"]

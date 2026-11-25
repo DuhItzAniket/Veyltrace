@@ -4,19 +4,77 @@ from __future__ import annotations
 
 import asyncio
 import json
+import shutil
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import pytest
 
+from veyltrace_core import plugins
+from veyltrace_core.adapters import ADAPTERS_GROUP, Adapter
 from veyltrace_core.config import DATA_ENV
 from veyltrace_core.ids import case_id
 from veyltrace_core.pipeline import run_case
 from veyltrace_core.testing import FIXTURE_CODE_COMMIT, SYNTH_CASES, repo_root
 from veyltrace_gateway.app import create_app
 
+if TYPE_CHECKING:
+    from veyltrace_core.adapters import CanonicalCase, CaseRef
+    from veyltrace_core.config import EngineConfig
+
 CONFIG = repo_root() / "config"
 RUN_CASE = case_id("synth-01")
+SNAPSHOT_ID = "ab" * 16  # 32 hex, the shape of a gateway snapshot id (06 §3.4)
+
+
+@dataclass(frozen=True)
+class _LiveAdapter:
+    """Stands in for Infralume's `otlp_live` (O-07): the dataset `live`, one case per snapshot listed
+    in `index/live.json`. Only listing is needed here; reading a snapshot is Infralume's test."""
+
+    name: str = "fake_live"
+    version: str = "1"
+    datasets: tuple[str, ...] = ("live",)
+    cacheable: bool = False
+
+    def resolve(self, dataset: str, case: str, data_root: Path) -> CaseRef:
+        raise NotImplementedError
+
+    def list_cases(self, dataset: str, data_root: Path) -> list[str]:
+        index = data_root / "index" / "live.json"
+        return sorted(json.loads(index.read_text(encoding="utf-8"))) if index.is_file() else []
+
+    def convert(self, ref: CaseRef, cfg: EngineConfig) -> CanonicalCase:
+        raise NotImplementedError
+
+    def alert_hint(self, ref: CaseRef) -> tuple[int | None, str]:
+        raise NotImplementedError
+
+
+def _datasets(obj: object) -> tuple[str, ...]:
+    adapter = cast("Adapter", obj() if isinstance(obj, type) else obj)
+    return adapter.datasets
+
+
+def _register(monkeypatch: pytest.MonkeyPatch, *, live: bool) -> None:
+    """Fix the adapter registry so these tests do not depend on what other packages install: the
+    installed adapters minus any that reads `live`, plus the fake `live` adapter when `live`."""
+    real = plugins.load
+
+    def load(group: str) -> dict[str, object]:
+        found = real(group)
+        if group != ADAPTERS_GROUP:
+            return found
+        kept = {n: o for n, o in found.items() if "live" not in _datasets(o)}
+        return kept | ({"fake_live": _LiveAdapter()} if live else {})
+
+    monkeypatch.setattr(plugins, "load", load)
+
+
+@pytest.fixture(autouse=True)
+def adapters(monkeypatch: pytest.MonkeyPatch) -> None:
+    _register(monkeypatch, live=True)
 
 
 @pytest.fixture(scope="module")
@@ -54,14 +112,38 @@ def _get(runs: Path, url: str) -> tuple[int, Any]:
 
 
 def test_datasets_are_discovered(runs: Path, data: Path) -> None:
-    assert _get(runs, "/api/v1/datasets") == (200, [{"dataset": "synth", "cases": len(SYNTH_CASES)}])
+    assert _get(runs, "/api/v1/datasets") == (
+        200,
+        [{"dataset": "live", "cases": 0}, {"dataset": "synth", "cases": len(SYNTH_CASES)}],
+    )
     (data / "index").mkdir(parents=True)
     (data / "index" / "re2-ob.json").write_text('{"aaaaaaaaaaaa": "rcaeval/hf/x"}', encoding="utf-8")
     (data / "index" / "not-a-dataset.json").write_text("{}", encoding="utf-8")  # no adapter: ignored
     assert _get(runs, "/api/v1/datasets")[1] == [
+        {"dataset": "live", "cases": 0},
         {"dataset": "re2-ob", "cases": 1},
         {"dataset": "synth", "cases": len(SYNTH_CASES)},
     ]
+
+
+def test_live_is_listed_with_its_adapter_and_snapshots_become_cases(runs: Path, data: Path) -> None:
+    # 06 §3.2: an adapter's literal dataset name is known, so `live` is listed (0 cases) as soon
+    # as `otlp_live` is installed; a "Diagnose now" snapshot in `index/live.json` is then a case.
+    assert _get(runs, "/api/v1/cases?dataset=live")[1]["total"] == 0
+    (data / "index").mkdir(parents=True)
+    snap_case = case_id(SNAPSHOT_ID)
+    index = {snap_case: f"live/{SNAPSHOT_ID}"}
+    (data / "index" / "live.json").write_text(json.dumps(index), encoding="utf-8")
+    assert {"dataset": "live", "cases": 1} in _get(runs, "/api/v1/datasets")[1]
+    page = _get(runs, "/api/v1/cases?dataset=live")[1]
+    assert [(c["case_id"], c["runs"], c["system"]) for c in page["items"]] == [(snap_case, [], None)]
+
+
+def test_live_is_not_listed_without_its_adapter(runs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _register(monkeypatch, live=False)  # main before O-07: no adapter reads `live`
+    assert _get(runs, "/api/v1/datasets")[1] == [{"dataset": "synth", "cases": len(SYNTH_CASES)}]
+    status, body = _get(runs, "/api/v1/cases?dataset=live")
+    assert (status, body["error"]["code"]) == (404, "dataset_not_found")
 
 
 def test_cases_page_with_runs_and_manifest_facts(runs: Path) -> None:
@@ -100,6 +182,23 @@ def test_case_manifest_never_carries_the_hint(runs: Path) -> None:
 def test_unknown_or_unrun_cases_are_404(runs: Path, url: str, code: str) -> None:
     status, body = _get(runs, url)
     assert (status, body["error"]["code"]) == (404, code)
+
+
+def test_an_unreadable_newest_run_leaves_the_case_facts_of_an_older_one(runs: Path) -> None:
+    (run_dir,) = runs.glob(f"synth/{RUN_CASE}/*")
+    newest = run_dir.parent / "ffffffffffffffff"  # sorts after every real run id
+    shutil.copytree(run_dir, newest)
+    path = newest / "case_manifest.json"  # as left by another contract major
+    document = json.loads(path.read_text(encoding="utf-8")) | {"schema_version": "99.0.0"}
+    path.write_text(json.dumps(document), encoding="utf-8", newline="\n")
+    try:
+        status, page = _get(runs, "/api/v1/cases?dataset=synth")
+        (ran,) = [c for c in page["items"] if c["case_id"] == RUN_CASE]
+        assert status == 200 and ran["runs"] == [run_dir.name, newest.name] and ran["system"]
+        status, manifest = _get(runs, f"/api/v1/cases/synth/{RUN_CASE}")
+        assert status == 200 and manifest["case_id"] == RUN_CASE
+    finally:
+        shutil.rmtree(newest)
 
 
 def test_cases_needs_a_dataset(runs: Path) -> None:
