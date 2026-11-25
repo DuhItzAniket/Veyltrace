@@ -1,33 +1,18 @@
 """RQ6 second-laptop replay in one command (X-08 #41; 04 §2 H6a; ADR 20261122-ak-rq6-replay-results).
 
-Usage (on the second laptop, from any checkout of the repository):
+Usage: `uv run --no-project python scripts/explain/rq6_replay.py --commit <results commit>
+--runs-root C:\veyltrace-runs (--release <draft tag> | --archive <file> ...) [--expect-bytes B]`
 
-    uv run --no-project python scripts/explain/rq6_replay.py --commit <results commit>
-        --release <draft release tag> --runs-root C:\\veyltrace-runs [--expect-runs N] [--expect-bytes B]
+Why: with no model here, RQ6 Tier 1 replays the recording host's kept runs from their cassettes
+(`veyltrace bench replay --role second-laptop`). First: a synced worktree at `--commit`, whose run
+code (core's DIRTY_PATHS) equals each source manifest's `code.commit` (bench refuses any other, so
+not `main` after `results-code-v1`); the committed recording result; the archive (zip or tar, no
+member outside the runs root) giving `<runs root>/bench-ai/`; the dry run's bytes of the recorded
+run directories equal to the recording host's (`--expect-bytes`; its run count is the CSV's).
+A corrupt run file is left to replay, which re-hashes every input (exit 3).
 
-or, with the archive already downloaded: `--archive <file> [--archive <file> ...]` instead of
-`--release`.
-
-Why: the AI arms are recorded on the recording host (Aniket's laptop, docs/team/ak.md). This laptop
-has no model, so RQ6 Tier 1 here only replays the kept record runs: bench's
-`veyltrace bench replay --role second-laptop` runs `veyltrace replay <receipt> --report` on each,
-which reads the run's cassette and never calls a model. That command needs four things put in
-place by hand, and each can go wrong silently or only after hours: a checkout whose run code equals
-the results' code (bench refuses any other, so `main` after `results-code-v1` does not work), the
-committed `bench/results/replay/recording/` result, the private run archive extracted so that
-`<runs root>/bench-ai/` exists, and a dry run whose count matches the recording's. This script does
-them in order and stops at the first that fails, then runs the replay with `--table` and prints the
-Tier 1 rate.
-
-Steps: (1) a detached git worktree at `--commit` (or `--checkout`, which must already be at it);
-(2) `uv sync --all-packages` there; (3) read the recording result and check that the checkout's run
-code (core's DIRTY_PATHS) equals each source manifest's `code.commit`; (4) download the release
-assets with `gh` and extract them (zip or tar; members outside the target are refused); (5)
-`--dry-run`: the run count must equal the recording's Tier 1 `n`; (6) the replay; (7) report.
-
-Exit codes: 0 every recorded run replayed (exit 0, Tier 1 rate 100%); 1 a step failed or the rate is
-below 100%; 2 refused before any replay (usage, wrong checkout, missing recording result, count
-mismatch). Only the standard library is imported, so the script runs before `uv sync`.
+Exit: 0 every run replayed with exit 0 (100%); 1 a step failed or below 100%; 2 refused before any
+replay. Only the standard library is imported, so the script runs before `uv sync`.
 """
 
 from __future__ import annotations
@@ -36,6 +21,7 @@ import argparse
 import csv
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -54,6 +40,7 @@ SUMMARY, CSV, MANIFEST = "replay_summary.json", "replay.csv", "manifest.json"
 DIRTY_PATHS = ("packages", "contracts", "config", "uv.lock", "pyproject.toml")
 DIRTY_EXCLUDES = ("config/calibration", "bench/results", "runs")
 OK, FAILED, REFUSED = 0, 1, 2
+VEYLTRACE = ["uv", "run", "veyltrace"]  # the CLI, run inside the checkout (its own venv)
 
 
 class Refused(Exception):
@@ -90,8 +77,7 @@ def checkout(commit: str, path: Path | None) -> Path:
 
 
 def read_json(path: Path) -> dict[str, Any]:
-    with path.open(encoding="utf-8") as f:
-        return json.load(f)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def recording(results: Path) -> dict[str, Any]:
@@ -106,8 +92,6 @@ def recording(results: Path) -> dict[str, Any]:
 
 def same_code(repo: Path, commit: str) -> bool:
     """As veyltrace_bench.replay.same_code: the checkout's run code equals `commit`'s."""
-    if resolve(repo, "HEAD") == commit:
-        return True
     spec = [*DIRTY_PATHS, *(f":(exclude){p}" for p in DIRTY_EXCLUDES)]
     return git(repo, "diff", "--quiet", commit, "HEAD", "--", *spec, check=False).returncode == 0
 
@@ -119,18 +103,13 @@ def check_code(repo: Path, results: Path, summary: Mapping[str, Any]) -> None:
         if not manifest.is_file():
             raise Refused(f"the recording result names {eid}, but {manifest} is missing")
         commit = read_json(manifest)["code"]["commit"]
-        sha, dirty = commit.split("+", 1)[0], "+dirty" in commit  # core.pipeline.code_commit
-        if dirty:  # recorded from an uncommitted tree: only that tree can match; bench decides
-            if sha != resolve(repo, "HEAD"):
-                raise Refused(f"{eid} was run on a dirty tree at {sha[:12]}; a table needs a clean run")
+        if commit.split("+", 1)[0] == resolve(repo, "HEAD"):  # this very tree; bench checks "+dirty"
             continue
-        if git(repo, "cat-file", "-e", f"{commit}^{{commit}}", check=False).returncode != 0:
-            raise Refused(f"{eid} was run at {commit}, which this clone does not have (git fetch origin)")
         if not same_code(repo, commit):
             raise Refused(
-                f"{eid} was run at {commit[:12]}, and this checkout's packages/, contracts/, config/ or "
-                "uv.lock differ from it, so bench would refuse. Use a commit that adds only "
-                "bench/results/ on top of that code (for R-16: results-code-v1), not main."
+                f"{eid} was run at {commit[:12]}; this checkout's run code differs (or git fetch origin), "
+                "so bench would refuse. Use a commit that adds only bench/results/ to that code (R-16: "
+                "results-code-v1), not main."
             )
 
 
@@ -154,45 +133,31 @@ def extract(archive: Path, into: Path) -> None:
         raise Refused(f"{archive.name}: not a zip or tar archive")
 
 
-def download(repo: Path, tag: str, pattern: str, into: Path) -> list[Path]:
-    into.mkdir(parents=True, exist_ok=True)
-    say(f"gh release download {tag} --pattern {pattern!r} --dir {into}")
-    cmd = ["gh", "release", "download", tag, "--pattern", pattern, "--dir", str(into), "--skip-existing"]
+def download(repo: Path, tag: str, into: Path) -> list[Path]:
+    """Every asset of the (draft) release `tag`, with gh's own login."""
+    cmd = ["gh", "release", "download", tag, "--dir", str(into), "--skip-existing"]
+    say(" ".join(cmd))
     subprocess.run(cmd, cwd=repo, check=True)
     return sorted(p for p in into.iterdir() if p.is_file())
 
 
-def command(text: str) -> list[str]:
-    """`--veyltrace` as argv; on Windows a double-quoted token (a path with spaces) loses its quotes."""
-    if os.name != "nt":
-        return shlex.split(text)
-    return [t[1:-1] if len(t) > 1 and t[0] == t[-1] == '"' else t for t in shlex.split(text, posix=False)]
+def child_env() -> dict[str, str]:
+    return {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}  # the checkout's own venv
 
 
-def child_env(data: Path | None) -> dict[str, str]:
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}  # the checkout's own venv
-    if data is not None:
-        env["VEYLTRACE_DATA"] = str(data)
-    return env
-
-
-def bench_replay(
-    veyltrace: Sequence[str], repo: Path, args: Sequence[str], env: Mapping[str, str]
-) -> subprocess.CompletedProcess[str]:
-    cmd = [*veyltrace, "bench", "replay", "--role", ROLE, *args]
+def bench_replay(repo: Path, args: Sequence[str]) -> subprocess.CompletedProcess[str]:
+    cmd = [*VEYLTRACE, "bench", "replay", "--role", ROLE, *args]
     say(" ".join(cmd))
-    got = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, env=dict(env), check=False)
+    got = subprocess.run(cmd, cwd=repo, capture_output=True, text=True, env=child_env(), check=False)
     sys.stdout.write(got.stdout)
     sys.stderr.write(got.stderr)
     return got
 
 
 def dry_run_count(out: str) -> tuple[int, int]:
-    """(runs, bytes) from `runs: N, bytes: B`, bench's --dry-run line."""
-    for line in out.splitlines():
-        if line.startswith("runs: "):
-            runs, size = (part.split(": ")[1] for part in line.split(", "))
-            return int(runs), int(size)
+    """(N, B) from bench's --dry-run line `runs: N, bytes: B`."""
+    if found := re.search(r"^runs: (\d+), bytes: (\d+)$", out, re.MULTILINE):
+        return int(found[1]), int(found[2])
     raise Refused("the dry run printed no `runs: N, bytes: B` line")
 
 
@@ -206,11 +171,11 @@ def report(out: Path) -> tuple[bool, list[str]]:
     ]
     with (out / CSV).open(encoding="utf-8", newline="") as f:
         bad = [r for r in csv.DictReader(f) if r["tier"] == "1" and (r["exit_code"] != "0" or r["reason"])]
-    for r in bad:
-        lines.append(
-            f"  not replayed: {r['dataset']}/{r['case_id']} {r['run_id']} exit={r['exit_code'] or '-'} "
-            f"reason={r['reason'] or '-'} first_divergence={r['first_divergence'] or '-'}"
-        )
+    lines += [
+        f"  not replayed: {r['dataset']}/{r['case_id']} {r['run_id']} exit={r['exit_code'] or '-'} "
+        f"reason={r['reason'] or '-'} first_divergence={r['first_divergence'] or '-'}"
+        for r in bad
+    ]
     return t1["n"] > 0 and t1["k"] == t1["n"], lines
 
 
@@ -224,15 +189,10 @@ def parse(argv: Sequence[str] | None) -> argparse.Namespace:
     src = ap.add_mutually_exclusive_group()
     src.add_argument("--release", help="draft release tag holding the run archive (downloaded with gh)")
     src.add_argument("--archive", type=Path, action="append", default=[], help="archive file (repeatable)")
-    ap.add_argument("--pattern", default="*", help="release asset pattern (default every asset)")
-    ap.add_argument("--download-dir", type=Path, help="default <runs root>.download")
     ap.add_argument("--results", type=Path, help="results root (default <checkout>/bench/results)")
-    ap.add_argument("--data", type=Path, help="sets VEYLTRACE_DATA for the replay children")
-    ap.add_argument("--expect-runs", type=int, help="the recording host's --dry-run run count")
     ap.add_argument("--expect-bytes", type=int, help="the recording host's --dry-run byte count")
     ap.add_argument("--skip-sync", action="store_true", help="do not run `uv sync --all-packages`")
     ap.add_argument("--no-table", action="store_true", help="omit --table (tests; never for the paper)")
-    ap.add_argument("--veyltrace", default="uv run veyltrace", help="the CLI to call in the checkout")
     return ap.parse_args(argv)
 
 
@@ -242,7 +202,7 @@ def run(a: argparse.Namespace) -> int:
     runs_root = a.runs_root.resolve()
     if not a.skip_sync:
         say(f"uv sync --all-packages in {repo}")
-        subprocess.run(["uv", "sync", "--all-packages"], cwd=repo, env=child_env(None), check=True)
+        subprocess.run(["uv", "sync", "--all-packages"], cwd=repo, env=child_env(), check=True)
     rec = recording(results)
     check_code(repo, results, rec)
     n_recorded = int(rec["tier1"]["n"])
@@ -250,25 +210,20 @@ def run(a: argparse.Namespace) -> int:
     say(f"recording result: {n_recorded} runs, host {site}, code {code}")
     archives = list(a.archive)
     if a.release:
-        archives = download(repo, a.release, a.pattern, a.download_dir or runs_root.with_suffix(".download"))
+        archives = download(repo, a.release, runs_root.with_suffix(".download"))
     for archive in archives:
         say(f"extract {archive} -> {runs_root}")
         extract(archive.resolve(), runs_root)
     if not (runs_root / KEPT).is_dir():
         raise Refused(f"{runs_root / KEPT} does not exist: extract the archive so that it holds bench-ai/")
-    veyltrace = command(a.veyltrace)
-    env = child_env(a.data)
     common = ["--runs-root", str(runs_root), "--results", str(results)]
-    dry = bench_replay(veyltrace, repo, [*common, "--dry-run"], env)
+    dry = bench_replay(repo, [*common, "--dry-run"])
     if dry.returncode != 0:
         raise Refused(f"the dry run exited {dry.returncode}")
     runs, size = dry_run_count(dry.stdout)
-    expected = a.expect_runs if a.expect_runs is not None else n_recorded
-    if runs != expected or runs != n_recorded:
-        raise Refused(f"dry run: {runs} runs, expected {expected} (recording result: {n_recorded})")
     if a.expect_bytes is not None and size != a.expect_bytes:
-        raise Refused(f"dry run: {size} bytes, expected {a.expect_bytes}: the archive differs")
-    got = bench_replay(veyltrace, repo, [*common, *([] if a.no_table else ["--table"])], env)
+        raise Refused(f"the {runs} runs here hold {size} bytes, the recording host's {a.expect_bytes}")
+    got = bench_replay(repo, [*common, *([] if a.no_table else ["--table"])])
     if got.returncode != 0:
         say(f"bench replay exited {got.returncode}")
         return FAILED
@@ -276,12 +231,7 @@ def run(a: argparse.Namespace) -> int:
     full, lines = report(out)
     for line in lines:
         say(line)
-    say(f"result: {out}")
-    say(
-        "next: copy that folder into a branch off origin/main, add changes/<issue>.exp.md, open a PR"
-        if full
-        else "below 100%: post the lines above to the recording host before opening the result PR"
-    )
+    say(f"result: {out}; " + ("next: PR it from a branch off origin/main" if full else "below 100%"))
     return OK if full else FAILED
 
 

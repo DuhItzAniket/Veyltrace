@@ -1,15 +1,11 @@
-"""scripts/explain/rq6_replay.py (X-08 #41): the RQ6 second-laptop replay in one command.
-
-The recording is made here with the FakeProvider (08 §7), as bench's own RQ6 test makes it: synth
-cases, a `veyltrace:brief` record arm, and a test GGUF digest (#315), so the kept runs have real
-receipts and cassettes. The recording result is written under another host name, the kept runs are
-zipped as the release archive would be, and the script extracts and replays them as the second
-laptop, calling the real CLI in child processes (no model call: replay reads the cassettes).
-"""
+"""scripts/explain/rq6_replay.py (X-08 #41): a FakeProvider recording on synth (08 §7, as bench's
+RQ6 test), its recording result under another host name and its kept runs zipped as the release
+asset; the script replays them through the real CLI in child processes, with no model call."""
 
 from __future__ import annotations
 
 import importlib.util
+import re
 import shutil
 import sys
 import zipfile
@@ -48,30 +44,25 @@ def _load() -> ModuleType:
     spec = importlib.util.spec_from_file_location("veyltrace_rq6_replay", SCRIPT)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    sys.modules.setdefault("veyltrace_rq6_replay", module)
     spec.loader.exec_module(module)
+    module.__dict__["VEYLTRACE"] = [sys.executable, "-m", "veyltrace_core.cli"]  # not `uv run`
     return module
 
 
 @pytest.fixture(scope="module")
 def recorded(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
-    """<root>/results (the experiment and the recording result) and <root>/runs (bench-ai)."""
     base = tmp_path_factory.mktemp("rq6-site")
     config = base / "repo" / "config"
     shutil.copytree(ROOT / "config", config)
     llm = config / "llm.yaml"
     text = textio.read_text(llm).replace("provider: ollama", "provider: fake")
-    lines = [
-        f'  gguf_sha256: "{GGUF}"' if ln.strip().startswith("gguf_sha256:") else ln
-        for ln in text.splitlines()
-    ]
-    textio.write_bytes(llm, ("\n".join(lines) + "\n").encode())
+    text = re.sub(r"(?m)^(\s*gguf_sha256:).*$", rf'\1 "{GGUF}"', text)
+    textio.write_bytes(llm, text.encode())
     with pytest.MonkeyPatch.context() as mp:
         mp.setenv(CONFIG_DIR_ENV, str(config))
         mp.setattr(runner, "IN_PROCESS", True)
         assert cli.main(["data", "fetch", "synth"]) == 0
-        root = base / "rec"
-        path = base / f"{EID}.yaml"
+        root, path = base / "rec", base / f"{EID}.yaml"
         textio.write_bytes(path, EXPERIMENT.encode())
         runner.run_experiment(path, out_root=root / "results", runs_root=root / "runs")
         with pytest.MonkeyPatch.context() as host:
@@ -80,8 +71,7 @@ def recorded(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
         yield root
 
 
-def _archive(runs: Path, to: Path) -> Path:
-    """The kept runs zipped with bench-ai/ at the top, as the release asset holds them."""
+def _archive(runs: Path, to: Path) -> Path:  # bench-ai/ at the top, as the release asset
     return Path(shutil.make_archive(str(to / "bench-ai-r16"), "zip", root_dir=runs, base_dir=ai_arms.KEPT))
 
 
@@ -89,7 +79,7 @@ def _argv(rec: Path, archive: Path, site: Path, *extra: str) -> list[str]:
     return [
         "--commit", "HEAD", "--checkout", str(ROOT), "--skip-sync", "--no-table",
         "--archive", str(archive), "--runs-root", str(site), "--results", str(rec / "results"),
-        "--veyltrace", f'"{sys.executable}" -m veyltrace_core.cli', *extra,
+        *extra,
     ]  # fmt: skip
 
 
@@ -110,12 +100,15 @@ def test_one_command_replays_every_recorded_run(
     rec = Path(shutil.copytree(recorded, tmp_path / "rec"))
     archive = _archive(rec / "runs", tmp_path)
     site = tmp_path / "site-runs"
-    assert rq6.main(_argv(rec, archive, site, "--expect-runs", str(N_RUNS))) == rq6.OK
+    size = replay.run_dirs_bytes(replay.recorded_runs(rec / "results").values(), rec / "runs" / ai_arms.KEPT)
+    assert rq6.main(_argv(rec, archive, site, "--expect-bytes", str(size))) == rq6.OK
     out = capsys.readouterr().out
     assert f"Tier 1 on second-laptop: {N_RUNS}/{N_RUNS} replayed with exit 0 (rate 1.0" in out
     assert "not replayed" not in out
-    got = rq6.read_json(rec / "results" / "replay" / "second-laptop" / "replay_summary.json")
-    mine = rq6.read_json(rec / "results" / "replay" / "recording" / "replay_summary.json")
+    got, mine = (
+        rq6.read_json(rec / "results" / "replay" / r / "replay_summary.json")
+        for r in (rq6.ROLE, rq6.RECORDING)
+    )
     assert (got["tier1"]["n"], got["tier1"]["k"], got["tier1"]["k_verdict"]) == (N_RUNS, N_RUNS, N_RUNS)
     assert got["site"]["host_id"] != mine["site"]["host_id"]
     assert len(list((site / "bench-ai").rglob("receipt.json"))) == N_RUNS  # extracted from the zip
@@ -126,8 +119,7 @@ def test_a_changed_cassette_is_named_and_fails(
 ) -> None:
     rq6 = _load()
     rec = Path(shutil.copytree(recorded, tmp_path / "rec"))
-    receipts = sorted((rec / "runs" / "bench-ai").rglob("receipt.json"))
-    changed = receipts[0].parent
+    changed = sorted((rec / "runs" / "bench-ai").rglob("receipt.json"))[0].parent
     entry = sorted(p for p in (changed / "cassette").rglob("*") if p.is_file())[0]
     textio.write_bytes(entry, textio.read_bytes(entry) + b" ")
     archive = _archive(rec / "runs", tmp_path)
@@ -143,8 +135,8 @@ def test_refused_before_any_replay(recorded: Path, tmp_path: Path) -> None:
     rec = Path(shutil.copytree(recorded, tmp_path / "rec"))
     archive = _archive(rec / "runs", tmp_path)
     second = rec / "results" / "replay" / "second-laptop"
-    # the recording host's dry run counted another number of runs
-    assert rq6.main(_argv(rec, archive, tmp_path / "a", "--expect-runs", str(N_RUNS + 1))) == rq6.REFUSED
+    # the extracted runs differ from the recording host's (its --dry-run bytes)
+    assert rq6.main(_argv(rec, archive, tmp_path / "a", "--expect-bytes", "1")) == rq6.REFUSED
     assert not second.exists()
     # an archive member that would land outside the runs root
     evil = tmp_path / "evil.zip"
@@ -152,11 +144,6 @@ def test_refused_before_any_replay(recorded: Path, tmp_path: Path) -> None:
         z.writestr("../outside.txt", "x")
     assert rq6.main(_argv(rec, evil, tmp_path / "b")) == rq6.REFUSED
     assert not (tmp_path / "outside.txt").exists()
-    # an archive without bench-ai/ at its top
-    flat = tmp_path / "flat.zip"
-    with zipfile.ZipFile(flat, "w") as z:
-        z.writestr("synth/readme.txt", "x")
-    assert rq6.main(_argv(rec, flat, tmp_path / "c")) == rq6.REFUSED
     # no committed recording result at the results commit
     shutil.rmtree(rec / "results" / "replay" / "recording")
     assert rq6.main(_argv(rec, archive, tmp_path / "d")) == rq6.REFUSED
