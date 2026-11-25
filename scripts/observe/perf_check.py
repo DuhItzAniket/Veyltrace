@@ -1,7 +1,7 @@
 """Time and peak memory of the pipeline per case, AI off (O-11 acceptance; 04 §2 H5).
 
 Usage: `uv run python scripts/observe/perf_check.py re2-ob re2-ss re2-tt [--cases N]
-[--budget-s 30] [--budget-mb 3072] [--runs-root DIR]`
+[--budget-s 30] [--budget-mb 3072] [--runs-root DIR] [--passes N] [--out FILE.csv]`
 
 Why: H5 asks for p95 ≤ 30 s and ≤ 3 GB peak RSS per RE2 case on the slowest laptop, and O-11 is
 "measured on the slowest laptop". Each case runs in its own child process, so its peak resident
@@ -11,14 +11,18 @@ it. Per dataset the script prints the median and p95 of the total, the largest p
 time of each step, then the machine. It exits 1 if a p95 or a peak is over budget, or a case fails.
 
 Runs go to a temporary directory unless `--runs-root` is given, so every case is executed, never
-reused. The first pass over a dataset also converts the raw files (Infralume's cache is cold); run
-the script twice and report the second pass for the bench path, where the cache is filled first.
-Case ids only: canonical names stay inside the adapters.
+reused. The first pass over a dataset also converts the raw files (Infralume's cache is cold);
+`--passes 2` runs everything twice, and the last pass is the one that decides the exit code and the
+one to report for the bench path, where the cache is filled first. `--out` writes one row per case
+and pass (case, system, pass, outcome, wall_ms, peak_rss_mb, then one column per step), so a run
+can be committed and cited (lead's decision on #36). Case ids only: canonical names stay inside
+the adapters.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import math
 import os
@@ -86,6 +90,24 @@ def summarise(rows: Sequence[dict[str, object]], budget_s: float, budget_mb: flo
     return lines, not failed and p95 <= budget_s and peak <= budget_mb
 
 
+def csv_rows(rows: Sequence[dict[str, object]]) -> tuple[list[str], list[list[object]]]:
+    """The header and the rows of the per-case CSV: one row per (system, pass, case), sorted; times
+    in ms rounded to 0.1, peak RSS in MiB as measured; a case that did not finish has empty cells."""
+    steps = sorted({name for r in rows for name in dict(r.get("steps_s") or {})})  # type: ignore[call-overload]  # JSON row
+    header = ["case", "system", "pass", "outcome", "wall_ms", "peak_rss_mb", *(f"{n}_ms" for n in steps)]
+    out: list[list[object]] = []
+    for r in sorted(rows, key=lambda r: (str(r["system"]), int(str(r["pass"])), str(r["case"]))):
+        done = "total_s" in r
+        per_step = dict(r.get("steps_s") or {})  # type: ignore[call-overload]  # JSON row
+        out.append([
+            r["case"], r["system"], r["pass"], r.get("outcome"),
+            round(float(str(r["total_s"])) * 1000.0, 1) if done else "",
+            round(float(str(r["peak_mb"])), 1) if done else "",
+            *(round(float(per_step[n]) * 1000.0, 1) if n in per_step else "" for n in steps),
+        ])  # fmt: skip
+    return header, out
+
+
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description="Pipeline time and peak memory per case (O-11).")
     parser.add_argument("datasets", nargs="*", help="dataset ids, e.g. re2-ob re2-ss re2-tt")
@@ -93,6 +115,10 @@ def main(argv: Sequence[str]) -> int:
     parser.add_argument("--budget-s", type=float, default=BUDGET_S)
     parser.add_argument("--budget-mb", type=float, default=BUDGET_MB)
     parser.add_argument("--runs-root", type=Path, default=None)
+    parser.add_argument(
+        "--passes", type=int, default=1, help="run every case this many times; the last pass decides"
+    )
+    parser.add_argument("--out", type=Path, default=None, help="write one CSV row per case and pass")
     parser.add_argument("--one", nargs=3, metavar=("DATASET", "CASE", "RUNS"), help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.one:  # the child: one case, one JSON line
@@ -101,27 +127,43 @@ def main(argv: Sequence[str]) -> int:
         return 0
     if not args.datasets:
         parser.error("name at least one dataset")
+    if args.passes < 1:
+        parser.error("--passes must be at least 1")
     from veyltrace_core.adapters import adapter_for
     from veyltrace_core.config import data_root
 
     env = {**os.environ, **{v: os.environ.get(v, "1") for v in THREAD_PINS}}
     within = True
+    every: list[dict[str, object]] = []
     with tempfile.TemporaryDirectory(prefix="veyltrace-perf-") as tmp:
-        runs_root = args.runs_root if args.runs_root is not None else Path(tmp)
-        for dataset in args.datasets:
-            cases = sorted(adapter_for(dataset).list_cases(dataset, data_root()))[: args.cases]
-            rows: list[dict[str, object]] = []
-            for case in cases:
-                cmd = [sys.executable, __file__, "--one", dataset, case, str(runs_root)]
-                proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
-                line = next((ln for ln in reversed(proc.stdout.splitlines()) if ln.startswith("{")), None)
-                rows.append(
-                    json.loads(line) if line else {"case": case, "outcome": f"exit {proc.returncode}"}
-                )
-            lines, ok = summarise(rows, args.budget_s, args.budget_mb)
-            within = within and ok and bool(cases)
-            print(f"{dataset}: {'WITHIN' if ok and cases else 'OVER'} budget")
-            print("\n".join(lines if cases else ["  no fetched case"]))
+        base = args.runs_root if args.runs_root is not None else Path(tmp)
+        for number in range(1, args.passes + 1):
+            # A pass of its own directory, so the second pass executes every case again.
+            runs_root = base if args.passes == 1 else base / f"pass-{number}"
+            within = True  # the last pass decides
+            if args.passes > 1:
+                print(f"pass {number} of {args.passes}")
+            for dataset in args.datasets:
+                cases = sorted(adapter_for(dataset).list_cases(dataset, data_root()))[: args.cases]
+                rows: list[dict[str, object]] = []
+                for case in cases:
+                    cmd = [sys.executable, __file__, "--one", dataset, case, str(runs_root)]
+                    proc = subprocess.run(cmd, env=env, capture_output=True, text=True, check=False)
+                    line = next((ln for ln in reversed(proc.stdout.splitlines()) if ln.startswith("{")), None)
+                    rows.append(
+                        json.loads(line) if line else {"case": case, "outcome": f"exit {proc.returncode}"}
+                    )
+                every += [{**r, "system": dataset, "pass": number} for r in rows]
+                lines, ok = summarise(rows, args.budget_s, args.budget_mb)
+                within = within and ok and bool(cases)
+                print(f"{dataset}: {'WITHIN' if ok and cases else 'OVER'} budget")
+                print("\n".join(lines if cases else ["  no fetched case"]))
+    if args.out is not None:
+        header, table = csv_rows(every)
+        with args.out.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh, lineterminator="\n")
+            writer.writerow(header)
+            writer.writerows(table)
     cpus, python = os.cpu_count(), platform.python_version()
     print(f"machine: {platform.platform()}, {platform.machine()}, {cpus} logical CPUs, Python {python}")
     return 0 if within else 1
