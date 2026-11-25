@@ -36,9 +36,10 @@ from veyltrace_contracts.models import (
 from veyltrace_contracts.registry import CONTRACTS
 from veyltrace_core import io
 from veyltrace_core.adapters import find_adapter
-from veyltrace_core.errors import ArtifactMissing, ChainBroken
+from veyltrace_core.errors import ArtifactMissing, ChainBroken, ContractValidationError
 from veyltrace_core.hashing import verify_chain
 from veyltrace_core.ids import is_atom_id, is_case_id, is_run_id
+from veyltrace_core.log import get_logger
 from veyltrace_core.pipeline import PARTIAL_SEPARATOR, find_run, is_finished
 from veyltrace_core.steps import STEPS
 from veyltrace_gateway.api_models import AgentTrace, EvidencePage, GraphView, RunStatus
@@ -62,6 +63,7 @@ JSON_ARTIFACTS: Final[Mapping[str, str]] = {
 #: The rendered card (02 §4.1); Markdown, not a contract.
 CARD_MD: Final = "card.md"
 _JSON: Final = "application/json"
+_LOG: Final = get_logger(__name__)
 
 
 def finished_run(root: Path, run_id: str) -> Path | None:
@@ -106,6 +108,17 @@ def finished_status(run_dir: Path) -> RunStatus:
         run_id=manifest.run_id, dataset=manifest.dataset, case_id=manifest.case_id, ai_mode=manifest.ai.mode,
         state="done", step=last.index, step_name=last.name, error=None,
     )  # fmt: skip
+
+
+def _listed_status(run_dir: Path) -> RunStatus | None:
+    """A finished run's status for `GET /runs`, or None (logged) when its manifest is unreadable:
+    one run left by another contract version must not hide every other run. `GET /runs/{id}`
+    still answers 500 `artifact_invalid` for it."""
+    try:
+        return finished_status(run_dir)
+    except ContractValidationError as exc:
+        _LOG.warning("run_unreadable", run_id=run_dir.name, error=str(exc))
+        return None
 
 
 def _finished_runs(root: Path, dataset: str | None, case_id: str | None) -> list[Path]:
@@ -237,11 +250,12 @@ def run_router(settings: GatewaySettings, runs_root: Path, runner: JobRunner | N
 
     @router.get("/runs", response_model=list[RunStatus])
     def list_runs(dataset: str | None = None, case_id: str | None = None) -> list[RunStatus]:
-        done = {p.name: finished_status(p) for p in _finished_runs(runs_root, dataset, case_id)}
+        listed = {p.name: _listed_status(p) for p in _finished_runs(runs_root, dataset, case_id)}
+        done = {run_id: status for run_id, status in listed.items() if status is not None}
         pending = {
             j.run_id: job_status(j)
             for j in (runner.jobs() if runner is not None else [])
-            if j.state != "done" and j.run_id not in done
+            if j.state != "done" and j.run_id not in listed
             and dataset in (None, j.dataset) and case_id in (None, j.case_id)
         }  # fmt: skip
         return [s for _, s in sorted({**done, **pending}.items())]

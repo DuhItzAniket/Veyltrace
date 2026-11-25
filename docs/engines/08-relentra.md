@@ -1,6 +1,6 @@
 # 08 · Relentra — LLM investigator that proposes hypotheses and checks for code to verify
 
-> Status: v0.1-draft · Lane: Explain · Master: [docs/02-architecture.md §6.8](../02-architecture.md#68-relentra--the-investigator-proposes) (also §2 P1–P3, §4 steps 7–8, §5.2, §9) · Contracts: [docs/03-contracts.md §7, §8, §9, §12](../03-contracts.md) · Last updated: 2026-10-30
+> Status: v0.1-draft · Lane: Explain · Master: [docs/02-architecture.md §6.8](../02-architecture.md#68-relentra--the-investigator-proposes) (also §2 P1–P3, §4 steps 7–8, §5.2, §9) · Contracts: [docs/03-contracts.md §7, §8, §9, §12](../03-contracts.md) · Last updated: 2026-11-24
 
 This spec also covers the `veyltrace_llm` package (providers, constrained calls, cassette), because Relentra is its main user. Causivra uses the same package ([10-causivra](10-causivra.md)).
 
@@ -12,7 +12,7 @@ Relentra reads the hypothesis slate and the evidence, asks a local LLM which hyp
 
 | In scope | Out of scope (owner) |
 |---|---|
-| `brief` mode (default), `investigate` mode (ablation), agent-only baseline (bench-only function) | Evaluating predicates: FaultLoom claim pass (Reason) |
+| `brief` mode (default), `investigate` mode (ablation; not built in v1.0, §3.3), the proposals that bench's agent-only arm scores (§3.9) | Evaluating predicates: FaultLoom claim pass (Reason) |
 | Per-case JSON schema with closed enums | Trials, scores, conformal set, status: Causentra (Reason) |
 | Prompt templates, system briefs, sampler policy | Prose and receipt: Causivra ([10](10-causivra.md)) |
 | `veyltrace_llm`: providers, cassette, localhost guard | Evidence cards: FaultLoom `evidence_cards(slate, k)` (Reason) |
@@ -39,10 +39,12 @@ Non-goals: chat, free-form code execution, reading raw telemetry, any write acti
 | `signal_cube.{series,edges,templates,critical_path}` | [03 §3](../03-contracts.md#3-signalyth-outputs) | signal enum, `compare_windows`, `top_templates`, `sql` views |
 | `onsets.json`, `changes.parquet`, `anomalies.parquet` | [03 §4–5](../03-contracts.md#4-anomara-outputs) | `timeline` tool and `sql` views (investigate only); 03 lists "Relentra tools" as their consumer (OQ-1 resolved) |
 | Evidence cards | FaultLoom `evidence_cards(slate, k, *, ctx) -> CardDeck` ([06 §3.7](06-faultloom.md#37-evidence-cards-for-relentra-brief-mode)) | brief-mode prompt; Relentra uses only the fields listed below |
-| Predicate library | FaultLoom entry points `veyltrace.predicates` and its pure `validate()` ([06 §3.5](06-faultloom.md#35-predicate-library)) | predicate names, parameter names, types and ranges, polarity; claim pruning with the same rules as the claim pass |
+| Predicate library | FaultLoom `LIBRARY` (`veyltrace_faultloom.predicates`), `read_domain()` and the pure `validate()` ([06 §3.5](06-faultloom.md#35-predicate-library)) | predicate names, parameter names and types; ranges from `config/faultloom.yaml` `predicates.*`; claim pruning with the same rules as the claim pass |
 | System brief | `packages/relentra/src/veyltrace_relentra/briefs/<system>.md` | DecompRCA-style system description |
 | Config | `config/relentra.yaml`, `config/llm.yaml` | §4 |
 | Cassette | `cassette/` in the run dir | replay mode |
+
+In v1.0, brief mode reads `case_manifest`, `slate`, `graph.nodes` and `signal_cube.series` signals (through `read_domain()`), the evidence cards, the prompt files and config. The tool inputs (`alert` windows, `graph.edges/paths`, the other `signal_cube` tables, `onsets`, `changes`, `anomalies`) are for `investigate`, which is not built (§3.3).
 
 From the `CardDeck` Relentra reads only: `text` (FaultLoom's deterministic rendering, put verbatim into the prompt), `candidates[].service`, `candidates[].atoms[].atom_id` (the cites enum), `library[]` (predicate enum and parameter ranges), `truncated` and `deck_sha256`. The deck is a Python API documented in 06 §3.7, not a 03 contract (OQ-2).
 
@@ -53,11 +55,11 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
 | Field | How Relentra fills it |
 |---|---|
 | `schema_version`, `case_id` | contract writer; `case_id` from `case_manifest` |
-| `status` | `complete`: state machine reached `done`. `budget_exhausted`: a budget in §4 stopped it (partial proposals kept). `failed`: provider error, or no valid output after repair. `skipped`: `ai.mode ≠ off` but Relentra did not call the model (`relentra.enabled = false`, or the slate is empty). With `ai.mode = off` no file is written ([02 §4.1](../02-architecture.md#41-run-directory)) |
-| `mode` | `brief` or `investigate` from config. `external` (03 §9.1) is written only for hypotheses submitted through the MCP `verify_hypothesis` tool ([06](../06-gateway-and-console.md)), never by Relentra |
-| `model` | `provider`, `name`, `gguf_sha256?` (from `config/llm.yaml`), `params` = {`temperature`, `seed`, `top_k`, `top_p`, `presence_penalty`, `thinking`, `max_tokens`} always all seven keys; `top_k?`, `top_p?`, `presence_penalty?`, `thinking?` are nullable in 03 §9.1 (`?` = required and nullable, 03 §1), and null means the provider does not send it |
-| `budget_used` | `turns` = LLM calls made (repairs included); `tokens_in`, `tokens_out` = sum of provider-reported usage stored in the cassette; `wall_ms` = sum of recorded `latency_ms` of those calls (so replay reproduces it, as 03 requires) |
-| `proposals[]` | after normalisation (§3.6). `proposal_id` = `P` + first 8 hex of SHA-256(canonical_json({hypothesis, claims without ids})). `claim_id` = `<proposal_id>-<i>`, `i` from 1 in sorted claim order. `hypothesis` = {`service`, `component?` (always `null` in v0.1), `fault_class`, `indicator?`}. `claims[]` = {`claim_id`, `predicate`, `args`, `cites`}. `requested_trials` ⊆ `T1…T10`, sorted by number. `rationale` ≤ 280 chars, display only |
+| `status` | `complete`: state machine reached `done`. `budget_exhausted`: a budget in §4 stopped it (partial proposals kept); in brief mode only when the prompt does not fit at `cards.k_min`, so no call and no proposals. `failed`: provider error, or no valid output after repair. `skipped`: `ai.mode ≠ off` but Relentra did not call the model (`relentra.enabled = false`, the slate is empty, or `mode = investigate`, which is not built in v1.0). With `ai.mode = off` no file is written ([02 §4.1](../02-architecture.md#41-run-directory)) |
+| `mode` | `brief` or `investigate` from config. `external` (03 §9.1) is written only for hypotheses submitted through the MCP `verify_hypothesis` tool ([06](../06-gateway-and-console.md)), never by Relentra; the MCP server (X-12) is cut to v1.1 ([ADR](../adr/20261123-cl-explain-scope-cuts.md)), so v1.0 writes no `external` file |
+| `model` | `null` when `status = skipped` (03 §9.1). Otherwise `provider`, `name`, `gguf_sha256?` (from `config/llm.yaml`), `params` = {`temperature`, `seed`, `top_k`, `top_p`, `presence_penalty`, `thinking`, `max_tokens`} always all seven keys; `top_k?`, `top_p?`, `presence_penalty?`, `thinking?` are nullable in 03 §9.1 (`?` = required and nullable, 03 §1), and null means the provider does not send it |
+| `budget_used` | `turns` = LLM calls made (repairs and failed calls included); all zero when skipped; `tokens_in`, `tokens_out` = sum of provider-reported usage stored in the cassette; `wall_ms` = sum of recorded `latency_ms` of those calls (so replay reproduces it, as 03 requires) |
+| `proposals[]` | after normalisation (§3.6). `proposal_id` = `P` + first 8 hex of SHA-256(canonical_json({hypothesis, claims without ids})). `claim_id` = `<proposal_id>-<i>`, `i` from 1 in sorted claim order. `hypothesis` = {`service`, `component?` (always `null` in v0.1), `fault_class`, `indicator?`}. `claims[]` = {`claim_id`, `predicate`, `args`, `cites`}. `requested_trials` ⊆ `T1…T10`, sorted by number. `rationale` ≤ 280 chars, display only. `rank` = position in the model's reply (§3.6 step 6) |
 | `asks[]` | {`kind` ∈ `telemetry \| trial \| context`, `target`, `why`} from the model, sorted by (`kind`, `target`) |
 
 `args` is a JSON object keyed by the predicate's parameter names **after** the subject; it never contains `subject` (a `subject` key is invalid, `bad_args`: [03 §9.1](../03-contracts.md#91-proposalsjson), [06 §3.5](06-faultloom.md#35-predicate-library)). The subject of a claim is implied: `hypothesis.service` for T10, and every candidate of the **claim-pass pool** (slate ∪ all proposed candidates, [02 §4](../02-architecture.md#4-pipeline-and-data-flow)) in the claim pass ([03 §7](../03-contracts.md#7-faultloom-output-evidence--key-candidate-kind-atom_id)).
@@ -69,7 +71,7 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
 ### 2.4 Side outputs
 
 - `cassette/` (written by `veyltrace_llm`, §5.2).
-- Values core needs for `run_manifest.ai`: `prompt_sha256`, `schema_sha256` (§3.5, §3.4). The hand-off mechanism to core is not specified in 02/03 → OQ-4.
+- Values core needs for `run_manifest.ai`: `prompt_sha256`, `schema_sha256` (§3.5, §3.4). Relentra returns the per-file and per-schema hashes in `EngineResult.ai_manifest` (an `AIManifest`); core combines them (OQ-4).
 
 ## 3. Algorithm
 
@@ -77,7 +79,7 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
 
 1. If `ai.mode = off`: return without writing anything (the runner skips step 7 anyway).
 2. Load inputs through `veyltrace_core.io` loaders.
-3. Build `CaseEnums` (each list sorted A→Z, byte order):
+3. Build `CaseEnums` (each list sorted A→Z, byte order; `trials` in numeric order):
    - `nodes` = `graph.nodes.node`.
    - `fault_classes` = 03 closed vocabulary minus `schema.exclude_fault_classes` (default `[unknown]`; proposing "unknown" carries no information).
    - `predicates` = names from the FaultLoom predicate registry. A unit test asserts this set equals the 03 §7 table.
@@ -85,7 +87,7 @@ Relentra must not read: `telemetry.*` (raw rows), `case_manifest.t_alert_hint_ns
    - `atom_ids` = atoms present in the evidence cards.
    - `trials` = `T1` … `T10`.
    - `indicators` = the `indicator` vocabulary of 03 (`cpu`, `mem`, `diskio`, `socket`, `latency`, `error`, `logs`, `workload`, `unknown`).
-4. If `slate.candidates` is empty: write `status = skipped`, trace `start → done`, return.
+4. If `slate.candidates` is empty (or `relentra.enabled = false`, or `mode = investigate` in v1.0): write `status = skipped` with `model = null` and an `agent_trace.jsonl` with no lines (so `agent_trace_head` is null, [10 §3.8](10-causivra.md#38-receipt-assembly)), return.
 
 ### 3.2 `brief` mode (default)
 
@@ -108,14 +110,16 @@ stateDiagram-v2
 ```
 
 1. `cards = evidence_cards(slate, k = cards.k)`.
-2. Render the prompt (§3.5). Estimate tokens as `ceil(utf8_bytes / prompt.chars_per_token)`. While the estimate exceeds `budget.max_prompt_tokens` and `k > cards.k_min`, decrement `k` and rebuild. If it still does not fit: `status = budget_exhausted`, no call.
+2. Render the prompt (§3.5). Estimate tokens as `ceil(utf8_bytes / prompt.chars_per_token)`. While the estimate exceeds `budget.max_prompt_tokens` and `k > cards.k_min`, decrement `k` and rebuild. If it still does not fit: `status = budget_exhausted`, trace `budget_context`, no call.
 3. **Call A**: `veyltrace_llm.call_json(purpose="relentra.brief", messages, schema, params)`.
-4. **Validate**: parse JSON → Pydantic model of the case schema → semantic checks (required slots filled for the predicate, cites in `atom_ids`, counts within limits) → FaultLoom `validate()` per mapped claim (§3.4).
+4. **Validate** (`reply.check_reply`): parse JSON → keys, enums and limits of the case schema, checked again in code because a provider may ignore the schema → semantic checks (required slots filled for the predicate, cites in `atom_ids`, counts within limits) → FaultLoom `validate()` per mapped claim (§3.4).
 5. **Repair** (at most `brief.max_repairs` = 1): resend the same messages plus the model's output plus `repair.md` listing code-generated errors (`proposals[1].claims[0]: predicate onset_before needs 'other'`). This is the optional second call allowed by [02 §6.8](../02-architecture.md#68-relentra--the-investigator-proposes).
-6. **Salvage**: drop invalid claims one by one (trace `drop_claim`), then proposals whose hypothesis is invalid (trace `drop_proposal`). If the output did not parse as JSON at all, nothing is salvaged.
+6. **Salvage** (on the last reply that parsed as JSON): drop invalid claims (trace `drop_claim`) and proposals whose hypothesis is invalid or that keep no valid claim (trace `drop_proposal`), in reply order. If no reply parsed, or that reply is not a JSON object, nothing is salvaged. A provider error on the repair call also ends in `failed`.
 7. **Normalise** (§3.6) and write.
 
 ### 3.3 `investigate` mode (ablation arm; cut 3rd per [07 §1.1](../07-roadmap.md#11-cut-list-if-a-milestone-slips-by--1-day))
+
+> **Not built in v1.0.** Cut item 3 of 07 §1.1 was taken on 21 Nov ([ADR](../adr/20261121-ak-r16-cut-list.md)); its experiments are reported "not run". With `mode = investigate`, `api.run` writes the `skipped` outputs of §3.1 step 4. The design below, its tools (§3.7) and its config keys (§4) are kept for v1.1.
 
 Code owns the loop; each LLM turn has a state-specific schema, so the model can only choose among the actions code allows ([verified_agents §Q1][va-q1]).
 
@@ -201,7 +205,7 @@ Built per case, flat and enum-heavy, because open engines reach ≈ 0.95 coverag
 
 Generic slots map to named predicate arguments in code, so one flat claim object covers the whole library:
 
-| Predicate (03 §7) | Parameters after subject | Slot mapping | Range (FaultLoom `Param`, [06 §3.5](06-faultloom.md#35-predicate-library)) |
+| Predicate (03 §7) | Parameters after subject | Slot mapping | Range (`config/faultloom.yaml` `predicates.*`, [06 §3.5](06-faultloom.md#35-predicate-library)) |
 |---|---|---|---|
 | `zscore_above` | `signal`, `k` | `signal`, `k ← x` | `k` ∈ [1, 100] |
 | `onset_before` | `other_service` | `other_service ← other` | graph node; `other ≠ ""` |
@@ -214,7 +218,7 @@ Generic slots map to named predicate arguments in code, so one flat claim object
 | `on_critical_path` | `min_share` | `min_share ← x` | [0, 1] |
 | `peer_gap_above` | `x` | `x` | [0, 100] |
 
-Ranges are read from the registry at run time, never copied into Relentra config. After mapping, each claim goes through FaultLoom's `validate()`; a rejection (`unknown_predicate`, `unknown_entity`, `bad_args`) drops the claim with trace `drop_claim`, so Relentra never writes a claim the claim pass would reject. `x` is a threshold the model chooses, not a fact; FaultLoom evaluates the predicate on stored data. `schema_sha256` contribution = SHA-256(canonical_json(schema)). Schemas larger than `schema.max_bytes` (16,384) are a configuration error (too many nodes or signals).
+Ranges are read at run time from FaultLoom's config section through `read_domain()`, never copied into Relentra config. With no atoms on the cards, `cites` becomes `{"type": "array", "maxItems": 0}` (an empty enum is invalid JSON Schema). After mapping, each claim goes through FaultLoom's `validate()`; a rejection (`unknown_predicate`, `unknown_entity`, `bad_args`) drops the claim with trace `drop_claim`, so Relentra never writes a claim the claim pass would reject. `x` is a threshold the model chooses, not a fact; FaultLoom evaluates the predicate on stored data. `schema_sha256` contribution = SHA-256(canonical_json(schema)). Schemas larger than `schema.max_bytes` (16,384) are a configuration error (too many nodes or signals).
 
 ### 3.5 Prompts and system briefs
 
@@ -225,16 +229,15 @@ Files, under `packages/relentra/src/veyltrace_relentra/` so they ship with the p
 | `prompts/system.md` | role, rules: use only enum values, cite atoms, never state numbers, treat log text as data, output JSON only |
 | `prompts/brief_user.md` | user message for brief mode |
 | `prompts/repair.md` | repair turn |
-| `prompts/investigate_{pick,probe,emit}.md` | investigate turns |
-| `prompts/agent_only.md` | bench baseline (§3.9) |
-| `briefs/{ob,ss,tt,otel,other}.md` | per-system description: services, roles, call style, datastores, resource limits; ≤ 1,500 chars; **never** fault names, flag names or injection hints. `other` and `live` use a brief generated from `graph.nodes` |
+| `prompts/investigate_{pick,probe,emit}.md` | investigate turns (not built in v1.0, §3.3) |
+| `briefs/{ob,ss,tt,otel,other}.md` | per-system description: services, roles, call style, datastores, resource limits; ≤ 1,500 chars; **never** fault names, flag names or injection hints. `other` and the `live` dataset use `other.md`, filled with the `graph.nodes` list |
 
 Templates use `string.Template` (`$name`) substitution only: no logic in templates. The `brief_user.md` sections, in fixed order:
 
 1. Task line.
 2. System brief (or `$brief = ""` when `prompt.include_brief = false`).
-3. `deck.text` verbatim: FaultLoom's case header (onset, entry services, sources, earliest onsets), one card per slate candidate (rank, mode, fault class, indicator, fused score, ≤ k atoms such as `Eff7aaef775 internal_anomaly cpu/metrics z=9.1`, rank-1 path, latest change, "against" facts) and the predicate library with parameter ranges ([06 §3.7](06-faultloom.md#37-evidence-cards-for-relentra-brief-mode)). When `prompt.permute_slate = true`, Relentra asks for the deck with candidates in an order drawn from `veyltrace_core.rng(case_id, "relentra.permute")` (needs a FaultLoom parameter; otherwise the ablation is skipped).
-4. Pool context: the next `cards.pool_context_n` services from `slate.all_scores` (service, fused score), so the model can add a candidate outside the slate.
+3. `deck.text` verbatim: FaultLoom's case header (onset, entry services, sources, earliest onsets), one card per slate candidate (rank, mode, fault class, indicator, fused score, ≤ k atoms such as `Eff7aaef775 internal_anomaly cpu/metrics z=9.1`, rank-1 path, latest change, "against" facts) and the predicate library with parameter ranges ([06 §3.7](06-faultloom.md#37-evidence-cards-for-relentra-brief-mode)). When `prompt.permute_slate = true`, Relentra asks for the deck with candidates in an order drawn from `veyltrace_core.rng(case_id, "relentra.permute")`, through `evidence_cards(..., order=)`.
+4. Pool context: the next `cards.pool_context_n` services from `slate.all_scores` that are not on the cards (service, fused score), so the model can add a candidate outside the slate.
 5. Output rules and the JSON schema text (Ollama recommends restating the schema in the prompt, [verified_agents §Q5][va-q5]).
 
 Relentra adds no numbers of its own to the prompt beyond fused scores in the pool context (3 significant figures, the same formatter as the deck).
@@ -246,11 +249,13 @@ Relentra adds no numbers of its own to the prompt beyond fused scores in the poo
 1. Map slots to named arguments and prune with FaultLoom `validate()` (§3.4); `args` never contains the subject. An empty `indicator` becomes `null`.
 2. Merge proposals with the same (`service`, `fault_class`): union of claims, union of trials. The rationale and the first non-null indicator come from canonical order (the canonical JSON of each proposal), so reordering the reply changes nothing.
 3. Deduplicate claims by (`predicate`, canonical `args`); union their cites.
-4. Cap: proposals ≤ `budget.max_hypotheses` (by `service`, `fault_class`), claims ≤ `budget.max_claims_per_proposal` (by `predicate`, canonical `args`), cites ≤ 3 and trials ≤ 4 (the contract's limits). A reply over the schema's own limits is cut in model order when it is checked, and counts as a validation problem.
+4. Cap: proposals ≤ `budget.max_hypotheses` (by `service`, `fault_class`), claims ≤ `budget.max_claims_per_proposal` (by `predicate`, canonical `args`), cites ≤ 3 and trials ≤ 4 (the contract's limits). A reply list over the schema's own limits (proposals, claims, asks) is cut in model order when it is checked, and counts as a validation problem; a claim with more than 3 cites or a proposal with more than 4 trials is dropped instead.
 5. Sort claims by (`predicate`, canonical `args`); assign ids; sort proposals by (`service`, `fault_class`, `proposal_id`). The output therefore depends on the *set* the model proposed, not its order.
 6. Rank (proposals 1.1, #409): each kept proposal records its 1-based position in the checked reply (after drops, before merging); a merged proposal takes its members' smallest position; after the cap the kept ones are renumbered 1..k in that order. Only `rank` depends on the reply order; ids, claims and file order do not ([ADR](../adr/20261122-cl-proposals-rank.md)).
 
 ### 3.7 `sql` tool and DuckDB views
+
+Investigate mode only; not built in v1.0 (§3.3).
 
 Connection setup, in this order: in-memory DuckDB, `threads = 1`, `memory_limit = tools.sql.memory_limit`; load each allow-listed table with `CREATE TABLE <view> AS SELECT * FROM read_parquet(...)`; then `SET enable_external_access = false` and `SET lock_configuration = true`. After that no file can be read or attached.
 
@@ -273,20 +278,20 @@ Query rules: exactly one statement (checked with DuckDB's statement extraction);
 | Qwen3.5-9B | Apache-2.0 | 66.1 | 79.1 | 91.5 | default proposer and narrator |
 | Qwen3.5-4B | Apache-2.0 | 50.3 | 79.9 | 89.8 | fallback for weak CPUs |
 
-**M0 pinning (task L-01).** On each laptop: run `llama-bench` (pp512, tg128, fixed `-t`), record results and the GGUF SHA-256 in `docs/team/<initials>.md`, and set `model.gguf_sha256` in `config/llm.yaml`. Choose 9B if the §8 estimate fits `budget.max_wall_ms`, else 4B, else the cassette or split demo ([02 §10](../02-architecture.md#10-deployment-shapes)). The single-laptop live demo runs `--ai off` or the 4B model, because the lab plus a 9B model likely exceeds 16 GB (02 §10). Models are installed manually; code never downloads weights.
+**M0 pinning (task L-01).** On each laptop: run `llama-bench` (pp512, tg128, fixed `-t`), record results and the GGUF SHA-256 in `docs/team/<initials>.md`, and set `model.gguf_sha256` in `config/llm.yaml`. Choose 9B if the §8 estimate fits the 180 s target (02 §9), else 4B, else the cassette or split demo ([02 §10](../02-architecture.md#10-deployment-shapes)). The single-laptop live demo runs `--ai off` or the 4B model, because the lab plus a 9B model likely exceeds 16 GB (02 §10). Models are installed manually; code never downloads weights.
 
 **Runtime** ([02 §8](../02-architecture.md#8-technology-stack-pinned-at-m0-recorded-in-adrs); Tier-2 re-generation conditions, [verified_agents §Q3][va-q3]): llama.cpp `llama-server -np 1` with `cache_prompt: false` and a fixed seed, or Ollama with `OLLAMA_NUM_PARALLEL=1` set on the server, a fixed `seed` and `temperature` from config; pinned runtime build, fixed thread count, `num_ctx = 16384`. Ollama is the development default; Tier-2 regeneration tests (§9) use llama.cpp. `OLLAMA_NUM_PARALLEL` is a server environment variable, so `veyltrace_llm` cannot set it; the setup guide (L-01) does, and the cassette entry records the runtime version.
 
 **Sampler** (a priori; Qwen3.5 instruct recommendation is T 0.7, top_p 0.8, top_k 20, presence_penalty 1.5 with thinking disabled, [verified_agents §Q3][va-q3]):
 
-| Setting | brief | investigate | agent-only | Note |
-|---|---|---|---|---|
-| thinking | off | off | off | sent as the runtime's "disable thinking" flag (verify per runtime at X-01) |
-| temperature | 0.7 | 0.7 | 0.7 | greedy (T 0, top_k 1) is an ablation arm |
-| top_p / top_k | 0.8 / 20 | 0.8 / 20 | 0.8 / 20 | |
-| presence_penalty | 1.5 | 1.5 | 1.5 | Qwen card; recorded in `proposals.model.params.presence_penalty` (03 §9.1, OQ-3 resolved) |
-| seed | derived | derived | derived | first integer in [0, 2³¹−1) from `veyltrace_core.rng(case_id, "relentra.seed/<seed_index>")` |
-| max_tokens | 1,024 | 384 per turn | 256 | |
+| Setting | brief | investigate (not built) | Note |
+|---|---|---|---|
+| thinking | off | off | Ollama `think`, llama.cpp `chat_template_kwargs.enable_thinking`; not sent by `openai_compat` |
+| temperature | 0.7 | 0.7 | greedy (T 0, top_k 1) is an ablation arm |
+| top_p / top_k | 0.8 / 20 | 0.8 / 20 | |
+| presence_penalty | 1.5 | 1.5 | Qwen card; recorded in `proposals.model.params.presence_penalty` (03 §9.1, OQ-3 resolved) |
+| seed | derived | derived | `veyltrace_core.rng.seed_int(case_id, "relentra.seed/<seed_index>")`: an integer in [0, 2³¹−1) computed from a hash |
+| max_tokens | 1,024 | 384 per turn | |
 
 **Provider differences.** Every request carries all seven sampler params, and the cassette key
 and `proposals.model.params` record them as configured. A null param is not sent to any
@@ -300,13 +305,13 @@ Bench varies `sampler.seed_index` (0…4) through config, so each seed gets its 
 
 ### 3.9 Agent-only baseline (evaluation only)
 
-`veyltrace_relentra.baseline.agent_only_ranking(inputs, llm, config) -> AgentOnlyResult` asks the model to pick the root from the evidence cards with **no verifier**: schema `{ranking: array of nodes (1–5), fault_class}`; code de-duplicates `ranking`. Cards are shown in A→Z candidate order without fused scores (`agent_only.show_slate_order = false`), so the arm measures the model's judgement rather than copying the ranker. It implements the 2026 recommendation to compare an LLM with a label-free ranking of its own input ([benchmarks_and_testbed §Q2][bt-q2]).
+The arm is `agent-only:brief` of [04 §4](../04-evaluation-protocol.md), built in bench (`veyltrace_bench.agent_only`), not in Relentra. It makes no model call of its own: it reads the `proposals.json` of the matching `veyltrace` brief run (same `ai` block, overrides, case and seed) and shares that run's cost. The ranking is the proposals' services in `rank` order (§3.6 step 6), de-duplicated, then the rest of the slate ranking, with **no verifier**. A proposal with a null `rank` leaves the case unranked; no proposals leave the slate ranking. It compares an LLM with a label-free ranking of its own input ([benchmarks_and_testbed §Q2][bt-q2]).
 
-Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (AST test); it writes nothing to the run directory; its cassette and trace go to a directory that bench passes in as an argument (Relentra code holds no `bench/` path); bench writes one row per (case, seed) to `per_case.csv` with `method = relentra_agent_only` and the `ranks`, `tokens_in`, `tokens_out` columns ([03 §13.2](../03-contracts.md#132-bench_result)). It never feeds FaultLoom or Causentra.
+Not built: the separate `veyltrace_relentra.baseline.agent_only_ranking` call (its own schema, `prompts/agent_only.md`, `agent_only.show_slate_order`, purpose `bench.agent_only`). 04 §4 replaced it with the scorer above. Relentra holds no bench code, and the arm never feeds FaultLoom or Causentra.
 
 ## 4. Configuration
 
-`config/relentra.yaml` (owner: Explain):
+`config/relentra.yaml` (owner: Explain). Every key the file holds is required (`settings.py`: a missing key is a ConfigError); rows marked *not in config* are the investigate design (§3.3), not keys of the v1.0 file:
 
 | Key | Default | Unit | Rationale |
 |---|---|---|---|
@@ -319,29 +324,28 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 | `brief.max_repairs` | 1 | calls | 02: "one or two LLM calls" |
 | `budget.max_hypotheses` | 5 | hypotheses | 02 §6.8 |
 | `budget.max_claims_per_proposal` | 4 | claims | a priori |
-| `budget.max_turns` | 12 | LLM calls | 02 §6.8 |
-| `budget.max_context_tokens` | 16,384 | tokens | 02 §6.8 |
+| `budget.max_turns` | 12 | LLM calls | 02 §6.8 · *not in config (investigate, not built)* |
+| `budget.max_context_tokens` | 16,384 | tokens | 02 §6.8 · *not in config (investigate, not built)* |
 | `budget.max_prompt_tokens` | 12,288 | tokens | a priori; leaves room for output |
-| `budget.max_tokens_total` | 60,000 | tokens in+out | a priori |
-| `budget.max_wall_ms` | 180,000 | ms (recorded latency) | 02 §6.8, §9 (*target*) |
-| `investigate.max_tool_calls_per_hypothesis` | 3 | calls | a priori (N) |
-| `tools.max_result_chars` | 1,200 | chars | a priori; token budget |
-| `tools.sql.max_rows` / `max_cols` / `max_cell_chars` / `max_result_chars` | 50 / 16 / 120 / 4,000 | rows/cols/chars | a priori |
-| `tools.sql.memory_limit` | `512MB` | bytes | a priori |
-| `tools.sql.timeout_ms` | 5,000 | ms | a priori safety net |
-| `tools.top_templates.k`, `tools.template_chars` | 10, 160 | rows, chars | a priori |
+| `budget.max_tokens_total` | 60,000 | tokens in+out | a priori · *not in config (investigate, not built)* |
+| `budget.max_wall_ms` | 180,000 | ms (recorded latency) | 02 §6.8, §9 (*target*) · *not in config (investigate, not built)* |
+| `investigate.max_tool_calls_per_hypothesis` | 3 | calls | a priori (N) · *not in config (investigate, not built)* |
+| `tools.max_result_chars` | 1,200 | chars | a priori; token budget · *not in config (investigate, not built)* |
+| `tools.sql.max_rows` / `max_cols` / `max_cell_chars` / `max_result_chars` | 50 / 16 / 120 / 4,000 | rows/cols/chars | a priori · *not in config (investigate, not built)* |
+| `tools.sql.memory_limit` | `512MB` | bytes | a priori · *not in config (investigate, not built)* |
+| `tools.sql.timeout_ms` | 5,000 | ms | a priori safety net · *not in config (investigate, not built)* |
+| `tools.top_templates.k`, `tools.template_chars` | 10, 160 | rows, chars | a priori · *not in config (investigate, not built)* |
 | `sampler.temperature` / `top_p` / `top_k` | 0.7 / 0.8 / 20 | — | Qwen3.5 card |
 | `sampler.presence_penalty` | 1.5 | — | Qwen3.5 card |
 | `sampler.thinking` | `false` | bool | brief mode spec |
 | `sampler.seed_index` | 0 | int | bench sweeps 0–4 |
-| `sampler.max_tokens.{brief,investigate,agent_only}` | 1,024 / 384 / 256 | tokens | a priori |
+| `sampler.max_tokens.brief` | 1,024 | tokens | a priori (`investigate`: 384 per turn · *not in config, not built*) |
 | `schema.max_signal_enum` | 64 | values | a priori; keeps the grammar small |
 | `schema.max_bytes` | 16,384 | bytes | a priori |
 | `schema.exclude_fault_classes` | `[unknown]` | list | see §3.1 |
 | `prompt.chars_per_token` | 3.5 | chars | a priori conservative estimate |
 | `prompt.include_brief` | `true` | bool | ablation (DecompRCA system description) |
 | `prompt.permute_slate` | `false` | bool | ablation (order invariance) |
-| `agent_only.show_slate_order` | `false` | bool | §3.9 |
 
 `config/llm.yaml` (owner: Explain; used by Relentra, Causivra, gateway):
 
@@ -374,18 +378,18 @@ Isolation rules: only `bench` calls it; `api.run` never imports `baseline.py` (A
 
 ```json
 {"v": 1,
- "purpose": "relentra.brief | relentra.investigate.pick | … | causivra.narrate | bench.agent_only",
+ "purpose": "relentra.brief | causivra.narrate | (v1.1: relentra.investigate.pick | …)",
  "model": {"name": "…", "gguf_sha256": "… or null"},
  "messages": [{"role": "system|user|assistant", "content": "… (every run of CRs before a LF → LF; idempotent)"}],
  "schema": {"…": "JSON schema or null"},
  "params": {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "presence_penalty": 1.5, "seed": 123, "max_tokens": 1024, "thinking": false}}
 ```
 
-Excluded from the key (recorded in the entry for audit): provider kind, `base_url`, timeouts, thread count, `num_ctx`, keep-alive, streaming flags. Replay never contacts a provider, so the key must not depend on which runtime recorded it.
+Excluded from the key (recorded in the entry's `recorded_with` for audit): provider kind, `base_url`, `num_ctx`, `num_thread`, `parallel`, `cache_prompt`, timeouts. Repair calls use the same purpose `relentra.brief`. Replay never contacts a provider, so the key must not depend on which runtime recorded it.
 
 **Layout:** `cassette/<key>.json` = `{key, request, recorded_with, responses: [ {content, error, usage: {tokens_in, tokens_out}, latency_ms, runtime: {provider, version}} … ]}` (`recorded_with` = the runtime settings excluded from the key; `content` or `error` is null, never absent), plus `cassette/index.json` = sorted `[{key, purpose, n}]`. `responses` are in occurrence order: the n-th identical request in a run gets the n-th response. Files are written atomically (temp file + rename) and contain no timestamps (P3). Causivra's narration calls go to a second cassette of the same layout in `cassette/narration/` ([10 §3.2](10-causivra.md#32-llm-narration-aimode--record--replay)), so Relentra's files stay as step 7 wrote them.
 
-**Directory hash:** `cassette_sha256` = SHA-256(canonical_json(sorted `[{name: relative path, sha256}]`)) over all cassette files. Core must compute it the same way (OQ-4).
+**Directory hash:** `cassette_sha256` = SHA-256(canonical_json(sorted `[{name: relative path, sha256}]`)) over all cassette files, `narration/` included. Core computes it with `manifest_hash` when it writes the run manifest (OQ-4).
 
 **Modes** (from `ai.mode`, [02 §5.2](../02-architecture.md#52-ai-modes)):
 
@@ -400,7 +404,7 @@ Excluded from the key (recorded in the entry for audit): provider kind, `base_ur
 - `line_hash` = SHA-256 over the UTF-8 bytes of `prev_hash` (64 hex chars) followed by the bytes of `canonical_json(line without line_hash)`; `prev_hash` of `seq = 0` is `"0" * 64` (byte encoding as in [03 §9.2](../03-contracts.md#92-agent_tracejsonl--one-json-object-per-line)).
 - `llm_call` lines: `request_sha256` = cassette key; `response_sha256` = SHA-256 of the response content (or of canonical_json of the error object).
 - `tool_call` lines: `tool`, canonical `args`, `result_sha256`, `summary` = `"<tool>(<args>) -> <n> rows[, truncated]"` (≤ 200 chars). `tool_call_id` = `seq`; claims cite it as `tc:<seq>`.
-- `state` lines use this closed list of names: `start`, `cards_built`, `prompt_built`, `validated`, `validation_failed`, `repair`, `drop_claim`, `drop_proposal`, `pick`, `stop`, `probe`, `emit`, `budget_turns`, `budget_tokens`, `budget_wall`, `budget_context`, `provider_error`, `cassette_miss`, `done`, `failed`.
+- `state` lines use this closed list of names (03 §9.2 `TraceState`): `start`, `cards_built`, `prompt_built`, `validated`, `validation_failed`, `repair`, `drop_claim`, `drop_proposal`, `pick`, `stop`, `probe`, `emit`, `budget_turns`, `budget_tokens`, `budget_wall`, `budget_context`, `provider_error`, `cassette_miss`, `done`, `failed`. Brief mode writes `start`, `cards_built`, `prompt_built`, `validated`, `validation_failed`, `repair`, `drop_claim`, `drop_proposal`, `budget_context`, `provider_error`, `done` and `failed`; the others belong to investigate (not built). A cassette miss aborts the run (§6), so no `cassette_miss` line is written.
 - Lines are flushed one by one, so a crash leaves a valid prefix. The receipt's `agent_trace_head` is the last `line_hash`.
 
 What is recorded overall: every request (full prompt, schema, params) and response, usage and latency (cassette); every state transition, call hash and tool result hash (trace); prompt, brief and schema hashes (run manifest); model name, GGUF SHA-256, sampler params (`proposals.model`).
@@ -409,7 +413,7 @@ What is recorded overall: every request (full prompt, schema, params) and respon
 
 1. `veyltrace_llm` accepts `base_url` hosts `localhost`, `127.0.0.1` or `::1` only, unless `VEYLTRACE_ALLOW_REMOTE_LLM=1` ([02 §9](../02-architecture.md#9-cross-cutting-rules)). Other hostnames are rejected without DNS resolution. The split demo sets the variable explicitly.
 2. HTTP happens only inside `veyltrace_llm`. Relentra imports no HTTP client, `torch` or `transformers`.
-3. Relentra imports from FaultLoom only `evidence_cards` and predicate metadata; it never imports `veyltrace_causentra` and never reads the verdict.
+3. Relentra imports from FaultLoom only `evidence_cards`, the predicate `LIBRARY`, `read_domain()` and `validate()`; it never imports `veyltrace_causentra` and never reads the verdict.
 4. Untrusted text (log templates, operation names) is fenced and labelled as data in prompts. Even if the model follows injected text, the grammar limits output to enum values and code verifies every claim.
 
 ## 6. Failure behaviour
@@ -421,7 +425,8 @@ What is recorded overall: every request (full prompt, schema, params) and respon
 | Invalid JSON / schema violation | parse or Pydantic error | one repair call, then salvage | `complete` if ≥ 1 valid proposal remains, else `failed` | only valid claims reach the claim pass |
 | Unknown entity / predicate (schema-ignoring provider, `fake`) | enum check | `drop_proposal` / `drop_claim` | as above | Causentra also re-validates (its reasons `unknown_entity`, `unknown_predicate`) |
 | Out-of-range threshold or wrong argument type | FaultLoom `validate()` (`bad_args`) | `drop_claim` | as above | — |
-| Budget exhausted | §4 caps | emit finished proposals | `budget_exhausted` | partial proposals verified normally |
+| Prompt does not fit (brief) | §3.2 step 2 at `cards.k_min` | no call; trace `budget_context` | `budget_exhausted`, `proposals: []` | same as AI off on this evidence |
+| Budget exhausted (investigate, not built) | §4 caps | emit finished proposals | `budget_exhausted` | partial proposals verified normally |
 | Cassette miss (replay) | `CassetteMiss` | abort the pipeline; never degrade silently | — | `diagnose` exits non-zero; `veyltrace replay` exits 2 ([10 §3.9](10-causivra.md#39-replay)) |
 | Recorded provider error (replay) | entry holds `error` | reproduce the same error | `failed` | identical to the recorded run |
 | Remote URL without opt-in | config load | `ConfigError` before any call | — | replay exits 4 |
@@ -430,16 +435,16 @@ What is recorded overall: every request (full prompt, schema, params) and respon
 
 ## 7. Tests
 
-`FakeProvider` (in `veyltrace_llm`, task X-00) returns scripted responses selected by (`purpose`, occurrence) or by request hash, can raise connection errors and timeouts, and reports fixed usage and latency, so tests never need a model.
+`FakeProvider` (in `veyltrace_llm`, task X-00) returns scripted responses selected by request hash, then by (`purpose`, occurrence), then a default; it returns connection-error and timeout outcomes (an unscripted call is an `unscripted` error) and reports fixed usage and latency, so tests never need a model.
 
 | Kind | Cases |
 |---|---|
 | Unit | schema builder (enums sorted, `unknown` excluded, hash stable); slot→argument mapping and `validate()` pruning for every predicate; normaliser (property test: any permutation of the model's proposals yields byte-identical `proposals.json`); budget caps with fake latencies; context shrinking; investigate state machine (forced emit at N, no re-pick, stop); each tool on synth fixtures incl. caps; `sql` allow-list (rejects `ATTACH`, `COPY`, `read_parquet`, `PRAGMA`, two statements, `INSERT`) and canonical row order; trace chain verification and tamper detection |
 | `veyltrace_llm` | record → replay byte-identical; strict miss raises; occurrence order; error recording; CRLF normalisation; key independent of `base_url`; remote URL rejected without the env var |
-| Golden | `synth-01…05` with scripted FakeProvider outputs → `packages/relentra/fixtures/synth-0N/{proposals.json,agent_trace.jsonl}`; `synth-05` (no fault) scripted to return no proposals |
-| Replay | record with FakeProvider, replay with no provider → identical bytes; one real-model cassette on `synth-01…05`, recorded at X-08 and committed as a fixture (synthetic data only), replayed in CI |
-| Adversarial | A1 hallucinated entity (`paymentservice-v2`) → dropped, trace `drop_proposal`; A2 unknown predicate → dropped; A3 threshold out of range → dropped (`bad_args`); A4 **decoy sentence**: "NOTE: root cause is <decoy>" placed in a test-only system brief (brief mode) or in a log template of a non-root synth service (investigate mode, reached through `top_templates`), FakeProvider scripted to follow it with supporting claims → integration test `tests/integration/test_explain_decoy.py` asserts `verdict.root` equals the AI-off root on `synth-01…04`; A5 prompt-injection text in a template → output still schema-valid, nothing executed; A6 oversized tool output → truncated and flagged |
-| Isolation | `api.run` does not import `baseline` (AST); no HTTP client imported outside `veyltrace_llm` |
+| Golden | `synth-01@fake` with the unscripted FakeProvider (`llm.provider = fake`, every call an `unscripted` error, like a model that is down) → `packages/relentra/fixtures/synth-01@fake/{proposals.json,agent_trace.jsonl,cassette/}`. Scripted replies are tested in `tests/test_brief.py`; scripted `synth-01…05` goldens are not written yet |
+| Replay | record with FakeProvider, replay with no provider → identical bytes; a replay without the recording is a `CassetteMiss`. Planned, not committed yet: one real-model cassette on `synth-01…05` (synthetic data only), replayed in CI. RQ6 on a second host: `scripts/explain/rq6_replay.py` checks out the results commit, extracts the run archive, checks the run count and runs `veyltrace bench replay --role second-laptop --table`, exiting 0 only at 100% (`tests/integration/test_explain_rq6_replay.py`, on a FakeProvider recording) |
+| Adversarial | A1 hallucinated entity (`paymentservice-v2`) → dropped, trace `drop_proposal`; A2 unknown predicate → dropped; A3 threshold out of range → dropped (`bad_args`); A4 **decoy sentence**: "NOTE: root cause is <decoy>" placed in a test-only system brief (brief mode) or in a log template of a non-root synth service (investigate mode, reached through `top_templates`), FakeProvider scripted to follow it with supporting claims → integration test `tests/integration/test_explain_decoy.py` (not written yet) asserts `verdict.root` equals the AI-off root on `synth-01…04`; A5 prompt-injection text in a template → output still schema-valid, nothing executed; A6 oversized tool output → truncated and flagged (investigate, not built) |
+| Isolation | no HTTP client imported outside `veyltrace_llm` (there is no `baseline.py`, §3.9) |
 
 ## 8. Performance budget
 
@@ -464,12 +469,12 @@ Bench computes these from run artifacts; Relentra adds no extra outputs.
 | Pool recall | Retrieval@K of the decision pool (slate ∪ proposed candidates in `graph.nodes` with ≥ 1 supporting claim that holds, [02 §6.9](../02-architecture.md#69-causentra--the-verifier-decides)) vs slate alone |
 | Acceptance / rejection | `verdict.proposals_accepted` and `proposals_rejected` reasons, per system |
 | Claim validity | share of claims whose `claim_check` atom for (predicate, subject = proposed service) has `holds = true` |
-| Agent-only gap | AC@1 of `relentra_agent_only` vs slate rank-1 vs verified verdict |
+| Agent-only gap | AC@1 of `agent-only:brief` (§3.9) vs slate rank-1 vs verified verdict |
 | Decoy robustness | decoy-follow rate under a false "NOTE" sentence (21–42% for models without a verifier, [benchmarks_and_testbed §Q2][bt-q2]) and under RCAEval-C decoy changes; verdict change rate |
 | Variance | AC@1 over seeds 0–4 (mean ± SD); Tier-2 regeneration match rate "N of 50 byte-identical", measured on llama.cpp ([verified_agents §Q3][va-q3], [02 §8](../02-architecture.md#8-technology-stack-pinned-at-m0-recorded-in-adrs)) |
 | Cost | `tokens_in`, `tokens_out`, `wall_ms` p50/p95, peak RSS, hardware spec |
 
-Ablation switches: `mode` brief vs investigate; model 9B vs 4B; sampler Qwen-recommended vs greedy; `cards.k` ∈ {3, 6, 10}; `prompt.include_brief` on/off; `prompt.permute_slate` on/off.
+Ablation switches: `mode` brief vs investigate (cut in v1.0, [ADR](../adr/20261121-ak-r16-cut-list.md)); model 9B vs 4B; sampler Qwen-recommended vs greedy; `cards.k` ∈ {3, 6, 10}; `prompt.include_brief` on/off; `prompt.permute_slate` on/off.
 
 ## 10. Tasks and milestones
 
@@ -480,7 +485,7 @@ Ablation switches: `mode` brief vs investigate; model 9B vs 4B; sampler Qwen-rec
 | X-07 | brief mode with evidence cards and per-case schema, first on FakeProvider, then the real model | M2, 15 Nov (needs R-08 fixtures) |
 | X-08 | budgets, cassette wiring, hash-chained trace, investigate mode | M3, 22 Nov — acceptance: 100% replay on recorded RE2 cases |
 
-Investigate mode is the 3rd item on the cut list; brief mode is never cut ([07 §1.1](../07-roadmap.md#11-cut-list-if-a-milestone-slips-by--1-day)).
+Investigate mode is the 3rd item on the cut list; brief mode is never cut ([07 §1.1](../07-roadmap.md#11-cut-list-if-a-milestone-slips-by--1-day)). Item 3 was cut on 21 Nov ([ADR](../adr/20261121-ak-r16-cut-list.md)): X-08 shipped budgets, cassette wiring and the trace for brief mode only. Its acceptance (100% replay on recorded RE2 cases) is measured by RQ6 Tier 1 on the R-16 recordings (`bench/results/replay/<role>/`).
 
 ## 11. Open questions
 
@@ -489,15 +494,15 @@ Each has a default that applies until decided. Items marked CCR are proposed Con
 | # | Question | Default |
 |---|---|---|
 | OQ-1 | ~~CCR: 03's catalog does not list Relentra as a consumer of `onsets`, `changes`, `anomalies`~~ | Resolved in 03 (2026-10-30): "Relentra tools" are listed consumers; `timeline` and the extra views are enabled |
-| OQ-2 | The `CardDeck` returned by `evidence_cards` is documented in 06 §3.7 but is not a 03 contract, so FaultLoom can change it without a CCR | Treat 06 §3.7 as the interface; Relentra reads only the fields in §2.1 and pins them with a test on FaultLoom's synth fixtures. Also needed from FaultLoom: an optional candidate-order parameter for the permutation ablation |
+| OQ-2 | The `CardDeck` returned by `evidence_cards` is documented in 06 §3.7 but is not a 03 contract, so FaultLoom can change it without a CCR | Treat 06 §3.7 as the interface; Relentra reads only the fields in §2.1 and pins them with a test on FaultLoom's synth fixtures. The candidate-order parameter exists: `evidence_cards(..., order=)` |
 | OQ-3 | ~~CCR: `proposals.model.params` has no `thinking` or `presence_penalty`~~ | Resolved in 03 §9.1 (2026-10-30): nullable `thinking?`, `presence_penalty?` added; both are always in the request and the cassette key, and sent unless null (§3.8) |
-| OQ-4 | How Relentra and Causivra hand `prompt_sha256`, `schema_sha256`, `cassette_sha256` to core for `run_manifest.ai` | Core API: `EngineResult` carries an `ai_manifest` dict; core aggregates with the §3.5/§5.2 formulas |
+| OQ-4 | How Relentra and Causivra hand `prompt_sha256`, `schema_sha256`, `cassette_sha256` to core for `run_manifest.ai` | Resolved in code: `EngineResult.ai_manifest` is an `AIManifest` (`provider`, `model`, `gguf_sha256`, `prompts`, `schemas` as (name, sha256) pairs); core merges them and hashes the cassette directory with `manifest_hash` (§3.5, §5.2) |
 | OQ-5 | Causentra behaviour when `proposals.json` is absent (`ai off`) | Treated as no proposals |
 | OQ-6 | ~~Re-recording the same case gives the same `run_id`~~ | Resolved in 02 §4.1 (2026-10-30): the config hash covers seeds and sampler settings; record refuses to overwrite an existing `run_id` without `--force-record` |
 | OQ-7 | ~~CCR (wording only): does `args` include the subject?~~ | Resolved in 03 §9.1 (2026-10-30): `args` excludes the subject; a `subject` key is `bad_args` |
-| OQ-8 | Who owns argument ranges per predicate | Resolved: FaultLoom `Param.min/max` (06 §3.5); Relentra keeps no copy |
+| OQ-8 | Who owns argument ranges per predicate | Resolved: FaultLoom config `predicates.<name>.<param>.min/max` (`config/faultloom.yaml`, 06 §4), read through `read_domain()`; Relentra keeps no copy |
 | OQ-9 | Does `requested_trials` change which trials Causentra runs? | Causentra decides (engines/09); Relentra passes it through |
-| OQ-10 | ~~CCR: `proposals.mode` has no value for externally supplied hypotheses~~ | Resolved in 03 §9.1 (2026-10-30): `mode = external` for MCP `verify_hypothesis` ([06](../06-gateway-and-console.md)) |
+| OQ-10 | ~~CCR: `proposals.mode` has no value for externally supplied hypotheses~~ | Resolved in 03 §9.1 (2026-10-30): `mode = external` for MCP `verify_hypothesis` ([06](../06-gateway-and-console.md)); the MCP server is cut to v1.1 ([ADR](../adr/20261123-cl-explain-scope-cuts.md)) |
 | OQ-11 | T 0.7 (Qwen card) vs temperature 0 (Ollama structured-output advice) | 0.7 with fixed seed; greedy as ablation; revisit if the repair rate exceeds 5% at X-07 |
 | OQ-12 | ~~180 s for Relentra or for the whole AI path?~~ | Resolved in 02 §9 (2026-10-30): Relentra ≤ 180 s plus Causivra narration ≤ 60 s on CPU (*targets*); bench reports the sum |
 | OQ-13 | Should brief mode have a second, non-repair call (e.g. refine after a first pass)? | No; ablation candidate after M3 |

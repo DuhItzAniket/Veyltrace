@@ -30,7 +30,7 @@ Infralume is the only engine that touches raw data. It reads one case from a ben
 
 | Input | Read by | Notes |
 |---|---|---|
-| Raw case folder or capture under `${VEYLTRACE_DATA}` | adapter only | located through the private index `${VEYLTRACE_DATA}/index/<dataset>.json` (`case_id → relative path`), written by the fetcher; never copied into a run directory |
+| Raw case folder or capture under `${VEYLTRACE_DATA}` | adapter only | located through the private index `${VEYLTRACE_DATA}/index/<dataset>.json` (`case_id → relative path`), written by the fetcher, or by the gateway for `live` (#24); never copied into a run directory |
 | `config/infralume.yaml` | all steps | §4 |
 | Optional events overlay file under `${VEYLTRACE_DATA}/overlays/` | §3.10 | written by the RCAEval-C generator (O-13); path given through `events.overlay_path` |
 
@@ -128,7 +128,7 @@ Let `C` be the set of non-null, non-NaN `status_code` values over all spans of t
 2. Otherwise, per span: if `code ≥ 100`, HTTP: `error` iff `code ≥ 500`. If `1 ≤ code < 100`, gRPC: `error` (any non-zero gRPC code).
 3. `code` null, NaN or 0 is never an error.
 
-`status` = `error` when the rule says so; `ok` when a code is present and not an error (and, under rule 1, the code is 1); `unset` otherwise. For OTLP sources (§3.9) the native OTel status wins: `STATUS_CODE_ERROR → error`; for `UNSET` spans the HTTP/gRPC rule is applied to `http.response.status_code` / `rpc.grpc.status_code`.
+`status` = `error` when the rule says so; `ok` when a code is present and not an error (and, under rule 1, the code is 1); `unset` otherwise. For OTLP sources (§3.9) the native OTel status wins: `STATUS_CODE_ERROR → error`; for `UNSET` spans the HTTP/gRPC rule is applied to `http.response.status_code`, else `http.status_code` (the name before semconv 1.21, which older SDKs still send; lead decision on #24), else `rpc.grpc.status_code`.
 
 Known limit: under rule 1, gRPC `CANCELLED` (1) is read as OTel ok. Rule 1 only fires when no other code appears in the whole case.
 
@@ -185,7 +185,7 @@ Core then adds `alert.shift_s` (recorded as `alert.shift_ns`) and computes the c
 
 ### 3.9 OTLP → canonical converter (O-07)
 
-Module `veyltrace_infralume.otlp`: pure functions from decoded `ExportTraceServiceRequest`, `ExportMetricsServiceRequest`, `ExportLogsServiceRequest` (protobuf objects or the protobuf-JSON mapping, [stack_and_market §A1][sm]) to Arrow tables in canonical shape, already normalised and scrubbed. No I/O, no sockets. Used by `veyllab` and by the gateway's live buffer (X-10).
+Module `veyltrace_infralume.otlp`: pure functions `spans`, `metrics` and `logs`, each `(request, settings) -> (table, scrub counts)`. `request` is one decoded `ExportTraceServiceRequest`, `ExportMetricsServiceRequest` or `ExportLogsServiceRequest` in the protobuf-JSON mapping ([stack_and_market §A1][sm]): lowerCamelCase fields, hex ids, 64-bit integers as strings; the gateway decodes protobuf itself, so Infralume has no protobuf dependency. `settings` is the `infralume` config section. The table is in canonical shape, already normalised and scrubbed; the counts are `dropped_attributes` and `dropped_rows` (interface agreed on #24). No I/O, no sockets, no clock, no state between calls. Used by `veyllab` and by the gateway's live buffer (X-10).
 
 | OTLP | Canonical |
 |---|---|
@@ -194,7 +194,7 @@ Module `veyltrace_infralume.otlp`: pure functions from decoded `ExportTraceServi
 | span ids (bytes) | lowercase hex; empty parent → null |
 | `SPAN_KIND_*` | `kind` lowercase |
 | span name | `operation` |
-| status + `http.response.status_code` / `rpc.grpc.status_code` | `status`, `status_code` (§3.5) |
+| status + `http.response.status_code`, else `http.status_code`, else `rpc.grpc.status_code` | `status`, `status_code` (§3.5) |
 | span attributes (scrubbed) | `attrs_json` (canonical JSON) |
 | Gauge point | `value`; `metric_type = gauge` |
 | monotonic cumulative Sum | `value`; `metric_type = counter`; name gets suffix `_total` if missing (Prometheus naming, so Signalyth's counter rule applies) |
@@ -203,6 +203,8 @@ Module `veyltrace_infralume.otlp`: pure functions from decoded `ExportTraceServi
 | log `time_unix_nano` (or `observed_time_unix_nano` if 0) | `t_ns` |
 | `severity_number` 1–4/5–8/9–12/13–16/17–20/21–24 | `TRACE/DEBUG/INFO/WARN/ERROR/FATAL` |
 | log body (non-string → canonical JSON) | `body` |
+
+Built as agreed on #24, where the table is silent: no per-system alias is applied (a request does not name its system); a resource without a usable `service.name` is dropped and logged; the HTTP/gRPC rule for UNSET spans never uses §3.5 rule 1; a non-monotonic cumulative Sum is a gauge; delta Sums and Histograms, exponential Histograms and Summaries are skipped and logged; a request that is not OTLP/JSON (ids must be 32 and 16 hex characters) raises `CaseRejected("invalid_capture")`; a field proto3 JSON leaves out reads as its default, so a span, point or log record without a time is dropped and logged (§6), and an enum name this code does not know reads as unspecified. `otlp.metric_label_keys` is a named constant in the module until the key can be added to `config/infralume.yaml` without regenerating the golden verdicts (#256).
 
 The name encoding stays even with `attrs_json?`, because the 03 key (`service, component, name, t_ns`) does not include `attrs_json` and must stay unique (open question 1).
 

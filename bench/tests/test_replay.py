@@ -38,11 +38,16 @@ methods:
   - id: "veyltrace:brief"
     kind: veyltrace
     ai: {{mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1]}}
+  - id: "agent-only:brief"
+    kind: agent_only
+    ai: {{mode: record, relentra_mode: brief, model: qwen3.5-9b-q4_k_m, seeds: [1]}}
 calibration: {{fit: false}}
 metrics: [ac_at_k]
 resources: {{workers: 1, timeout_s: 600}}
 """
 FIRST, SECOND = "synth-replay-a", "synth-replay-b"  # b replays a's kept runs (ai_mode replay rows)
+# agent-only:brief scores the brief run (no run of its own, no verdict_hash): RQ6 replays the brief
+# runs once and never looks for an agent-only run (#529, found on the R-16 recording host).
 
 
 @dataclass(frozen=True)
