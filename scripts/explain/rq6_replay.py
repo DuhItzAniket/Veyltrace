@@ -218,7 +218,9 @@ def parse(argv: Sequence[str] | None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(prog="rq6_replay.py", description=(__doc__ or "").split("\n\n")[0])
     ap.add_argument("--commit", required=True, help="the results commit the recording host posted")
     ap.add_argument("--checkout", type=Path, help="an existing worktree at --commit (default: a new one)")
-    ap.add_argument("--runs-root", type=Path, required=True, help="extract the archive here (holds bench-ai/)")
+    ap.add_argument(
+        "--runs-root", type=Path, required=True, help="extract the archive here (holds bench-ai/)"
+    )
     src = ap.add_mutually_exclusive_group()
     src.add_argument("--release", help="draft release tag holding the run archive (downloaded with gh)")
     src.add_argument("--archive", type=Path, action="append", default=[], help="archive file (repeatable)")
@@ -244,7 +246,8 @@ def run(a: argparse.Namespace) -> int:
     rec = recording(results)
     check_code(repo, results, rec)
     n_recorded = int(rec["tier1"]["n"])
-    say(f"recording result: {n_recorded} runs, host {rec['site']['host_id']}, code {rec['code']['commit'][:12]}")
+    site, code = rec["site"]["host_id"], rec["code"]["commit"][:12]
+    say(f"recording result: {n_recorded} runs, host {site}, code {code}")
     archives = list(a.archive)
     if a.release:
         archives = download(repo, a.release, a.pattern, a.download_dir or runs_root.with_suffix(".download"))
