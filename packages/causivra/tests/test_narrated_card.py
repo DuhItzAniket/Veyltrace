@@ -8,6 +8,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import pyarrow as pa
+
 from veyltrace_causivra.card import TEMPLATE_NARRATOR, run_card
 from veyltrace_causivra.narrate import PURPOSE
 from veyltrace_contracts import models
@@ -46,8 +48,11 @@ def _run(
     responder: Callable[[LLMRequest], FakeReply] | None = None,
     cassette: Path | None = None,
     overrides: dict[str, Any] | None = None,
+    prepare: Callable[[Path], None] | None = None,
 ) -> tuple[EngineResult, dict[str, Any], FakeProvider]:
     run_dir = fixture_run_dir(CASE, tmp_path, through="causentra")
+    if prepare is not None:
+        prepare(run_dir)
     ctx = make_context("causivra", run_dir, phase="card", ai_mode=mode, cassette_dir=cassette,
         overrides=overrides or {})  # fmt: skip
     provider = FakeProvider(default=responder)
@@ -91,3 +96,35 @@ def test_a_cassette_miss_gives_the_template_summary(tmp_path: Path) -> None:
 def test_narration_off_keeps_ai_on_cards_template(tmp_path: Path) -> None:
     result, card, provider = _run(tmp_path, "record", _valid, overrides={"causivra.narration.enabled": False})
     assert card["narrator"] == dict(TEMPLATE_NARRATOR) and not provider.calls and result.ai_manifest is None
+
+
+def _names(component: str) -> Callable[[LLMRequest], FakeReply]:
+    """A reply that writes `component` as plain text, outside any placeholder, every time."""
+
+    def reply(request: LLMRequest) -> FakeReply:
+        a = _atom(request)
+        return FakeReply.json({"sentences": [{"text": f"Errors began in {component}.", "cites": [a]},
+            {"text": "{ROOT} is the leading candidate.", "cites": [a]}]})  # fmt: skip
+
+    return reply
+
+
+def _component(run_dir: Path, name: str) -> None:
+    """Give every evidence atom of `cart-0` the plain-word component `name` (not a node or service)."""
+    table = io.read("evidence", run_dir)
+    assert isinstance(table, pa.Table)
+    rows = table.to_pylist()
+    assert any(r["component"] == "cart-0" for r in rows)
+    io.write(
+        "evidence", [{**r, "component": name} if r["component"] == "cart-0" else r for r in rows], run_dir
+    )
+
+
+def test_c6_rejects_an_evidence_component_written_as_plain_text(tmp_path: Path) -> None:
+    """Regression (#52 bug bash): the C6 lexicon missed evidence `component` values (10 §3.4), so
+    "redis" passed C6 when it is a component but not a graph node or a case service."""
+    _, card, provider = _run(tmp_path, "record", _names("redis"), prepare=lambda d: _component(d, "redis"))
+    assert card["narrator"] == {"path": "template", "model": None, "attempts": 2, "checker_failures": 2}
+    assert len(provider.calls) == 2
+    _, plain, _ = _run(tmp_path / "plain", "record", _names("redis"))  # not a component: C6 lets it pass
+    assert plain["narrator"]["path"] == "llm"

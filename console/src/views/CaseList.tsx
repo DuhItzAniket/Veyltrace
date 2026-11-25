@@ -18,6 +18,13 @@ function sourcesText(c: CaseSummary): string {
   return present.length === 0 ? "none" : present.map(([name]) => name).join(", ");
 }
 
+/** The case's finished runs and every queued, running or failed run the gateway reports for it
+ * (06 §5.2: the latest run status), sorted by run id. */
+function runIds(c: CaseSummary, states: Map<string, RunStatus>): string[] {
+  const reported = [...states.values()].filter((r) => r.case_id === c.case_id).map((r) => r.run_id);
+  return [...new Set([...c.runs, ...reported])].sort();
+}
+
 function CaseRow({ c, states }: { c: CaseSummary; states: Map<string, RunStatus> }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<RunRequest["ai_mode"]>("off");
@@ -25,6 +32,7 @@ function CaseRow({ c, states }: { c: CaseSummary; states: Map<string, RunStatus>
     mutationFn: () => api.startRun({ dataset: c.dataset, case_id: c.case_id, ai_mode: mode }),
     onSuccess: (status) => void navigate(`/runs/${status.run_id}`),
   });
+  const ids = runIds(c, states);
   return (
     <tr>
       <th scope="row">
@@ -33,11 +41,11 @@ function CaseRow({ c, states }: { c: CaseSummary; states: Map<string, RunStatus>
       <td>{c.system ?? UNKNOWN}</td>
       <td>{sourcesText(c)}</td>
       <td>
-        {c.runs.length === 0 ? (
+        {ids.length === 0 ? (
           "no runs yet"
         ) : (
           <ul className="plain">
-            {c.runs.map((runId) => (
+            {ids.map((runId) => (
               <li key={runId}>
                 <Link to={`/runs/${runId}`}>
                   <code>{runId}</code> {states.get(runId)?.state ?? "status unknown"}
@@ -120,7 +128,7 @@ export function CaseList() {
       </label>
       {cases.error !== null && <Failure error={cases.error} />}
       {page === undefined ? (
-        <p>Loading cases…</p>
+        cases.error === null && <p>Loading cases…</p>
       ) : (
         <>
           <p>{page.total} cases</p>
