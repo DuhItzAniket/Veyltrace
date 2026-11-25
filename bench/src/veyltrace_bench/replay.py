@@ -252,6 +252,19 @@ def sample(runs: Mapping[str, Run]) -> list[Run]:
     return sorted(pool, key=lambda r: sha256_json([TIER2_RNG_SEED, r.case_id, r.run_id]))[:TIER2_N]
 
 
+def same_run_config(kept_dir: Path, regen_dir: Path) -> bool:
+    """Whether a regenerated run is the kept run again: the same case and resolved config (so the
+    same prompts and sampler). The run id is not compared: it hashes the code commit (02 §4.1),
+    and a site regenerates at its own checkout, whose run code `_check` has already required to
+    equal the recording's (#534)."""
+    try:
+        a = io.read_model("run_manifest", kept_dir, RunManifest)
+        b = io.read_model("run_manifest", regen_dir, RunManifest)
+    except (ArtifactMissing, VeyltraceError):
+        return False
+    return (a.case_id, a.config_sha256) == (b.case_id, b.config_sha256)
+
+
 def regenerate_one(run: Run, kept: Path, scratch: Path, timeout_s: int) -> dict[str, object]:
     """Tier 2 row of one run: record again from its lock into `scratch`, compare proposals.json."""
     src = run_dir_for(kept, run.dataset, run.case_id, run.run_id)
@@ -280,7 +293,7 @@ def regenerate_one(run: Run, kept: Path, scratch: Path, timeout_s: int) -> dict[
             return base | {"reason": "timeout"}
         got = cast("dict[str, Any]", json.loads(textio.read_text(res))) if res.is_file() else {}
     summary = cast("dict[str, Any]", got.get("summary") or {})
-    if summary.get("outcome") != "ok" or summary.get("run_id") != run.run_id:
+    if summary.get("outcome") != "ok" or not same_run_config(src, Path(summary["run_dir"])):
         return base | {"reason": "regen_failed"}
     out = Path(summary["run_dir"])
     verdict = io.read_model("verdict", out, Verdict).verdict_hash
