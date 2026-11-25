@@ -9,7 +9,9 @@ the adapter reads the index itself).
 Cases are the adapter's `list_cases` plus any case that already has a run. A case's `system` and
 `sources` come from the case manifest of its last finished run by run id (runs with different
 overrides, such as `sources.drop`, can differ), read through `veyltrace_core.io`, which always
-redacts the alert hint (D-15), so no answer key, injection time or hint is ever served.
+redacts the alert hint (D-15), so no answer key, injection time or hint is ever served. A run whose
+case manifest io refuses (another contract version) is passed over, with a log line, for the
+newest one that reads.
 """
 
 # No `from __future__ import annotations`: FastAPI resolves the `limit` annotation, which uses the
@@ -23,8 +25,9 @@ from veyltrace_contracts.models import CaseManifest
 from veyltrace_core import io, plugins
 from veyltrace_core.adapters import ADAPTERS_GROUP, Adapter, find_adapter
 from veyltrace_core.config import data_root
-from veyltrace_core.errors import VeyltraceError
+from veyltrace_core.errors import ContractValidationError, VeyltraceError
 from veyltrace_core.ids import is_case_id, is_run_id
+from veyltrace_core.log import get_logger
 from veyltrace_core.pipeline import PARTIAL_SEPARATOR, is_finished
 from veyltrace_gateway.api_models import CasePage, CaseSummary, DatasetSummary
 from veyltrace_gateway.errors import ApiError
@@ -35,6 +38,7 @@ __all__ = ["INDEX_DIR", "case_router", "check_dataset", "known_datasets"]
 #: Where fetchers write a dataset's index (01 §2): `<data root>/index/<dataset>.json`.
 INDEX_DIR: Final = "index"
 _GLOB_CHARS: Final = frozenset("*?[")
+_LOG: Final = get_logger(__name__)
 
 
 def _adapters() -> list[Adapter]:
@@ -80,9 +84,19 @@ def _case_ids(adapter: Adapter, dataset: str, runs_root: Path, data: Path) -> li
     return sorted(listed)
 
 
+def _newest_manifest(runs: list[Path]) -> CaseManifest | None:
+    """The case manifest of the newest run (by run id) whose manifest reads, else None."""
+    for run_dir in reversed(runs):
+        try:
+            return cast(CaseManifest, io.read("case_manifest", run_dir))  # hint redacted (D-15)
+        except ContractValidationError as exc:
+            _LOG.warning("case_manifest_unreadable", run_id=run_dir.name, error=str(exc))
+    return None
+
+
 def _summary(runs_root: Path, dataset: str, case_id: str) -> CaseSummary:
     runs = _runs_of(runs_root, dataset, case_id)
-    manifest = cast(CaseManifest, io.read("case_manifest", runs[-1])) if runs else None
+    manifest = _newest_manifest(runs)
     return CaseSummary(
         case_id=case_id,
         dataset=dataset,
@@ -125,6 +139,9 @@ def case_router(settings: GatewaySettings, runs_root: Path) -> APIRouter:
         runs = _runs_of(runs_root, dataset, case_id)
         if not runs:
             raise ApiError(404, "case_not_run", f"case {case_id} has no finished run yet")
-        return cast(CaseManifest, io.read("case_manifest", runs[-1]))  # hint redacted by io (D-15)
+        manifest = _newest_manifest(runs)
+        if manifest is None:
+            raise ApiError(500, "artifact_invalid", f"no run of case {case_id} has a readable case manifest")
+        return manifest
 
     return router
