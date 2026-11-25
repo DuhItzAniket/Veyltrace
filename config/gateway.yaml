@@ -47,10 +47,6 @@ live:
   # /health reports live.receiving while the last batch is at most this old (s; a priori:
   # longer than the Collector's export and scrape intervals in the lab).
   receiving_s: 60
-  # Retry-After of the receiver's 503 on a converter failure, so the Collector retries the batch
-  # instead of dropping it (06 §3.3; s; a priori: the Collector exporter's default first retry
-  # interval, 5 s; its default retry budget, max_elapsed_time 300 s, bounds the retries).
-  retry_after_s: 5
   # "Diagnose now" snapshots [t_trigger - this, t_trigger]: the 20-min baseline start of 02 §5.1
   # (06 §3.4, §6). The manual settle is 0 (06 §6 live.manual_settle_s), so it has no key until
   # the alert watcher, with its own settle, returns in v1.1 (#227).

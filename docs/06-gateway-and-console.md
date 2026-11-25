@@ -224,7 +224,6 @@ WCAG 2.1 AA as the target: text contrast ≥ 4.5:1; every control reachable and 
 | `live.buffer_max_mb` | 512 | MiB | a priori (*estimate*); Arrow bytes, not RSS; a batch over the cap is refused |
 | `live.future_tolerance_s` | 300 | s | a priori; a batch more than this ahead of the wall clock is refused (X-10) |
 | `live.receiving_s` | 60 | s | a priori; `/health` `live.receiving` while the last OTLP batch is at most this old (X-10) |
-| `live.retry_after_s` | 5 | s | a priori; `Retry-After` of the receiver's 503 `conversion_failed`, the Collector exporter's default first retry interval (§3.3) |
 | `live.snapshot_before_min` | 20 | min | 02 §5.1 baseline start |
 | `live.settle_s` / `live.manual_settle_s` | 120 / 0 | s | a priori; trade-off with the 5-minute demo target (§8) |
 | `live.system` | `ob` | enum | provisional manifest for `detect_alert` |

@@ -103,7 +103,6 @@ def test_no_runtime_module_imports_the_test_stub() -> None:
         ("max_body_mb", 0),
         ("buffer_max_mb", "512"),
         ("future_tolerance_s", 0),
-        ("retry_after_s", 0),
     ],
 )
 def test_bad_live_settings_are_config_errors(key: str, value: object) -> None:

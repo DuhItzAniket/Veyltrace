@@ -6,7 +6,6 @@ an unknown route and a 422 for a bad query parameter must look like the gateway'
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from typing import Final
 
 from fastapi import FastAPI, Request
@@ -24,17 +23,14 @@ _CODES: Final = {404: "not_found", 405: "method_not_allowed"}
 class ApiError(Exception):
     """A gateway error with its HTTP status (06 §3.1: 400/404/409/413/422/503)."""
 
-    def __init__(
-        self, status: int, code: str, message: str, headers: Mapping[str, str] | None = None
-    ) -> None:
+    def __init__(self, status: int, code: str, message: str) -> None:
         super().__init__(message)
         self.status, self.code, self.message = status, code, message
-        self.headers = dict(headers or {})  # e.g. Retry-After on a 503 the client should retry
 
 
-def _envelope(status: int, code: str, message: str, headers: Mapping[str, str] | None = None) -> JSONResponse:
+def _envelope(status: int, code: str, message: str) -> JSONResponse:
     body = ErrorBody(error=ErrorDetail(code=code, message=message))
-    return JSONResponse(body.model_dump(), status_code=status, headers=headers)
+    return JSONResponse(body.model_dump(), status_code=status)
 
 
 def add_error_handlers(app: FastAPI) -> None:
@@ -42,7 +38,7 @@ def add_error_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(ApiError)
     async def api_error(_: Request, exc: ApiError) -> JSONResponse:
-        return _envelope(exc.status, exc.code, exc.message, exc.headers)
+        return _envelope(exc.status, exc.code, exc.message)
 
     @app.exception_handler(StarletteHTTPException)  # also the router's own 404 and 405
     async def http_error(_: Request, exc: StarletteHTTPException) -> JSONResponse:
