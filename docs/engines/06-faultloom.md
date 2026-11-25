@@ -170,8 +170,8 @@ class Predicate(Protocol):
 class Param:
     name: str
     type: Literal["float", "int", "service", "signal"]
-    min: float | None = None       # inclusive
-    max: float | None = None       # inclusive
+    # its inclusive range is config, not code: `predicates.<name>.<param>: {min, max}` in
+    # config/faultloom.yaml, so ranges enter the config lock (03 §7); non-numeric params have none
 
 @dataclass(frozen=True)
 class PredicateResult:
