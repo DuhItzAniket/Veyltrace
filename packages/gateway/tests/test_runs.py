@@ -190,5 +190,38 @@ def test_run_status_and_listing(runs: Path, run_id: str) -> None:
     assert _error(runs, "/api/v1/runs?case_id=*") == (404, "case_not_found")
 
 
+def _copy_with_unreadable(runs: Path, run_id: str, name: str) -> Path:
+    """A copy of the run as OTHER_RUN whose `name` artifact has a schema major no reader accepts
+    (as a run left on the laptop by another contract version)."""
+    source = find_run(run_id, runs)
+    assert source is not None
+    copy = source.parent / OTHER_RUN
+    shutil.copytree(source, copy)
+    path = io.path_of(name, copy)
+    document = json.loads(path.read_text(encoding="utf-8")) | {"schema_version": "99.0.0"}
+    path.write_text(json.dumps(document), encoding="utf-8", newline="\n")
+    return copy
+
+
+def test_an_unreadable_artifact_is_an_enveloped_500(runs: Path, run_id: str) -> None:
+    copy = _copy_with_unreadable(runs, run_id, "verdict")
+    try:
+        status, headers, body = _get(runs, f"/api/v1/runs/{OTHER_RUN}/verdict")
+        assert (status, headers[b"content-type"]) == (500, b"application/json")
+        assert json.loads(body)["error"]["code"] == "artifact_invalid"
+    finally:
+        shutil.rmtree(copy)
+
+
+def test_the_run_list_leaves_out_a_run_whose_manifest_is_unreadable(runs: Path, run_id: str) -> None:
+    good = json.loads(_get(runs, f"/api/v1/runs/{run_id}")[2])
+    copy = _copy_with_unreadable(runs, run_id, "run_manifest")
+    try:
+        assert json.loads(_get(runs, "/api/v1/runs?dataset=synth")[2]) == [good]
+        assert _error(runs, f"/api/v1/runs/{OTHER_RUN}") == (500, "artifact_invalid")
+    finally:
+        shutil.rmtree(copy)
+
+
 def test_errors_use_the_envelope_for_unknown_routes(runs: Path) -> None:
     assert _error(runs, "/api/v1/nope") == (404, "not_found")
