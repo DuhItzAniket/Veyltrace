@@ -12,9 +12,9 @@ Every number in the paper comes from `bench/results/<experiment_id>/` ([04 ยง9โ€
 
 | | |
 |---|---|
-| OS | Windows 11 or Linux. Every R-16 number was produced on Windows 11 ([docs/team/ak.md](docs/team/ak.md)). |
+| OS | Windows 11 or Linux. Every R-16 number was produced on Windows 11 ([docs/team/ak.md](docs/team/ak.md)). Level 1 was also checked on macOS 15.5 arm64 (L-06, #54). |
 | Tools | `git`, [`uv`](https://docs.astral.sh/uv/) (it installs Python 3.12) |
-| Disk | about 3.1 GB for the RCAEval RE2 download and about 5.7 GB for the convert cache built on first use (measured on the recording host), plus the runs |
+| Disk | about 3.1 GB for the RCAEval RE2 download and about 5.7 GB for the convert cache built on first use, plus the run directories: about 30 GB per RE2 experiment with every method (`re2-oracle-rq1-v1`: 31 GB). All measured on the recording host. Delete an experiment's runs directory once its results are written, unless a derived result reads it (below). |
 | RAM | 16 GB was enough for one experiment at a time (`resources.workers: 1`) |
 | Network | only for `veyltrace data fetch` and the RCAEval baseline environment |
 
@@ -31,7 +31,8 @@ uv run veyltrace bench tables --check
 ```
 
 - The command reads only `bench/experiments/*.yaml` and `bench/results/`, and it writes nothing.
-- Run it at `v1.0.0` or later. The tables are committed at the R-17 result freeze, so on earlier commits `--check` lists them as missing.
+- Run it at `v1.0.0` or later. The tables are committed at the R-17 result freeze, so on earlier commits `--check` prints `differs: <path>` for every table and figure, because none is committed yet.
+- Options: `--check`, `--results <dir>` (default `bench/results`) and `--experiments <dir>` (default `bench/experiments`). `veyltrace bench tables --help` shows only `--help`, because the core CLI hands the arguments to bench unparsed.
 - Exit 0 means that every table and figure under `bench/results/tables/` and `bench/results/figures/` regenerates byte-identically, including the headline Table 5 (RQ1, RE2, oracle alert).
 - Exit 2 lists the files that differ.
 - Every table names the experiment and commit of each row, and prints the SHA-256 of its `per_case.csv`, `summary.json` and `manifest.json`.
