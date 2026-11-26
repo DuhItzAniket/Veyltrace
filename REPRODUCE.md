@@ -3,7 +3,7 @@
 This guide covers three levels of reproduction, from minutes to hours:
 
 1. **Rebuild every table from the committed results.** This is one command, and the result should be byte-identical.
-2. **Rerun the AI-off experiments** at the commit that produced them. The result should be identical.
+2. **Rerun the AI-off experiments** at the commit that produced them. The result should be identical with the OpenBLAS kernel pinned (§0).
 3. **The AI arms.** They replay only from the private recordings, and a fresh recording is not byte-identical (RQ6).
 
 Every number in the paper comes from `bench/results/<experiment_id>/` ([04 §9–§10](docs/04-evaluation-protocol.md)). Each `manifest.json` names the code commit that produced it.
@@ -17,6 +17,11 @@ Every number in the paper comes from `bench/results/<experiment_id>/` ([04 §9�
 | Disk | about 3.1 GB for the RCAEval RE2 download and about 5.7 GB for the convert cache built on first use, plus the run directories: about 30 GB per RE2 experiment with every method (`re2-oracle-rq1-v1`: 31 GB). All measured on the recording host. Delete an experiment's runs directory once its results are written, unless a derived result reads it (below). |
 | RAM | 16 GB was enough for one experiment at a time (`resources.workers: 1`) |
 | Network | only for `veyltrace data fetch` and the RCAEval baseline environment |
+
+**Pin the OpenBLAS kernel.** NumPy's bundled OpenBLAS chooses its kernel from the CPU at run time, and a different kernel changes the last digits of the regression behind FaultLoom's `intervention` evidence (#576).
+- The recording host used `Haswell`.
+- On an AVX2 CPU, set `OPENBLAS_CORETYPE=Haswell` (PowerShell: `$env:OPENBLAS_CORETYPE = "Haswell"`) for steps 2 and 3, to get the same bytes.
+- Without the pin, verdicts are expected to match, but intermediate files may not.
 
 ```bash
 git clone https://github.com/DuhItzAniket/Veyltrace.git && cd Veyltrace
@@ -78,11 +83,12 @@ The AI arms (`brief`, `agent-only:brief`) ran with `qwen3.5:9b`, the Q4_K_M blob
 - **Replay (exact).**
   - `uv run veyltrace bench replay --role second-laptop` replays the 801 kept recordings from a copy of `<runs root>/bench-ai`.
   - On the recording host, Tier 1 matched 801 of 801 (`bench/results/replay/recording/`).
+  - On the second laptop (i5-1135G7, default kernel, no pin), 799 of 801 exited 0 and 800 reproduced the verdict (`bench/results/replay/second-laptop/`). One run timed out while another job loaded the laptop, and one card differed. `evidence.parquet` differed on 501 runs, and the cause is the OpenBLAS kernel (#576).
   - The recordings hold the benchmark's telemetry, so the archive is shared privately and is not in this repository or the release.
 - **New recording (not exact).**
   - Recording again with the same model and seeds does not give byte-identical proposals: Tier 2 matched 0 of 50 regenerated runs.
   - The AI-arm numbers are therefore reproducible only statistically.
-  - The deterministic pipeline (every AI-off number) is reproducible exactly.
+  - The deterministic pipeline (every AI-off number) is reproducible exactly, with the OpenBLAS kernel pinned (§0).
 
 ## What is not reproduced
 
