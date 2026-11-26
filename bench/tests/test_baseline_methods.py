@@ -83,12 +83,16 @@ def test_baselines_run_on_synth_next_to_veyltrace(tmp_path: Path) -> None:
 
 def test_chance_and_unbuilt_baselines_are_named_not_run(tmp_path: Path) -> None:
     text = textio.read_text(EXPERIMENT)
-    extra = '  - {id: "chance", kind: internal_baseline}\n  - {id: "prior-only", kind: internal_baseline}\n'
+    extra = (
+        '  - {id: "chance", kind: internal_baseline}\n  - {id: "prior-only", kind: internal_baseline}\n'
+        '  - {id: "prism-plain", kind: internal_baseline}\n'
+    )
     path = tmp_path / "exp.yaml"
     path.write_text(text.replace(OFF, OFF + extra), encoding="utf-8")
     todo = unsupported(load_experiment(path))
     assert any("chance" in t and "`chance` metric" in t for t in todo)
-    assert any(t.startswith("methods prior-only: internal baseline not built") for t in todo)
+    assert not any(t.startswith("methods prior-only") for t in todo)  # built (#561); split checked at run
+    assert any(t.startswith("methods prism-plain: internal baseline not built") for t in todo)
 
 
 def test_an_unwrapped_rcaeval_method_is_refused_before_the_first_case(
