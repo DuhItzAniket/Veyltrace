@@ -1,0 +1,33 @@
+--- Evaluation results ---
+Avg@5-CPU:   0.61
+Chance@5-CPU: 0.04
+Lift@5-CPU:  0.57
+Retrieval@5-CPU: 0.71
+Rerank@1-CPU: 0.5
+Avg@5-MEM:   0.99
+Chance@5-MEM: 0.04
+Lift@5-MEM:  0.94
+Retrieval@5-MEM: 1.0
+Rerank@1-MEM: 0.93
+Avg@5-DISK:  1.0
+Chance@5-DISK: 0.04
+Lift@5-DISK: 0.96
+Retrieval@5-DISK: 1.0
+Rerank@1-DISK: 1.0
+Avg@5-SOCKET: 0.69
+Chance@5-SOCKET: 0.04
+Lift@5-SOCKET: 0.65
+Retrieval@5-SOCKET: 0.8
+Rerank@1-SOCKET: 0.58
+Avg@5-DELAY: 0.59
+Chance@5-DELAY: 0.04
+Lift@5-DELAY: 0.54
+Retrieval@5-DELAY: 0.6
+Rerank@1-DELAY: 0.89
+Avg@5-LOSS:  0.65
+Chance@5-LOSS: 0.04
+Lift@5-LOSS: 0.61
+Retrieval@5-LOSS: 0.73
+Rerank@1-LOSS: 0.73
+---
+Avg speed: 0.28
