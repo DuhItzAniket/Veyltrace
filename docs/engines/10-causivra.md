@@ -1,6 +1,6 @@
 # 10 · Causivra — incident card under a claim checker, verdict receipt, and replay
 
-> Status: v0.1-draft · Lane: Explain · Master: [docs/02-architecture.md §6.10](../02-architecture.md#610-causivra--explanation-and-receipt) (also §2 P3–P4, §4 step 10, §5.2) · Contracts: [docs/03-contracts.md §10, §11, §12](../03-contracts.md#11-causivra-outputs) · Last updated: 2026-10-30
+> Status: v0.1-draft · Lane: Explain · Master: [docs/02-architecture.md §6.10](../02-architecture.md#610-causivra--explanation-and-receipt) (also §2 P3–P4, §4 step 10, §5.2) · Contracts: [docs/03-contracts.md §10, §11, §12](../03-contracts.md#11-causivra-outputs) · Last updated: 2026-11-24
 
 ---
 
@@ -10,7 +10,7 @@ Causivra turns a sealed verdict into something a person can read and anyone can 
 
 1. **Card** (`card.json`, `card.md`): title, status, root, candidate set, confidence, timeline, propagation path, evidence table, why-not for runner-ups, asks, next steps from deterministic playbooks ([02 §6.10](../02-architecture.md#610-causivra--explanation-and-receipt)).
 2. **Prose under a claim checker**: the LLM writes sentences with placeholders; code fills names and numbers; the checker rejects any sentence with a raw number, an entity outside the enum, or no atom citation. Two failures → template prose. Numeric hallucination is impossible by construction.
-3. **Receipt** (`receipt.json`): the run manifest, `verdict_hash`, `card_hash` and the agent-trace head, wrapped as an in-toto Statement v1; optional minisign signature.
+3. **Receipt** (`receipt.json`): the run manifest, `verdict_hash`, `card_hash` and the agent-trace head, wrapped as an in-toto Statement v1; optional minisign signature (not built in v1.0, §3.8 step 6).
 4. **Replay** (`veyltrace replay <receipt>`): re-hash, reload the cassette, re-run steps 5–10, compare hashes, exit 0–6.
 
 Causivra never changes the verdict. With `ai.mode = off` it produces the same card structure with template prose ([02 §3.1](../02-architecture.md#31-why-these-boundaries)).
@@ -80,7 +80,7 @@ Run-dir sequencing ([02 §6.10](../02-architecture.md#610-causivra--explanation-
 
 2. Copy `status`, `root`, `confidence`, `candidate_set`.
 3. **Evidence table.** Atom set A, in this order: atoms of every trial of `ranked[0]` (or of `ranked[0…2]` when `root` is null); `claim_check` atoms on those candidates with `holds = true`; then the atoms of the first failing trial of each runner-up listed under why-not (step 6), so its line can cite them under C3. Timeline cites (step 4) are not added: the table holds the decision's evidence, and a timeline cite it lacks is dropped instead. Capped at `card.evidence_max` keeping that order, then sorted by (`candidate`, `kind`, `atom_id`). `label` comes from `labels.<kind>` templates filled from `candidate` and `args_json` (e.g. `internal_anomaly` → "`<candidate>` `<family>` anomaly (`<window>`)": anomaly atoms carry `family`, not `signal`, in `args_json`, 03 §7).
-4. **Timeline.** Entries: alert (`alert.t_alert_ns`, label `alert (<protocol>)`), incident onset (`onsets.t_onset_ns`), the root's internal and external onsets (`onsets.per_service`), every change in `changes` on a decision-pool candidate (`verdict.ranked`) with `t_ns` inside `alert.windows` (decoys included: the card shows them, the verdict weighs them). A change is on a pool candidate when its `entity` is a ranked `service` or `component`, or when a `change_proximity` atom whose `args_json.change_id` is that change has a ranked service as `candidate` (`changes` has no service column, so a deploy on another replica of a ranked service is found through FaultLoom's atom). `cites` = atoms of kind `onset_precedence` (the root's, scope `self` or `internal_vs_external`) or `change_proximity` (that `change_id`) that name the entry **and are in the evidence table** (step 3), so every cited atom is visible on the card (decision D2); cites the table lacks are dropped, and `cites` may be empty.
+4. **Timeline.** Entries: alert (`alert.t_alert_ns`, label `alert (<protocol>)`, or `alert (<protocol>, windows clamped)` when `alert.clamped`), incident onset (`onsets.t_onset_ns`), the root's internal and external onsets (`onsets.per_service`), every change in `changes` on a decision-pool candidate (`verdict.ranked`) with `t_ns` in [`windows.baseline` start, `windows.incident` end) (decoys included: the card shows them, the verdict weighs them). A change is on a pool candidate when its `entity` is a ranked `service` or `component`, or when a `change_proximity` atom whose `args_json.change_id` is that change has a ranked service as `candidate` (`changes` has no service column, so a deploy on another replica of a ranked service is found through FaultLoom's atom). `cites` = atoms of kind `onset_precedence` (the root's, scope `self` or `internal_vs_external`) or `change_proximity` (that `change_id`) that name the entry **and are in the evidence table** (step 3), so every cited atom is visible on the card (decision D2); cites the table lacks are dropped, and `cites` may be empty.
 5. **Path** as in §2.2.
 6. **Why-not.** Empty for `NO_FAULT` (there is no root to compare against). Otherwise, for each runner-up in `ranked[1 … why_not.max]`, the first failing trial in ID order (T1 < T2 < … < T10) picks the text; if no trial failed, the text says whether every mandatory trial (`causentra.mandatory`, plus T10 for a proposal-origin candidate) passed or one was untestable. `{SVC:x}` is the runner-up. `cites` = that failing trial's atoms (in the table by step 3 unless the cap dropped them), else the runner-up's first atom in the table, else empty.
 
@@ -113,17 +113,17 @@ All template strings in steps 1–8 are trusted code text, filled by the same fi
    {"type": "object", "additionalProperties": false, "required": ["sentences"],
     "properties": {"sentences": {"type": "array", "minItems": 2, "maxItems": "<narration.max_sentences>",
       "items": {"type": "object", "additionalProperties": false, "required": ["text", "cites"],
-        "properties": {"text": {"type": "string", "maxLength": 300},
+        "properties": {"text": {"type": "string", "maxLength": "<checker.max_chars>"},
                        "cites": {"type": "array", "minItems": 1, "maxItems": 4,
                                  "items": {"enum": "<evidence_table atom_ids>"}}}}}}}
    ```
 
-3. **Attempt 1** via `veyltrace_llm.call_json(purpose="causivra.narrate", …)`; sampler and seed rules as Relentra ([08 §3.8](08-relentra.md#38-model-runtime-and-sampler)): the `relentra.sampler.*` values and `seed_index`, with seed purpose `causivra.seed/<seed_index>` and `narration.max_tokens`. The calls are recorded in the cassette's own subdirectory `cassette/narration/`, so Relentra's entries stay as step 7 wrote them.
+3. **Attempt 1** via `veyltrace_llm.client.LLMClient.call_json("causivra.narrate", …)`; sampler and seed rules as Relentra ([08 §3.8](08-relentra.md#38-model-runtime-and-sampler)): `relentra.sampler.{temperature, top_p, top_k, presence_penalty, thinking}` and `seed_index`, with seed purpose `causivra.seed/<seed_index>` and `narration.max_tokens`. The calls are recorded in the cassette's own subdirectory `cassette/narration/`, so Relentra's entries stay as step 7 wrote them.
 4. Run the checker (§3.4) on every sentence. If any sentence fails, **attempt 2** = same messages + output + `repair.md` listing `(sentence index, rule ID, offending token)`.
-5. If attempt 2 also has a failing sentence, or a provider error occurs at any point: discard all LLM sentences and use template prose (§3.5); `narrator.path = template`.
+5. If attempt 2 also has a failing sentence, or a provider error, a cassette miss or the budget (§6) stops it: discard all LLM sentences and use template prose (§3.5); `narrator.path = template`.
 6. Otherwise fill placeholders (§3.3) → `summary`. `narrator = {path: llm, model: <name>, attempts, checker_failures}`.
 
-Why-not, asks and next steps stay template-only in v0.1 (`narration.scope = summary`), to keep the call small on CPU.
+Why-not, asks and next steps stay template-only in v0.1 (`narration.scope = summary`), to keep the call small on CPU. No call is made when the evidence table is empty (no reply could cite an atom), or when the locked config has no `narration` section (a run locked before #466); the summary is then template prose.
 
 ### 3.3 Placeholder grammar
 
@@ -159,7 +159,7 @@ Number formatting (one function, `Decimal` with `ROUND_HALF_EVEN`): round to 3 s
 
 ### 3.4 Claim checker
 
-Applied to the raw LLM sentence (before filling) in this order, each rule over the whole sentence before the next (C1 on every placeholder, then C2 on every placeholder, then C3); the first failing rule is reported, at its first offending token. Rules C4–C6 consider only text **outside** placeholders.
+Applied to the raw LLM sentence (before filling) in this order, each rule over the whole sentence before the next (C1 on every placeholder, then C2 on every placeholder, then C3); the first failing rule is reported, at its first offending token. Rules C4–C7 consider only text **outside** placeholders; C8 counts characters and words of the raw sentence and terminators outside placeholders.
 
 | Rule | Rejects when | Config |
 |---|---|---|
@@ -176,11 +176,11 @@ C6 forces every entity through `{SVC:…}`/`{ROOT}`, so "entity outside the enum
 
 ### 3.5 Template prose (fallback, and `ai.mode = off`)
 
-Same grammar, same filler. The atom chosen for `{E*}` below is the root's strongest atom of the named kind: highest `value`, ties by `atom_id`, the same rule as FaultLoom's best atom ([06 §3.7](06-faultloom.md)). A root can carry several `internal_anomaly` atoms (one per family, detector and source), so table order alone could name a weaker one. If none exists the sentence is skipped.
+Same grammar, same filler. The atom chosen for `{E*}` below is the root's strongest atom of the named kind: highest `value`, ties by `atom_id`, the same rule as FaultLoom's best atom ([06 §3.7](06-faultloom.md)). A root can carry several `internal_anomaly` atoms (one per family, detector and source), so table order alone could name a weaker one. If none exists the sentence is skipped; so is the margin sentence without a runner-up. The other sentences cite the leader's table atoms (the root, or `ranked[0]` without one).
 
 | Status | Sentences |
 |---|---|
-| `CONFIRMED` | "{ROOT} is the only member of the candidate set and passed every mandatory trial." (cites: root trial atoms) · "Its strongest internal signal was {E*.label} at {E*.value} {E*.unit}." (`internal_anomaly`) · "Confidence is {CONF.level}; its verified score leads {RUNNER_UP} by a relative margin of {CONF.margin}." |
+| `CONFIRMED` | "{ROOT} is the only member of the candidate set and passed every mandatory trial." (cites: the root's table atoms) · "Its strongest internal signal was {E*.label} at {E*.value} {E*.unit}." (`internal_anomaly`) · "Confidence is {CONF.level}; its verified score leads {RUNNER_UP} by a relative margin of {CONF.margin}." |
 | `LIKELY` | "{ROOT} is the most likely root cause; the candidate set has {CONF.set_size}." · strongest-signal sentence · margin sentence |
 | `INCONCLUSIVE` | "No single root cause could be established; the candidate set has {CONF.set_size}." · "The leading candidate is {ROOT}." (root present) · "The asks below list what would settle it: <phrases>." (asks present) |
 | `NO_FAULT` | "No anomaly above threshold was found at the entry service or inside any service." · "The candidate set is empty and no root cause is named." |
@@ -191,7 +191,7 @@ Template sentences may have empty `cites` only when no citable atom exists, or f
 
 ### 3.6 Deterministic playbooks
 
-Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first step this way: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. A step written as `{when: candidate_set, text}` is shown only when the candidate set is non-empty; for an empty set it is dropped, with no placeholder line ("inspect each member" of an empty set is no advice). Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
+Selection: `NO_FAULT` → `PB-NOFAULT-01`; `INCONCLUSIVE` → `PB-INCONC-01`; `CONFIRMED`/`LIKELY` → the playbook for `root.fault_class` (every fault class has one; `unknown` → `PB-UNK-01`), then `PB-CHANGE-01` if `root.mode = change` or the root passed T6. Steps keep file order. A step may be tied to an ask kind (`{ask_kind, text}` in `playbooks.yaml`): it is shown only when `verdict.asks` holds an ask of that kind, and a playbook's tied steps are shown as one block at the first tied step's place, in the order the kinds first appear in `verdict.asks`. `PB-INCONC-01` ties its first three steps this way, one per ask kind: an `INCONCLUSIVE` verdict can carry `telemetry`, `trial` or `context` asks (rows 6b and 7 of [09 §3.11](09-causentra.md) are `context`), and "collect the telemetry" is wrong advice for a context ask. A step written as `{when: candidate_set, text}` is shown only when the candidate set is non-empty; for an empty set it is dropped, with no placeholder line ("inspect each member" of an empty set is no advice). Steps are read-only diagnostics or "consider … after review"; v1.0 never acts on the cluster ([02 §11](../02-architecture.md#11-out-of-scope-for-v10-do-not-build)).
 
 | `playbook_id` | Trigger | Steps (abridged) |
 |---|---|---|
@@ -224,26 +224,25 @@ Rendered from `card.json` only: title; status banner with `confidence.level`, se
 3. Verify the `agent_trace` chain; `agent_trace_head` = last `line_hash`, or `null` when `agent_trace.jsonl` is absent or has no lines (`ai off`, or `status = skipped`).
 4. `predicate` = `{run_manifest, verdict_hash, card_hash, agent_trace_head}`; Statement `_type` and `predicateType` exactly as 03 §11.2.
 5. Write `receipt.json` as `canonical_json` bytes.
-6. Optional signing (`signing.enabled`): sign the `receipt.json` bytes with a minisign-compatible Ed25519 key whose secret-key path comes from the environment variable `VEYLTRACE_MINISIGN_SECRET_KEY` (never from the repo); write `receipt.json.minisig`. The signature file is outside every hash. Tool or library choice is an ADR at X-09.
+6. Optional signing (`signing.enabled`), **not built in v1.0** (no `signing.*` keys in `config/causivra.yaml`): sign the `receipt.json` bytes with a minisign-compatible Ed25519 key whose secret-key path comes from the environment variable `VEYLTRACE_MINISIGN_SECRET_KEY` (never from the repo); write `receipt.json.minisig`. The signature file is outside every hash. Tool or library choice is an ADR at X-09.
 
 ### 3.9 Replay
 
-`veyltrace replay <receipt.json> [--run-dir DIR] [--full] [--allow-env-drift] [--report PATH] [--keep]`. Core's CLI forwards the arguments to `veyltrace.commands:replay` (`veyltrace_causivra.replay.main`), which calls `replay(...)`. `--full` is not built yet and exits 1; `--keep DIR` keeps the re-run directory in DIR.
+`veyltrace replay <receipt.json> [--run-dir DIR] [--full] [--allow-env-drift] [--report PATH] [--keep DIR]`. Core's CLI forwards the arguments to `veyltrace.commands:replay` (`veyltrace_causivra.replay.main`), which calls `replay(...)`. `--full` is not built in v1.0 and exits 1; `--keep DIR` keeps the re-run directory in DIR.
 
 ```mermaid
 flowchart TD
   R1[R1 load receipt, check Statement fields] -->|bad| X1[exit 1]
-  R1 --> R2[R2 signature, if .minisig and public key]
-  R2 -->|bad| X3[exit 3]
+  R1 --> R2[R2 signature: reported only in v1.0]
   R2 --> R3[R3 receipt run_manifest == run_manifest.json; subject digest == verdict.json bytes]
-  R3 -->|differs| X3
+  R3 -->|differs| X3[exit 3]
   R3 --> R4[R4 config.lock.json hash == config_sha256; config valid]
   R4 -->|no| X4[exit 4]
   R4 --> R5[R5 env: python major.minor, libs, uv_lock_sha256]
-  R5 --> R6[R6 inputs: hashes of step 0-4 outputs, calibration, cassette; --full adds case inputs]
+  R5 --> R6[R6 inputs: hashes of step 0-4 outputs, locked calibration, cassette]
   R6 -->|missing/changed| X3
-  R6 --> R7[R7 re-run steps 5-10 into a temp dir]
-  R7 -->|exception| X1
+  R6 --> R7[R7 re-run steps 5-10a into a temp dir]
+  R7 -->|error| X7[exit 1, or the error's replay code]
   R7 --> R8[R8 compare verdict_hash, agent_trace_head, card_hash]
   R8 --> D{result}
   D -->|env drift and not allowed| X5[exit 5]
@@ -254,29 +253,29 @@ flowchart TD
 
 Steps:
 
-1. **R1** Parse `receipt.json`; require `_type`, `subject[0].name = "verdict.json"`, `predicateType = https://veyltrace.dev/rca-verdict/v1`. Unreadable or malformed → 1.
-2. **R2** If `receipt.json.minisig` exists and `signing.public_key_path` is configured, verify; failure → 3. Signature present but no public key → warning. (Built: no signing key is configured in v1, so a signature is only reported; #432.)
+1. **R1** Parse `receipt.json` (schema-validated); require `_type`, exactly one subject with `subject[0].name = "verdict.json"`, `predicateType = https://veyltrace.dev/rca-verdict/v1`. Unreadable or malformed → 1.
+2. **R2** Spec: if `receipt.json.minisig` exists and `signing.public_key_path` is configured, verify; failure → 3. Signature present but no public key → warning. Not built in v1.0: there is no `signing.*` key, so R2 only reports whether a `.minisig` file is present and never fails (#432).
 3. **R3** Run dir = receipt's directory unless `--run-dir`. The receipt's embedded `run_manifest` must equal `run_manifest.json` on disk (canonical bytes), and SHA-256 of `verdict.json` must equal `subject[0].digest.sha256`; else → 3.
 4. **R4** Load the run dir's `config.lock.json` (the fully resolved config, [02 §4.1](../02-architecture.md#41-run-directory)) through core's loader; invalid or hash ≠ `config_sha256` → 4. Replay never reads the repo's current `config/<engine>.yaml` files.
 5. **R5** Environment: compare `env.python` (major.minor), every `env.libs` version and `uv_lock_sha256`; `env.os` and `code.commit` are reported but never fail (a receipt from a Windows laptop must replay on CI Linux, [verified_agents §Q3][va-q3] Tier 1). Drift is recorded; it decides the exit code only at the end.
-6. **R6** Inputs: recompute SHA-256 of every `run_manifest.outputs` entry produced by pipeline steps 0–4 (`case_manifest.json`, `telemetry/*`, `alert.json`, `signal_cube/*`, `anomalies.parquet`, `onsets.json`, `alignment.json`, `changes.parquet`, `graph/*`), the calibration file under `config/calibration/` (`calibration_sha256`) and, when `ai.mode ≠ off`, the cassette (`cassette_sha256`, [08 §5.2](08-relentra.md#52-cassette-veyltrace_llm)). These files are read, not regenerated, so their bytes must match exactly; missing or changed → 3. With `--full`, also `case_manifest.inputs` against the dataset location, and steps 0–4 are re-run too; a regenerated Parquet file that differs while pyarrow differs from `env.libs` is environment drift (→ 5), not a mismatch ([03 §1](../03-contracts.md#1-how-contracts-work), "Parquet hashes").
-7. **R7** Re-run steps 5–10a (no receipt) via `veyltrace_core.pipeline.run_case(from_step=5, ai_mode=…, out=<temp dir>)`, with `ai_mode = off` if the original was `off`, else `replay`. A `CassetteMiss` raised by Relentra or the claim pass marks the verdict "not reproducible" (→ 2). A `CassetteMiss` in narration falls through to template prose and shows up as a card difference (→ 6 if the verdict matched). Any other exception → 1.
+6. **R6** Inputs: recompute SHA-256 of every `run_manifest.outputs` entry produced by pipeline steps 0–4 (`case_manifest.json`, `telemetry/*`, `alert.json`, `signal_cube/*`, `anomalies.parquet`, `onsets.json`, `alignment.json`, `changes.parquet`, `graph/*`), the calibration embedded in `config.lock.json` (its `sha256`, or the uncalibrated sentinel, must equal `calibration_sha256`; no file under `config/calibration/` is read) and, when `ai.mode ≠ off`, the cassette (`cassette_sha256`, [08 §5.2](08-relentra.md#52-cassette-veyltrace_llm)). These files are read, not regenerated, so their bytes must match exactly; missing or changed → 3. With `--full` (not built in v1.0), also `case_manifest.inputs` against the dataset location, and steps 0–4 are re-run too; a regenerated Parquet file that differs while pyarrow differs from `env.libs` is environment drift (→ 5), not a mismatch ([03 §1](../03-contracts.md#1-how-contracts-work), "Parquet hashes").
+7. **R7** Re-run steps 5–10a (no manifest, no receipt) via `veyltrace_core.pipeline.run_case(…, from_step="faultloom", to_step="causivra.card", out_dir=<temp dir>, reuse_dir=<run dir>, write_manifest=False, write_receipt=False)`, with `ai_mode = off` if the original was `off`, else `replay`. A `CassetteMiss` raised by Relentra or the claim pass marks the verdict "not reproducible" (→ 2). A `CassetteMiss` in narration falls through to template prose and shows up as a card difference (→ 6 if the verdict matched). Any other `VeyltraceError` exits with its own replay code (`ConfigError` → 4, `ArtifactMissing` → 3); any other error → 1.
 8. **R8** Compare the recomputed `verdict_hash` and `agent_trace_head` with the receipt, then `card_hash`. To help diagnosis, also compare `evidence.parquet`, `slate.json` and `proposals.json` hashes and report the first divergent artifact.
-9. **R9** Exit code = first match in this precedence: 1 → 4 → 3 → 5 (drift found and `--allow-env-drift` not given) → 2 → 6 → 0.
+9. **R9** Checks run in order and the first failure stops replay with its code: R1 (1), R3 (3), R4 (4; it needs R3's manifest), R6 (3), R7, R8 (2, 6). Drift found without `--allow-env-drift` is decided last: 5 replaces 2, 6 or 0, never 1, 3 or 4.
 
 | Exit | Meaning ([02 §6.10](../02-architecture.md#610-causivra--explanation-and-receipt)) | Raised by |
 |---|---|---|
 | 0 | ok: verdict, trace head and card reproduced | R9 |
-| 1 | error: malformed receipt, unexpected exception | R1, R7 |
+| 1 | error: malformed receipt, unexpected exception, `--full` | R1, R7 |
 | 2 | verdict hash mismatch (also: agent-trace head mismatch, or Relentra cassette miss) | R7, R8 |
-| 3 | inputs missing or changed (incl. signature, embedded manifest, cassette, calibration) | R2, R3, R6 |
-| 4 | invalid config, or config hash differs | R4 |
+| 3 | inputs missing or changed (incl. embedded manifest, cassette, calibration; signature not checked in v1.0) | R3, R6, R7 |
+| 4 | invalid config, or config hash differs | R4, R7 |
 | 5 | environment drift (python, libs, `uv.lock`) | R5 |
 | 6 | narrative mismatch only: verdict and trace reproduced, card differs | R8 |
 
-**Narrative-only mismatch.** Exit 6 is a pass for the decision and a fail for the explanation. The report lists differing card fields and separates `summary` (LLM prose) from deterministic fields (title, table, playbooks), since a deterministic-field difference means template or playbook code changed.
+**Narrative-only mismatch.** Exit 6 is a pass for the decision and a fail for the explanation. Spec, not built in v1.0: the report lists differing card fields and separates `summary` (LLM prose) from deterministic fields (title, table, playbooks), since a deterministic-field difference means template or playbook code changed. The v1.0 report gives only the two `card_hash` values.
 
-**Report.** Canonical JSON to stdout and to `--report`: `{exit_code, checks: [{id, ok, detail}], env_drift: [...], first_divergence?, verdict_hash: {expected, actual}, card_hash: {expected, actual}, agent_trace_head: {expected, actual}}`. The gateway serves it as the `replay_report` API type ([03 §14](../03-contracts.md#14-api-types-gateway), [06](../06-gateway-and-console.md)). The temp dir is deleted unless `--keep`.
+**Report.** Canonical JSON to stdout and to `--report`: `{exit_code, checks: [{id, ok, detail}], env_drift: [...], first_divergence (null when none), verdict_hash: {expected, actual}, card_hash: {expected, actual}, agent_trace_head: {expected, actual}}`. The gateway serves it as the `replay_report` API type ([03 §14](../03-contracts.md#14-api-types-gateway), [06](../06-gateway-and-console.md)). The temp dir is deleted unless `--keep`.
 
 ### 3.10 Claim-grounding metrics (evaluation)
 
@@ -297,7 +296,7 @@ Computed by code from cards; no judge ([verified_agents §Q8][va-q8]).
 | Key | Default | Unit | Rationale |
 |---|---|---|---|
 | `narration.enabled` | `true` | bool | `false` → template prose even with AI on |
-| `narration.scope` | `summary` | enum | §3.2; `all` would also narrate why-not |
+| `narration.scope` | `summary` | enum | §3.2; only `summary` is accepted in v1.0 (any other value is a config error) |
 | `narration.max_sentences` | 5 | sentences | a priori |
 | `narration.max_attempts` | 2 | calls | 02: "two failures → template" |
 | `narration.max_tokens` | 300 | tokens | a priori; CPU cost (§8) |
@@ -314,14 +313,15 @@ Computed by code from cards; no judge ([verified_agents §Q8][va-q8]).
 | `asks.<kind>` | one template per ask kind | text | display |
 | `ask_phrases.<kind>` | what each ask kind would settle, for the INCONCLUSIVE summary (§3.5); no digit or brace | text | display |
 | `format.sig_digits` | 3 | digits | a priori |
-| `signing.enabled` | `false` | bool | demo only |
-| `signing.public_key_path` | `null` | path | public key may be committed; secret key never |
-| `replay.compare_intermediates` | `true` | bool | diagnostics in the report |
+| `signing.enabled` | `false` | bool | demo only; not built in v1.0 (key absent) |
+| `signing.public_key_path` | `null` | path | public key may be committed; secret key never; not built in v1.0 (key absent) |
+
+There is no `replay.*` key: R8 always compares the intermediate hashes.
 
 ## 5. Determinism, recording and isolation
 
 1. Every deterministic part (title, table, timeline, path, why-not, asks, playbooks, templates, `card.md`, receipt) is a pure function of the run artifacts and config; lists are sorted as stated in §2.2; no clock reads.
-2. LLM narration goes through `veyltrace_llm` with the cassette ([08 §5.2](08-relentra.md#52-cassette-veyltrace_llm)); seeds come from `veyltrace_core.rng(case_id, "causivra.seed/<i>")`. Narration calls are recorded in the cassette only, not in `agent_trace.jsonl`, whose producer is Relentra (03 §9.2).
+2. LLM narration goes through `veyltrace_llm` with the cassette ([08 §5.2](08-relentra.md#52-cassette-veyltrace_llm)); seeds come from `veyltrace_core.rng.seed_int(case_id, "causivra.seed/<seed_index>")`. Narration calls are recorded in the cassette only, not in `agent_trace.jsonl`, whose producer is Relentra (03 §9.2).
 3. `card.json` and `receipt.json` are written with `canonical_json`; `card_hash` and the receipt are therefore stable across machines.
 4. minisign signatures may embed a timestamp in the trusted comment; that is why the signature file sits outside every hash.
 5. Causivra imports `veyltrace_llm` (allowed, [02 §9](../02-architecture.md#9-cross-cutting-rules)); it never imports an HTTP client directly and never writes to any verdict input.
@@ -335,11 +335,13 @@ Computed by code from cards; no judge ([verified_agents §Q8][va-q8]).
 | Checker rejects (attempt 2) | template prose | `checker_failures` counts rejected sentences |
 | Narration budget exceeded | stop, template prose | as above |
 | Cassette miss in narration (replay) | template prose | card differs → replay exit 6 |
-| `onsets.json`/`changes` missing | timeline holds the alert only; `{ONSET}` invalid (C2) | card still valid |
+| `onsets.json`/`changes` missing | timeline drops their entries (alert only when both are missing); `{ONSET}` invalid without onsets (C2) | card still valid |
 | No path for root | `path = []` | — |
 | Broken `agent_trace` chain | refuse to write the receipt; pipeline error | replay of that run would exit 3 |
-| `run_manifest.json` missing card outputs | refuse to write the receipt | pipeline error (core sequencing bug) |
-| Signing key missing while enabled | receipt written unsigned; warning | — |
+| `run_manifest.json` missing card outputs, or a listed file changed since | refuse to write the receipt | pipeline error (core sequencing bug) |
+| `card.json` is for another verdict (`verdict_hash` differs) | refuse to write the receipt | pipeline error |
+| Empty evidence table (AI on) | no narration call | template prose, `attempts = 0` |
+| Signing key missing while enabled | receipt written unsigned; warning (not built in v1.0) | — |
 
 ## 7. Tests
 
@@ -394,7 +396,7 @@ Replay is on the never-cut list ([07 §1.1](../07-roadmap.md#11-cut-list-if-a-mi
 | OQ-8 | ~~Which env fields trigger exit 5~~ | Resolved in 02 §6.10 and 03 §12 (2026-10-30): Python major.minor, `libs`, `uv_lock_sha256`; `os` reported only. `code.commit` is also only reported (this spec) |
 | OQ-9 | Agent-trace head mismatch has no own exit code | Exit 2 (the recorded provenance did not reproduce) |
 | OQ-10 | C6 strictness on systems whose service names are common words | Strict; revisit after the first OTel Demo cards if C6 false rejections exceed 30% of sentences |
-| OQ-11 | ~~CCR: `card.json` has no `candidate_set`~~ | Resolved in 03 §11.1 (2026-10-30): optional `candidate_set` copied from the verdict |
+| OQ-11 | ~~CCR: `card.json` has no `candidate_set`~~ | Resolved in 03 §11.1 (2026-10-30): `candidate_set` copied from the verdict, always present, may be empty |
 
 ## 12. References
 

@@ -13,10 +13,11 @@ In: `case_manifest`, `alert`, `signal_cube.{edges,series}`, `telemetry.{events,l
 ## Package rules
 - Shared APIs: `entry` is called by Anomara (`run()` and `detect_alert`, so also by core); `ci` by FaultLoom's claim pass (evidence kind `intervention`, 03 §7), which Causentra's T8 reads. Keep signatures stable (`CI_API_VERSION`); changes need an issue tagging the consuming lane.
 - When `alert.detector` is set, copy its `entry_services`; never recompute them.
+- A configured entry hint counts only if the case's traces show it, when the case has cross-service call pairs ([ADR 20261122](../../docs/adr/20261122-ak-entry-hint-needs-trace-edge.md)); hint names change only by ADR.
 - Log mentions: a service named `^[a-z]+$` counts only in host:port, URL or gRPC-package form. Logs and topology never create nodes.
 - No full causal discovery (02 §11): no PC/FCI/PCMCI/NOTEARS, no graph learning over all series.
 - Determinism: insert nodes and arcs in sorted order; resolve path ties explicitly; CI test in float64 with fixed parent order; no RNG.
-- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `networkx`, `numpy`, `scipy`, `pyarrow`, `duckdb`, stdlib. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, and `veyltrace_anomara` (circular: Anomara imports `entry`).
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `numpy`, `pyarrow`, stdlib (DuckDB only through `veyltrace_core.duck`; Yen's paths are written in-package, no `networkx`). Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, and `veyltrace_anomara` (circular: Anomara imports `entry`).
 
 ## Commands
 | Task | Command |

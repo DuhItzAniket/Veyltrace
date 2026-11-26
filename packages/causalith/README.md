@@ -6,9 +6,9 @@ Engine 5 of Veyltrace v2 (Observe lane). Causalith builds the service dependency
 - **Paths**: for every node, up to 3 lowest-cost paths to an entry service, preferring anomalous edges and nodes.
 - **`entry.entry_services()`**: the one entry-service rule, shared with Anomara and core's alert step (built in O-04b). Use it like this:
   - `entry_config(section)` parses `causalith.entry` from the causalith config section. Anomara reads it as `ctx.config.section("causalith")`.
-  - `entry_services(call_pairs, services, system, cfg)` applies the rule: the system hint ∩ services, else callers that no non-excluded service calls, else `[]`. The result is sorted.
+  - `entry_services(call_pairs, services, system, cfg)` applies the rule: the system hint ∩ services (when the case has cross-service call pairs, only hinted services that occur in one), else callers that no non-excluded service calls, else `[]`. The result is sorted.
   - `run_entry_services(alert, edges, services, system, cfg)` is the run-level form. It copies `alert.detector.entry_services` when the detected protocol set it, else applies the rule to `signal_cube.edges`.
-- **`ci.intervention_test()`**: IDI-style residual test (fit on baseline, judge the incident) on at most 5 candidate neighbourhoods, called by FaultLoom's claim pass (`intervention` atoms) for trial T8. `CIResult.independent_of_parents` is `True` (not explained by its parents), `False` (explained), or `None` when the test cannot run, with `reason` one of `no_target`, `no_parents`, `short_baseline`, `no_incident` (no incident bucket to judge, e.g. a crashed candidate) or `singular`. Consumers must treat every untestable reason alike, as holds = null (T8 untestable), never as a `False` verdict; `CIResult` is a package type pinned by tests, not a contract, so new reasons can appear.
+- **`ci.intervention_test()`**: IDI-style residual test (fit on baseline, judge the incident) with at most 5 regressors, called by FaultLoom's claim pass for at most `intervention.max_candidates` candidates (FaultLoom's key; Causalith does not read `ci.max_candidates`) (`intervention` atoms) for trial T8. `CIResult.independent_of_parents` is `True` (not explained by its parents), `False` (explained), or `None` when the test cannot run, with `reason` one of `no_target`, `no_parents`, `short_baseline`, `no_incident` (no incident bucket to judge, e.g. a crashed candidate) or `singular`. Consumers must treat every untestable reason alike, as holds = null (T8 untestable), never as a `False` verdict; `CIResult` is a package type pinned by tests, not a contract, so new reasons can appear.
 
 Spec: [docs/engines/05-causalith.md](../../docs/engines/05-causalith.md). Rules for agents: [AGENTS.md](AGENTS.md).
 
@@ -30,7 +30,7 @@ Spec: [docs/engines/05-causalith.md](../../docs/engines/05-causalith.md). Rules 
 | `settings` | typed, validated view of `config/causalith.yaml` | §4 |
 | `api` | `run(ctx)`: `graph.nodes` and `graph.edges` with trace, log and topology provenance and `graph.paths` | §2 |
 
-On synth, `signal_cube.edges` stays empty until Signalyth (O-02) lands, so the synth graph has its nodes (six services and the external card gateway) and only its log and topology edges (recommend → catalog, frontend → checkout) until then. The hand-made golden case `fixtures/handmade/synth-topology/` is the synth topology written as Signalyth will, and pins the graph exactly; refresh it after review with `VEYLTRACE_UPDATE_HANDMADE=1 uv run pytest packages/causalith/tests/test_handmade.py`.
+The synth goldens (`fixtures/synth-0*/graph/`) carry trace edges now that Signalyth writes `signal_cube.edges`. The hand-made golden case `fixtures/handmade/synth-topology/` is the synth topology written by hand, and pins the graph exactly; refresh it after review with `VEYLTRACE_UPDATE_HANDMADE=1 uv run pytest packages/causalith/tests/test_handmade.py`.
 
 Commands:
 

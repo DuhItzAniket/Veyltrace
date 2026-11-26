@@ -7,12 +7,14 @@ import asyncio
 import gzip
 import json
 import socket
+from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
 
+import pyarrow as pa
 import pytest
 
-from veyltrace_core.errors import ConfigError
+from veyltrace_core.errors import CaseRejected, ConfigError
 from veyltrace_core.testing import repo_root
 from veyltrace_gateway import __main__ as cli
 from veyltrace_gateway.app import create_app
@@ -109,6 +111,28 @@ def test_bad_requests(body: bytes, headers: list[tuple[bytes, bytes]], status: i
     assert (got, error["error"]["code"]) == (status, code)
     assert buffer.stats().rows["spans"] == 0
     assert (counters.accepted, counters.rejected) == (0, 1)  # 06 §3.3: every rejection is counted
+
+
+class _RejectingConverter(StubConverter):
+    """Infralume's converter refusing a request it can never read (`invalid_capture`, 01 §6)."""
+
+    def spans(
+        self, request: Mapping[str, Any], settings: Mapping[str, Any]
+    ) -> tuple[pa.Table, Mapping[str, int]]:
+        if "bad" in request:
+            raise CaseRejected("invalid_capture", "malformed OTLP request: KeyError: 'scopeSpans'")
+        return super().spans(request, settings)
+
+
+def test_an_unreadable_capture_is_400_and_the_next_request_lands() -> None:
+    """Regression (#52 bug bash): the converter's `invalid_capture` was 500 `conversion_failed`.
+    A request that can never be read is 400, like the other unreadable bodies."""
+    app, buffer, counters = _receiver(_RejectingConverter())
+    status, error = _call(app, "/v1/traces", b'{"bad": 1}', [JSON])
+    assert (status, error["error"]["code"]) == (400, "invalid_capture")
+    assert (buffer.stats().rows["spans"], counters.accepted, counters.rejected) == (0, 0, 1)
+    assert _call(app, "/v1/traces", _spans(2), [JSON]) == (200, {})
+    assert (buffer.stats().rows["spans"], counters.accepted, counters.rejected) == (2, 1, 1)
 
 
 def test_without_a_converter_the_receiver_is_503() -> None:

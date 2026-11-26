@@ -1,6 +1,6 @@
 # 04 · Causync — align clocks across sources, build the change timeline, score change–onset proximity and changed-vs-peer contrast
 
-> Status: v0.1-draft · Lane: Observe · Master: [docs/02-architecture.md §6.4](../02-architecture.md) · Contracts: [docs/03-contracts.md §5](../03-contracts.md) (reads §2, §2.6, §3.1, §4) · Roadmap: O-06, O-13 · Last updated: 2026-10-30
+> Status: built (O-06, O-13), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.4](../02-architecture.md) · Contracts: [docs/03-contracts.md §5](../03-contracts.md) (reads §2, §3.1, §4) · Roadmap: O-06, O-13 · Last updated: 2026-11-24
 
 ## 1. Purpose and scope
 
@@ -17,13 +17,14 @@ Causync does two things. It puts every source on one clock (or says how far apar
 | Contract | Fields used |
 |---|---|
 | `case_manifest` | `sources`, `services` |
-| `alert` | `t_alert_ns`, `windows.*` |
 | `telemetry.events` | all columns |
 | `telemetry.spans` | `trace_id, span_id, parent_span_id, service, kind, start_ns, end_ns` (clock pairs) |
 | `telemetry.logs` | `t_ns, service, trace_id, span_id` (log–span join) |
 | `signal_cube.series` | `service, component, signal, source, t_ns, value` (steps, co-movement, replica first-seen) |
-| `anomalies` | `series_id, service, component, klass, source, detector, score_norm, onset_ns, above_threshold` |
+| `anomalies` | `component, klass, detector, score` (replica scores) |
 | `onsets` | `t_onset_ns`, `entry_services`, `per_service` |
+
+`alert` is not read. `telemetry.spans` is read only when `sources.traces`, `telemetry.logs` only when logs and traces are both present, `telemetry.events` only when `sources.events`, and `anomalies` only when the case has at least one change.
 
 **Writes**
 
@@ -41,7 +42,9 @@ Causync does two things. It puts every source on one clock (or says how far apar
 Step per present source, derived from data (no other engine's config is read):
 
 - metrics: median over metric series of the effective step (median duration of runs of equal consecutive values, at least the observation spacing; same definition as [03-anomara §3.1](03-anomara.md));
-- logs, traces: median spacing of consecutive bucket timestamps in their count series (zero-filled, so this equals the Signalyth bucket).
+- logs, traces: median spacing of consecutive bucket timestamps in their count series (`log_rate`, `rps`; zero-filled, so this equals the Signalyth bucket).
+
+Sources are told apart by the `source` column of `signal_cube.series`. Quantiles are exact (linear); a step is rounded to whole nanoseconds.
 
 `tolerance_ns` = the largest step among present metric/log/trace sources ([02 §6.4](../02-architecture.md)). For the tolerance only, the metrics step is the `align.tolerance_step_quantile` (0.75) quantile of the effective steps over metric series, not their median (lead decision, #271): an onset found on a coarse series cannot be placed more finely than that series' step. On RCAEval RE2 the quartiles of the effective step are about 1 s / 2–6 s / 15–17 s (one case per suite, measured at #271), so the median gives 2–6 s and the upper quartile the 15 s Prometheus scrape held on a 1 s grid ([rcaeval_facts §Metric step and windows][rf-step]). Co-movement resampling (§3.3) keeps the median.
 
@@ -52,22 +55,22 @@ Step per present source, derived from data (no other engine's config is read):
 
    `θ = ((t2 − t1) + (t3 − t4)) / 2` — callee clock minus caller clock, assuming symmetric network delay (RFC 5905).
 3. Per caller→callee service pair: `θ_AB` = median `θ`, `n_AB` = number of pairs, and the share of pairs where the child sticks out of the parent (`c.start < p.start` or `c.end > p.end`).
-4. **Propagation.** Root = first entry service A→Z from `onsets.entry_services`, else the service with the most spans. Breadth-first over pairs with `n ≥ align.min_pairs`, neighbours visited by (`n` desc, name asc). Along A→B (A calls B): `offset(B) = offset(A) − θ_AB`; along B→A reversed: `offset(A) = offset(B) + θ_AB`.
-5. **Publish** `offset_ns` only if `|offset| ≥ align.trace_min_offset_ms` and the service's containment-violation share ≥ `align.min_violation_share`; otherwise write 0. Client-side overhead biases `θ` by small amounts, so offsets are only applied where the data shows skew. `confidence = n/(n + align.min_pairs) × (share of pairs whose θ has the sign of the median)`; 0 for unreachable services (offset 0, method `none`).
+4. **Propagation.** Root = first entry service A→Z from `onsets.entry_services` that has spans, else the service with the most spans (ties A→Z). Breadth-first over pairs with `n ≥ align.min_pairs`, neighbours visited by (`n` desc, name asc). Along A→B (A calls B): `offset(B) = offset(A) − θ_AB`; along B→A reversed: `offset(A) = offset(B) + θ_AB`. In both, `θ_AB` is the gated value of step 5.
+5. **Gate, per edge** (lead decision, #271). `θ_AB` is applied along A→B only if `|θ_AB| ≥ align.trace_min_offset_ms` and the share of A→B pairs whose child sticks out of its parent is ≥ `align.min_violation_share`; otherwise the edge counts as 0 and B takes A's offset. Client-side overhead biases `θ` by small amounts, so `θ` is only applied where the data shows skew. Every service the walk reaches gets method `trace_pairs`, also at offset 0; the root has offset 0 and confidence 1. Elsewhere `confidence = n/(n + align.min_pairs) × (share of pairs whose θ has the sign of the median)`, from the pairs of the edge that reached the service. Unreachable services get offset 0, method `none`, confidence 0; with no client/server pair in the case, every service does, the root included (§6).
 
-Micro-example: `p = [1000, 1050]` ms on A, `c = [1030, 1046]` on B (B starts after A's call and ends before A's return; no skew visible). `θ = ((1030 − 1000) + (1046 − 1050))/2 = 13 ms`. With 40 such pairs and no containment violations, the violation share is 0, so the published offset is 0. If B's clock ran 200 ms ahead, `c = [1230, 1246]`, `θ = 213 ms`, the child sticks out of the parent in every pair, and `offset(B) = −213 ms`.
+Micro-example: `p = [1000, 1050]` ms on A, `c = [1030, 1046]` on B (B starts after A's call and ends before A's return; no skew visible). `θ = ((1030 − 1000) + (1046 − 1050))/2 = 13 ms`. With 40 such pairs and no containment violations, the violation share is 0, so the edge counts as 0 and the published offset of B is 0 (method `trace_pairs`). If B's clock ran 200 ms ahead, `c = [1230, 1246]`, `θ = 213 ms`, the child sticks out of the parent in every pair, and `offset(B) = −213 ms`.
 
 ### 3.3 Logs and metrics to the reference clock
 
-**Logs, `log_span_join`** (when logs carry `span_id` matching spans): for each joined log line `i`, the offsets that would put it inside its span form `I_i = [span.start − t_i, span.end − t_i]`. If `0 ∈ I_i` for ≥ `align.log_inside_share` of lines, offset 0. Otherwise offset = median over `i` of the projection of 0 onto `I_i`. `confidence` = share of lines inside their span after correction.
+**Logs, `log_span_join`** (when traces are present and log lines carry a `trace_id` and `span_id` that match a span on both): for each joined log line `i`, the offsets that would put it inside its span form `I_i = [span.start − t_i, span.end − t_i]`. If `0 ∈ I_i` for ≥ `align.log_inside_share` of lines, offset 0. Otherwise offset = median over `i` of the projection of 0 onto `I_i`. `confidence` = share of lines inside their span after correction.
 
 **Co-movement, `comovement`** (fallback for logs without span IDs, and for metrics when the reference is traces), per service:
 
-1. Pair the source's traffic-like series (`log_rate`; metric `workload`/`rps`) with the reference series (traces `rps`).
-2. Resample both to `Δ` = the larger of the two steps (sum for counts, last value for gauges); take first differences.
+1. Pair the source's traffic-like series (`log_rate`; metric `workload`/`rps`) with the reference's traffic series (traces `rps`; metrics `workload`/`rps` when metrics are the reference).
+2. Resample both to `Δ` = the larger of the two (median) steps: the mean of the rate points in each step for logs and traces, the last value for metrics. A service's replicas are added up. Take first differences.
 3. For lags `ℓ ∈ [−align.max_lag_s, +align.max_lag_s]` in steps of `Δ`: Pearson correlation of `Δsource(t + ℓ)` with `Δref(t)`.
 4. Best `ℓ*` = argmax correlation (ties: smaller `|ℓ|`, then negative first). Accept if correlation ≥ `align.min_corr`, `|ℓ*| < max_lag`, and ≥ `align.min_points` overlapping points. A positive `ℓ*` means the source shows changes `ℓ*` later, so its offset is `−ℓ*`.
-5. Source-level offset (`service` omitted) = median of accepted per-service offsets if at least 2 services agree within one step `Δ`; else 0 with method `none`.
+5. Source-level offset (`service` omitted) = median of accepted per-service offsets if at least 2 services agree within one step `Δ`; else 0 with method `none`. A source or a reference without a step (no stepped series) also gives 0 with `none`.
 
 Co-movement resolution is one step, so it only catches gross misalignment; finer differences are inside `tolerance_ns` by construction.
 
@@ -80,10 +83,11 @@ For each service, `O(s)` = min of `per_service.external_onset_ns` and `internal_
 ### 3.5 Change timeline
 
 1. Take `telemetry.events` rows whose `kind` is in `changes.kinds` (`deploy, config, flag, scale, restart, commit`). `restart` means a deliberate restart (`kubectl rollout restart`); crash restarts arrive as `k8s_event` (OOMKilled, BackOff, Killing), which, like `other`, are symptoms and are excluded ([05 §7](../05-fault-lab-and-dataset.md)).
-2. `t_ns` = event time + events offset (normally 0).
+2. `t_ns` = event time + events offset (always 0 today: events have no estimator, §3.3).
 3. `scope`: `service` if `entity` ∈ `case_manifest.services`; `component` if `entity` is a component in `signal_cube.series`; else `cluster`.
 4. `change_id = "C" + sha256(canonical_json({t_ns, entity, kind, source_system, detail_json, actor}))[:10]` over the original event fields; duplicate IDs are collapsed.
 5. `detail_json` is copied unchanged (already scrubbed by Infralume).
+6. Rows are sorted by (`t_ns`, `entity`, `change_id`).
 
 ### 3.6 Change evidence
 
@@ -97,16 +101,16 @@ For each change, target onset `O` = `O(entity)` for service scope, `O(service of
   ```sql
   SELECT o.entity, c.t_ns
   FROM entity_onsets o
-  ASOF JOIN changes c
-    ON o.entity = c.entity AND o.onset_ns + $tol >= c.t_ns
+  ASOF JOIN change_times c
+    ON o.entity = c.entity AND o.cutoff_ns >= c.t_ns
   ```
-  Every change of that entity with the matched `t_ns` is flagged (equal timestamps are all "latest").
+  `cutoff_ns` = the entity's target onset + `tolerance_ns`; `entity` is the change's entity (a component for component scope). Every change of that entity with the matched `t_ns` is flagged (equal timestamps are all "latest").
 - `peer_contrast` (changed-vs-control cohort, Meta Service Health Checks / Gandalf, [novel_building_blocks §Q5][nbb]):
   1. Replicas of service S = distinct `component` values of S in `signal_cube.series`, excluding `component = S`. Need ≥ `peer.min_replicas` (2).
-  2. Changed set: component scope → `{entity}`; service scope with kind `deploy | config | restart | scale` → replicas first observed at or after `t_change` (new pods of a rollout).
+  2. Changed set: component scope → `{entity}`; service scope with kind `deploy | config | restart | scale` → replicas first observed at or after `t_change` (new pods of a rollout). Service-scope `flag` and `commit` changes have no changed set, so their `peer_contrast` is null; so is that of a component-scope change whose entity is not a known replica.
   3. Peers: replicas observed before `t_change` and after `O`, not in the changed set.
-  4. Replica score `a(k)` = max `score` (raw robust z, unit z) over `anomalies` rows with `component = k`, `detector = robust_z`, `klass ∈ {internal, external}`. Raw z, not `score_norm`, so the value is in the same units as FaultLoom's anomalies-based `peer_contrast` atom ([06-faultloom §11 Q7](06-faultloom.md)).
-  5. `peer_contrast = mean_{changed} a − median_{peers} a` (unit z); null if either set is empty or scope is cluster.
+  4. Replica score `a(k)` = max `score` (raw robust z, unit z) over `anomalies` rows with `component = k`, `detector = robust_z`, `klass ∈ {internal, external}`; null and non-finite scores are ignored, and a replica without such a row scores 0. Raw z, not `score_norm`, so the value is in the same units as FaultLoom's anomalies-based `peer_contrast` atom ([06-faultloom §11 Q7](06-faultloom.md)).
+  5. `peer_contrast = mean_{changed} a − median_{peers} a` (unit z); null if either set is empty, the service has fewer than `peer.min_replicas` replicas, or scope is cluster.
 
 **Decoys.** Causync scores every change by time, entity, kind and anomalies only; `source_system` and `actor` never enter any rule or score. Infralume gives every overlay row `source_system = synthetic` and `actor = null` ([01-infralume §3.10](01-infralume.md)), so true and decoy changes are indistinguishable here, as [02 §6.4](../02-architecture.md) requires. Real lab decoys (benign `kubectl set env` rollouts on non-root services, [05 §7](../05-fault-lab-and-dataset.md)) arrive as ordinary `k8s` events and are treated the same way.
 
@@ -114,11 +118,11 @@ For each change, target onset `O` = `O(entity)` for service scope, `O(service of
 
 **Built (O-06).** Where the text above left a choice:
 
-- *Offsets written.* One source-level row per present source (`traces` and `metrics` as `reference` when they are the reference clock; `events` always `none`), plus one `traces` row per service with a span and, when log lines join spans, one `logs` row per logging service with joined lines. The root service has offset 0 and confidence 1. Metrics get a source-level row only.
+- *Offsets written.* One source-level row per present source (`traces` and `metrics` as `reference` when they are the reference clock; `events` always `none`), plus one `traces` row per service with a span and, when log lines join spans, one `logs` row per logging service with joined lines. Metrics get a source-level row only.
 - *Client-like spans* (§3.2 step 1) are `client` spans, or `unspecified` spans whose parent is in their own service. The containment test of 02-signalyth §3.3 is left out on purpose: a skewed child lies outside its parent, and that is what is measured.
-- *Publish gate* (§3.2 step 5) is applied per edge of the breadth-first walk (lead decision, #271): along A→B, `offset(B) = offset(A) − θ_AB` when the A→B pairs pass the gate (`|θ| ≥ trace_min_offset_ms` and violation share ≥ `min_violation_share`), else `offset(B) = offset(A)`. A callee on its caller's skewed clock therefore inherits the caller's correction. `confidence` comes from the pairs of the edge that reached the service. With no client/server pair in the case, every trace offset is 0 with method `none`, the root included (§6).
-- *Logs.* `log_span_join` when any line joins a span, else `comovement`. Spans are first moved to the reference clock by their service's `trace_pairs` offset. Each logging service with joined lines gets its own `(logs, service)` row from its lines alone, so a skewed service's logs are corrected with its traces and no other service's logs move (#271); the source-level row, over all joined lines, serves services without joined lines. The projection moves a line to the nearest edge of its span, so the estimate is a lower bound on the skew.
-- *Co-movement* resamples bucketed sources by the **mean** of their rate points, not the sum: a sum alternates with the number of 10 s buckets that fall into each 15 s step and correlates with that pattern alone. A median lag of at most one step is published as 0 (method `comovement`): a rate stamped at the end of its interval lags by up to one step, and one step is inside `tolerance_ns`. `confidence` is the median correlation of the agreeing services. Every lag up to `max_lag` competes and the winner is judged afterwards: a service whose best lag has too few points, too low a correlation or sits at `max_lag` is rejected, not given its next-best lag (#271).
+- *Publish gate* (§3.2 step 5). The gate is per edge so that a callee on its caller's skewed clock inherits the caller's correction: its own edge shows no skew, and a per-service gate would write 0 for it.
+- *Logs.* `log_span_join` when any line joins a span, else `comovement`. Spans are first moved to the reference clock by their service's `trace_pairs` offset. Each logging service with joined lines gets its own `(logs, service)` row from its lines alone, so a skewed service's logs are corrected with its traces and no other service's logs move (#271); the source-level row, over all joined lines, serves services without joined lines. Lines are grouped by the log line's service; the span is moved by the span's service. The projection moves a line to the nearest edge of its span, so the estimate is a lower bound on the skew.
+- *Co-movement.* Bucketed sources are resampled by the mean (§3.3 step 2) because a sum alternates with the number of 10 s buckets that fall into each 15 s step and correlates with that pattern alone. A median lag of at most one step is published as 0 (method `comovement`): a rate stamped at the end of its interval lags by up to one step, and one step is inside `tolerance_ns`. `confidence` is the median correlation of the agreeing services (at most 1). Every lag up to `max_lag` competes and the winner is judged afterwards: a service whose best lag has too few points, too low a correlation or sits at `max_lag` is rejected, not given its next-best lag (#271).
 - *Tolerance.* The metrics step for `tolerance_ns` is the upper quartile over metric series (§3.1). On the synth cases `tolerance_ns` is 15 s (metrics scraped every 15 s), 10 s without metrics, 0 for an events-only case.
 - *Peer contrast.* A replica's first and last observation are taken from `signal_cube.series` and moved to the reference clock by the source-level `metrics` offset (#271). A component named by two services belongs to the first A→Z.
 - *Fallback onset.* `t_onset_ns`, the target of cluster-scope changes and of services without an onset, is aligned as well (03 §5.2). It is the external onset of some service (02 §6.3), so it moves exactly as that service's onset does in §3.4: the first service A→Z whose external onset equals it gives the source, and the (source, service) offset is used, else the source-level one. A `t_alert` fallback or a clamped onset matches none and is not moved.
@@ -127,11 +131,12 @@ For each change, target onset `O` = `O(entity)` for service scope, `O(service of
 
 Observe owns this bench module to balance load ([08 §2](../08-collaboration-and-git.md)). It is bench code: it may read answer keys and injection times, and the engines never import it.
 
-1. Inputs per RE2 case: `case_id`, the answer key (root service, `t_inject_ns`), the experiment's `protocol.decoys` (`pi`, `rate_per_h`, `window_s`), `case_manifest.services`.
+1. Inputs per RE2 case: `case_id`, the answer key (root service, `t_inject_ns`), the experiment's `protocol.decoys` (`pi`, `rate_per_h`, `window_s`), `case_manifest.services`. `pi` and `rate_per_h` are required; `window_s` = `[lo, hi]` in whole seconds relative to `t_inject` (default `[-1800, 300]`); unknown keys are rejected.
 2. Randomness only from `veyltrace_core.rng(case_id, "rcaeval-c")`, so the same seed gives the same overlay.
-3. With probability π, one **true change** on the root service at `t_inject − U(0, 120 s)`; Poisson **decoys** on non-root services at rate λ per hour in `[t_inject − 30 min, t_inject + 5 min]`; kinds drawn from {`deploy`, `config`, `flag`}; grid in [04 §5.2](../04-evaluation-protocol.md), mechanism from card N5 ([novel_building_blocks §Q5][nbb]).
-4. All rows use one schema: `source_system = synthetic`, `actor = null`, neutral `detail_json` (no "decoy" or "true" token). Output: `${VEYLTRACE_DATA}/overlays/<experiment_id>/<case_id>/events.parquet`, merged by Infralume through `events.overlay_path` (O-09; Infralume never reads `bench/`, 02 §9 rule 3). Which row is true goes only to `answer_key.decoy_changes_json`.
-5. Test: two runs give byte-identical overlays; a property test checks that true and decoy rows differ in no column except `t_ns`, `entity` and `kind`.
+3. With probability π, one **true change** on the root service at `t_inject − U(0, 120 s)`; Poisson **decoys** on non-root services at rate λ per hour in `[t_inject − 30 min, t_inject + 5 min]`; kinds drawn from {`deploy`, `config`, `flag`}; grid in [04 §5.2](../04-evaluation-protocol.md), mechanism from card N5 ([novel_building_blocks §Q5][nbb]). The number of decoys is Poisson(λ × window hours); each decoy has a uniform time in the window, a uniform non-root service and a uniform kind. Times are whole nanoseconds. Two decoys on one (`t_ns`, `entity`, `kind`) are one event; a case with no non-root service gets no decoys. The true-change draws are made for every case, emitted or not, so a case's decoys are the same at every π and the cases with a true change at a lower π are a subset of those at a higher π.
+4. All rows use one schema: `source_system = synthetic`, `actor = null`, neutral `detail_json` (`{}`; no "decoy" or "true" token). Output: `${VEYLTRACE_DATA}/overlays/<experiment_id>/<case_id>/events.parquet`, merged by Infralume through `infralume.events.overlay_path`, a path relative to the data root (O-09; Infralume never reads `bench/`, 02 §9 rule 3). Every case of a grid cell gets a file, with zero rows if it has no changes. Infralume does not trust the file: it normalises entities, scrubs `detail_json`, stamps `source_system` and `actor` itself, drops the overlay with `sources.drop: [events]` and never lets it extend the data span ([01-infralume §3.10](01-infralume.md)). Which row is true goes only to `answer_key.decoy_changes_json`, canonical `[{t_ns, entity, kind, is_true}]` over all synthetic rows (decoys have `is_true = false`).
+5. Test: two runs give byte-identical overlays; a property test checks that true and decoy rows differ in no column except `t_ns`, `entity` and `kind`; the O-13 acceptance test scores the same rows as `synthetic` and as `k8s` events and gets the same evidence.
+6. Built: `veyltrace_decoys/rcaevalc.py` (`DecoySpec.from_protocol` → `generate` → `write_overlay`, `decoy_changes_json`); bench's runner calls it for every experiment with `protocol.decoys`; the 18 grid configs are `bench/experiments/rcaevalc-pi{0,05,1}-l{0,2,6}[-ai]-v1.yaml`.
 
 ## 4. Configuration — `config/causync.yaml`
 
@@ -149,38 +154,44 @@ Observe owns this bench module to balance load ([08 §2](../08-collaboration-and
 | `changes.tau_s` | `300` | s | a priori, §3.6 |
 | `peer.min_replicas` | `2` | count | a priori |
 | `duckdb.threads` | `1` | — | determinism |
+| `duckdb.memory_limit` | `"2GB"` | size | lead default (a priori); a cap, not the §8 estimate |
+
+The `duckdb.*` keys are read by `veyltrace_core.duck.connect`. The others are validated once per run (`settings.py`): shares, `align.min_corr` and the quantile in [0, 1], counts ≥ 1, `changes.tau_s` > 0, `changes.kinds` a non-empty list. A bad value is a `ConfigError` before any telemetry is read.
 
 ## 5. Determinism and isolation
 
 - Service order A→Z; BFS neighbour order fixed (§3.2); argmax ties fixed (§3.3); ASOF ties handled explicitly.
 - Medians exact; no RNG; DuckDB single-threaded.
-- Allowed imports: `duckdb`, `pyarrow`, `numpy`, `scipy`, stdlib. Banned per AGENTS §4.3.
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `duckdb`, `pyarrow`, `numpy`, stdlib (scipy is not used and not a dependency). Banned per AGENTS §4.3.
 
 ## 6. Missing data and failure behaviour
 
 | Situation | Behaviour |
 |---|---|
-| No traces | reference `metrics`; no `trace_pairs`; logs/metrics via co-movement against metrics traffic where possible |
-| Neither traces nor metrics (logs only) | reference `metrics` (contract wording), all offsets 0 with `none` (open question 3) |
+| No traces | reference `metrics` (offset 0, method `reference`); no `trace_pairs`, no log–span join; logs via co-movement against metrics traffic where possible |
+| Neither traces nor metrics (logs only) | reference `metrics` (03 §5.1), all offsets 0 with `none` |
 | No client spans (RCAEval may lack them) | inferred client spans; if none, every trace offset 0 with `none` |
 | No events, or no change-kind events | zero-row `changes` |
 | Change entity unknown | scope `cluster`, target onset `t_onset_ns`, `peer_contrast` null |
-| No anomalies for a service | `O = t_onset_ns`; replica scores 0 |
+| Service without an onset in `onsets.per_service` | `O` = aligned `t_onset_ns` |
+| Replica without a `robust_z` anomaly row | score 0 |
 | No replicas (RCAEval: component = service) | `peer_contrast` null |
 
 ## 7. Tests
 
-**Unit**: NTP formula and sign; BFS propagation over a 3-service chain; publish gate (violation share); log projection; co-movement recovers a planted lag of 2 steps and rejects low correlation; scope assignment; `change_id` stability; proximity at Δt = 0, τ, after onset within and beyond tolerance; ASOF ties; cohort construction for a rolling deploy.
+**Unit**: NTP formula and sign; BFS propagation over a 3-service chain; publish gate (violation share); log projection; co-movement recovers a planted lag of 2 steps and rejects low correlation; scope assignment; `change_id` stability; proximity at Δt = 0, τ, after onset within and beyond tolerance; ASOF ties; cohort construction for a rolling deploy; per-service log offsets; spans moved before the log join; a best lag at the edge of the search rejects the service; uneven grids do not fake a lag; the aligned fallback onset; replica sightings moved to the reference clock; relabelling `source_system`/`actor` on synth-03 leaves every score unchanged (also tested from bench, §3.7).
 
-**Golden (synth-01…05)**: synth-04's change has `proximity > 0.5` and `latest_before_onset = true` (O-06; synth-04 contains one change, so no answer key is needed); synth-01…03 and 05: `changes` as in the fixture (zero rows if the generator writes no events); `alignment` offsets 0 unless the generator plants skew.
+**Golden (synth-01…05)**: synth-04's change has `proximity > 0.5` and `latest_before_onset = true` (O-06; synth-04 contains one change, so no answer key is needed); synth-01, 02 and 05 have zero-row `changes`; synth-03 has a component-scope change with a non-null `peer_contrast` and a service-scope change with a null one; every synth `alignment` offset is 0 (the generator plants no skew).
 
-**Property (hypothesis)**: shift all spans of one service by δ (|δ| ≥ 50 ms) → its published offset is −δ within 1 ms; `proximity ∈ [0, 1]` and non-increasing in `O − t_change`; relabelling `source_system`/`actor` on any row leaves every score unchanged; adding a change on another entity leaves existing rows unchanged; shuffled inputs → identical outputs.
+**Property (hypothesis)**: shift all spans of one service by δ (|δ| ≥ 50 ms) → its published offset is −δ within 1 ms; `proximity ∈ [0, 1]` and non-increasing in `O − t_change`; adding a change on another entity leaves existing rows unchanged; shuffled inputs → identical outputs.
 
-**Real-case smoke**: RE2-OB/SS/TT: `changes` empty, `reference` correct (SS → `metrics`), `tolerance_ns` reported; one lab capture with a real `kubectl rollout` (after X-06): the rollout appears with scope `service` and a non-null `peer_contrast` when replicas ≥ 2.
+**Real-case smoke**: RE2-OB/SS/TT, the first case A→Z of each suite (skipped when not fetched): `changes` empty, `reference` correct (SS → `metrics`), `tolerance_ns` > 0, two runs byte-identical. *Not built*: one lab capture with a real `kubectl rollout` (after X-06), where the rollout should appear with scope `service` and a non-null `peer_contrast` when replicas ≥ 2.
 
 ## 8. Performance budget
 
-Per RE2 case: ≤ 2 s and ≤ 0.5 GB (*estimate*, allocation of the 30 s / 3 GB budget). Trace pairs are a single grouped pass over spans in DuckDB; co-movement is a few hundred short correlations.
+Per RE2 case: ≤ 2 s and ≤ 0.5 GB (*estimate*, allocation of the 30 s / 3 GB budget). Trace pairs are one vectorised pass over spans in pyarrow/numpy; DuckDB is used only for the `latest_before_onset` ASOF join; co-movement is a few hundred short correlations.
+
+Measured for O-11 on one RE2-TT case (Apple M4, 23 Nov 2026, 1.14 M spans): the Causync step takes 2.7 s; `steps.series_groups` is called 2,540 times and accounts for about 1.6 s of it under the profiler. This is one case on a fast machine, not the budget check.
 
 ## 9. Evaluation hooks and ablations
 
@@ -188,18 +199,18 @@ Per RE2 case: ≤ 2 s and ≤ 0.5 GB (*estimate*, allocation of the 30 s / 3 GB 
 |---|---|
 | change channel on/off (`sources.drop: [events]`) | accuracy on lab and RCAEval-C cases |
 | RCAEval-C grid (O-13): π ∈ {0, 0.5, 1.0}, decoy rate λ ∈ {0, 2, 6} per hour ([04 §5.2](../04-evaluation-protocol.md)) | accuracy and set size vs π and λ; `naive-change` baseline as comparison |
-| `changes.tau_s` ∈ {60, 300, 900} | sensitivity, reported not tuned |
+| `changes.tau_s` ∈ {60, 300, 900} | sensitivity, reported not tuned; no experiment config sets it; not run in v1.0 |
 | planted clock skew (needs an Infralume hook, open question 5) | accuracy vs skew ([novel_building_blocks §Q6][nbb]) |
 
 ## 10. Tasks and milestones
 
-| ID | When | Scope | Acceptance (summary) |
-|---|---|---|---|
-| O-00 | by M0, Tue 3 Nov | stub, synth fixtures | e2e on `synth-01` |
-| O-06 | Phase 2, by M2 Sun 15 Nov (after O-04) | alignment, change timeline, change evidence, peer contrast | synth-04 change found with proximity > 0.5 |
-| O-13 | Phase 3, by M3 Sun 22 Nov (after R-11, O-06) | RCAEval-C generator in `bench/decoys/` + experiment configs (§3.7) | decoys reproducible from seed; Causync treats them like real changes |
-| O-11 | Phase 3 | performance pass | ≤ 30 s, ≤ 3 GB end to end |
-| O-12 | Phase 4 | docs, fixtures | reviewed by lead |
+| ID | When | Scope | Acceptance (summary) | Status |
+|---|---|---|---|---|
+| O-00 | by M0, Tue 3 Nov | stub, synth fixtures | e2e on `synth-01` | done |
+| O-06 | Phase 2, by M2 Sun 15 Nov (after O-04) | alignment, change timeline, change evidence, peer contrast | synth-04 change found with proximity > 0.5 | done |
+| O-13 | Phase 3, by M3 Sun 22 Nov (after R-11, O-06) | RCAEval-C generator in `bench/decoys/` + experiment configs (§3.7) | decoys reproducible from seed; Causync treats them like real changes | done |
+| O-11 | Phase 3 | performance pass | ≤ 30 s, ≤ 3 GB end to end | measurement open (#36) |
+| O-12 | Phase 4 | docs, fixtures | reviewed by lead | in progress (#48) |
 
 ## 11. Open questions
 
@@ -207,7 +218,7 @@ Per RE2 case: ≤ 2 s and ≤ 0.5 GB (*estimate*, allocation of the 30 s / 3 GB 
 |---|---|---|
 | 1 | ~~02 §3 reads omit `telemetry.spans`, `telemetry.logs`, `anomalies`.~~ Resolved in 02/03 (2026-10-30): [02 §3](../02-architecture.md) now lists them. | — |
 | 2 | ~~**CCR**: `alignment.offsets[].method` vocabulary and sort order.~~ Resolved in 02/03 (2026-10-30): [03 §5.1](../03-contracts.md) fixes both as in §2. | — |
-| 3 | Reference when neither traces nor metrics exist. | `metrics`, offsets 0 |
+| 3 | ~~Reference when neither traces nor metrics exist.~~ Resolved in 03: [03 §5.1](../03-contracts.md) says `metrics`, also for a logs-only case; the logs offset is 0 with `none`. | — |
 | 4 | ~~The overlay path between O-13 and Infralume is not in O-09's text.~~ Resolved in 07 (2026-10-30): O-09 provides `events.overlay_path`; overlays are written under `${VEYLTRACE_DATA}/overlays/`. | — |
 | 5 | The clock-skew robustness arm ([novel_building_blocks §Q6][nbb]) needs an Infralume hook (`skew.inject`), not in O-09. | add to O-09 if time allows; else not run |
 

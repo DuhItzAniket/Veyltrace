@@ -1,0 +1,51 @@
+{
+  "experiment_id": "re2-oracle-rq2-v1",
+  "source": "replay/recording/replay.csv tier 1",
+  "systems": {
+    "ob": {
+      "model_wall_ms_p50": 175544.4,
+      "model_wall_ms_p95": 236209.5,
+      "n": 267,
+      "status": {
+        "complete": 238,
+        "failed": 29
+      },
+      "tokens_in_p50": 5983.0,
+      "tokens_in_p95": 6260.0,
+      "tokens_out_p50": 1521.0,
+      "tokens_out_p95": 2048.0,
+      "turns_p50": 2.0,
+      "turns_p95": 2.0
+    },
+    "ss": {
+      "model_wall_ms_p50": 115247.6,
+      "model_wall_ms_p95": 234516.2,
+      "n": 267,
+      "status": {
+        "complete": 253,
+        "failed": 14
+      },
+      "tokens_in_p50": 2492.0,
+      "tokens_in_p95": 5942.0,
+      "tokens_out_p50": 989.0,
+      "tokens_out_p95": 2048.0,
+      "turns_p50": 1.0,
+      "turns_p95": 2.0
+    },
+    "tt": {
+      "model_wall_ms_p50": 135516.6,
+      "model_wall_ms_p95": 238819.7,
+      "n": 267,
+      "status": {
+        "complete": 237,
+        "failed": 30
+      },
+      "tokens_in_p50": 7325.0,
+      "tokens_in_p95": 7880.0,
+      "tokens_out_p50": 1165.0,
+      "tokens_out_p95": 2048.0,
+      "turns_p50": 2.0,
+      "turns_p95": 2.0
+    }
+  }
+}

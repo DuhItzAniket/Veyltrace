@@ -2,7 +2,7 @@
 
 Engine 3 of Veyltrace v2 (Observe lane). Anomara says, for every series, how far the incident window deviates from the baseline, in which direction and from when, and flags services that went silent.
 
-- **Detectors**: `robust_z` (median with a scale floor of MAD, IQR/1.349, a per-family epsilon and 2% of |median|; persistent max; `log1p` compression), `nsigma` (RCAEval-comparable), `bocpd` (Bayesian online change-point onset), `silence`; optional `tsfm` plugin, off by default (O-10, not built).
+- **Detectors**: `robust_z` (median with a scale floor of MAD, IQR/1.349, a per-family epsilon and 2% of |median|; persistent max; `log1p` compression), `nsigma` (RCAEval-comparable), `bocpd` (Bayesian online change-point onset), `silence`; the optional `tsfm` plugin (O-10) is not built and is cut to v1.1.
 - **Onsets**: per-service internal and external onsets; incident onset `t_onset` = second-earliest external onset, clamped to `[t_alert − 60 s, t_alert + 300 s]`.
 - **`detect_alert(telemetry)`**: first sustained entry-service SLO breach, used by core's alert step for the detected-alert protocol.
 
