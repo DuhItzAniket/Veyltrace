@@ -1,6 +1,6 @@
 # 09 · Causentra — verify hypotheses with fixed trials and decide the verdict
 
-> Status: v0.1-draft · Lane: Reason · Master: [docs/02-architecture.md §6.9](../02-architecture.md) · Contracts: [docs/03-contracts.md §10](../03-contracts.md) (output), §7, §8, §9.1, §6, §4.2, §5.1, §2.1, §12.1 (inputs) · Last updated: 2026-10-30
+> Status: v0.1-draft · Lane: Reason · Master: [docs/02-architecture.md §6.9](../02-architecture.md) · Contracts: [docs/03-contracts.md §10](../03-contracts.md) (output), §7, §8, §9.1, §6, §4.2, §5.1, §2.1, §12.1 (inputs) · Last updated: 2026-11-26
 
 ## 1. Purpose and scope
 
@@ -19,14 +19,15 @@ Out of scope: creating evidence (FaultLoom), ranking (Causatrix), any model call
 | `slate` ([03 §8](../03-contracts.md)) | `k`, `candidates[].{rank, service, component, indicator, mode, fault_class, fused_score}`, `all_scores[]` |
 | `evidence` (§7) | all columns; engine atoms and `claim_check` atoms |
 | `proposals` (§9.1), optional | `status`, `proposals[].{proposal_id, hypothesis.service, claims[].{claim_id, predicate, args}}` |
-| `graph.nodes` / `.edges` / `.paths` (§6) | `node`, `kind`, `is_entry`; `src`, `dst`, `provenance`; `candidate`, `path_rank` |
+| `graph.nodes` / `.edges` (§6) | `node`, `kind`; `src`, `dst`, `weight`, `provenance` (`graph.paths` is not read, only noted when absent; path facts arrive through FaultLoom's `propagation` atoms) |
+| `signal_cube.series`, optional | `signal` (argument domain for proposal claims, via FaultLoom's `read_domain`) |
 | `onsets` (§4.2) | `entry_services` |
 | `alignment` (§5.1) | `tolerance_ns` |
-| `case_manifest` (§2.1) | `case_id`, `dataset`, `sources` |
-| `RunContext` | `run_id`, `ai_mode`, effective config |
-| `ctx.config.calibration` | content of `config/calibration/<family>.json` (q̂, τ_nf, split metadata), loaded by core's config loader; never read from `bench/` (§3.7) |
+| `case_manifest` (§2.1) | `case_id`, `dataset`, `services`, `sources` |
+| `RunContext` | `run_id`, `case_id`, `dataset`, effective config (incl. the `causatrix` and `faultloom` sections) |
+| `ctx.config.calibration` | content of `config/calibration/<family_id>.json` (q̂, τ_nf, split metadata), loaded by core's config loader; never read from `bench/` (§3.7) |
 
-Shared values: `k_anom = thresholds.anomaly_z` (`config/core.yaml`, 3.0); `tol_ms = tolerance_ns / 1e6`; per-service `I(s)`, `E(s)`, `Sil(s)`, `onset_ms(s)` exactly as in [07 §2.1](07-causatrix.md). Causentra imports Causatrix's pure `rank()` and `classify()` and FaultLoom's predicate registry (entry point group `veyltrace.predicates`) and `validate()`.
+Shared values: `k_anom = thresholds.anomaly_z` (`config/core.yaml`, 3.0); `tol_ms = tolerance_ns / 1e6`; per-service `I(s)`, `E(s)`, `Sil(s)`, `onset_ms(s)` exactly as in [07 §2.1](07-causatrix.md). Causentra imports Causatrix's pure `rank()`, `classify()`, its evidence/graph views and its config; FaultLoom's `validate()`, `read_domain()` and `atom_sources()`; and the predicate library `veyltrace_contracts.predicates` (names, polarity, weight keys). It does not read the `veyltrace.predicates` entry point group.
 
 ### 2.2 Output: `verdict.json` ([03 §10](../03-contracts.md))
 
@@ -36,7 +37,7 @@ Shared values: `k_anom = thresholds.anomaly_z` (`config/core.yaml`, 3.0); `tol_m
 | `status` | §3.9 |
 | `root` | §3.9: `{service, component, indicator, fault_class, mode}` of the leader, or null |
 | `candidate_set` | §3.7: `{service, component, v, nonconformity}`, sorted by `v` desc, ties in `ranked` order |
-| `ranked` | every decision-pool candidate in tie-break order (§3.6): `rank`, `service`, `component`, `indicator`, `fault_class`, `v`, `fused_score`, `nonconformity` (§3.7; bench reads it for calibration), `origin` (`slate` or `proposal`), `trials[]` (`{id, result, reason?, atoms}` in order T1…T10, non-applicable trials omitted) |
+| `ranked` | every decision-pool candidate in tie-break order (§3.6): `rank`, `service`, `component`, `indicator`, `fault_class`, `v`, `fused_score`, `nonconformity` (§3.7; bench reads it for calibration), `origin` (`slate` or `proposal`), `trials[]` (`{id, result, reason, atoms}` in order T1…T10, non-applicable trials omitted; `reason` is always present, null on pass and a string on fail or untestable) |
 | `confidence` | `{level, margin, alpha, q_hat, set_size}` (§3.9) |
 | `asks` | §3.11 |
 | `ranks_rcaeval` | §3.12 |
@@ -91,7 +92,7 @@ Each trial returns `pass`, `fail` or `untestable(reason)` with the atom IDs it u
 | T6 | **Change alignment**: change on *c* precedes onset within τ | always | `CH(c)` ≥ `trials.T6.min_proximity` (e⁻¹ ⇔ Δt ≤ τ_change) | `no_recent_change` | `no_events`: `sources.events` false | `change_proximity` atoms |
 | T7 | **Peer contrast**: affected replica differs from peers | *c* has a `peer_contrast` atom | max `peer_contrast` ≥ `trials.T7.min_gap` | `peers_alike` | — | `peer_contrast` atoms |
 | T8 | **Intervention**: anomaly not explained by parents (restricted CI test) | always | `intervention` atom value (`stat_resid`) ≥ `k_anom` | `explained_by_parents` | `intervention_unavailable`: no `intervention` atom (CI test untestable, or *c* beyond `intervention.max_candidates`; [06 §3.6](06-faultloom.md)) | `intervention` atoms |
-| T9 | **Leave-one-source-out**: stays in top-K when each source is dropped | ≥ 2 of {metrics, logs, traces, events} present, and *c* ∈ `slate.candidates` (the unablated top K) | for every present source *s*, *c*'s position in `rank()` recomputed on atoms with *s* ∉ `atom_sources(atom)` and graph edges whose `provenance` ⊄ {*s*} is ≤ `slate.k` | `drops_out_without:<s>` (first such source, sorted) | — | none (rank positions in `reason` only on fail) |
+| T9 | **Leave-one-source-out**: stays in top-K when each source is dropped | ≥ 2 of {metrics, logs, traces, events} present, and *c* ∈ `slate.candidates` (the unablated top K) | for every present source *s*, *c* is within the first `slate.k` of `rank()` recomputed on the engine atoms (excluding `intervention` atoms, which are written after the slate) with *s* ∉ `atom_sources(atom)`, the graph edges whose `provenance` ⊄ {*s*}, and `sources` with *s* switched off | `drops_out_without:<s>` (first such source, sorted) | — | none (the re-ranking itself is the evidence; `reason` carries no rank positions) |
 | T10 | **Claim checks**: every Relentra claim on *c* re-evaluates true | `origin(c) = proposal` | every claim (from proposals naming *c*) is valid and its `claim_check` atom for *c* has `holds = true` | `claim_false:<claim_id>`; `claim_invalid:<claim_id>` | `claim_unevaluable`: none false or invalid but ≥ 1 has `holds = null` | that candidate's `claim_check` atoms |
 
 Interpretation notes:
@@ -123,7 +124,7 @@ Sort the decision pool by `(−V9(c), 0 if I(c) ≥ k_anom else 1, onset_ms(c) (
 
 **Set**: `C = {c ∈ DecisionPool : s(c) ≤ q̂}`. The leader has `s = 0`, so `C` is non-empty whenever a leader exists. Services outside the decision pool are never in `C`; Retrieval@K (truth in the slate) and decision-pool retrieval bound coverage and are reported next to it ([02 §6.9](../02-architecture.md)).
 
-**Where q̂ comes from.** Bench fits it and writes `config/calibration/<family>.json`; core's config loader puts its content in `ctx.config.calibration`. Causentra never opens files under `bench/` or `lab/` ([02 §9](../02-architecture.md), isolation rule 3). The family is `causentra.calibration.family` (set by the experiment YAML), else `calibration.family_map[case_manifest.dataset]`. The fitting rule, specified here so bench and Causentra agree ([04 §5.4](../04-evaluation-protocol.md)):
+**Where q̂ comes from.** Bench fits it and writes `config/calibration/<family_id>.json`; core's config loader puts its content in `ctx.config.calibration`. Causentra never opens files under `bench/` or `lab/` ([02 §9](../02-architecture.md), isolation rule 3). The benchmark family is `causentra.calibration.family` if set (by the experiment YAML). Otherwise it is the `causentra.calibration.family_map` entry that matches the run's dataset (= `case_manifest.dataset`): an exact key first, then the keys as `fnmatchcase` globs in sorted order. Core's config loader combines the family with the run's ai_arm (`off` when AI is off or Relentra is disabled, else `relentra.mode`), `core.alert.protocol` and `causentra.calibration.fold` (default `foldA`) into the family_id `<family>.<ai_arm>.<alert_protocol>.<fold>`. It then loads `config/calibration/<family_id>.json`, and a file whose ai_arm or alert_protocol differs from the run is an error. No matching family, an arm outside the ai_arm vocabulary, or a missing file means uncalibrated mode. `verdict.calibration.family` is the family_id. The fitting rule, specified here so bench and Causentra agree ([04 §5.4](../04-evaluation-protocol.md)):
 
 1. Calibration cases: fault cases of the calibration split only, run through the full pipeline with the same config and the same AI arm as the cases the file will be applied to.
 2. Calibration score of a case = nonconformity of the **true** root: `s(root)` read from `verdict.ranked`, where the root matches a decision-pool service after bench's name normalisation (`-db` stripped, as RCAEval's coarse scorer does [rcaeval_facts §Ground truth and scoring][rf-scoring]; if two services match, the smaller score). If the root is **not in the decision pool**, the score is **+∞** (02 §6.9).
@@ -139,7 +140,7 @@ Sort the decision pool by `(−V9(c), 0 if I(c) ≥ k_anom else 1, onset_ms(c) (
 
 Statistic ([02 §6.9](../02-architecture.md) step 5): `M` = the maximum of the entry services' external `score_norm` and every service's internal `score_norm`, with *entry* = `onsets.entry_services`. Causentra reads atoms, not `anomalies`, so it computes `M = log1p(max(max_{e ∈ entry} E(e), max_{s ∈ U} I(s)))` from the `robust_z` atoms. This equals the 02 definition because Anomara defines `score_norm = log1p(score)` for robust z and `log1p` is increasing; FaultLoom tests the equality ([06 §7](06-faultloom.md)). Only the `robust_z` detector enters `M` (`no_fault.detector`, 02 §6.9).
 
-`NO_FAULT` iff no service is silent (`Sil(s) = 1` for no *s* ∈ U, i.e. no `silence` atom above threshold) and `M ≤ τ_nf`. `τ_nf` is the (1 − β)-quantile of `M` over **normal windows** of the calibration split, β = 0.10, so at most about 10% of normal windows are expected to be flagged as faults. Normal windows come from `synth-05`, VeylLab no-fault captures and RCAEval pre-injection segments (alert placed before injection, windows clamped; [04 §5.4](../04-evaluation-protocol.md)). Finite-sample rule: with `m` normal windows, `τ_nf` = the ⌈(m + 1)(1 − β)⌉-th smallest `M`, which keeps the false-alarm rate on exchangeable new normal windows ≤ β. If that index exceeds `m` (m < 9), `τ_nf` is not fitted: `τ_nf = no_fault.default_tau = log1p(3.0) = 1.386294361` (the 3-sigma rule, the same as `k_anom`) and `no_fault.calibrated = false`.
+`NO_FAULT` iff at least one `robust_z` anomaly atom (internal or external, any value) exists over U (otherwise `M` is undefined and the case is never `NO_FAULT`: missing telemetry is not health), no service in U is silent (`Sil(s) = 1`, i.e. a `silence` atom above threshold), and round(M, 9) ≤ round(τ_nf, 9). `τ_nf` is the (1 − β)-quantile of `M` over **normal windows** of the calibration split, β = 0.10, so at most about 10% of normal windows are expected to be flagged as faults. Normal windows come from `synth-05`, VeylLab no-fault captures and RCAEval pre-injection segments (alert placed before injection, windows clamped; [04 §5.4](../04-evaluation-protocol.md)). Finite-sample rule: with `m` normal windows, `τ_nf` = the ⌈(m + 1)(1 − β)⌉-th smallest `M`, which keeps the false-alarm rate on exchangeable new normal windows ≤ β. If that index exceeds `m` (m < 9), `τ_nf` is not fitted: `τ_nf = no_fault.default_tau = log1p(3.0) = 1.386294361` (the 3-sigma rule, the same as `k_anom`) and `no_fault.calibrated = false`.
 
 How bench scores windows that can never be `NO_FAULT` (failed, no M, a silent service: +∞, kept in m) is in [ADR 20261121-ak-calibration-fit-conventions](../adr/20261121-ak-calibration-fit-conventions.md).
 
@@ -147,7 +148,7 @@ When `NO_FAULT` holds, the candidate set is empty and `root` is null. The rate o
 
 ### 3.9 Decision step 5 — status, root, confidence
 
-Let `top` = leader and `m` = margin = `(V_top − V_runner-up) / V_top` ([02 §6.9](../02-architecture.md) step 5; equals `s(runner-up)`), `m = 1.0` if there is no runner-up, `m = 0.0` if there is no leader. `mand_ok` = every mandatory trial of `top` returned `pass` (`untestable` is not a pass). Rules in order:
+Let `top` = leader and `m` = margin = `(V_top − V_runner-up) / V_top` ([02 §6.9](../02-architecture.md) step 5; equals `s(runner-up)`), `m = 1.0` if there is no runner-up, `m = 0.0` if there is no leader. `mand_ok` = every mandatory trial of `top` (the `mandatory` set, plus T10 for proposal origin, less `trials.disabled`) returned `pass` (`untestable` is not a pass). Rules in order:
 
 | Status | Condition | `root` | `confidence.level` |
 |---|---|---|---|
@@ -184,7 +185,7 @@ Asks are generated by code for `LIKELY` and `INCONCLUSIVE` verdicts from a fixed
 | 2 | trial untestable because a source is absent | `telemetry` | `<source>` | `<Tn> untestable without <source>` |
 | 3 | mandatory trial untestable for another reason | `trial` | `<Tn>:<service>` | `mandatory trial <Tn> untestable: <reason>` |
 | 4 | `\|C\| > status.likely_max_set` | `trial` | `set:<first three services of C, comma-separated>` | `candidate set has <n> members` |
-| 5 | decision pool ≥ 2 and `m < status.c_med` | `context` | `<runner-up service>` | `runner-up within margin <m>` |
+| 5 | a leader exists, decision pool ≥ 2 and `m < status.c_med` | `context` | `<runner-up service>` | `runner-up within margin <m>` |
 | 6 | no leader, and no service shows anomaly evidence (I, E or NS ≥ `k_anom`, or Sil = 1) | `telemetry` | `all` | `no anomaly evidence in any source` |
 | 6b | no leader, but some service shows anomaly evidence | `context` | `slate` | `anomaly evidence present but no candidate reached the decision pool` (pool empty); `anomaly evidence present but no decision-pool candidate has a verified score above 0` (pool not empty, every V9 = 0) |
 | 7 | `INCONCLUSIVE` with a leader and no row above fired | `context` | `<top service>` | `no status rule met at set size <\|C\|> and margin <m>` |
@@ -213,13 +214,13 @@ Slate with K = 2 for brevity: A (fused 0.0480), B (0.0460). Relentra (brief mode
 | `zscore_above(·, cpu, 4)` (supports, w 0.10) | true (A's cpu z = 9) | false | true |
 | Σ w·polarity·holds | 0.10 | 0.00 | 0.20 |
 
-*Trials* (only non-pass results listed): A — T6 untestable (no events), T8 untestable (no `intervention` atom); B — T5 fail (supporting), T6 and T8 untestable; C — T2 untestable (no onset; mandatory), T5 fail, T6 and T8 untestable, T9 fail (not in top-K when traces are dropped). T10 passes for C. Untestable supporting trials (T6, T8) cost nothing.
+*Trials* (only non-pass results listed): A — T6 untestable (no events), T8 untestable (no `intervention` atom); B — T5 fail (supporting), T6 and T8 untestable; C — T2 untestable (no onset; mandatory), T5 fail, T6 and T8 untestable; T9 is not applicable (C is a proposal-origin candidate outside the slate's unablated top K, so it has no T9 entry). T10 passes for C. Untestable supporting trials (T6, T8) cost nothing.
 
 | | S0 | Π factor | 1 + clip(Σ) | V | s (nonconformity) |
 |---|---|---|---|---|---|
 | A | 0.0480/0.0480 = 1.0 | 1.0 | 1.10 | **1.1** | 0 |
 | B | 0.958333333 | 0.9 (T5) | 1.00 | 0.8625 | 0.215909091 |
-| C | 0.625 | 0.85 (T2) × 0.9 (T5) × 0.9 (T9) = 0.6885 | 1.20 | 0.516375 | 0.530568182 |
+| C | 0.625 | 0.85 (T2) × 0.9 (T5) = 0.765 | 1.20 | 0.57375 | 0.478409091 |
 
 *Set and status.* The brief-arm calibration file has n = 89, α = 0.10 → rank index ⌈90 × 0.9⌉ = 81; say the 81st smallest score is `q̂ = 0.25`. `C = {A, B}` (0 and 0.2159 ≤ 0.25), size 2. Margin = 0.2159 ≥ 0.15 but < 0.30; A passed T1–T4 → **`LIKELY`**, root A, confidence medium. Proposal 1 accepted (C failed no mandatory trial: T2 is untestable, not failed); proposal 2 rejected `unknown_predicate`. Asks: priority 2 fires once (`{telemetry, events, "T6 untestable without events"}`); T8's untestability is not about a missing source and T8 is not mandatory, so it raises no ask.
 
@@ -235,7 +236,7 @@ Slate with K = 2 for brevity: A (fused 0.0480), B (0.0460). Relentra (brief mode
 | Proposal names a slate service | no new candidate; still accepted/rejected by §3.10 |
 | Same (predicate, args) claimed by several proposals | counted once in Σ |
 | `proposals.status = failed` or `skipped` | treated as no proposals; any listed proposals are rejected `budget` |
-| Calibration loaded for another `ai_arm` or `alert_protocol` than the run's | hard error (`EngineResult.status = failed`): the file applies only to the same arm and protocol ([03 §12.1](../03-contracts.md)); mixing would void the guarantee |
+| Calibration whose content `ai_arm` or `alert_protocol` differs from the run's | hard `ConfigError` while core resolves the config (`find_calibration`), so the run stops before any engine and Causentra writes no `EngineResult`. The file name is built from the run's own arm and protocol, so a file for another arm is never selected, and this error only catches a file whose content disagrees with its own name. The file applies only to the same arm and protocol ([03 §12.1](../03-contracts.md)); mixing would void the guarantee |
 | Calibration fitted at another `alpha` or `no_fault.beta` than the run's `causentra.alpha` / `causentra.no_fault.beta` (compared at 9 decimals) | hard error (`EngineResult.status = failed`, no verdict): q̂ is the ⌈(n+1)(1−α)⌉-th score and τ_nf the ⌈(m+1)(1−β)⌉-th M at the file's own levels (§3.7, §3.8), so they do not apply at others |
 | `NO_FAULT` while proposals exist | proposals still get outcomes; `NO_FAULT` wins |
 
@@ -252,13 +253,15 @@ Slate with K = 2 for brevity: A (fused 0.0480), B (0.0460). Relentra (brief mode
 | `status.c_high` | 0.30 | relative margin | 02 §6.9 |
 | `status.c_med` | 0.15 | relative margin | 02 §6.9 |
 | `status.likely_max_set` | 3 | candidates | 02 §6.9 |
+| `trials.disabled` | [] | trial ids | listed trials count as factor 1 in V, are dropped from the mandatory set (so not needed for `CONFIRMED`/`LIKELY`) and produce no asks; used by the trial leave-one-out ablation (§9) |
 | `trials.T2.min_fraction` | 1.0 | fraction | literal reading of 02 ("≤ dependents' onsets"); §11 Q3 |
 | `trials.T3.min_path_anomalous_fraction` | 0.5 | fraction | a priori |
 | `trials.T5.min_share` | 0.30 | fraction | 02 §6.9 |
 | `trials.T6.min_proximity` | 0.36787944 | — | e⁻¹ ⇔ Δt ≤ τ_change (Causync's τ) |
 | `trials.T7.min_gap` | 3.0 | z | a priori, same scale as `k_anom` |
-| `calibration.family` | null (set by experiments) | — | the file itself is `config/calibration/<family>.json`, loaded by core into `ctx.config.calibration` (02 §6.9) |
+| `calibration.family` | null (set by experiments) | — | the file itself is `config/calibration/<family_id>.json`, loaded by core into `ctx.config.calibration` (02 §6.9) |
 | `calibration.family_map` | `{re1-*: rcaeval-re1, re2-*: rcaeval-re2, re3-*: rcaeval-re3, nezha-*: nezha, fse26-tt: fse26, veyllab-*: veyllab, synth: synth}` | — | per benchmark family (02 §12 default) |
+| `calibration.fold` | foldA | — | 4th part of the calibration family_id `<family>.<ai_arm>.<alert_protocol>.<fold>` ([03 §12.1](../03-contracts.md)); core loads `config/calibration/<family_id>.json`; bench sets it per run (M0 lead decision 2026-11-06) |
 | `calibration.uncalibrated_q_hat` | 0.0 | — | R-10 "no conformal yet" behaviour |
 | `no_fault.beta` | 0.10 | — | 02 §6.9 |
 | `no_fault.detector` | `robust_z` | — | a priori (§3.8, §11 Q12) |
@@ -271,8 +274,8 @@ Slate with K = 2 for brevity: A (fused 0.0480), B (0.0460). Relentra (brief mode
 - `V`, `s` (nonconformity) and margins are rounded to 9 decimals before any comparison, so the decision equals what the canonical JSON shows.
 - Iteration in sorted order: decision pool A→Z for computation, `proposal_id`/`claim_id` order for proposals, trials T1…T10 in numeric order.
 - Permutation invariance: the verdict depends on the **set** of proposals and claims, not their order or wording (property test, §7); this is the deterministic answer to the decoy-sentence attack [report][report].
-- Trials are registered under entry point group `veyltrace.trials` in `packages/causentra/pyproject.toml`.
-- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `veyltrace_faultloom` (predicate registry, `validate`, `atom_sources`), `veyltrace_causatrix` (`rank`, `classify`), `numpy`, `pyarrow`, `networkx`, stdlib. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, `pandas`.
+- Trials T1–T9 are declared under entry point group `veyltrace.trials` in `packages/causentra/pyproject.toml`, and a test checks them against the fixed tuple `trials.EVALUATED`, which is what the engine runs (it does not load the group). T10 is `decision.claim_check`, run last and for proposal-origin candidates only.
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts` (incl. `veyltrace_contracts.predicates`), `veyltrace_faultloom` (`validate`, `read_domain`, `atom_sources`), `veyltrace_causatrix` (`rank`, `classify`, views, config) and the stdlib. This is the isolation `allow` list in `packages/causentra/pyproject.toml`, and `tests/test_isolation.py` enforces it. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, `pandas`.
 
 ## 6. Missing data and failure behaviour
 
@@ -323,7 +326,7 @@ Missing channels push the verdict toward `INCONCLUSIVE` with a telemetry ask ([0
 
 | Hook | Config | Question (RQ, [04 §2](../04-evaluation-protocol.md)) |
 |---|---|---|
-| Trial leave-one-out | `trials.disabled: [Tn]` (factor 1) | which trials carry accuracy and abstention quality (RQ1, RQ3) |
+| Trial leave-one-out | `trials.disabled: [Tn]`: Tn is still run and written to `trials[]`, but its factor is 1, it is removed from the mandatory set (not needed for `mand_ok`, cannot cause `trial_failed`) and it raises no ask of any priority | which trials carry accuracy and abstention quality (RQ1, RQ3) |
 | Mandatory set | `mandatory` | strictness vs abstention on network faults (RQ3) |
 | Factor sensitivity | `factors.*` sweep, reported as sensitivity, never selected on test | robustness of conclusions |
 | Claim influence | `claims.clip_*` ∈ {0, ±0.15, ±0.3} | proposer lift attribution (RQ2) |
@@ -339,7 +342,7 @@ Missing channels push the verdict toward `INCONCLUSIVE` with a telemetry ask ([0
 |---|---|---|
 | R-00 | stub verdict | M0 |
 | R-10 | T1–T4, decision steps 1–3 and 5–6, uncalibrated set, `verdict_hash`; determinism gate on synth + 3 real cases | M2 (15 Nov) |
-| R-13 | calibration fitting in bench; writes `config/calibration/<family>.json`, hashed into manifests | M3 |
+| R-13 | calibration fitting in bench; writes `config/calibration/<family_id>.json`, hashed into manifests | M3 |
 | R-12 | T5–T10, conformal set, `NO_FAULT` threshold, statuses, asks; acceptance: **held-out** coverage within 1 − α ± 0.05 on RE2 (calibration cases excluded) and `NO_FAULT` false-alarm rate on held-out normal windows ≤ β + 0.05 | M3 (22 Nov) |
 | O-14 (Observe) | cluster statistics in `bench/stats/` used to report coverage CIs | M3 |
 | R-16 | the full matrix | M4 |
@@ -353,8 +356,8 @@ Missing channels push the verdict toward `INCONCLUSIVE` with a telemetry ask ([0
 5. ~~**Step 1 wording.**~~ *Resolved in 02 §6.9 step 1 (2026-10-30):* admission needs one holding supporting claim (in `graph.nodes`); full T10 (all claims valid and true) is then a mandatory trial for proposal-origin candidates.
 6. ~~**`bad_args` reason.**~~ *Resolved in 03 §10 (2026-10-30):* `bad_args` is a `proposals_rejected.reason` (§3.10).
 7. ~~**Calibration file contract.**~~ *Resolved in 03 §12.1 (2026-10-30):* contract `calibration`, producer bench, consumer Causentra through `ctx.config`.
-8. **Family names with folds.** Cross-fitting ([04 §5](../04-evaluation-protocol.md)) needs one file per fold. *Default:* the fold is part of the family id (`rcaeval-re2.foldA`), so the 02 path pattern `<family>.json` still holds.
-9. ~~**Calibration per AI arm and alert protocol.**~~ *Resolved in 03 §12.1 (2026-10-30):* a file applies only to runs with the same `ai_arm` and `alert_protocol`. *Default (still open):* since the path is `<family>.json`, the family id also encodes arm and protocol (e.g. `rcaeval-re2.brief.oracle.foldA`); onset-shift runs reuse their protocol's file so coverage drift is visible.
+8. ~~**Family names with folds.**~~ *Resolved (M0 lead decision 2026-11-06; 03 §12.1):* cross-fitting ([04 §5](../04-evaluation-protocol.md)) needs one file per fold, so the calibration file is `config/calibration/<family_id>.json`, where family_id = `<family>.<ai_arm>.<alert_protocol>.<fold>`, always four parts (e.g. `rcaeval-re2.brief.oracle.foldA`). The family comes from `causentra.calibration.family`, else `family_map`. The arm comes from the Relentra mode, the protocol from `core.alert.protocol` and the fold from `causentra.calibration.fold` (default `foldA`). The per-system variant puts the system into the family part (`rcaeval-re2-ob...`), and LOSO puts it into the fold part (`...loso-ob`). Core checks the id against the contract pattern and rejects an arm or protocol mismatch.
+9. ~~**Calibration per AI arm and alert protocol.**~~ *Resolved in 03 §12.1 (2026-10-30):* a file applies only to runs with the same `ai_arm` and `alert_protocol`. The four-part family_id encodes arm and protocol (item 8); onset-shift runs reuse their protocol's file so coverage drift is visible.
 10. **Margin with V_top = 0.** 02 defines `(V_top − V_runner-up)/V_top`; *default:* 0.0 when there is no leader.
 11. ~~**Uncalibrated mode.**~~ *Resolved in 02 §6.9 (2026-10-30):* q̂ = 0, τ_nf = log1p(3), family `uncalibrated`, never used for coverage.
 12. ~~**`NO_FAULT` statistic details.**~~ *Resolved in 02 §6.9 (2026-10-30):* `M` uses the `robust_z` detector only, and any silent service vetoes `NO_FAULT` (§3.8).

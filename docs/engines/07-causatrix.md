@@ -1,6 +1,6 @@
 # 07 · Causatrix — rank candidates with six deterministic rankers and fuse them into a hypothesis slate
 
-> Status: v0.1-draft · Lane: Reason · Master: [docs/02-architecture.md §6.7](../02-architecture.md) · Contracts: [docs/03-contracts.md §8](../03-contracts.md) (output), §7, §6, §2.1 (inputs) · Last updated: 2026-10-30
+> Status: v0.1-draft · Lane: Reason · Master: [docs/02-architecture.md §6.7](../02-architecture.md) · Contracts: [docs/03-contracts.md §8](../03-contracts.md) (output), §7, §6, §2.1 (inputs) · Last updated: 2026-11-26
 
 ## 1. Purpose and scope
 
@@ -20,7 +20,7 @@ Out of scope: deciding (Causentra), creating evidence (FaultLoom), reading Obser
 
 | Contract | Fields read |
 |---|---|
-| `evidence` ([03 §7](../03-contracts.md)), rows with `origin = engine` | `candidate`, `component`, `kind`, `args_json`, `value`, `refs` |
+| `evidence` ([03 §7](../03-contracts.md)), rows with `origin = engine` | `atom_id`, `candidate`, `component`, `kind`, `args_json`, `value`, `refs`, `origin` (`origin` selects engine atoms; `atom_id` orders atoms and breaks topI/topE and strongest-change ties) |
 | `graph.nodes` / `graph.edges` (§6) | `node`, `kind`; `src`, `dst`, `weight`, `provenance` |
 | `case_manifest` (§2.1) | `case_id`, `services`, `sources` |
 
@@ -74,7 +74,7 @@ def classify(service: str, ev: EvidenceView, graph: GraphView, cfg: CausatrixCon
 6. Take the first `k` as the slate; run `classify()` on each (§3.5–§3.6).
 7. Write `slate.json`.
 
-If no ranker votes, `candidates = []`, `rankers_active = []`, and every `all_scores` entry has `fused_score = 0.0`; Causentra then returns `INCONCLUSIVE` with a telemetry ask.
+If no ranker votes, `candidates = []`, `rankers_active = []`, and every `all_scores` entry has `fused_score = 0.0`. Any proposal-origin candidate in Causentra's pool then gets S0 = 0, so V9 = 0 and there is no leader. The verdict is `NO_FAULT` when Causentra's NO_FAULT rule holds (it is checked first). Otherwise it is `INCONCLUSIVE`, with a telemetry ask when no service shows anomaly evidence and a context ask (target `slate`) when some service does.
 
 ### 3.2 The six rankers
 
@@ -97,7 +97,7 @@ Notes:
 
 ### 3.3 Gating rule (gated RRF)
 
-A ranker votes only if its channel exists for the case and its scores are not constant. Channels: `prism_m`, `baro_rs` → robust_z atoms (any source); `nsigma` → nsigma atoms; `cp_sbfl` → traces; `change_prox` → events; `graph_walk` → graph edges plus at least one anomaly. With no traces (all of Sock Shop in RCAEval [rcaeval_facts §Datasets and telemetry][rf-data]) `cp_sbfl` abstains; with no change events (all public benchmarks) `change_prox` abstains. Missing channels therefore never inject a vote ([02 §9](../02-architecture.md)).
+A ranker votes only if its channel exists for the case and its scores are not constant. Channels: `prism_m`, `baro_rs` → robust_z atoms (any source); `nsigma` → nsigma atoms; `cp_sbfl` → traces; `change_prox` → events; `graph_walk` → G has at least one edge (no self-loops, both ends in U) and max_s A(s) > 0 (§3.4): a positive robust_z internal/external anomaly atom or a silent service; nsigma atoms alone do not open this channel. With no traces (all of Sock Shop in RCAEval [rcaeval_facts §Datasets and telemetry][rf-data]) `cp_sbfl` abstains; with no change events (all public benchmarks) `change_prox` abstains. Missing channels therefore never inject a vote ([02 §9](../02-architecture.md)).
 
 ### 3.4 `graph_walk`: personalised PageRank
 
@@ -209,8 +209,8 @@ With K = 2 the slate is [checkout, frontend]. `classify(checkout)`: R1 no (no ch
 
 - Pure function; all iteration over sorted names; sums with `math.fsum`; no BLAS products; PageRank in plain Python floats over sorted adjacency lists (≤ 100 nodes, [02 §8](../02-architecture.md)).
 - Ranks computed on `round(x, 12)` so last-bit differences in `math.log` between the Windows CRT and glibc cannot reorder services except at an exact 1e-12 boundary (§11 Q6). JSON floats are rounded to 9 decimals by `canonical_json`.
-- Rankers are registered under entry point group `veyltrace.rankers` from `packages/causatrix/pyproject.toml`; there is no registry dict in code.
-- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `veyltrace_faultloom` (atom-kind constants and `atom_sources` only), `numpy`, `pyarrow`, `networkx`, stdlib. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, `pandas`.
+- Rankers are declared under the entry-point group `veyltrace.rankers` in `packages/causatrix/pyproject.toml`, but the engine does not read that group. It resolves each name in `rankers.enabled` to `veyltrace_causatrix.rankers.<name>.RANKER` (`ranking.load_ranker`; an unknown name is a ConfigError). A test pins each entry point to exactly that object, and there is no registry dict in code.
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts` and the stdlib only; `[tool.veyltrace.isolation] allow` in `packages/causatrix/pyproject.toml` is empty, and `tests/test_isolation.py` enforces it. Atom-kind constants are defined locally in `views.py`. FaultLoom's `atom_sources` is imported by Causentra (`loso.py`, T9), not by Causatrix. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`, `pandas`.
 
 ## 6. Missing data and failure behaviour
 
@@ -220,7 +220,7 @@ With K = 2 the slate is [checkout, frontend]. `classify(checkout)`: R1 no (no ch
 | events | `change_prox` abstains; R1 never fires |
 | metrics only | `prism_m`, `baro_rs`, `nsigma` vote; mode rules lose `edge_gap` and log inputs |
 | graph without edges | `graph_walk` abstains; R4 uses node kinds if present |
-| no anomaly atoms at all | every ranker abstains; empty slate (§3.1) |
+| no anomaly atoms at all | `prism_m`, `baro_rs` and `nsigma` abstain; `cp_sbfl` can still vote on spectrum atoms (traces present), `graph_walk` on silent services (G has an edge) and `change_prox` on silent services with change atoms (events present), unless their scores are constant; the slate is empty only if all of them abstain (§3.1, §3.3) |
 | `evidence` or `graph.nodes` file absent | `EngineResult.status = failed` |
 
 Fewer active rankers is recorded in `rankers_active`; bench reports results by active-ranker pattern for the telemetry-ablation protocol.
@@ -241,7 +241,7 @@ Fewer active rankers is recorded in `rankers_active`; bench reports results by a
 
 **Property tests**: permutation of evidence rows → identical slate; adding a ranker that abstains never changes F; monotonicity (raising I(s) never lowers `prism_m` or `baro_rs` rank of *s*); RRF bounds (`F ≤ |active| / 61`); renaming services consistently relabels the slate.
 
-**Real-case smoke**: the same three RE2 cases as FaultLoom; `rankers_active` must be {baro_rs, graph_walk, nsigma, prism_m} on RE2-SS (no traces, no events) and add `cp_sbfl` on RE2-OB/TT.
+**Real-case smoke** (planned, not automated yet: no test runs Causatrix on RE2 cases): on the same three RE2 cases as FaultLoom, `rankers_active` is expected to be {baro_rs, graph_walk, nsigma, prism_m} on RE2-SS (no traces, no events) and to add `cp_sbfl` on RE2-OB/TT. A ranker may still abstain on a case where its scores are constant (`abstain_on_constant`, §3.2).
 
 ## 8. Performance budget
 
@@ -255,7 +255,7 @@ Fewer active rankers is recorded in `rankers_active`; bench reports results by a
 | Fused slate without verifier | `causatrix:rrf` | "AI-off, no verifier" row |
 | Leave-one-ranker-out | `rankers.enabled` minus one | contribution of each channel |
 | Ungated RRF | `rrf.gate: false` | value of gating |
-| Fusion rule | `fusion.method` ∈ {rrf, combsum_minmax, borda} | fusion shoot-out; RRF stays the default [novel_building_blocks §Q8][nbb] |
+| Fusion rule | `fusion.method` ∈ {rrf, combsum_minmax, borda} | fusion shoot-out; only `rrf` is built and stays the default. `rank()` raises a ConfigError for combsum_minmax and borda, which are not built in v1.0 [novel_building_blocks §Q8][nbb] |
 | K sweep | `slate.k` ∈ {5, 10, 15} | Retrieval@K vs set size |
 | PRISM form | `prism_m.combine: conj` | |
 | Walk variant | `graph_walk.self_loop: false` | |
@@ -283,7 +283,7 @@ Bench reads `slate.json` to compute Retrieval@K and Rerank@1 ([04 §7](../04-eva
 6. **Cross-platform `math.log`.** Quantisation to 1e-12 makes reorderings vanishingly rare but not impossible. *Default:* accept; the determinism gate runs on Ubuntu CI and on each laptop, and any mismatch is a P1 bug.
 7. **Rule table on RE3 code faults (F1–F5).** No fault-class mapping exists in RCAEval for F1–F5. *Default:* report mode accuracy (`code`) only.
 8. **`availability` fault class** (pod kill, container restart, pod failure; added to 03 §1 on 2026-10-30) has no rule yet. *Default:* not emitted (a silent non-dependency service falls through to R5/R6); any new rule is decided on synth/lab cases only, never on test splits. synth-05@silent (telemetry loss on `cart-1`) is labelled with no fault class, so it does not exercise this.
-9. **Indicator of an exception fault with internal log evidence.** §3.6 takes the indicator from topI's family (`logs` for a new ERROR template), so synth-03's answer-key indicator `error` never matches. *Default:* keep the answer key's `error` and decide at R-09 between an R3 override (`exception` → `error`) and accepting `logs`; until then the bench smoke does not score synth-03's indicator.
+9. **Indicator of an exception fault with internal log evidence.** *Resolved by the code:* no R3 override. The indicator stays topI's family (`logs` for a new ERROR template), as test_classify.py and the synth-03 golden slate pin, so synth-03's answer-key indicator `error` is a fine-grained miss by design.
 
 ## 12. References
 
