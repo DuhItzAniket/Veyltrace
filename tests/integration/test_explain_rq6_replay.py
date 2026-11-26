@@ -98,6 +98,11 @@ def test_one_command_replays_every_recorded_run(
 ) -> None:
     rq6 = _load()
     rec = Path(shutil.copytree(recorded, tmp_path / "rec"))
+    # another result whose manifest bench cannot read (results/r16's R-05 baselines): only the
+    # recording result's sources are replayed, so it is never scanned (#41)
+    stale = rec / "results" / "re2-oracle-baselines-r05" / "manifest.json"
+    stale.parent.mkdir()
+    textio.write_bytes(stale, b'{"schema_version": "0.1.0"}\n')
     archive = _archive(rec / "runs", tmp_path)
     site = tmp_path / "site-runs"
     size = replay.run_dirs_bytes(replay.recorded_runs(rec / "results").values(), rec / "runs" / ai_arms.KEPT)
