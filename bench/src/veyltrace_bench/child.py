@@ -8,7 +8,8 @@ ai_mode, overrides, runs_root}, {from_step, reuse_dir} for a calibrated restart 
 the overrides) for an RQ6 Tier 2 regeneration (#440) and, for a
 baseline (R-05), {to_step, baseline, export}: the run
 stops after `to_step` (the alert step: Infralume's tables and alert.json), then `baseline`
-(`simplerca`, `naive-change`) ranks the case or `export` names the directory for RCAEval's input. The child
+(`simplerca`, `naive-change`) ranks the case or `export` names the directory for RCAEval's input
+(`prior-only` stops after Infralume and is ranked by the runner, which holds the answer keys). The child
 resolves the config from it exactly as the in-process runner does (`resolve_config(overrides,
 dataset, ai_mode)`), so the run id, and every output, are those of an in-process run. RESULT gets
 {"summary": pipeline.summary_dict, "wall_ms", "peak_rss_mb", "ranks"} ("ranks": a baseline's, else

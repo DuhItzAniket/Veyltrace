@@ -46,7 +46,7 @@ CALIBRATION_KEYS = (
 RANKERS_KEY = "causatrix.rankers.enabled"  # what a `causatrix:<ranker>` method runs alone (04 §3, §9)
 CAUSATRIX_PREFIX = "causatrix:"  # 04 §3 method ids: causatrix:<ranker> and causatrix:rrf
 #: internal_baseline ids v0 runs (04 §4); `chance` is the `chance` metric of every group (04 §7).
-INTERNAL_BASELINES = frozenset({"simplerca", "naive-change"})
+INTERNAL_BASELINES = frozenset({"simplerca", "naive-change", "prior-only"})
 #: Whether the proposals contract has `rank` (proposals 1.1, CCR #409), which agent_only ranks by.
 RANK_FIELD = "rank" in Proposal.model_fields
 FUSED = "rrf"  # causatrix:rrf: the fused slate of the configured rankers, no ranker override
