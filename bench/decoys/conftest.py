@@ -1,5 +1,6 @@
-"""bench/decoys is not inside the `veyltrace_bench` wheel: put it on sys.path so its tests import
-`veyltrace_decoys` (importlib mode adds nothing; same approach as lab/tests/conftest.py)."""
+"""Put bench/decoys on sys.path so its tests import `veyltrace_decoys` from the source tree, whether
+or not the `veyltrace_bench` wheel (which now ships it) is installed (importlib mode adds nothing;
+same approach as lab/tests/conftest.py)."""
 
 import sys
 from pathlib import Path
