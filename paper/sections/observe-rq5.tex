@@ -1,7 +1,8 @@
 % §5.5 RQ5 cost, Observe lane (O-12, #48; O-11, #36). Input by 05-results.tex through
 % \lanesectionor{observe-rq5}{05-rq5}; it replaces the lead's draft and keeps its table and \resnum
 % keys. Sources: docs/04 §2 (H5), docs/02 §9; engines 01 §3.1 (convert and materialise);
-% scripts/observe/perf_check.py (#457). No result number is typed here.
+% scripts/observe/perf_check.py (#457, #542). Hand-typed numbers below come only from the committed
+% bench/results/perf-o11/ (i5-1135g7.csv, pass 2, and its README), cited at each use (paper/README.md).
 \resulttable{tab:rq5}{RQ5 cost per RE2 case and system: p50 and p95 wall time (ms), peak memory (MiB) and tokens, for the deterministic path and the AI arm; Table~\ref{tab:costall} gives every experiment.}{re2-oracle-rq1-v1 (solo run), re2-oracle-rq2-v1}{t08-rq5-cost}
 H5 holds if the deterministic path takes at most 30{,}000\,ms and 3\,GB of peak memory at p95 per RE2 case on the slowest laptop and the AI path adds at most 180{,}000\,ms (proposer) plus 60{,}000\,ms (narration).
 We read 3\,GB as $3 \times 10^9$ bytes, which is 2{,}861\,MiB in the stored unit and the stricter of the two readings; 3{,}072\,MiB gives the same verdict in every cell.
@@ -13,13 +14,28 @@ The first run of a case also converts its raw files into the canonical tables, w
 Per-step times are not part of any artefact, since a run directory may hold nothing that changes between two runs, so a per-step breakdown has to come from a separate script that reads them from the process.
 
 \paragraph{Deterministic path}
-The deterministic p95 per case is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/cost.wall_ms_p95}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/cost.wall_ms_p95} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.wall_ms_p95}\,ms on OB, SS and TT, with p95 peak memory of \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/cost.peak_rss_mb_p95}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/cost.peak_rss_mb_p95} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.peak_rss_mb_p95}\,MiB (Table~\ref{tab:rq5}).
+On the recording host (a 16-core Core i7-14650HX laptop), the deterministic p95 per case is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/cost.wall_ms_p95}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/cost.wall_ms_p95} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.wall_ms_p95}\,ms on OB, SS and TT, with p95 peak memory of \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/cost.peak_rss_mb_p95}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/cost.peak_rss_mb_p95} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.peak_rss_mb_p95}\,MiB (Table~\ref{tab:rq5}).
 A p95 over all RE2 cases cannot be derived from these per-system values, so none is reported.
 The three systems differ in what a case holds (SS has no traces, and TT has the most services), so cost is read per system.
-\leadq{two things this paragraph still needs. (1) H5 is about the slowest laptop, and the keys above are the recording host's: the slowest laptop's sample (\#36: 10 cases per system, memory within budget, time over it on OB and TT) gets a committed file under \code{bench/results/perf-o11/} (lead's decision on \#36), and this paragraph then states H5 from that file and names both machines. (2) The per-step breakdown (on TT, signals take the largest share, then anomalies and alignment on a faster laptop; \#36) has no committed source, so its numbers are left out.}
+
+\paragraph{The slowest laptop}
+H5 is stated for the slowest laptop, a four-core Core i5-1135G7 without a discrete GPU.
+There we measured a sample, the first ten cases of each system, twice in a row at the frozen engine code, and kept one row per case and pass (\code{bench/results/perf-o11/i5-1135g7.csv}).
+In the second pass the p95, which for ten cases is the maximum, is 22{,}883\,ms on OB, 15{,}309\,ms on SS and 87{,}869\,ms on TT, and the largest peak memory is 521, 268 and 1{,}087\,MiB.
+H5 is therefore met for memory on every system, met for time on SS, and missed for time on TT by about a factor of three.
+On OB it is met in this sample, but an earlier sample of the same cases on the same laptop, of which only the summaries were kept, was about 1.6 times slower and put OB over the budget at 40{,}200\,ms (the folder's README records both); we did not measure the cause of the gap, so on OB the budget lies inside this laptop's run-to-run spread.
+Both are ten-case samples, not the 89 evaluation cases per system behind the recording host's figures.
+
+\paragraph{Where the time goes}
+The same file holds the time of every pipeline step.
+On TT the median case of the second pass spends 19{,}707\,ms in \eng{Signalyth}, 18{,}828\,ms in \eng{Causalith}, 12{,}367\,ms in \eng{Causync}, 8{,}909\,ms in \eng{Anomara} and 5{,}491\,ms in \eng{Infralume}, so the five Observe engines account for most of its 72{,}824\,ms and the Reason engines for little.
+On SS, which has no traces, \eng{Causalith} is the largest step at 3{,}753\,ms, ahead of \eng{Signalyth} at 3{,}187\,ms.
+We changed nothing in response: the engine code was frozen before these measurements, and the largest single cost, the critical-path walk over every span, is the first target after the release.
+\leadq{the last clause rests on a profile of one TT case on a third laptop (\#36, \#540), not on a committed file; cut it if that is not enough for the paper.}
 
 \paragraph{With the proposer}
-With the proposer, the p95 is \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/cost.wall_ms_p95}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/cost.wall_ms_p95} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/cost.wall_ms_p95}\,ms (Table~\ref{tab:rq5}).
-\leadq{the brief rows of \code{re2-oracle-rq2-v1} were scored in replay mode, so their cost fields are empty; the lead adds a reader of the recorded model time (review of \#539), and these three keys must then point at its file.}
+The proposer's recorded model time per run has a p95 of \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/model_wall_ms_p95}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/model_wall_ms_p95} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/model_wall_ms_p95}\,ms on OB, SS and TT on the recording host (Table~\ref{tab:rq5}); H5 allows 180{,}000\,ms.
+The brief arm was scored by replaying its recordings, so its pipeline wall time was not measured again, and the model time is the sum of the recorded call latencies.
+\leadq{these three keys read \code{bench/results/rq5-ai-cost/summary.json} (\code{systems.<system>.model_wall_ms_p95}), not the experiment's \code{summary.json}; the selector is provisional until the number generator knows that file. The narration budget (60{,}000\,ms) has no committed measurement that I could find.}
 The Observe engines do the same work in both arms, so the difference comes from the proposer, the claim pass and the narration.
 \leadq{kept from the lead's draft: state which runs shared the machine (R-16 plan, decision 3), give each laptop's specification, and quote published agent costs only as context.}
