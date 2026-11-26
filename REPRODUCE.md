@@ -49,7 +49,8 @@ Check out the commit that the result's `manifest.json` names (`code.commit`). Th
 | Tag | Commit | Results produced there |
 |---|---|---|
 | `results-code-v1` | `9e553e1c` | the engine freeze (R-16): RQ1, RQ2 (scored by replaying the recordings), RQ4 and the other AI-off experiments run from it |
-| `results-code-v1-cpu` | `281787f1` | `results-code-v1` plus the two 04 §12 revision YAMLs: `re2-oracle-rq3-off-v1`, `re2-oracle-loso-off-v1` |
+| `results-code-v1-cpu` | `281787f1` | `results-code-v1` plus the two 04 §12 revision YAMLs. It produced `re2-oracle-rq3-off-v1` and `re2-oracle-loso-off-v1`, and every crossfit2 experiment with `calibration.fit: false`: the onset shifts, the source drops, metrics-only and the RCAEval-C cells. They reuse the rcaeval-re2 files that `re2-oracle-rq3-off-v1` fits, and `calibrated.check` reads that YAML. Run that experiment first, in the same checkout, so `config/calibration/` holds its files |
+| `results-code-v1-prior` | `9cb317d7` | `results-code-v1` plus the bench-only `prior-only` floor (#562; 04 §12 row of 26 Nov): `re2-oracle-prior-only-v1`, `re3-oracle-prior-only-v1` |
 | `results-replay-v1` | `a2cdc166` | `results-code-v1` plus the RQ6 replay fixes: `replay/recording` |
 
 The headline experiment, as an example:
