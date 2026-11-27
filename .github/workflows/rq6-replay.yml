@@ -83,7 +83,7 @@ jobs:
           import json, re, sys
           rel = json.load(open(sys.argv[1], encoding="utf-8"))
           digests = dict(re.findall(r"\| (veyltrace-r16-bench-ai-part\d{2}-of-\d{2}\.zip) \|[^`]*`([0-9a-f]{64})`", rel["body"]))
-          parts = sorted(a for a in rel["assets"] if re.fullmatch(r"veyltrace-r16-bench-ai-part\d{2}-of-\d{2}\.zip", a["name"]))
+          parts = sorted((a for a in rel["assets"] if re.fullmatch(r"veyltrace-r16-bench-ai-part\d{2}-of-\d{2}\.zip", a["name"])), key=lambda a: a["name"])
           if not parts or {a["name"] for a in parts} != set(digests):
               sys.exit(f"assets {[a['name'] for a in parts]} do not match the digest table {sorted(digests)}")
           for a in parts:
