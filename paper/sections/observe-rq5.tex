@@ -2,7 +2,7 @@
 % \lanesectionor{observe-rq5}{05-rq5}; it replaces the lead's draft and keeps its table and \resnum
 % keys. Sources: docs/04 §2 (H5), docs/02 §9; engines 01 §3.1 (convert and materialise);
 % scripts/observe/perf_check.py (#457). No result number is typed here.
-\resulttable{tab:rq5}{RQ5 cost per RE2 case and system: p50 and p95 wall time (ms), peak memory (MiB) and tokens, for the deterministic path and the AI arm; Table~\ref{tab:costall} gives every experiment.}{re2-oracle-rq1-v1 (solo run), re2-oracle-rq2-v1}{t08-rq5-cost}
+\resulttable{tab:rq5}{RQ5 cost per RE2 case and system: p50 and p95 wall time (ms) and peak memory (MiB) for \code{veyltrace:off} (solo run) and the two replayed AI arms, which record no run cost; Table~\ref{tab:rq5-full} has the full grid, Table~\ref{tab:rq5ai} the AI path's model time and tokens, and Table~\ref{tab:costall} every experiment.}{re2-oracle-rq1-v1 (solo run), re2-oracle-rq2-v1}{t08-rq5-cost}
 H5 holds if the deterministic path takes at most 30{,}000\,ms and 3\,GB of peak memory at p95 per RE2 case on the slowest laptop and the AI path adds at most 180{,}000\,ms (proposer) plus 60{,}000\,ms (narration).
 We read 3\,GB as $3 \times 10^9$ bytes, which is 2{,}861\,MiB in the stored unit and the stricter of the two readings; 3{,}072\,MiB gives the same verdict in every cell.
 
@@ -10,16 +10,15 @@ We read 3\,GB as $3 \times 10^9$ bytes, which is 2{,}861\,MiB in the stored unit
 Each case runs in its own process, so its peak resident memory is that case's alone, and its wall time covers the whole pipeline from ingest to the receipt.
 The embedded database runs on one thread by configuration, because the determinism rules of \S\ref{sec:pipeline} forbid results that depend on thread scheduling, and the measurement pins the numerical libraries to one thread as well; the times are therefore close to single-core times.
 The first run of a case also converts its raw files into the canonical tables, which are then cached under a key of the adapter version, the conversion settings and the table contracts; H5 is stated for runs with that cache filled, and the experiments fill it before the measured pass.
-Per-step times are not part of any artefact, since a run directory may hold nothing that changes between two runs, so a per-step breakdown has to come from a separate script that reads them from the process.
+Per-step times are not part of any artefact, since a run directory may hold nothing that changes between two runs, so a per-step breakdown comes from a separate script that reads them from the process (\code{scripts/observe/perf_check.py}); Table~\ref{tab:rq5laptop} gives it for the slowest laptop's sample.
 
 \paragraph{Deterministic path}
 The deterministic p95 per case is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/cost.wall_ms_p95}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/cost.wall_ms_p95} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.wall_ms_p95}\,ms on OB, SS and TT, with p95 peak memory of \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/cost.peak_rss_mb_p95}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/cost.peak_rss_mb_p95} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.peak_rss_mb_p95}\,MiB (Table~\ref{tab:rq5}).
 A p95 over all RE2 cases cannot be derived from these per-system values, so none is reported.
 The three systems differ in what a case holds (SS has no traces, and TT has the most services), so cost is read per system.
-\leadq{two things this paragraph still needs. (1) H5 is about the slowest laptop, and the keys above are the recording host's: the slowest laptop's sample (\#36: 10 cases per system, memory within budget, time over it on OB and TT) gets a committed file under \code{bench/results/perf-o11/} (lead's decision on \#36), and this paragraph then states H5 from that file and names both machines. (2) The per-step breakdown (on TT, signals take the largest share, then anomalies and alignment on a faster laptop; \#36) has no committed source, so its numbers are left out.}
+On the slowest laptop (an i5-1135G7 under Windows 11; \code{bench/results/perf-o11/README.md}), a warm pass over 10 cases per RE2 system keeps peak memory within the budget on every system and the time per case within it on OB and SS, but not on TT (Table~\ref{tab:rq5laptop}); with 10 cases, the p95 is the maximum.
+An earlier sample of the same cases on the same laptop (25 Nov), kept only as summaries, was slower and also put OB over the budget; the cause of the gap was not measured.
 
 \paragraph{With the proposer}
-With the proposer, the p95 is \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/cost.wall_ms_p95}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/cost.wall_ms_p95} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/cost.wall_ms_p95}\,ms (Table~\ref{tab:rq5}).
-\leadq{the brief rows of \code{re2-oracle-rq2-v1} were scored in replay mode, so their cost fields are empty; the lead adds a reader of the recorded model time (review of \#539), and these three keys must then point at its file.}
-The Observe engines do the same work in both arms, so the difference comes from the proposer, the claim pass and the narration.
-\leadq{kept from the lead's draft: state which runs shared the machine (R-16 plan, decision 3), give each laptop's specification, and quote published agent costs only as context.}
+The Observe engines do the same work in both arms, so the difference comes from the proposer and the claim pass; every checked card was narrated from templates, with no model call (Table~\ref{tab:rq5ai}).
+\leadq{state which runs shared the machine (R-16 plan, decision 3), and quote published agent costs only as context.}

@@ -29,7 +29,7 @@ It reads the fault list only for the fault times, and it lists a case's log and 
 Nezha records logs and traces only for about three minutes around each fault and metrics once a minute, so the baseline window of \S\ref{sec:pipeline} holds few metric points and no observed log line or span.
 What the engines see there is not an absence, however: the count series of the next paragraph are zero-filled from the start of the metrics, before logs and traces were collected, so their baseline is zeros that were never observed.
 On Nezha, log and trace anomalies therefore largely mark where collection starts, in every service that logs, and not the fault; we run Nezha as pre-registered and report this as a limit of the dataset and of our zero-fill rule.
-\leadq{two sets of counts behind these sentences need a committed source under \code{bench/results/} before \S\ref{sec:datasets} or \S\ref{sec:threats} can print them: the baseline counts in engines/01 §3.3 (cases with fewer than three baseline metric points, cases with baseline logs or spans), and the anomaly counts by source in \#514, finding 1. If the lead declares Nezha not run (\#514), this paragraph changes again.}
+\leadq{two sets of counts behind these sentences need a committed source under \code{bench/results/} before \S\ref{sec:datasets} or \S\ref{sec:threats} can print them: the baseline counts in engines/01 §3.3 (cases with fewer than three baseline metric points, cases with baseline logs or spans), and the anomaly counts by source in \#514, finding 1.}
 
 \paragraph{Signals}
 \eng{Signalyth} turns rows into typed series.
@@ -60,8 +60,10 @@ An alert-shift run (\S\ref{sec:rq4}) therefore changes the windows but not the s
 \paragraph{Anomalies and onsets}
 \eng{Anomara} scores every series against its baseline window with a robust $z$,
 \begin{equation}
-z_t = \frac{x_t - \operatorname{med}_B}{s_B}, \qquad
-s_B = \max\bigl(1.4826\,\text{MAD}_B,\; \text{IQR}_B / 1.349,\; \varepsilon,\; 0.02\,\lvert\operatorname{med}_B\rvert\bigr),
+\begin{aligned}
+z_t &= \frac{x_t - \operatorname{med}_B}{s_B}, \\
+s_B &= \max\bigl(1.4826\,\text{MAD}_B,\; \text{IQR}_B / 1.349,\; \varepsilon,\; 0.02\,\lvert\operatorname{med}_B\rvert\bigr),
+\end{aligned}
 \end{equation}
 where $\varepsilon$ is a fixed floor per family and unit (1\,ms for latency, 1\,MiB for memory), because a flat baseline otherwise gives a scale near zero and an unbounded score.
 The score of a series is the largest $\lvert z \rvert$ that persists with one sign for three consecutive steps of the incident window, and the series is anomalous at a score of 3 or more.
@@ -81,7 +83,7 @@ If nothing breaches, the case has no alert and counts as a miss.
 
 \paragraph{Clocks and changes}
 \eng{Causync} estimates how far the sources' clocks are apart and publishes offsets; it never rewrites a timestamp.
-For traces, each client span $[t_1, t_4]$ and its server span $[t_2, t_3]$ in another service give the on-wire estimate $\theta = \bigl((t_2 - t_1) + (t_3 - t_4)\bigr)/2$ of the callee's clock minus the caller's, under symmetric network delay \citeneeded{NTP on-wire offset, RFC 5905; engines/04 names it without a URL}.
+For traces, each client span $[t_1, t_4]$ and its server span $[t_2, t_3]$ in another service give the on-wire estimate $\theta = \bigl((t_2 - t_1) + (t_3 - t_4)\bigr)/2$ of the callee's clock minus the caller's, under symmetric network delay~\cite{rfc5905}.
 Client-side overhead biases $\theta$ by small amounts, so the median $\theta$ of a service pair is applied only where the data shows skew: it must exceed a minimum size, and a minimum share of server spans must stick out of their client spans.
 Logs are aligned through the spans that their lines name, and otherwise, like metrics, by the lag that best correlates the changes of their traffic series with the reference source, which resolves only whole steps.
 Every later comparison of onsets allows a tolerance equal to the coarsest source step, with the upper quartile of the metric series' effective steps as the metrics step.
