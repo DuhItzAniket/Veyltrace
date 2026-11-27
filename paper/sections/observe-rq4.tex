@@ -13,11 +13,10 @@ An alert that is 120\,s late puts the first two minutes of the fault at the very
 We therefore expected late alerts to cost more than early ones; that expectation is not a pre-registered hypothesis.
 
 \resultfigure*{fig:shift}{AC@1 per RE2 system against the shift of the alert time ($-120$ to $+120$\,s; $\pm 30$\,s exploratory) for N-Sigma, BARO, alert counting, the fused slate and \code{veyltrace:off}; \code{veyltrace:brief} has a 0\,s point only, because its shifted runs were cut.}{re2-oracle-rq1-v1 and re2-oracle-rq2-v1 (0 s), re2-shift-{m120,m60,m30,p30,p60,p120}-v1}{fig7-shift}
-\resulttable*{tab:shift}{Alert-shift robustness (H4a): AC@1, AC@3 and Retrieval@K per shift, system and method.}{re2-oracle-rq1-v1, re2-oracle-rq2-v1, re2-shift-{m120,m60,m30,p30,p60,p120}-v1}{t10-rq4-shift}
+\resulttable*{tab:shift}{Alert-shift robustness (H4a): AC@1 with 95\% cluster-bootstrap intervals per shift and system for N-Sigma, BARO, alert counting, the fused slate, \code{veyltrace:off} and \code{veyltrace:brief} (0\,s only); Table~\ref{tab:shift-full} adds AC@3, Retrieval@K and every method.}{re2-oracle-rq1-v1, re2-oracle-rq2-v1, re2-shift-{m120,m60,m30,p30,p60,p120}-v1}{t10-rq4-shift}
 H4a holds if AC@1 drops by at most 0.10 per RE2 system under $\pm 60$ and $\pm 120$\,s shifts.
 Over those four shifts, the largest drop of \code{veyltrace:off} is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1/max_drop/vs:re2-shift-m120-v1,re2-shift-m60-v1,re2-shift-p60-v1,re2-shift-p120-v1} on OB, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1/max_drop/vs:re2-shift-m120-v1,re2-shift-m60-v1,re2-shift-p60-v1,re2-shift-p120-v1} on SS and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1/max_drop/vs:re2-shift-m120-v1,re2-shift-m60-v1,re2-shift-p60-v1,re2-shift-p120-v1} on TT (Figure~\ref{fig:shift}, Table~\ref{tab:shift}).
 The six shifted runs of the AI arm were pre-registered and are reported as not run (Appendix~\ref{sec:appendix}), so H4a is tested for the deterministic path only.
-\leadq{the lead's draft of this caption and table listed \code{re2-shift-*-brief-v1}; all six are in \code{not_run.yaml} since 25 Nov (\#532), so I removed them here. Check that R-17's \code{fig7-shift} and \code{t10-rq4-shift} agree.}
 
 \paragraph{Missing telemetry}
 A dropped source is removed at ingest: its table is written with no rows and its flag is cleared, exactly as for a source that the dataset never had, so no engine can treat the two differently (\S\ref{sec:pipeline}).
@@ -27,7 +26,7 @@ RCAEval has no change events, so dropping events removes nothing, and that cell 
 RE2-SS has no traces, so the same holds for dropping traces on SS.
 
 \resultfigure*{fig:ablation}{Telemetry ablation on RE2: AC@1 of \code{veyltrace:off} per cell (no source dropped; drop metrics, logs, traces or events; metrics only), one panel per system.}{re2-oracle-rq1-v1 (no source dropped), re2-drop-metrics-v1, re2-drop-logs-v1, re2-drop-traces-v1, re2-drop-events-v1, re2-metrics-only-v1}{fig8-ablation}
-\resulttable{tab:ablation}{Telemetry ablation (H4b): accuracy and the share of correct \st{CONFIRMED} verdicts per cell, system and method.}{re2-oracle-rq1-v1, re2-drop-metrics-v1, re2-drop-logs-v1, re2-drop-traces-v1, re2-drop-events-v1, re2-metrics-only-v1}{t11-rq4-ablation}
+\resulttable{tab:ablation}{Telemetry ablation (H4b) of \code{veyltrace:off}: AC@1 with 95\% cluster-bootstrap intervals, the share of correct \st{CONFIRMED} verdicts and their number per cell and system; Table~\ref{tab:ablation-full} has every method.}{re2-oracle-rq1-v1, re2-drop-metrics-v1, re2-drop-logs-v1, re2-drop-traces-v1, re2-drop-events-v1, re2-metrics-only-v1}{t11-rq4-ablation}
 H4b holds if, in every ablation cell, at least 90\% of \st{CONFIRMED} verdicts are correct.
 Table~\ref{tab:ablation} gives that share per cell and system, and Figure~\ref{fig:ablation} the accuracy.
-\leadq{kept from the lead's draft: \code{bench_summary} 1.1 has no \code{selective_accuracy} entry, so H4b needs a contract change before its numbers can be generated. The mix of statuses per cell, which docs/11 §5 plans for this figure, needs a summary entry too.}
+\leadq{the mix of statuses per cell, which docs/11 §5 plans for this figure, needs a summary entry.}
