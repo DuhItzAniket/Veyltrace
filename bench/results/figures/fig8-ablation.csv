@@ -1,0 +1,55 @@
+panel,series,x,value,low,high,status,experiment,commit,source
+ob,none,AC@1,0.528089888,0.413793103,0.647826226,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,none,AC@1,0.471910112,0.363534219,0.579545455,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,none,AC@1,0.584269663,0.483146067,0.677777778,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,drop metrics,AC@1,0.348314607,0.213483146,0.494382022,ok,re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+ss,drop metrics,AC@1,0.191011236,0.088888889,0.310363985,ok,re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+tt,drop metrics,AC@1,0.764044944,0.640449438,0.866666667,ok,re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+ob,drop logs,AC@1,0.561797753,0.449409144,0.677777778,ok,re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+ss,drop logs,AC@1,0.752808989,0.629213483,0.865168539,ok,re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+tt,drop logs,AC@1,0.573033708,0.488499106,0.662921348,ok,re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+ob,drop traces,AC@1,0.629213483,0.5,0.752808989,ok,re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+ss,drop traces,AC@1,0.471910112,0.363534219,0.579545455,ok,re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+tt,drop traces,AC@1,0.539325843,0.413726054,0.666666667,ok,re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+ob,drop events,AC@1,0.528089888,0.413793103,0.647826226,ok,re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+ss,drop events,AC@1,0.471910112,0.363534219,0.579545455,ok,re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+tt,drop events,AC@1,0.584269663,0.483146067,0.677777778,ok,re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+ob,metrics only,AC@1,0.741573034,0.595505618,0.866666667,ok,re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+ss,metrics only,AC@1,0.752808989,0.629213483,0.865168539,ok,re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+tt,metrics only,AC@1,0.707865169,0.579545455,0.829545455,ok,re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+ob,none,CONFIRMED share,,,,not applicable: the experiment does not list the metric `selective_accuracy`,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,none,CONFIRMED share,,,,not applicable: the experiment does not list the metric `selective_accuracy`,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,none,CONFIRMED share,,,,not applicable: the experiment does not list the metric `selective_accuracy`,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,drop metrics,CONFIRMED share,0.202247191,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+ss,drop metrics,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+tt,drop metrics,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+ob,drop logs,CONFIRMED share,0.06741573,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+ss,drop logs,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+tt,drop logs,CONFIRMED share,0.06741573,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+ob,drop traces,CONFIRMED share,0.011235955,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+ss,drop traces,CONFIRMED share,0.08988764,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+tt,drop traces,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+ob,drop events,CONFIRMED share,0.08988764,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+ss,drop events,CONFIRMED share,0.08988764,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+tt,drop events,CONFIRMED share,0.06741573,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+ob,metrics only,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+ss,metrics only,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+tt,metrics only,CONFIRMED share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+ob,none,CONFIRMED or LIKELY share,,,,not applicable: the experiment does not list the metric `selective_accuracy`,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,none,CONFIRMED or LIKELY share,,,,not applicable: the experiment does not list the metric `selective_accuracy`,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,none,CONFIRMED or LIKELY share,,,,not applicable: the experiment does not list the metric `selective_accuracy`,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,drop metrics,CONFIRMED or LIKELY share,0.415730337,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+ss,drop metrics,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+tt,drop metrics,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-metrics-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-metrics-v1 @ 281787f1
+ob,drop logs,CONFIRMED or LIKELY share,0.382022472,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+ss,drop logs,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+tt,drop logs,CONFIRMED or LIKELY share,0.06741573,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-logs-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-logs-v1 @ 281787f1
+ob,drop traces,CONFIRMED or LIKELY share,0.056179775,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+ss,drop traces,CONFIRMED or LIKELY share,0.382022472,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+tt,drop traces,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-traces-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-traces-v1 @ 281787f1
+ob,drop events,CONFIRMED or LIKELY share,0.393258427,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+ss,drop events,CONFIRMED or LIKELY share,0.382022472,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+tt,drop events,CONFIRMED or LIKELY share,0.06741573,,,ok; no interval in the committed results (04 §8 asks for one),re2-drop-events-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-drop-events-v1 @ 281787f1
+ob,metrics only,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+ss,metrics only,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1
+tt,metrics only,CONFIRMED or LIKELY share,0.0,,,ok; no interval in the committed results (04 §8 asks for one),re2-metrics-only-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-metrics-only-v1 @ 281787f1

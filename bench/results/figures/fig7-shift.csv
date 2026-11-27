@@ -1,0 +1,127 @@
+panel,series,x,value,low,high,status,experiment,commit,source
+ob,rcaeval:baro,-120,0.168539326,0.056179775,0.303370787,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ss,rcaeval:baro,-120,0.146067416,0.06741573,0.233333333,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+tt,rcaeval:baro,-120,0.617977528,0.483146067,0.747198276,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ob,rcaeval:nsigma,-120,0.820224719,0.696629213,0.921370162,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ss,rcaeval:nsigma,-120,0.808988764,0.688888889,0.91011236,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+tt,rcaeval:nsigma,-120,0.662921348,0.516853933,0.797752809,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ob,simplerca,-120,0.741573034,0.590858586,0.886363636,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ss,simplerca,-120,0.741573034,0.617977528,0.850574713,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+tt,simplerca,-120,0.674157303,0.544444444,0.797752809,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ob,causatrix:rrf,-120,0.764044944,0.644444444,0.877777778,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ss,causatrix:rrf,-120,0.808988764,0.727272727,0.88908046,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+tt,causatrix:rrf,-120,0.876404494,0.777777778,0.944444444,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ob,veyltrace:off,-120,0.516853933,0.397615552,0.636363636,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ss,veyltrace:off,-120,0.415730337,0.311111111,0.522727273,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+tt,veyltrace:off,-120,0.528089888,0.409090909,0.659090909,ok,re2-shift-m120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m120-v1 @ 281787f1
+ob,rcaeval:baro,-60,0.157303371,0.04494382,0.292134831,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ss,rcaeval:baro,-60,0.08988764,0.022222222,0.179775281,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+tt,rcaeval:baro,-60,0.629213483,0.494382022,0.755555556,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ob,rcaeval:nsigma,-60,0.808988764,0.674157303,0.921348315,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ss,rcaeval:nsigma,-60,0.842696629,0.749928161,0.922442529,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+tt,rcaeval:nsigma,-60,0.752808989,0.629213483,0.855555556,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ob,simplerca,-60,0.752808989,0.602272727,0.888888889,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ss,simplerca,-60,0.764044944,0.651685393,0.863636364,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+tt,simplerca,-60,0.674157303,0.539325843,0.797752809,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ob,causatrix:rrf,-60,0.786516854,0.674157303,0.897727273,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ss,causatrix:rrf,-60,0.808988764,0.722222222,0.888888889,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+tt,causatrix:rrf,-60,0.887640449,0.788888889,0.955068664,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ob,veyltrace:off,-60,0.528089888,0.411111111,0.651685393,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ss,veyltrace:off,-60,0.494382022,0.379272031,0.606741573,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+tt,veyltrace:off,-60,0.471910112,0.333146067,0.606802919,ok,re2-shift-m60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m60-v1 @ 281787f1
+ob,rcaeval:baro,-30,0.157303371,0.034090909,0.3,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ss,rcaeval:baro,-30,0.06741573,0.011111111,0.134831461,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+tt,rcaeval:baro,-30,0.651685393,0.516853933,0.777777778,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ob,rcaeval:nsigma,-30,0.831460674,0.707865169,0.932602996,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ss,rcaeval:nsigma,-30,0.853932584,0.764044944,0.93258427,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+tt,rcaeval:nsigma,-30,0.741573034,0.617977528,0.852314224,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ob,simplerca,-30,0.741573034,0.595505618,0.877777778,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ss,simplerca,-30,0.808988764,0.70112069,0.898876404,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+tt,simplerca,-30,0.685393258,0.556786616,0.806818182,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ob,causatrix:rrf,-30,0.775280899,0.662921348,0.886363636,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ss,causatrix:rrf,-30,0.808988764,0.719101124,0.888888889,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+tt,causatrix:rrf,-30,0.898876404,0.806818182,0.966666667,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ob,veyltrace:off,-30,0.550561798,0.438202247,0.662921348,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ss,veyltrace:off,-30,0.471910112,0.359550562,0.586206897,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+tt,veyltrace:off,-30,0.494382022,0.399943182,0.597758621,ok,re2-shift-m30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-m30-v1 @ 281787f1
+ob,rcaeval:baro,0,0.146067416,0.034090909,0.277855805,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,rcaeval:baro,0,0.06741573,0.011111111,0.134831461,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,rcaeval:baro,0,0.662921348,0.516853933,0.797752809,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,rcaeval:nsigma,0,0.786516854,0.651685393,0.9,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,rcaeval:nsigma,0,0.853932584,0.766666667,0.93258427,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,rcaeval:nsigma,0,0.752808989,0.629213483,0.855555556,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,simplerca,0,0.741573034,0.595505618,0.877777778,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,simplerca,0,0.820224719,0.711111111,0.91011236,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,simplerca,0,0.685393258,0.555555556,0.8,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,causatrix:rrf,0,0.786516854,0.674157303,0.897727273,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,causatrix:rrf,0,0.808988764,0.715789141,0.897727273,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,causatrix:rrf,0,0.876404494,0.777777778,0.955068664,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,veyltrace:off,0,0.528089888,0.413793103,0.647826226,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,veyltrace:off,0,0.471910112,0.363534219,0.579545455,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,veyltrace:off,0,0.584269663,0.483146067,0.677777778,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,rcaeval:baro,30,0.382022472,0.235955056,0.528220974,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ss,rcaeval:baro,30,0.157303371,0.055555556,0.272727273,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+tt,rcaeval:baro,30,0.651685393,0.511111111,0.786516854,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ob,rcaeval:nsigma,30,0.393258427,0.258426966,0.522222222,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ss,rcaeval:nsigma,30,0.404494382,0.269662921,0.534221782,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+tt,rcaeval:nsigma,30,0.123595506,0.057454937,0.193181818,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ob,simplerca,30,0.741573034,0.595505618,0.877777778,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ss,simplerca,30,0.797752809,0.696629213,0.887640449,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+tt,simplerca,30,0.707865169,0.577777778,0.833333333,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ob,causatrix:rrf,30,0.786516854,0.674157303,0.897727273,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ss,causatrix:rrf,30,0.808988764,0.730337079,0.887640449,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+tt,causatrix:rrf,30,0.887640449,0.8,0.955555556,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ob,veyltrace:off,30,0.550561798,0.431818182,0.674157303,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ss,veyltrace:off,30,0.471910112,0.366666667,0.584269663,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+tt,veyltrace:off,30,0.674157303,0.577777778,0.775280899,ok,re2-shift-p30-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p30-v1 @ 281787f1
+ob,rcaeval:baro,60,0.303370787,0.147727273,0.471910112,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ss,rcaeval:baro,60,0.179775281,0.06741573,0.3,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+tt,rcaeval:baro,60,0.674157303,0.539325843,0.8,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ob,rcaeval:nsigma,60,0.08988764,0.02247191,0.177777778,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ss,rcaeval:nsigma,60,0.280898876,0.160873824,0.404494382,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+tt,rcaeval:nsigma,60,0.04494382,0.011111111,0.088888889,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ob,simplerca,60,0.730337079,0.584269663,0.873599138,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ss,simplerca,60,0.820224719,0.719021323,0.909090909,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+tt,simplerca,60,0.707865169,0.574712644,0.840909091,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ob,causatrix:rrf,60,0.775280899,0.655555556,0.887640449,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ss,causatrix:rrf,60,0.808988764,0.73026047,0.887640449,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+tt,causatrix:rrf,60,0.898876404,0.811111111,0.966292135,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ob,veyltrace:off,60,0.617977528,0.494382022,0.73870978,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ss,veyltrace:off,60,0.449438202,0.337206036,0.561797753,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+tt,veyltrace:off,60,0.651685393,0.555555556,0.755555556,ok,re2-shift-p60-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p60-v1 @ 281787f1
+ob,rcaeval:baro,120,0.303370787,0.157259675,0.471910112,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ss,rcaeval:baro,120,0.168539326,0.056818182,0.288888889,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+tt,rcaeval:baro,120,0.640449438,0.494382022,0.777777778,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ob,rcaeval:nsigma,120,0.04494382,0.011111111,0.08988764,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ss,rcaeval:nsigma,120,0.157303371,0.077777778,0.247191011,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+tt,rcaeval:nsigma,120,0.011235955,0.0,0.034090909,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ob,simplerca,120,0.730337079,0.579545455,0.866666667,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ss,simplerca,120,0.786516854,0.666666667,0.887640449,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+tt,simplerca,120,0.696629213,0.566666667,0.822222222,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ob,causatrix:rrf,120,0.764044944,0.647645202,0.876404494,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ss,causatrix:rrf,120,0.797752809,0.719101124,0.876404494,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+tt,causatrix:rrf,120,0.91011236,0.822222222,0.97752809,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ob,veyltrace:off,120,0.730337079,0.622222222,0.833333333,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ss,veyltrace:off,120,0.539325843,0.409090909,0.681818182,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+tt,veyltrace:off,120,0.865168539,0.786516854,0.93258427,ok,re2-shift-p120-v1,281787f19631dd572f7c910c360f4b08ede53e24,re2-shift-p120-v1 @ 281787f1
+ob,veyltrace:brief,-120,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-m120-brief-v1,,re2-shift-m120-brief-v1 (not run)
+ss,veyltrace:brief,-120,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-m120-brief-v1,,re2-shift-m120-brief-v1 (not run)
+tt,veyltrace:brief,-120,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-m120-brief-v1,,re2-shift-m120-brief-v1 (not run)
+ob,veyltrace:brief,-60,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-m60-brief-v1,,re2-shift-m60-brief-v1 (not run)
+ss,veyltrace:brief,-60,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-m60-brief-v1,,re2-shift-m60-brief-v1 (not run)
+tt,veyltrace:brief,-60,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-m60-brief-v1,,re2-shift-m60-brief-v1 (not run)
+ob,veyltrace:brief,-30,,,,not run: ±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list),re2-shift-m30-brief-v1,,re2-shift-m30-brief-v1 (not run)
+ss,veyltrace:brief,-30,,,,not run: ±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list),re2-shift-m30-brief-v1,,re2-shift-m30-brief-v1 (not run)
+tt,veyltrace:brief,-30,,,,not run: ±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list),re2-shift-m30-brief-v1,,re2-shift-m30-brief-v1 (not run)
+ob,veyltrace:brief,0,0.520599251,0.409939916,0.637114899,ok,re2-oracle-rq2-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq2-v1 @ 9e553e1c
+ss,veyltrace:brief,0,0.501872659,0.392592593,0.606741573,ok,re2-oracle-rq2-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq2-v1 @ 9e553e1c
+tt,veyltrace:brief,0,0.576779026,0.477272727,0.670371411,ok,re2-oracle-rq2-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq2-v1 @ 9e553e1c
+ob,veyltrace:brief,30,,,,not run: ±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list),re2-shift-p30-brief-v1,,re2-shift-p30-brief-v1 (not run)
+ss,veyltrace:brief,30,,,,not run: ±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list),re2-shift-p30-brief-v1,,re2-shift-p30-brief-v1 (not run)
+tt,veyltrace:brief,30,,,,not run: ±30 s is exploratory in 04 §2; LLM budget (ADR 20261121-ak-r16-cut-list),re2-shift-p30-brief-v1,,re2-shift-p30-brief-v1 (not run)
+ob,veyltrace:brief,60,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-p60-brief-v1,,re2-shift-p60-brief-v1 (not run)
+ss,veyltrace:brief,60,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-p60-brief-v1,,re2-shift-p60-brief-v1 (not run)
+tt,veyltrace:brief,60,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-p60-brief-v1,,re2-shift-p60-brief-v1 (not run)
+ob,veyltrace:brief,120,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-p120-brief-v1,,re2-shift-p120-brief-v1 (not run)
+ss,veyltrace:brief,120,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-p120-brief-v1,,re2-shift-p120-brief-v1 (not run)
+tt,veyltrace:brief,120,,,,"not run: LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)",re2-shift-p120-brief-v1,,re2-shift-p120-brief-v1 (not run)
