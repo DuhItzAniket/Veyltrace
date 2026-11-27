@@ -11,6 +11,7 @@ from typing import cast
 
 import pyarrow as pa
 import pytest
+import yaml
 
 from veyltrace_bench import rcaeval, runner
 from veyltrace_bench.experiment import load_experiment, unsupported
@@ -106,3 +107,18 @@ def test_an_unwrapped_rcaeval_method_is_refused_before_the_first_case(
     with pytest.raises(ConfigError, match="'mmbaro' is not in"):
         runner.run_experiment(path, out_root=tmp_path / "r", runs_root=tmp_path / "runs")
     assert not (tmp_path / "runs").exists()
+
+
+def test_every_rcaeval_experiment_has_a_dataset_entry_for_each_part() -> None:
+    # re3/nezha rq1 were refused at R-16 because baselines.yaml mapped only RE2 (#615)
+    datasets = rcaeval.settings().datasets
+    not_run = cast(
+        "dict[str, object]", yaml.safe_load(textio.read_text(ROOT / "bench" / "results" / "not_run.yaml"))
+    )
+    for path in sorted((ROOT / "bench" / "experiments").glob("*.yaml")):
+        exp = load_experiment(path)
+        if exp.experiment_id in not_run:  # cut from v1.0 (not_run.yaml): never run, so never refused
+            continue
+        if any(m.kind == "rcaeval" for m in exp.methods):
+            missing = [d for d in exp.dataset.parts if d not in datasets]
+            assert not missing, f"{path.name}: rcaeval.datasets has no entry for {missing}"
