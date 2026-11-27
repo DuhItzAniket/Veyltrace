@@ -1,0 +1,10 @@
+panel,series,x,value,low,high,status,experiment,commit,source
+ob,veyltrace:off,Retrieval@K,1.0,1.0,1.0,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,veyltrace:off,Retrieval@K,0.988764045,0.965909091,1.0,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,veyltrace:off,Retrieval@K,0.97752809,0.931818182,1.0,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,veyltrace:off,Rerank@1,0.528089888,,,ok; no interval in the committed results (04 §8 asks for one),re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,veyltrace:off,Rerank@1,0.477272727,,,ok; no interval in the committed results (04 §8 asks for one),re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,veyltrace:off,Rerank@1,0.597701149,,,ok; no interval in the committed results (04 §8 asks for one),re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ob,veyltrace:off,AC@1,0.528089888,0.413793103,0.647826226,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+ss,veyltrace:off,AC@1,0.471910112,0.363534219,0.579545455,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
+tt,veyltrace:off,AC@1,0.584269663,0.483146067,0.677777778,ok,re2-oracle-rq1-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq1-v1 @ 9e553e1c
