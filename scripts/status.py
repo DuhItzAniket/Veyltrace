@@ -9,8 +9,10 @@ Matching: a task's issue title starts with "<ID> " ("O-04 Anomara: …"); sub-is
 letter suffix ("O-04a", "O-01b2"); follow-ups start with "<ID> follow-up"; a PR belongs to
 issue N when its branch is "<lane>/<N>-<slug>". A task is done when its issue and every
 sub-issue are closed (open follow-ups are listed, not counted); it is in progress when any
-of them is closed or has an open PR. The text is sorted and names the main commit instead
-of a timestamp, so the same GitHub state gives the same report.
+of them is closed, has an open PR, or is named by a merged PR ("part of #N", "closes #N",
+or a `<lane>/<N>-` branch; R-11's work merged that way and closed no sub-issue, #640). The
+text is sorted and names the main commit instead of a timestamp, so the same GitHub state
+gives the same report.
 
 Usage: uv run python scripts/status.py --out -   |   ... --issue 241 --project 3
 Needs `gh auth login` (and the `project` scope for --project).
@@ -36,6 +38,13 @@ TITLE_ID = re.compile(r"^([LROX]-\d+)([a-z]\d*)?( follow-up)?[ :]")
 LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 SCOPE = re.compile(r"^\w+\(([^)]+)\)")
 BRANCH_ISSUE = re.compile(r"^[a-z]+/(\d+)-")
+#: "part of #28", "part of R-11 (#28)", "closes #298": a merged PR that worked on the issue (#640)
+REFERS = re.compile(
+    r"\b(?:part of|closes|closed|close|fixes|fixed|fix|resolves|resolved|resolve)\s+"
+    r"((?:[LROX]-\d+[a-z]?\d*\s+\()?#\d+(?:\)?(?:,\s*|\s+and\s+)#\d+)*)",
+    re.I,
+)
+NUMBER = re.compile(r"#(\d+)")
 LANES = {"R": "Reason", "O": "Observe", "X": "Explain", "all": "all"}
 BAD = {"FAILURE", "ERROR", "TIMED_OUT", "ACTION_REQUIRED", "STARTUP_FAILURE"}
 DONE, DOING, TODO = "Done", "In Progress", "Todo"
@@ -92,10 +101,22 @@ def pr_issue(pr: dict[str, Any]) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def issue_state(issue: dict[str, Any], open_prs: set[int]) -> str:
+def issue_state(issue: dict[str, Any], active: set[int]) -> str:
+    """Done when closed; in progress when an open PR or a merged PR works on it (`active`)."""
     if issue["state"] == "CLOSED":
         return DONE
-    return DOING if issue["number"] in open_prs else TODO
+    return DOING if issue["number"] in active else TODO
+
+
+def merged_refs(merged: list[dict[str, Any]]) -> set[int]:
+    """Issues a merged PR worked on: its `<lane>/<N>-` branch, or "part of / closes #N" in its body."""
+    refs: set[int] = set()
+    for pr in merged:
+        if (n := pr_issue(pr)) is not None:
+            refs.add(n)
+        for group in REFERS.findall(pr.get("body") or ""):  # "part of #28 and #45" names both
+            refs.update(int(n) for n in NUMBER.findall(group))
+    return refs
 
 
 def task_state(task: Task, open_prs: set[int]) -> str:
@@ -161,8 +182,10 @@ def next_step(bottom: dict[str, Any]) -> str:
     return "ready to merge"
 
 
-def render(tasks: list[Task], prs: list[dict[str, Any]], main_sha: str) -> str:
-    open_prs = {n for n in (pr_issue(p) for p in prs) if n is not None}
+def render(
+    tasks: list[Task], prs: list[dict[str, Any]], main_sha: str, worked: frozenset[int] = frozenset()
+) -> str:
+    open_prs = {n for n in (pr_issue(p) for p in prs) if n is not None} | worked
     lines = [
         "# Veyltrace status",
         "",
@@ -268,8 +291,10 @@ def main(argv: list[str] | None = None) -> int:
     issues = gh_json("issue", "list", "--state", "all", "-L", "1000", "--json", "number,title,state,url")
     attach_issues(tasks, issues)
     prs = gh_json("pr", "list", "--state", "open", "-L", "500", "--json", PR_FIELDS)
+    merged = gh_json("pr", "list", "--state", "merged", "-L", "2000", "--json", "number,headRefName,body")
+    worked = frozenset(merged_refs(merged))
     main_sha = gh("api", "repos/{owner}/{repo}/commits/main", "-q", ".sha").strip()
-    report = render(tasks, prs, main_sha)
+    report = render(tasks, prs, main_sha, worked)
     if args.out == "-":
         sys.stdout.write(report)
     elif args.out:
@@ -279,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         subprocess.run(edit, input=report, check=True, text=True, encoding="utf-8", capture_output=True)
     if args.project:
         owner = gh("repo", "view", "--json", "owner", "-q", ".owner.login").strip()
-        open_prs = {n for n in (pr_issue(p) for p in prs) if n is not None}
+        open_prs = {n for n in (pr_issue(p) for p in prs) if n is not None} | worked
         print(f"project {args.project}: {sync_project(args.project, owner, tasks, open_prs)} items updated")
     return 0
 
