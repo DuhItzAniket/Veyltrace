@@ -69,6 +69,13 @@ NO_GROUP = "its summary.json has no group for this dataset, system and method"
 UNLISTED = "the experiment does not list the metric `{}`"  # n/a, never "not run" (R2)
 #: A value without an interval in any committed file (R3: 04 §8 asks for one; no new statistics here).
 NO_INTERVAL = "no interval in the committed results (04 §8 asks for one)"
+#: A pooled value that no committed file has, in an experiment that ran: "no value", never "not run" (R1, R3).
+NO_VALUE = "no value"
+NO_POOLED = "no pooled value in the committed results: summary.json statistics has no pooled {} `{}` interval"
+#: Counts recovered exactly from a share and its denominator in the same entry (k = share · n, as
+#: cells.exact_share does), never a new statistic: the CONFIRMED verdicts behind H4b's AC@1 among
+#: CONFIRMED (bench_summary 1.2 `selective_accuracy`, 03 §13.3).
+DERIVED_COUNTS = {"n_confirmed": ("answer_rate_confirmed", "n_fault")}
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
 SHORT_SHA = 12  # experiment_sha256 prefix in a not-run reason
 
@@ -263,6 +270,8 @@ class Results:
             return cells.not_run(f"summary.json is bench_summary 1.1, which has no `{entry}` entry (re-run)")
         if values is None:
             return cells.not_applicable(UNLISTED.format(entry))
+        if key in DERIVED_COUNTS:
+            return cells.count(_derived(values, key))
         value = getattr(values, key)
         if isinstance(value, list):  # retrieval_k: the slate sizes K of the group's runs
             return cells.text(";".join(str(v) for v in value))
@@ -384,7 +393,20 @@ class Results:
         for item in self.summary.statistics.not_run:
             if item.scope == scope:
                 return cells.not_run(f"{scope} {item.reason}")
-        return cells.not_run(f"summary.json statistics has no pooled {bench} `{key}` interval")
+        return Cell(NO_VALUE, NO_POOLED.format(bench, key))
+
+
+def _derived(values: object, key: str) -> int | None:
+    """A DERIVED_COUNTS count of a summary entry: share · n, None when the share is null; a share
+    that is not k / n for an integer k breaks 03 §13.3 and is an error."""
+    share_key, n_key = DERIVED_COUNTS[key]
+    share, n = getattr(values, share_key), getattr(values, n_key)
+    if share is None or n is None:
+        return None
+    k = round(share * n)
+    if abs(share * n - k) > cells.SHARE_TOLERANCE:
+        raise ConfigError(f"summary.json {share_key} {share!r} of n = {n} is not k / n for an integer k")
+    return int(k)
 
 
 def _version(path: Path) -> str:

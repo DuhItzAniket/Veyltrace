@@ -265,7 +265,7 @@ def floor_lines(
 POOLED_COUNTS = "pooled rows report the per-system counts above"
 
 
-def _pooled_value(res: Results, bench: str, method: str, entry: str, key: str, kind: str | None) -> Cell:
+def pooled_value(res: Results, bench: str, method: str, entry: str, key: str, kind: str | None) -> Cell:
     if (why := res.why(method)) is not None:
         return cells.not_run(why)
     if key in GROUP_COUNTS:
@@ -283,7 +283,7 @@ def _pooled_row(
     res: Results, bench: str, method: str, per_seed: bool, metrics: Sequence[Metric], kind: str | None,
     seeds: bool = False,
 ) -> Row:  # fmt: skip
-    values = [_pooled_value(res, bench, method, entry, key, kind) for _, entry, key in metrics]
+    values = [pooled_value(res, bench, method, entry, key, kind) for _, entry, key in metrics]
     counts = [n_a(POOLED_COUNTS)] * width(per_seed)
     if per_seed and seeds:  # a pooled per-seed AC@1 is defined (04 §8): not a per-system count
         counts[0] = spread(res, None, method, seeds=seeds)

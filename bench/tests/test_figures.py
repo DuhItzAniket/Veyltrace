@@ -77,19 +77,14 @@ def test_heatmap_marks_missing_cells_grey() -> None:
     assert svg.heatmap("t", ["a"], ["x", "y"], [[0.5, None]], "note") == image
 
 
-def test_fig7_takes_the_brief_0_s_point_from_the_subset(results: Path) -> None:
+def test_fig7_has_one_0_s_point_per_series(results: Path) -> None:
     files = generate.outputs(results, EXPERIMENTS)
     shift = _rows(files["figures/fig7-shift.csv"])
     zero = [r for r in shift if r["x"] == "0"]
     assert [r["experiment"] for r in zero if r["series"] == "veyltrace:off"] == ["re2-oracle-rq1-v1"] * 3
     brief = {r["panel"]: r for r in zero if r["series"] == "veyltrace:brief"}
-    assert brief["ob"]["value"] == "0.5" and brief["ss"]["value"] == "1.0" and brief["tt"]["value"] == ""
-    assert brief["ob"]["source"] == "re2-oracle-rq2-v1 @ fixture (computed from per_case.csv, 90-case subset)"
+    assert brief["ob"]["value"] == "0.625" and brief["tt"]["value"] == ""  # rq2 on all cases (gap 52)
     assert len(zero) == len({(r["panel"], r["series"]) for r in zero})  # no duplicate x = 0 point
-    assert (
-        "veyltrace:brief at 0 s computed from per_case.csv, 90-case subset"
-        in files["figures/fig7-shift-ob.svg"].decode()
-    )
 
 
 def test_heatmap_labels_round_as_the_tables() -> None:

@@ -20,7 +20,7 @@ from veyltrace_bench.tables import cells, svg
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.results import NO_INTERVAL, UNLISTED, Point, Results
 from veyltrace_bench.tables.rq1 import NO_VALUE, methods
-from veyltrace_bench.tables.rq4 import BRIEF, RQ1, brief_zero, decoy_point, perturbed
+from veyltrace_bench.tables.rq4 import BRIEF, H4A_SHIFTS_S, RQ1, brief_zero, decoy_point, drops, perturbed
 from veyltrace_bench.tables.rq23 import DIFFERENCE, NO_DIFFERENCE, RISK
 
 FIGURES_DIR = "figures"
@@ -143,9 +143,16 @@ def draw4(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
     return {"fig4-retrieval-rerank.csv": to_csv(rows), "fig4-retrieval-rerank.svg": image.encode()}
 
 
+#: Fig 7 marks the shifts H4a does not test (04 §2: ±30 s is exploratory).
+EXPLORATORY_NOTE = (
+    f"; H4a tests ±{' and ±'.join(map(str, sorted(H4A_SHIFTS_S)))} s, other shifts are exploratory (04 §2)"
+)
+
+
 def rows7(ctx: Context) -> list[Datum]:
     """Fig 7's data: the deterministic arms' 0 s point is re2-oracle-rq1-v1; the brief arm's is
-    computed on its subset (review H1), as Table 10."""
+    rq4.brief_zero's, as Table 10: re2-oracle-rq2-v1 on all cases with its intervals when no
+    shifted brief run has results, else computed on their subset (review H1)."""
     exps = perturbed(ctx, "shift")
     det = [(e.protocol.shift_s, e.experiment_id) for e in exps if BRIEF not in methods(e)] + [(0, RQ1)]
     rows = [
@@ -171,7 +178,7 @@ def draw7(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
             for m in SHIFT_SERIES
         }
         title = f"Fig. 7: AC@1 vs alert shift, RE2-{panel.upper()}"
-        note = _note(mine) + (f"; {BRIEF} at 0 s {computed}" if computed else "")
+        note = _note(mine) + (f"; {BRIEF} at 0 s {computed}" if computed else "") + EXPLORATORY_NOTE
         files[f"fig7-shift-{panel}.svg"] = svg.lines(title, "shift (s)", "AC@1", xs, series, note).encode()
     return files
 
@@ -194,21 +201,33 @@ def _heatmaps(
     return files
 
 
-def _off(ctx: Context, grid: Sequence[tuple[str, str, str]]) -> list[Datum]:
-    """veyltrace:off's AC@1 per RE2 system over (row label, column label, experiment)."""
-    return [d for row, col, eid in grid for d in data(ctx, eid, OURS, AC1, row, col)]
+def _off(ctx: Context, grid: Sequence[tuple[str, str, str]], entry_key: tuple[str, str] = AC1) -> list[Datum]:
+    """veyltrace:off's `entry_key` (AC@1) per RE2 system over (row label, column label, experiment)."""
+    return [d for row, col, eid in grid for d in data(ctx, eid, OURS, entry_key, row, col)]
+
+
+#: Fig 8's columns: AC@1 and the status mix bench_summary 1.2 gives per cell (`selective_accuracy`,
+#: CCR #404): the shares of fault-case runs with a CONFIRMED, and a CONFIRMED or LIKELY, verdict.
+#: The full four-status mix is only in per_case.csv, which the figures do not count (R3).
+FIG8 = (
+    ("AC@1", AC1),
+    ("CONFIRMED share", ("selective_accuracy", "answer_rate_confirmed")),
+    ("CONFIRMED or LIKELY share", ("selective_accuracy", "answer_rate_likely_or_better")),
+)
 
 
 def rows8(ctx: Context) -> list[Datum]:
-    drops = sorted(
-        ("drop " + ";".join(e.protocol.sources_drop), e.experiment_id) for e in perturbed(ctx, "drop")
-    )
-    return _off(ctx, [("none", "AC@1", RQ1), *((label, "AC@1", eid) for label, eid in drops)])
+    """Fig 8's data: the 'none' cell is re2-oracle-rq1-v1, then the ablation cells in 04 §5.2 order
+    with Table 11's labels (rq4.drops)."""
+    cells_ = [("none", RQ1), *drops(ctx)]
+    return [d for col, ek in FIG8 for d in _off(ctx, [(label, col, eid) for label, eid in cells_], ek)]
 
 
 def draw8(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
-    """Fig 8: AC@1 of veyltrace:off under each telemetry ablation (the status mix has no summary entry)."""
-    return _heatmaps("fig8-ablation", "Fig. 8: AC@1 under telemetry ablation, RE2-", rows)
+    """Fig 8: AC@1 and the CONFIRMED and CONFIRMED-or-LIKELY shares of veyltrace:off under each
+    telemetry ablation."""
+    title = "Fig. 8: AC@1 and status mix under telemetry ablation, RE2-"
+    return _heatmaps("fig8-ablation", title, rows, [c for c, _ in FIG8])
 
 
 def rows9(ctx: Context) -> list[Datum]:

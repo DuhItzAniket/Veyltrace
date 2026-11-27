@@ -7,12 +7,15 @@ from __future__ import annotations
 import json
 import re
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from veyltrace_bench.tables import cells, generate, rq1
+from veyltrace_bench.tables import cells, context, generate, rq1, rq4
+from veyltrace_bench.tables.render import markdown
 from veyltrace_bench.tables.rq1 import NO_AGENT_SLATE, NO_PER_SEED
+from veyltrace_bench.tables.subset import COMPUTED
 from veyltrace_core import io, textio
 
 BENCH = Path(__file__).resolve().parents[1]
@@ -83,33 +86,70 @@ def test_a_run_experiment_shows_the_gap_for_a_listed_metric(files: dict[str, str
     ablation = files["tables/t11-rq4-ablation.md"]  # point "none" is re2-oracle-rq1-v1, which ran
     assert "| none | all | ob | veyltrace:off | 0.500 [0.375, 0.625] |" in ablation
     assert "the experiment does not list the metric `selective_accuracy`" in ablation  # rq1 does not list it
-    assert "| AC@1 among CONFIRMED | Answer rate CONFIRMED | AC@1 among CONFIRMED or LIKELY |" in ablation
+    assert (
+        "| AC@1 among CONFIRMED | CONFIRMED verdicts | Answer rate CONFIRMED "
+        "| AC@1 among CONFIRMED or LIKELY | Answer rate CONFIRMED or LIKELY |" in ablation
+    )
 
 
-def test_the_brief_shift_point_at_0_s_is_computed_on_the_subset(files: dict[str, str]) -> None:
+def test_the_brief_shift_point_at_0_s_is_rq2_on_all_cases_when_no_shifted_brief_ran(
+    files: dict[str, str],
+) -> None:
+    """Gap 52: no shifted brief run has results, so nothing pairs with a subset point; the 0 s
+    point is rq2's full-case value with its summary.json interval and pooled interval."""
     shift = files["tables/t10-rq4-shift.md"]
+    ob = next(line for line in shift.splitlines() if line.startswith("| 0 s | all | ob | veyltrace:brief |"))
+    assert ob.startswith("| 0 s | all | ob | veyltrace:brief | 0.625 [") and ob.endswith(
+        "| re2-oracle-rq2-v1 @ fixture |"
+    )
+    assert "| 0 s | all | pooled | veyltrace:brief | " in shift
+    assert COMPUTED not in shift and "no shifted brief run has results (Sources)" in shift
+    zero_off = [
+        line for line in shift.splitlines() if line.startswith("| 0 s |") and "| ob | veyltrace:off |" in line
+    ]
+    assert [r.rstrip(" |").rsplit("| ", 1)[1] for r in zero_off] == [
+        "re2-oracle-rq1-v1 @ fixture",
+        "re2-oracle-rq3-v1 @ fixture",
+    ]
+    zero_prior = [
+        line for line in shift.splitlines() if line.startswith("| 0 s |") and "| ob | prior-only |" in line
+    ]
+    assert len(zero_prior) == 1  # the brief point and the reference rows add no second floor block
+    assert "| -60 s | 90-case subset (bench/re2_investigate_cases.yaml) | ob | veyltrace:brief |" in shift
+
+
+def _with_shift_brief(results: Path) -> context.Context:
+    """The fixture context as if re2-shift-m60-brief-v1 had results (only its reason is cleared)."""
+    ctx = context.context(results, EXPERIMENTS)
+    ran = {"re2-shift-m60-brief-v1": replace(ctx.get("re2-shift-m60-brief-v1"), reason=None)}
+    return replace(ctx, results={**ctx.results, **ran})
+
+
+def test_the_brief_shift_point_at_0_s_is_computed_on_the_subset_when_a_shifted_brief_ran(
+    results: Path,
+) -> None:
+    ctx = _with_shift_brief(results)
+    point = rq4.brief_zero(ctx)
+    assert point.subset == f"{COMPUTED}, 90-case subset" and point.results is not None
+    (table,) = rq4.shift(ctx)
+    shift = markdown(table)
     computed = "| 0 s | computed from per_case.csv, 90-case subset |"
     ob = next(line for line in shift.splitlines() if line.startswith(f"{computed} ob | veyltrace:brief |"))
     assert (
         "| 0.500<sup>" in ob and "| 1.000<sup>" in ob and "| 6 | 0 | 6/0/0/0/0 |" in ob
     )  # 2 cases × 3 seeds
     assert ob.endswith("| re2-oracle-rq2-v1 @ fixture (computed from per_case.csv, 90-case subset) |")
-    ss = next(line for line in shift.splitlines() if line.startswith(f"{computed} ss | veyltrace:brief |"))
-    assert ss.startswith(f"{computed} ss | veyltrace:brief | 1.000<sup>")
     assert f"{computed} tt | veyltrace:brief | not run<sup>" in shift  # no rq2 rows on tt
     assert "no interval: computed from per_case.csv, 90-case subset" in shift
-    zero_off = [
-        line for line in shift.splitlines() if line.startswith("| 0 s |") and "| ob | veyltrace:off |" in line
-    ]
-    assert len(zero_off) == 1 and "re2-oracle-rq1-v1 @ fixture" in zero_off[0]  # one x = 0, from rq1
-    assert "| -60 s | 90-case subset (bench/re2_investigate_cases.yaml) | ob | veyltrace:brief |" in shift
+    assert "is computed from re2-oracle-rq2-v1's per_case.csv on the same case ids and seeds" in shift
 
 
 def test_without_subset_rows_the_point_is_not_run(results: Path) -> None:
     path = results / "re2-oracle-rq2-v1" / "per_case.csv"
     header = textio.read_text(path).splitlines()[0]
     textio.write_text(path, header + "\n")
-    shift = generate.outputs(results, EXPERIMENTS)["tables/t10-rq4-shift.md"].decode()
+    (table,) = rq4.shift(_with_shift_brief(results))
+    shift = markdown(table)
     assert "its per_case.csv has no veyltrace:brief rows for the 90-case subset's case ids and seeds" in shift
     computed = "| 0 s | computed from per_case.csv, 90-case subset | ob |"
     assert (
@@ -128,10 +168,10 @@ def test_the_rq4_grids_take_their_coordinates_and_floors_from_the_specs(files: d
     points = [
         line.split(" | ")[0][2:]
         for line in shift.splitlines()
-        if line.startswith("| ") and " s |" in line[:12]
+        if line.startswith("| ") and re.match(r"\| [-+]?\d+ s", line)
     ]
-    order = ["-120 s", "-60 s", "-30 s", "0 s", "+30 s", "+60 s", "+120 s"]
-    assert sorted(set(points), key=lambda p: int(p.split()[0])) == order
+    order = ["-120 s", "-60 s", "-30 s (exploratory)", "0 s", "+30 s (exploratory)", "+60 s", "+120 s"]
+    assert sorted(set(points), key=lambda p: int(p.split()[0])) == order  # gap 58: ±30 s marked
     assert "| 0 s | all | ob | veyltrace:off | 0.500 [0.375, 0.625] |" in shift
     assert (
         "| -60 s | all | ob | prior-only | 0.250<sup>" in shift
