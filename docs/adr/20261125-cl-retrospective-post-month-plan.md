@@ -175,7 +175,7 @@ Went well
 - **Small PRs merged fast once the stacks cleared.** 140 of the 165 `lane:reason` PRs merged on the day they were opened or the next day (median 0 days). Of the 132 not opened on 9 Nov, 130 did.
 - **Replay was exact where it was recorded, and the one miss was explained the same day.** On the recording host, Tier 1 gave 801/801 (#544). The second laptop gave 800/801 (#575). The cause was traced the same day to OpenBLAS choosing its kernel per CPU (#576, v1.1), and REPRODUCE.md got the caveat (#578). The frozen results were not touched.
 - **The protocol made the cuts, and results were reported as they came.** The cuts are in an ADR and in `not_run.yaml`. The missed hypotheses are named in their results PRs (e.g. #548, #554), not left out.
-- **Review went both ways.** The lead reviewed 96 of the 98 teammate PRs and asked for changes on 17. Teammates asked for changes on 10 Reason PRs, and all of them reproduced (#227 §3).
+- **Review went both ways.** The lead reviewed 96 of the 98 teammate PRs and asked for changes on 17. Teammates asked for changes on 10 merged Reason PRs. Lakshanaa's 10 change requests on PRs from Aniket's sessions all reproduced (#227 §3).
 - **Decisions were written down:** 18 lead ADRs, and the R-16 decisions on #45.
 
 Went badly
