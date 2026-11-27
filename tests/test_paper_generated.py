@@ -250,6 +250,36 @@ def test_resolve_cross_experiment_point_differences(world: Path) -> None:
     assert r.resolve(EXP, f"ss/veyltrace:off/ac_at_1/max_drop/vs:{vs}") == "0.002"
 
 
+def test_cross_experiment_difference_is_exact_decimal_and_keeps_rate_format() -> None:
+    # regression (review of #46): the binary float 0.4005 - 0.342 = 0.058499999999999996 rounded to
+    # 0.058; the files' values subtract to 0.0585, which ROUND_HALF_UP prints as 0.059
+    assert mod.format_value(mod._difference(0.4005, 0.342), "ac_at_1") == "0.059"
+    # regression: two integer-valued rates (1.0 - 1.0) printed as the count "0"
+    assert mod.format_value(mod._difference(1.0, 1.0), "ac_at_1") == "0.000"
+    assert mod.format_value(max(mod._difference(1.0, 1.0), mod._difference(1.0, 0.0)), "ac_at_1") == "1.000"
+    assert mod.format_value(mod._difference(801, 799), "n") == "2"  # counts stay counts
+
+
+def test_tracked_files_excludes_changes_since_head(tmp_path: Path) -> None:
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", "-C", str(tmp_path), *args], check=True, capture_output=True)
+
+    results = tmp_path / "bench" / "results" / EXP
+    results.mkdir(parents=True)
+    for name in ("summary.json", "edited.json", "staged.json"):
+        (results / name).write_text("{}", encoding="utf-8")
+    git("init", "-q")
+    git("add", ".")
+    git("-c", "user.name=t", "-c", "user.email=t@example.invalid", "commit", "-q", "-m", "x")
+    (results / "edited.json").write_text('{"a": 1}', encoding="utf-8")
+    (results / "staged.json").write_text('{"a": 1}', encoding="utf-8")
+    git("add", "bench/results/exp-a-v1/staged.json")
+    (results / "new.json").write_text("{}", encoding="utf-8")
+    assert mod.tracked_files(tmp_path) == frozenset({f"bench/results/{EXP}/summary.json"})
+
+
 def test_resolve_side_result_json_path(world: Path) -> None:
     r = _resolver(world)
     assert r.resolve("replay/recording", "tier1.rate") == "1.000"

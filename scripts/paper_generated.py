@@ -181,10 +181,11 @@ def format_interval(low: object, high: object, leaf: str) -> str:
 # ------------------------------------------------------------------------------- resolution
 
 
-def _number(value: object, what: str) -> float:
+def _number(value: object, what: str) -> int | float:
+    """A committed number as JSON typed it: an int (a count) stays an int."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise Unresolved(f"{what} is {'null' if value is None else type(value).__name__}, not a number")
-    return float(value)
+    return value
 
 
 @dataclass
@@ -210,7 +211,9 @@ class Resolver:
             if self.tracked is not None:
                 rel = (RESULTS / path.relative_to(self.results)).as_posix()
                 if rel not in self.tracked:
-                    raise Unresolved(f"{label} is not committed (git does not track it)")
+                    raise Unresolved(
+                        f"{label} is not committed (git does not track it, or it differs from HEAD)"
+                    )
             self._json[path] = json.loads(path.read_text(encoding="utf-8"))
         return self._json[path]
 
@@ -247,15 +250,15 @@ class Resolver:
         leaf = s.metric.split(".")[-1]
         if s.vs:  # a point difference between experiments
             ref = self._point(key, s)
-            others: list[float] = []
+            others: list[int | float] = []
             for other in s.vs:
                 try:
                     others.append(self._point(other, s))
                 except Unresolved as e:
                     raise Unresolved(f"{other}: {e.reason}") from None
             if s.part == "difference":  # the change in the named experiment against the reference
-                return format_value(_unfloat(others[0] - ref, ref, others[0]), leaf)
-            return format_value(_unfloat(max(ref - o for o in others), ref, *others), leaf)
+                return format_value(_difference(others[0], ref), leaf)
+            return format_value(max(_difference(ref, o) for o in others), leaf)
         if s.method_b is not None:
             return self._comparison(key, s, leaf)
         if s.part == "ci":
@@ -263,7 +266,7 @@ class Resolver:
             return format_interval(row.get("low"), row.get("high"), leaf)
         return format_value(self._raw_point(key, s), leaf)
 
-    def _point(self, exp: str, s: Selector) -> float:
+    def _point(self, exp: str, s: Selector) -> int | float:
         return _number(self._raw_point(exp, s), f"{exp} {s.system}/{s.method_a}/{s.metric}")
 
     def _raw_point(self, exp: str, s: Selector) -> object:
@@ -359,9 +362,15 @@ class Resolver:
         return format_value(node, leaf)
 
 
-def _unfloat(value: float, *inputs: float) -> float | int:
-    """A difference of integer-valued inputs stays an integer (a count prints as a count)."""
-    return int(value) if all(float(x).is_integer() for x in inputs) and value.is_integer() else value
+def _difference(a: int | float, b: int | float) -> int | float:
+    """`a - b` of two committed values, exact in decimal on the values as the files write them
+    (`repr`, the tables' rounding rule), so 0.4005 - 0.342 rounds to 0.059 as a reader subtracting
+    the files by hand gets, never to the 0.058 of the binary float 0.058499999999999996. Two JSON
+    integers (counts) give an integer; any float input gives a float, so a rate difference of
+    1.0 - 1.0 prints as 0.000, not as the count 0."""
+    if isinstance(a, int) and isinstance(b, int):
+        return a - b
+    return float(Decimal(repr(float(a))) - Decimal(repr(float(b))))
 
 
 def _group_value(group: Obj, metric: str, where: str) -> object:
@@ -733,13 +742,16 @@ def build(root: Path, tracked: frozenset[str] | None) -> Build:
 
 
 def tracked_files(root: Path) -> frozenset[str] | None:
-    """The bench/results paths git tracks: a value comes from committed files only."""
-    out = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z", "--", RESULTS.as_posix()],
-        capture_output=True,
-        check=True,
-    )
-    return frozenset(p for p in out.stdout.decode("utf-8").split("\0") if p)
+    """The bench/results paths git tracks with the content of HEAD: a value comes from committed
+    files only, so a tracked file edited or staged since the last commit does not count."""
+
+    def git(*args: str) -> set[str]:
+        out = subprocess.run(
+            ["git", "-C", str(root), *args, "--", RESULTS.as_posix()], capture_output=True, check=True
+        )
+        return {p for p in out.stdout.decode("utf-8").split("\0") if p}
+
+    return frozenset(git("ls-files", "-z") - git("diff", "--name-only", "-z", "HEAD"))
 
 
 def write(target: Path, files: Mapping[str, bytes]) -> tuple[int, int]:
