@@ -10,6 +10,7 @@ converts SVG to vector PDF (`rsvg-convert -f pdf` or Inkscape) for the paper (11
 
 from __future__ import annotations
 
+import textwrap
 from collections.abc import Mapping, Sequence
 from xml.sax.saxutils import escape
 
@@ -116,7 +117,14 @@ def heatmap(
     return _frame(title, body)
 
 
+PLACEHOLDER_CHARS = 96  # a priori: about 96 characters of 11 px sans-serif fit across the 640 px frame
+LINE_PX = 15  # a priori: line spacing of the wrapped reason
+
+
 def placeholder(title: str, reason: str) -> str:
-    """A figure that cannot be drawn: its title and the reason, so the paper shows the gap."""
-    reason = "not run: " + reason.removeprefix("not run: ")
-    return _frame(title, [_text(WIDTH / 2, HEIGHT / 2, title), _text(WIDTH / 2, HEIGHT / 2 + 18, reason)])
+    """A figure that cannot be drawn: its title and the reason, as given (the caller says whether it
+    is "not run" or has no data, lead rule R7), wrapped so the paper shows the whole gap."""
+    lines = textwrap.wrap(reason, PLACEHOLDER_CHARS)
+    body = [_text(WIDTH / 2, HEIGHT / 2, title)]
+    body += [_text(WIDTH / 2, HEIGHT / 2 + 18 + LINE_PX * i, line) for i, line in enumerate(lines)]
+    return _frame(title, body)

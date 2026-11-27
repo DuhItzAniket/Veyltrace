@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 
-from veyltrace_bench.tables import generate
+from veyltrace_bench.tables import cells, generate, rq1
+from veyltrace_bench.tables.rq1 import NO_AGENT_SLATE, NO_PER_SEED
 from veyltrace_core import io, textio
 
 BENCH = Path(__file__).resolve().parents[1]
@@ -158,7 +159,7 @@ def test_table_6_shows_its_floors_and_seeded_arms(files: dict[str, str]) -> None
     assert "| Fault-case runs (cases × seeds) |" in t6
     assert "| ob | rcaeval:baro | 0.375 [0.250, 0.500] |" in t6 and "re2-oracle-rq1-v1 @ fixture |" in t6
     assert "| ob | prior-only | 0.250<sup>" in t6
-    assert "not run: bench_summary 1.1 has no per-seed groups" in t6
+    assert "bench_summary 1.1 has no per-seed groups" not in t6 and NO_PER_SEED in t6
     investigate = files["tables/t06-rq2-re2-oracle-investigate-v1.md"]
     assert "| ob | rcaeval:baro | n/a<sup>" in investigate and "different case set" in investigate
     comparisons = files["tables/t06c-rq2-comparisons.md"]
@@ -199,3 +200,49 @@ def test_replay_reads_the_committed_replay_summaries(results: Path) -> None:
     assert "| Tier 1, second laptop | not run<sup>" in table
     assert "- replay/recording: commit a35144c4f0e1d2c3b4a5968778695a4b3c2d1e0f; sha256 replay.csv " in table
     assert "protocol: recording: Windows-11-10.0.26100-SP0, Python 3.12.7, host 1a2b3c4d5e6f" in table
+
+
+def _row(table: str, start: str) -> str:
+    return re.sub(r"<sup>\d+</sup>", "", next(line for line in table.splitlines() if line.startswith(start)))
+
+
+def test_table_6_per_seed_cells_have_no_value_not_not_run(files: dict[str, str]) -> None:
+    """Gap 18 (R1, R3): a seeded arm ran, so its per-seed cell is "no value", pooled rows too."""
+    t6 = files["tables/t06-rq2-re2-oracle-rq2-v1.md"]
+    cols = next(line for line in t6.splitlines() if line.startswith("| System |")).split(" | ")
+    at = cols.index("Per-seed AC@1 (mean ± SD)")
+    seeded = ("| ob | veyltrace:brief |", "| pooled | veyltrace:brief |", "| pooled | agent-only:brief |")
+    for start in seeded:
+        assert _row(t6, start).split(" | ")[at] == "no value"
+    assert _row(t6, "| pooled | veyltrace:off |").split(" | ")[at] == "n/a"  # deterministic
+    assert "| ob | veyltrace:brief |" in t6 and "Proposal outcomes (admitted, accepted" in t6  # gap 20
+
+
+def test_agent_only_slate_cells_say_why_they_do_not_apply() -> None:
+    """Gap 22 (R2): agent-only's ranking is not a slate, so a null slate cell names that."""
+    cell = rq1.value_reason(cells.rate(None), "retrieval_at_k", "retrieval_at_k", "agent_only")
+    assert cell.text == "n/a" and cell.note == cells.NOT_APPLICABLE + NO_AGENT_SLATE
+
+
+def test_table_6c_lists_the_exploratory_pair(files: dict[str, str]) -> None:
+    """Gap 23: verifier vs agent-only (04 §2 RQ2) has a row per scope, with no value."""
+    t6c = files["tables/t06c-rq2-comparisons.md"]
+    pair = "| ac_at_1 | veyltrace:brief − agent-only:brief | exploratory | none | no value |"
+    for scope in ("re2-ob ob", "re2-ss ss", "re2-tt tt", "re2 pooled"):
+        assert f"| {scope} {pair}" in re.sub(r"<sup>\d+</sup>", "", t6c)
+    assert "summary.json statistics has no veyltrace:brief − agent-only:brief comparison" in t6c
+    assert "not run" not in t6c
+
+
+def test_table_6d_pooled_and_ac_rows(files: dict[str, str]) -> None:
+    """Gaps 24-26: pooled share rows say why they have no value, AC@k rows come from summary.json,
+    and the caption cites 04 §2 RQ2 for the exact interval."""
+    t6d = files["tables/t06d-rq2-proposal-arms.md"]
+    pooled = _row(t6d, "| re2-oracle-permute-v1 | pooled | veyltrace:brief | permutation_invariance |")
+    assert pooled.endswith("| no value | no value | re2-oracle-permute-v1 @ fixture |")
+    assert "summary.json reports `permutation_invariance` per system only" in t6d
+    ac = _row(t6d, "| re2-oracle-permute-v1 | ob | veyltrace:brief | ac_at_1 |")
+    assert ac.startswith("| re2-oracle-permute-v1 | ob | veyltrace:brief | ac_at_1 | 0.500 | ")
+    assert "| re2-oracle-permute-v1 | ob | veyltrace:brief | ac_at_3 |" in t6d
+    assert "| re2-oracle-permute-v1 | pooled | veyltrace:brief | ac_at_5 |" in t6d
+    assert "as 04 §2 RQ2 pre-registers for H2b and H2c" in t6d and "proportions without clusters" not in t6d

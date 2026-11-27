@@ -241,3 +241,24 @@ def test_table_a2_reports_the_development_cases_rows(results: Path) -> None:
     a2 = generate.outputs(results, EXPERIMENTS)["tables/a2-development-cases.md"].decode()
     assert f"| {dev[0]} | re2-ob | rcaeval:baro | ok | 0 | 1 | 1 | re2-oracle-baselines-r05 @ fixture |" in a2
     assert f"| {dev[1]} | not run<sup>" in a2  # no committed row for it
+
+
+def test_table_a2_lists_the_timing_runs_of_the_development_cases(results: Path) -> None:
+    dev = context.context(results, EXPERIMENTS).dev_cases
+    assert dev is not None
+    perf = results / "perf-o11"
+    perf.mkdir()
+    header = "case,system,pass,outcome,wall_ms,peak_rss_mb"
+    rows = [
+        f"{dev[0]},re2-ob,1,ok,7234.1,708.5",
+        f"{dev[0]},re2-ob,2,ok,7116.3,722.0",
+        "aaaaaaaaaaaa,re2-ob,1,ok,1,1",
+    ]
+    textio.write_text(perf / "m4.csv", "\n".join([header, *rows]) + "\n")
+    textio.write_text(perf / "README.md", "timing sample\n")
+    a2 = generate.outputs(results, EXPERIMENTS)["tables/a2-development-cases.md"].decode()
+    assert f"| {dev[0]} | re2-ob | pipeline timing run, pass 1 (m4.csv) | ok | n/a<sup>" in a2
+    assert f"| {dev[0]} | re2-ob | pipeline timing run, pass 2 (m4.csv) | ok | n/a<sup>" in a2
+    assert "aaaaaaaaaaaa" not in a2  # only the development cases (gap 89)
+    source = next(line for line in a2.splitlines() if line.startswith("- perf-o11: sha256 "))
+    assert "m4.csv " in source and "README.md " in source  # cited with its file hashes (R4)

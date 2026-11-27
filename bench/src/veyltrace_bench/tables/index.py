@@ -11,6 +11,9 @@ minor say they ran but are not tabulated (R5).
 
 from __future__ import annotations
 
+import csv
+import io as stdio
+
 import pyarrow as pa
 
 from veyltrace_bench.experiment import Experiment
@@ -20,7 +23,7 @@ from veyltrace_bench.tables.context import CELLS, DEV_CASES, Context, Side
 from veyltrace_bench.tables.render import Row, Table
 from veyltrace_bench.tables.results import ENTRY_OF, EXACT_SHARES, PER_CASE, Replay, Results
 from veyltrace_contracts.models import SummaryGroupMetrics
-from veyltrace_core import io
+from veyltrace_core import io, textio
 from veyltrace_core.errors import ConfigError
 
 NO_DEV_REPORT = "no committed per_case.csv has a row for this case; it is reported separately (04 §1)"
@@ -28,6 +31,14 @@ DASH = "-"
 NOT_BENCH = "not bench output: the folder has no summary.json"
 NO_COVER = (
     "no experiment YAML covers it and not_run.yaml gives no reason (04 §6: R-16 fills or marks every cell)"
+)
+#: Observe's timing sample (O-11, #36): one CSV per machine, a row per case and pass, with the
+#: columns case, system, pass and outcome (perf-o11/README.md); it ran some development cases.
+PERF = "perf-o11"
+PERF_COLUMNS = ("case", "system", "pass", "outcome")
+NO_RANKING = (
+    "a timing run (perf-o11, scripts/observe/perf_check.py): it records wall time and memory per "
+    "pipeline step, not a ranking"
 )
 #: 04 §6 columns by method kind; a veyltrace method's column is its Relentra mode.
 KIND_COLUMN = {"rcaeval": "baselines", "internal_baseline": "baselines", "causatrix": "rankers",
@@ -201,6 +212,24 @@ def _dev_rows(ctx: Context) -> dict[str, list[tuple[Results, dict[str, object]]]
     return found
 
 
+def _timing_rows(ctx: Context) -> dict[str, list[tuple[Results, tuple[str, str, str, str]]]]:
+    """The development cases' rows in the perf-o11 CSVs, by case: (dataset, file, pass, outcome),
+    in file order; a CSV without the PERF_COLUMNS is not a timing sample."""
+    dev = set(ctx.dev_cases or ())
+    found: dict[str, list[tuple[Results, tuple[str, str, str, str]]]] = {}
+    for side in (s for s in ctx.sides if s.source.experiment_id == PERF and s.source.path is not None):
+        assert side.source.path is not None
+        for path in sorted(side.source.path.glob("*.csv")):
+            reader = csv.DictReader(stdio.StringIO(textio.read_text(path)))
+            if not set(PERF_COLUMNS) <= set(reader.fieldnames or ()):
+                continue  # not a timing sample; Table A0 still lists and hashes it
+            for row in reader:
+                if (case := row["case"]) in dev:
+                    item = (row["system"], path.name, row["pass"], row["outcome"])
+                    found.setdefault(case, []).append((side.source, item))
+    return found
+
+
 def _hit(row: dict[str, object], k: int) -> cells.Cell:
     value = row[f"hit_at_{k}"]
     return cells.count(int(value)) if isinstance(value, bool | int) else cells.rate(None)
@@ -215,8 +244,9 @@ def development_cases(ctx: Context) -> list[Table]:
         rows = [Row((cells.text(DASH), *[blank] * (len(columns) - 1)), None)]
     else:
         rows = []
+        timing = _timing_rows(ctx)
         for case, found in _dev_rows(ctx).items():
-            if not found:
+            if not found and case not in timing:
                 blank = cells.not_run(NO_DEV_REPORT)
                 rows.append(Row((cells.text(case), *[blank] * (len(columns) - 1)), None))
             for res, row in found:
@@ -225,11 +255,14 @@ def development_cases(ctx: Context) -> list[Table]:
                 method += f" ({variant})" if variant else ""
                 labels = (case, str(row["dataset"]), method, str(row["run_outcome"]))
                 rows.append(Row((*map(cells.text, labels), *(_hit(row, k) for k in (1, 3, 5))), res))
+            for src, (dataset, name, run, outcome) in timing.get(case, []):
+                labels = (case, dataset, f"pipeline timing run, pass {run} ({name})", outcome)
+                rows.append(Row((*map(cells.text, labels), *[cells.not_applicable(NO_RANKING)] * 3), src))
     caption = (
         f"The cases of bench/{DEV_CASES}, as the committed per_case.csv files report them: every "
-        "pre-registered experiment excludes them (04 §1), so only experiments that keep them have rows. "
-        "Hit@k is 1 when the root service is in the run's top k (a non-ok run is a miss, 04 §7); one run "
-        "per row, so no interval."
+        "pre-registered experiment excludes them (04 §1), so only experiments that keep them have rows; "
+        f"then the timing runs of {PERF} on them (no ranking). Hit@k is 1 when the root service is in the "
+        "run's top k (a non-ok run is a miss, 04 §7); one run per row, so no interval."
     )
     title = "Table A2: development cases (reported separately)"
     return [Table("a2-development-cases", title, caption, columns, tuple(rows))]

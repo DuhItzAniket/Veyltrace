@@ -94,3 +94,15 @@ def test_fig7_takes_the_brief_0_s_point_from_the_subset(results: Path) -> None:
 
 def test_heatmap_labels_round_as_the_tables() -> None:
     assert ">0.063<" in svg.heatmap("t", ["a"], ["x"], [[0.0625]], "note")  # ROUND_HALF_UP, as cells.fixed
+
+
+def test_fig5_is_a_gap_with_its_reason_not_not_run(results: Path) -> None:
+    """Gaps 17, 90 (R7): the experiment ran; the data is only in uncommitted run directories."""
+    files = generate.outputs(results, EXPERIMENTS)
+    rows = _rows(files["figures/fig5-predicate-requests.csv"])
+    assert len(rows) == 1 and rows[0]["value"] == "" and rows[0]["experiment"] == "re2-oracle-rq2-v1"
+    assert rows[0]["status"].startswith("no data in the committed results: ")
+    assert rows[0]["source"] == "re2-oracle-rq2-v1 @ fixture"
+    image = files["figures/fig5-predicate-requests.svg"].decode()
+    assert "not run" not in image and "no data in the committed results" in image
+    ET.fromstring(image)

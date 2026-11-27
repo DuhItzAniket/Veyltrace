@@ -211,7 +211,7 @@ def _side(results_root: Path, folder: Path) -> Side:
     hashes = tuple((p.name, sha256_file(p)) for p in files)
     top = name.split("/", 1)[0]
     rq3 = load_rq3(results_root, folder.name) if top == RQ3_DIR else None
-    return Side(Results(name, hashes=hashes), SIDE_RQ.get(top, "-"), rq3)
+    return Side(Results(name, hashes=hashes, path=folder), SIDE_RQ.get(top, "-"), rq3)
 
 
 def _sides(results_root: Path, experiment_ids: set[str]) -> tuple[Side, ...]:
