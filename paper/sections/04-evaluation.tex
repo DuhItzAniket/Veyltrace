@@ -4,7 +4,7 @@
 \label{sec:eval}
 
 We fixed the research questions, hypotheses, datasets, splits, methods, metrics, statistical tests and reporting rules before running any \sys arm on a test split.
-The protocol, the Reason-lane engine configurations (core, FaultLoom, Causatrix and Causentra) and the 55 experiment configurations marked as pre-registered are frozen at the git tag \code{prereg-v1} (annotated on 18 November 2026), following a pre-registered RCAEval study, posted as a preprint, that tagged a commit before seeing any fault window~\cite{hussain2026prereg}.
+The protocol, the Reason-lane engine configurations (core, FaultLoom, Causatrix and Causentra) and the 55 experiment configurations marked as pre-registered are frozen at the git tag \code{prereg-v1} (annotated on 18 November 2026), following a pre-registered RCAEval study, posted as a preprint, that tagged a commit before any RE2 fault window was analysed~\cite{hussain2026prereg}.
 Before the tag we ran only baseline reproduction on RE2, development on synthetic cases and RE1, and three development cases, one per RE2 system, which are excluded from every test table.
 Any later change to a frozen file is a logged deviation; if one is motivated by test results, we report both the pre-registered and the revised numbers.
 Section~\ref{sec:deviations} lists every logged deviation and every pre-registered experiment that was cut.
