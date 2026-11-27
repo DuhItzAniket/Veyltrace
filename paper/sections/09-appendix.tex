@@ -9,7 +9,156 @@
 \section{Appendix}
 \label{sec:appendix}
 
-\leadq{still to write: the predicate library; configuration defaults with their sources; prompts and JSON schemas; hardware per laptop; the pinned RCAEval commit.}
+% Sections A.1-A.5 are written from the repository at tag results-v1; every fact names its file.
+% No bench result number is typed here: configuration values, hardware and pins are process facts.
+\subsection{Predicate library}
+\label{sec:app-predicates}
+
+Table~\ref{tab:predicates} lists the ten predicates of \S\ref{sec:evidence}, as implemented in \vtkey{packages/faultloom/src/veyltrace_faultloom/predicates.py} and specified in docs/engines/06 §3.5; \vtkey{contracts/predicates.json} holds their names, parameter types, polarities and windows.
+The subject is always implied and is never an argument.
+The argument ranges are configuration (\code{predicates.<name>.<param>} in \vtkey{config/faultloom.yaml}), and the weights are \code{predicates.<name>.weight} in \vtkey{config/causentra.yaml}.
+Before evaluation, a claim is rejected as \code{unknown_predicate} if its name is not in the library, as \code{unknown_entity} if a service argument is not a graph node, and as \code{bad_args} for any other missing, extra, mistyped or out-of-range argument, or an explicit subject (docs/engines/06 §3.5).
+
+\begin{table*}[t]
+\caption{The predicate library. Value and the conditions are for the implied subject $c$; tol is the alignment tolerance; Pol.\ is the polarity ($+$ supports, $-$ refutes $c$ being the root) and $w_p$ the claim weight. Sources: \code{packages/faultloom/src/veyltrace_faultloom/predicates.py}, docs/engines/06 §3.5, \code{config/faultloom.yaml}, \code{config/causentra.yaml}.}
+\label{tab:predicates}
+\small
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X>{\raggedright\arraybackslash}p{3.0cm}>{\raggedright\arraybackslash}p{3.2cm}cc@{}}
+\toprule
+Predicate & Arguments (range) & Value & Holds if & Null if & Pol. & $w_p$ \\
+\midrule
+\code{zscore_above} & \code{signal}; \code{k} $\in [1, 100]$ & largest robust-$z$ score among $c$'s series of that signal & value $\geq$ \code{k} & $c$ has no series of that signal & $+$ & 0.10 \\
+\code{onset_before} & \code{other_service} & onset of the other service minus onset of $c$ (ms) & $c$'s onset $\leq$ the other's onset $-$ tol & either onset is missing, or the other service is $c$ & $+$ & 0.10 \\
+\code{edge_anomalous} & \code{callee} & 1 if the edge $c \to$ callee exists and is anomalous, else 0 & the edge exists and is anomalous & the callee is $c$, or the edge's anomaly flag is unknown (no traces) & $-$ & 0.10 \\
+\code{self_time_share_above} & \code{x} $\in [0, 1]$ & $c$'s self-time share atom & value $\geq$ \code{x} & no self-time share atom for $c$ & $+$ & 0.10 \\
+\code{change_before_onset} & \code{max_ms} $\in [0, 86\,400\,000]$ & smallest $|\Delta t|$ to onset among changes on $c$ at or before onset (ms; 0 if none) & such a change exists with $|\Delta t| \leq$ \code{max_ms} & the case has no event source (\code{sources.events} false) & $+$ & 0.10 \\
+\code{template_new_in_incident} & \code{min_count} $\in [1, 10^6]$ & number of $c$'s log templates absent from the baseline with at least \code{min_count} incident lines & value $\geq 1$ & no logs, or $c$ has no templates & $+$ & 0.05 \\
+\code{error_rate_above} & \code{x} $\in [0, 1]$ & call-weighted incident error ratio of the calls into $c$ & value $\geq$ \code{x} & no traces, or no incident edge into $c$ & $+$ & 0.05 \\
+\code{silent} & none & $c$'s silence atom & value $= 1$ & no silence atom for $c$ & $+$ & 0.10 \\
+\code{on_critical_path} & \code{min_share} $\in [0, 1]$ & largest incident critical-path share of $c$ & value $\geq$ \code{min_share} & no traces, or no critical-path share atom for $c$ & $+$ & 0.05 \\
+\code{peer_gap_above} & \code{x} $\in [0, 100]$ & largest peer-contrast gap of $c$ ($z$) & value $\geq$ \code{x} & no peer-contrast atom for $c$ & $+$ & 0.10 \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Configuration defaults and their sources}
+\label{sec:app-config}
+
+Table~\ref{tab:config} gives the defaults of the parameters that \S\ref{sec:design} names, with the source that each key's comment in the configuration file cites.
+These four files are unchanged between the engine-freeze tag \code{results-code-v1}, the code tags derived from it and \code{results-v1}, and the full files, with every key, are released with the code.
+
+\begin{table*}[t]
+\caption{Configuration defaults used for every committed result, with the source each key's comment cites (``a priori'' marks a value for which the file cites no external source). ``docs/02 §6.9'' and similar refer to the repository's specification documents. Sources: \code{config/core.yaml}, \code{config/faultloom.yaml}, \code{config/causatrix.yaml}, \code{config/causentra.yaml}.}
+\label{tab:config}
+\small
+\begin{tabularx}{\textwidth}{@{}l>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Key & Default & Source cited in the file \\
+\midrule
+\multicolumn{3}{@{}l}{\vtkey{config/core.yaml}} \\
+\code{windows.baseline_s} & $[-1200, -120)$\,s from $t_\text{alert}$ & docs/02 §5.1 default \\
+\code{windows.incident_s} & $[-120, 480)$\,s from $t_\text{alert}$ & docs/02 §5.1 default \\
+\code{thresholds.anomaly_z} & 3.0 & PRISM's $\epsilon = 3$ for $z$-scores~\cite{prism2026} and SimpleRCA's 3-sigma alert rule~\cite{fang2026rethinking} \\
+\midrule
+\multicolumn{3}{@{}l}{\vtkey{config/faultloom.yaml}} \\
+\code{window.score_ms} & 300\,000\,ms & a priori, after PRISM's early-window result~\cite{prism2026} \\
+\code{alignment.missing_tolerance_ns} & 15\,s & the common Prometheus scrape step (docs/engines/06 §6) \\
+\code{self_time.quantile} & p50 & a priori: the median is robust to trace sampling \\
+\code{spectrum.formula}, \code{.weighting} & Ochiai, critical path & docs/engines/06 §4; Ochiai after Abreu et al.~\cite{abreu2009ochiai} \\
+\code{templates.min_count} & 3 lines & a priori: filters one-off lines \\
+\code{intervention.max_candidates} & 5 & Causalith's \code{ci.max_candidates} limit (docs/engines/05 §3.7) \\
+\midrule
+\multicolumn{3}{@{}l}{\vtkey{config/causatrix.yaml}} \\
+\code{slate.k} & 5 & docs/02 default \\
+\code{rrf.k} & 60 & Cormack et al.~\cite{cormack2009rrf} \\
+\code{rrf.weights} & 1.0 for each of the six rankers & a priori; fixed, never tuned \\
+\code{rrf.gate} & true & docs/engines/07 §3.3 \\
+\code{graph_walk.damping} & 0.85 & the standard PageRank value, a priori \\
+\code{graph_walk.iterations} & 200, no convergence test & docs/engines/07 §3.4: $0.85^{200} < 10^{-12}$ \\
+\code{prism_m.silence_z} & 10.0 & a priori \\
+\midrule
+\multicolumn{3}{@{}l}{\vtkey{config/causentra.yaml}} \\
+\code{alpha} & 0.10 & docs/02 §6.9 \\
+\code{mandatory} & T1--T4 & docs/engines/09 §3.4; docs/02 §6.9 \\
+\code{factors} & pass 1.0; mandatory untestable 0.85, failed 0.25; supporting untestable 1.0, failed 0.9 & docs/02 §6.9, a priori \\
+\code{claims.clip_low}, \code{.clip_high} & $-0.3$, $0.3$ & docs/02 §6.9 \\
+\code{predicates.<name>.weight} & 0.10; 0.05 for \code{template_new_in_incident}, \code{error_rate_above}, \code{on_critical_path} & the default-weight column of docs/03 §7, a priori \\
+\code{proposals.max} & 5 & Relentra's hypothesis budget (docs/02 §6.8) \\
+\code{status.c_high}, \code{.c_med}, \code{.likely_max_set} & 0.30, 0.15, 3 & docs/02 §6.9 \\
+\code{trials.T2.min_fraction} & 1.0 & the literal reading of ``$\leq$ dependents' onsets'' in docs/02 \\
+\code{trials.T3.min_path_anomalous_fraction} & 0.5 & a priori \\
+\code{trials.T5.min_share} & 0.30 & docs/02 §6.9 \\
+\code{trials.T6.min_proximity} & $e^{-1}$ (0.36787944) & a change at most $\tau_\text{change}$ before the onset (Causync's $\tau$) \\
+\code{trials.T7.min_gap} & 3.0 ($z$) & a priori, the scale of \code{thresholds.anomaly_z} \\
+\code{no_fault.beta} & 0.10 & docs/02 §6.9 \\
+\code{no_fault.default_tau} & $\ln(1 + 3)$ (1.386294361) & the 3-sigma rule, as \code{thresholds.anomaly_z} \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Prompts and JSON schemas}
+\label{sec:app-prompts}
+
+The prompts and schemas are released as files, not copied here; Table~\ref{tab:prompts} lists them.
+Prompt templates are plain text filled by Python's \code{string.Template}, so they hold no logic, and every run manifest with the AI on records \code{prompt_sha256} over the prompt files of every engine that called the model (after CRLF to LF) and \code{schema_sha256} over their constrained-decoding schemas; both are null with the AI off (\vtkey{contracts/schemas/run_manifest.schema.json}).
+
+\begin{table*}[t]
+\caption{Where the prompts and schemas live (paths relative to the repository root). Sources: the files listed, \code{packages/relentra/src/veyltrace_relentra/prompt.py} and \code{contracts/README.md}.}
+\label{tab:prompts}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{7.4cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+File & Content \\
+\midrule
+\vtkey{packages/relentra/src/veyltrace_relentra/prompts/system.md} & proposer system message: propose hypotheses and checks; code evaluates every check and decides \\
+\vtkey{packages/relentra/src/veyltrace_relentra/prompts/brief_user.md} & per-case user message of \code{brief} mode: the system brief, the evidence cards, the other services by fused score, and the reply schema \\
+\vtkey{packages/relentra/src/veyltrace_relentra/prompts/repair.md} & repair turn after an invalid reply, naming the invalid parts (at most \code{brief.max_repairs} $= 1$, \vtkey{config/relentra.yaml}) \\
+\vtkey{packages/relentra/src/veyltrace_relentra/briefs/} & system briefs: \code{ob.md}, \code{ss.md}, \code{tt.md}, \code{otel.md}, and \code{other.md}, a generic brief listing the case's services for live runs \\
+\vtkey{packages/relentra/src/veyltrace_relentra/schema.py} & builds the per-case JSON schema for constrained decoding: closed enums of the case's services, signals, library predicates and fault classes \\
+\vtkey{packages/causivra/src/veyltrace_causivra/prompts/} & narration: \code{system.md}, \code{narrate.md} and \code{repair.md}; the reply schema is built by \code{schema()} in \vtkey{narrate.py}; added after \code{results-code-v1}, so no committed result used them \\
+\vtkey{contracts/schemas/} & one JSON Schema (2020-12) per artefact that crosses a package boundary, e.g.\ \code{proposals}, \code{evidence}, \code{verdict}, \code{card}, \code{receipt}; shared vocabularies in \code{common.schema.json} \\
+\vtkey{contracts/predicates.json} & the predicate library: names, parameter names and types, polarity, window \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Hardware}
+\label{sec:app-hardware}
+
+Table~\ref{tab:hardware} lists the team's laptops as their owners recorded them.
+No result file records the machine of a bench run; every R-16 bench experiment ran on the recording host (GitHub issue \#45, decision 2; \vtkey{REPRODUCE.md}; \vtkey{docs/team/ak.md}; \S\ref{sec:stats}).
+The table gives each laptop's role as its owner's file or the \code{perf-o11} README states it.
+
+\begin{table*}[t]
+\caption{Laptops. Sources: \code{docs/team/ak.md} (recording host), \code{docs/team/cl.md} and \code{bench/results/perf-o11/README.md} (slowest laptop), \code{docs/team/as.md} and \code{bench/results/perf-o11/README.md} (Observe laptop).}
+\label{tab:hardware}
+\small
+\begin{tabularx}{\textwidth}{@{}>{\raggedright\arraybackslash}p{2.3cm}>{\raggedright\arraybackslash}p{3.0cm}l>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Laptop & CPU & RAM & GPU & OS & Role \\
+\midrule
+Recording host (Lenovo 83DG) & Intel Core i7-14650HX, 16 cores / 24 threads & 16\,GB & NVIDIA GeForce RTX 4050 Laptop, 6141\,MiB & Windows 11 Home Single Language 26H2, build 26300 & ran the R-16 bench experiments and recorded the AI arms' LLM calls (Ollama 0.40.16); RQ6 Tier-1 replays start from runs made here \\
+Slowest laptop (Lenovo 82KA) & Intel Core i5-1135G7, 4 cores / 8 threads & 40\,GB & Intel Iris Xe (integrated), no discrete GPU & Windows 11 Pro 25H2, build 26200 & per-case sample of Table~\ref{tab:rq5laptop} (\code{perf-o11}, Python 3.12.15); lab; RQ6 second-site replay, no model calls \\
+Observe laptop (MacBook Air, Mac16,12) & Apple M4, 10 cores & 16\,GB & integrated (unified memory) & macOS 15.5 & runs no R-16 experiment; a three-case \code{perf-o11} sample \\
+\bottomrule
+\end{tabularx}
+\end{table*}
+
+\subsection{Pinned external artefacts}
+\label{sec:app-pins}
+
+\paragraph{RCAEval}
+The BARO and N-Sigma baselines run RCAEval's own \code{main.py} from \url{https://github.com/phamquiluan/RCAEval} at commit \texttt{90b63a46\allowbreak ac1e969f\allowbreak 1fa90153\allowbreak 18b51e45\allowbreak 5c62f8c4}, tag 1.12.0 of 6 November 2026 (\code{rcaeval.commit} in \vtkey{bench/baselines.yaml}; tag and date checked on GitHub, 27 November 2026).
+They run in an isolated virtual environment installed from \vtkey{scripts/rcaeval/requirements.lock} by \vtkey{scripts/rcaeval/setup.py}, which checks out that commit.
+
+\paragraph{Model}
+The proposer model is \code{qwen3.5:9b}~\cite{qwen35card}, the Q4\_K\_M quantisation, with GGUF SHA-256 \texttt{02d45dc1\allowbreak cf451ba2\allowbreak 475ac33b\allowbreak 301c2dd8\allowbreak f985abe4\allowbreak c182ce04\allowbreak a1f2f5bf\allowbreak 0260278d} (\code{model.name} and \code{model.gguf_sha256} in \vtkey{config/llm.yaml}; quantisation and file size of 5,629,109,120 bytes in \vtkey{docs/team/ak.md}).
+It is served by Ollama on localhost with a 16,384-token context (\code{runtime.num_ctx} in \vtkey{config/llm.yaml}).
+The same file's \code{runtime.parallel} $= 1$ and \code{runtime.cache_prompt} $=$ false are recorded in each cassette entry but are not sent to Ollama (\vtkey{packages/llm/src/veyltrace_llm/ollama.py}), and no committed file records the server's \code{OLLAMA_NUM_PARALLEL}.
+The configured fallback, \code{qwen3.5:4b}, is named by no file under \vtkey{bench/results/}.
+
+\subsection{Results index and full grids}
+\label{sec:app-index}
 
 Table~\ref{tab:index} maps every result to its source.
 For each committed experiment result it prints the code commit and the SHA-256 of the manifest, the per-case file and the summary file.
@@ -18,7 +167,8 @@ For each experiment that did not run, it prints the reason and the decision reco
 The Cloud-OpsBench \code{agent-only} cell has no experiment configuration, and its note gives only the reason, although the same cut list covers it.
 Five docs/04 §6 matrix cells, the three RE1 tuning cells (baselines, rankers and AI off) and the two optional \code{investigate} cells under planted decoy proposals and on VeylLab, have no experiment configuration, and their note gives neither a reason nor an ADR (\S\ref{sec:deviations}).
 A revised experiment names its revision and the docs/04 §12 row that made it (\S\ref{sec:deviations}).
-\leadq{which runs shared the machine (R-16 plan, decision 3) is not in R-17's cost table; add it there or state it in §5.5.}
+RQ5's cost of the deterministic path (Table~\ref{tab:rq5}) comes only from the \code{veyltrace:off} rows of \code{re2-oracle-rq1-v1}, which the R-16 plan (GitHub issue \#45, decision 3) scheduled as one solo run at \code{results-code-v1} with nothing else heavy on the machine.
+Decision 3 also planned that every other run record its cost, possibly while sharing the machine (decision 2 allowed up to three experiments at once), so the costs in Table~\ref{tab:costall}, where recorded, are not comparable with RQ5's deterministic-path cost; \S\ref{sec:stats} states this for the bench runs.
 
 \resulttablefull{tab:index}{Results index: every experiment configuration (synthetic smoke runs excluded) with its research questions, whether it is pre-registered, its status (run, or not run with the reason), its result groups and its statistics.}{a0-results-index}
 \resulttablefull{tab:devcases}{Development cases: their rows in the committed per-case results, reported apart from every accuracy table (docs/04 §10.5).}{a2-development-cases}
