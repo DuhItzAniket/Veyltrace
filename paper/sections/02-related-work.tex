@@ -20,7 +20,7 @@ On PetShop, no causal method that was not given the call graph beat plain ranked
 \sys keeps this family as its rankers (\S\ref{sec:slate}) and puts its effort into re-ranking and verification, not into learning a graph.
 
 \paragraph{LLM harnesses versus strict metrics.}
-LLM-based RCA began with hand-crafted pipelines. Flow-of-Action guides a multi-agent system with standard operating procedures~\cite{flowofaction2025}, RCAgent drives tool calls~\cite{rcagent}, and mABC lets agents reach a decision by voting~\cite{mabc2024}.
+Early LLM-based RCA systems differ in how much of the workflow they fix in advance. Flow-of-Action guides a multi-agent system with standard operating procedures~\cite{flowofaction2025}, RCAgent lets a tool-augmented agent collect and analyse the data autonomously~\cite{rcagent}, and mABC lets agents reach a decision by voting~\cite{mabc2024}.
 RCAtlas re-ran them on its 90 cases, re-implementing Flow-of-Action and RCAgent over shared data tools and running mABC from its released code. They reached a mean PR@1 of 53.3\%, 49.3\% and 15.6\% respectively, averaged over partly different sets of models, which is below the simple harnesses quoted in Section~\ref{sec:intro}~\cite{rcatlas2026}.
 The same study's case studies show how an LLM that decides can fail without warning: in one case Flow-of-Action's LLM judge declared a wrong service the root cause in the first round, and in another mABC stopped at a caller because it inspects only received calls and so cannot see a service that has stopped receiving them~\cite{rcatlas2026}.
 Strict metrics stay low even for strong models.
