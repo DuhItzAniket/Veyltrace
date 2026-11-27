@@ -93,7 +93,7 @@ The fused score is gated reciprocal rank fusion,
 F(s) = \sum_{r \in \text{active}} \frac{w_r}{k + \text{rank}_r(s)}, \qquad k = 60,\; w_r = 1,
 \end{equation}
 where a ranker is \emph{active} only if its channel exists for the case and its scores are not constant: without traces \code{cp_sbfl} abstains, and without change events \code{change_prox} abstains, so a missing channel never injects a vote.
-The constant $k=60$ is the usual choice \citeneeded{Cormack et al.\ 2009, reciprocal rank fusion; the notes name it without an identifier}, also used by GALA+~\cite{galaplus2026}; the weights are fixed and the fusion rule is an ablation, never tuned.
+The constant $k=60$ is the value fixed by the original reciprocal rank fusion paper~\cite{cormack2009rrf}, whose pilot runs found it near-optimal but not critical, and it is also used by GALA+~\cite{galaplus2026}; the weights are fixed and the fusion rule is an ablation, never tuned.
 Services are ordered by fused score, then services with an internal anomaly first, then earliest onset, then name.
 A fixed rule table labels each slate candidate with a mode (resource, network, code, change or dependency), a fault class and an indicator; it answers ``if this service were the root, which fault would it be'', and its accuracy is measured, not assumed.
 
@@ -165,7 +165,7 @@ With $n$ calibration scores and level $\alpha = 0.10$, $\hat{q}$ is the $\lceil 
 \begin{equation}
 C = \{\, c \in \text{decision pool} : s(c) \leq \hat{q} \,\}.
 \end{equation}
-If calibration and test cases are exchangeable and $\hat{q}$ is finite, the root is in $C$ with probability at least $1-\alpha$, marginally over cases \citeneeded{a split-conformal reference; the notes name Angelopoulos \& Bates without an identifier and cite only conformal work on rankings~\cite{conformalranking2025,conformalretrieval2024}}.
+If calibration and test cases are exchangeable, the true root's nonconformity is at most $\hat{q}$ with probability at least $1-\alpha$, marginally over calibration and test cases~\cite{angelopoulos2023conformal}; when $\hat{q}$ is finite, a score at most $\hat{q}$ is finite, so this event is exactly the root being in $C$.
 A finite score at most $\hat{q}$ implies the root is in the pool, so decision-pool retrieval bounds coverage and we report it next to coverage.
 Calibration is fitted only on calibration folds, separately per benchmark family, AI arm, alert protocol and fold (\S\ref{sec:splits}), and reaches the verifier as configuration; exchangeability fails across systems, so leave-one-system-out coverage is an empirical result, not a guarantee.
 
