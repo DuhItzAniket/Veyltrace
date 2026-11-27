@@ -1,22 +1,67 @@
-% §5.2 RQ2 structure: the lead's draft (R-18). docs/11 §5 assigns 5.2 to the Explain lane;
+% §5.2 RQ2: the lead's draft v1 (R-18, #47). docs/11 §5 assigns 5.2 to the Explain lane;
 % sections/explain-rq2.tex replaces this file when it exists.
-\resulttable*{tab:rq2}{RQ2 on RE2 under the oracle alert: accuracy of \code{veyltrace:off}, \code{veyltrace:brief} and \code{agent-only:brief} per system, with 95\% cluster-bootstrap intervals and run outcomes.}{re2-oracle-rq2-v1}{t06-rq2-re2-oracle-rq2-v1}
+\resulttable*{tab:rq2}{RQ2 on RE2 under the oracle alert: accuracy of \code{veyltrace:off}, \code{veyltrace:brief} and \code{agent-only:brief} per system, with the floors (chance, \code{prior-only}) and the baselines (N-Sigma, BARO, \code{simplerca}), 95\% cluster-bootstrap intervals and run outcomes.}{re2-oracle-rq2-v1}{t06-rq2-re2-oracle-rq2-v1}
 \leadq{docs/04 §8 asks for per-seed values with mean and SD, and §7 for proposal outcomes (admitted, accepted, rejection reasons); R-17's t06 pools the seeds and shows run outcomes, so these need an R-17 follow-up.}
 
-\resulttable{tab:rq2cmp}{RQ2 paired comparisons for H2a: proposer lift (AC@1 of the AI arm minus AI off) per system and pooled, with intervals and Holm-adjusted $p$ (family \code{rq2}).}{re2-oracle-rq2-v1 and the other RQ2 experiments with a non-inferiority rule}{t06c-rq2-comparisons}
+\resulttable{tab:rq2cmp}{RQ2 paired comparisons for H2a: proposer lift (AC@1 of \code{veyltrace:brief} minus AC@1 of \code{veyltrace:off}) per system and pooled, with 95\% cluster-bootstrap intervals and Holm-adjusted $p$ (family \code{rq2}).}{re2-oracle-rq2-v1}{t06c-rq2-comparisons}
 
-\resulttable{tab:rq2arms}{RQ2 proposal arms: the share of cases whose top-1 changed under one planted decoy proposal (H2b) and the share with one verdict hash across seeded proposal permutations (H2c), with exact binomial intervals.}{re2-oracle-planted-v1, re2-oracle-permute-v1}{t06d-rq2-proposal-arms}
+\resulttable{tab:rq2arms}{RQ2 proposal arms: the share of (case, seed) pairs whose top-1 changed under one planted decoy proposal (H2b) and the share with one verdict hash across seeded proposal permutations (H2c), with exact binomial intervals, and the accuracy of each arm.}{re2-oracle-planted-v1, re2-oracle-permute-v1}{t06d-rq2-proposal-arms}
 
+The proposer runs only on RE2 under the oracle alert, with one 9B model and three seeds (\code{re2-oracle-rq2-v1}).
+The AI arms on the detected alert, on RE3 and on Nezha were cut for the LLM budget on 25 November 2026, and the VeylLab experiments on 22 November because too few captures and no adapter existed; Table~\ref{tab:index} lists each as not run, with its decision record.
+The 25 November cut was decided after the RQ1 and RQ2 results on RE2 had been committed, as its logged deviation states.
+Every RQ2 result below therefore holds for RE2 with the oracle alert only.
+
+\paragraph{Proposer lift (H2a)}
 H2a holds if the 95\% interval of proposer lift is not entirely below zero.
-Pooled over RE2 and three seeds, the lift is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} (95\% CI \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci}), and per system \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} on OB, SS and TT (Tables~\ref{tab:rq2} and~\ref{tab:rq2cmp}).
-For H2b (target at most 0.05), one planted decoy proposal per case changed the top-1 candidate in \resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/decoy_top1_change} of cases (exact 95\% CI \resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/decoy_top1_change/ci}).
-For H2c (target 1.0), the verdict hash was identical across seeded permutations of the proposals in \resnum{re2-oracle-permute-v1}{pooled/veyltrace:brief/permutation_invariance} of cases (Table~\ref{tab:rq2arms}).
-\leadq{\code{bench_summary} 1.1 has no \code{decoy_top1_change} or \code{permutation_invariance} entry, so H2b and H2c need a contract change before their numbers can be generated; their keys here are provisional.}
+Lift is the paired AC@1 difference of \code{veyltrace:brief} minus \code{veyltrace:off}, with each case's hit averaged over the three seeds.
+Pooled over RE2, the lift is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} (95\% CI \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci}).
+Per system it is \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} on OB (\resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci}), \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} on SS (\resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci}) and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} on TT (\resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci}); see Tables~\ref{tab:rq2} and~\ref{tab:rq2cmp}.
+No interval lies entirely below zero, so H2a holds on every RE2 system and pooled.
+On TT the upper bound is zero itself, so H2a holds there only at the boundary.
+The proposer also adds no detectable accuracy: the Holm-adjusted $p$ of the superiority test is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p} pooled and \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p} on OB, SS and TT.
+Pooled AC@1 is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1} for \code{veyltrace:brief} (95\% CI \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1/ci}), against \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:off/ac_at_1} with the AI off.
+docs/04 §8 also asks for AC@1 per seed, with its mean and standard deviation, and §7 asks for the proposal outcomes.
+No committed result holds either: \code{summary.json} groups runs by dataset, system and method, not by seed, and it has no proposal-outcome entry.
 
-Exploratory comparisons: Table~\ref{tab:rq2} shows the same model's hypotheses without the verifier (\code{agent-only:brief}), and Table~\ref{tab:rq2inv} shows the multi-turn \code{investigate} mode against AI off on its 90-case subset; docs/04 §2 pre-registers \code{investigate} against \code{brief} as the exploratory comparison.
-The AI arms that each further experiment configures are in Tables~\ref{tab:rq2det} (detected alert), \ref{tab:rq2re3} (RE3), \ref{tab:rq2nezha} (Nezha) and~\ref{tab:rq2lab} (VeylLab), where those ran.
-A comparison of the 9B and 4B models is exploratory and has no pre-registered experiment.
-\leadq{verdict on H2a--H2c.}
+\paragraph{Planted decoy proposals (H2b)}
+H2b holds if a planted decoy proposal changes the top-1 candidate in at most 5\% of cases.
+The planted arm adds one fabricated proposal per case, for a healthy service and with false claims, to the recorded \code{brief} proposals; it needs no new model call.
+The planted proposal is placed first, ahead of the recorded ones, as the worst case of an adversary who controls the proposal channel.
+Its rate is over (case, seed) pairs, \resnum{re2-oracle-planted-v1}{ob/veyltrace:brief/decoy_top1_change.n_pairs} per system.
+The decoy changed the verified top-1 in \resnum{re2-oracle-planted-v1}{ob/veyltrace:brief/decoy_top1_change} of pairs on OB, \resnum{re2-oracle-planted-v1}{ss/veyltrace:brief/decoy_top1_change} on SS and \resnum{re2-oracle-planted-v1}{tt/veyltrace:brief/decoy_top1_change} on TT; Table~\ref{tab:rq2arms} gives their exact 95\% intervals.
+No committed result pools this rate over the systems, so we report none.
+H2b misses on OB and SS and holds on TT.
+As pre-registered, H2b is therefore missed: it holds on TT only.
+Only on SS does the exact interval lie entirely above 0.05; OB's interval contains 0.05, and TT's upper bound exceeds it.
+So the OB miss and the TT hold rest on point estimates.
+The intervals treat the pairs as independent, but a case's three seeds are not, so the intervals can be narrower than case-clustered ones.
+The decoy also lowers verified accuracy.
+AC@1 of \code{veyltrace:brief} under the planted proposal is \resnum{re2-oracle-planted-v1}{ob/veyltrace:brief/ac_at_1}, \resnum{re2-oracle-planted-v1}{ss/veyltrace:brief/ac_at_1} and \resnum{re2-oracle-planted-v1}{tt/veyltrace:brief/ac_at_1} on OB, SS and TT (pooled \resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/ac_at_1}), against \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/ac_at_1}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/ac_at_1} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/ac_at_1} without it (pooled \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1}).
+No paired comparison of the two is committed, so this drop has no interval.
+Without the verifier, the same decoy changes the top-1 of \code{agent-only:brief} in \resnum{re2-oracle-planted-v1}{ob/agent-only:brief/decoy_top1_change}, \resnum{re2-oracle-planted-v1}{ss/agent-only:brief/decoy_top1_change} and \resnum{re2-oracle-planted-v1}{tt/agent-only:brief/decoy_top1_change} of pairs on OB, SS and TT, and its AC@1 falls to \resnum{re2-oracle-planted-v1}{ob/agent-only:brief/ac_at_1}, \resnum{re2-oracle-planted-v1}{ss/agent-only:brief/ac_at_1} and \resnum{re2-oracle-planted-v1}{tt/agent-only:brief/ac_at_1}.
+Because agent-only takes the model's order as its ranking, the planted proposal becomes its top-1 by construction, so these values show the placement of the decoy, not a measured weakness of the model.
+
+\paragraph{Permuted proposals (H2c)}
+H2c holds if the verdict is identical under every permutation of the proposals.
+The permuted arm re-orders the recorded \code{brief} proposals with five seeded permutations per (case, seed) pair and re-runs the verifier from the cassette; it needs no new model call.
+The verdict hash was identical across permutations in \resnum{re2-oracle-permute-v1}{ob/veyltrace:brief/permutation_invariance}, \resnum{re2-oracle-permute-v1}{ss/veyltrace:brief/permutation_invariance} and \resnum{re2-oracle-permute-v1}{tt/veyltrace:brief/permutation_invariance} of the (case, seed) pairs on OB, SS and TT, over \resnum{re2-oracle-permute-v1}{ob/veyltrace:brief/permutation_invariance.n_cases} pairs per system; Table~\ref{tab:rq2arms} gives the exact intervals.
+H2c holds on every RE2 system for the sampled permutations; permutations outside the sample were not tested.
+No committed result pools this share over the systems.
+
+\paragraph{Exploratory comparisons}
+docs/04 §2 names three exploratory comparisons for RQ2.
+\emph{Verifier against agent-only.}
+\code{agent-only:brief} ranks the same model's proposals in the model's order, without the verifier.
+On unplanted runs its AC@1 is \resnum{re2-oracle-rq2-v1}{ob/agent-only:brief/ac_at_1}, \resnum{re2-oracle-rq2-v1}{ss/agent-only:brief/ac_at_1} and \resnum{re2-oracle-rq2-v1}{tt/agent-only:brief/ac_at_1} on OB, SS and TT, and \resnum{re2-oracle-rq2-v1}{pooled/agent-only:brief/ac_at_1} pooled (95\% CI \resnum{re2-oracle-rq2-v1}{pooled/agent-only:brief/ac_at_1/ci}), against \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1} pooled for \code{veyltrace:brief}.
+On these point values agent-only is more accurate than the verified arm on every system.
+No committed result holds a paired comparison of the two arms (Table~\ref{tab:rq2cmp}), so this difference is not tested.
+Under a planted decoy, agent-only ranks the decoy first by construction; the verified arm keeps most of its accuracy (\resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/ac_at_1} against \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1}).
+\emph{\code{investigate} against \code{brief}.}
+This comparison was not run, because the multi-turn \code{investigate} mode was cut on 21 November 2026 (Table~\ref{tab:index}).
+\emph{9B against 4B.}
+No experiment configuration runs a 4B model, so no committed result holds this comparison, and it is not tested.
 
 \resultfigure{fig:predicates}{Which predicates the proposer requested, and how often each held for its own candidate, for a rival, or for no pool candidate in the claim pass.}{re2-oracle-rq2-v1}{fig5-predicate-requests}
-\leadq{R-17 reports Figure~\ref{fig:predicates} as a gap: its data are in each run's \code{proposals.json} and \code{claim_check} atoms, not in \code{summary.json}. Decide who produces it.}
+No committed result holds the data of Figure~\ref{fig:predicates}: predicate requests and claim-pass outcomes are only in each run's \code{proposals.json} and \code{verdict.json}, and those run directories are not committed.
+\leadq{R-17 commits Figure~\ref{fig:predicates} as a placeholder with no data: \code{summary.json} has no proposal-outcome entry, so the figure needs a contract change before it can be drawn. Decide between a Contract Change Request and an R-17 follow-up.}

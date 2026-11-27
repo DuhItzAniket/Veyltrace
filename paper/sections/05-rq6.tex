@@ -1,7 +1,34 @@
-% §5.6 RQ6 structure: the lead's draft (R-18). docs/11 §5 assigns 5.6 to the Explain lane;
+% §5.6 RQ6: the lead's draft v1 (R-18, #47). docs/11 §5 assigns 5.6 to the Explain lane;
 % sections/explain-rq6.tex replaces this file when it exists.
-\resulttable{tab:rq6}{RQ6 replay: the Tier-1 rate (recording laptop, a second laptop, CI) and the Tier-2 regeneration match rate on 50 recorded cases.}{the recorded runs of re2-oracle-rq2-v1 (no experiment configuration measures replay)}{t09-rq6-replay}
-H6a holds if Tier-1 replay reproduces \code{verdict_hash} on all recorded cases.
-Tier-1 replay reproduced it on \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/replay.tier1_second_laptop} of recorded cases on a second laptop and \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/replay.tier1_ci} in CI.
-For H6b, Tier-2 regeneration matched the recording byte for byte on \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/replay.tier2} of the regenerated cases (Table~\ref{tab:rq6}).
-\leadq{replay rates are not bench output (no experiment configuration, no \code{bench_summary} entry; R-17 marks Table~\ref{tab:rq6} not run). Decide how they are produced and traced: a bench experiment or a committed replay log. The exit-code histogram and exact binomial intervals of docs/04 §7--§8 need the same decision.}
+\resulttable{tab:rq6}{RQ6 replay: the Tier-1 rate per site (recording laptop, a second laptop, CI) with the verdicts reproduced and the exit codes, and the Tier-2 regeneration match rate on 50 recorded runs, with exact binomial intervals.}{replay/recording, replay/second-laptop and replay/ci (the recorded runs of re2-oracle-rq2-v1)}{t09-rq6-replay}
+RQ6 replays the recorded \code{veyltrace:brief} runs of \code{re2-oracle-}\allowbreak\code{rq2-v1},\resnum{replay/recording}{tier1.n} runs in all.
+No experiment configuration measures replay, so the rates are side results, one committed replay summary per site; a logged deviation of 22 November 2026 lets Table~\ref{tab:rq6} read them as it reads \code{summary.json}.
+The recording laptop and the second laptop run Windows, and the CI job runs Linux; Table~\ref{tab:rq6} gives each site's commit.
+
+\paragraph{Tier 1 (H6a)}
+H6a holds if Tier-1 replay reproduces \code{verdict_hash} on every recorded run, on a second laptop and in CI.
+Tier 1 re-runs each recorded run from its receipt, with the proposer reading the cassette (\S\ref{sec:receipts}).
+Its rate is the share of runs whose \code{veyltrace replay} exits 0, as docs/04 §7 defines it.
+We also count the runs whose recomputed \code{verdict_hash} equals the recorded one, whatever the exit code, which is H6a's literal wording.
+On the recording laptop, \resnum{replay/recording}{tier1.k} of \resnum{replay/recording}{tier1.n} runs exit 0 (rate \resnum{replay/recording}{tier1.rate}, exact 95\% CI \resnum{replay/recording}{tier1.ci}).
+On the second laptop, \resnum{replay/second-laptop}{tier1.k} of \resnum{replay/second-laptop}{tier1.n} runs exit 0 (\resnum{replay/second-laptop}{tier1.rate}, CI \resnum{replay/second-laptop}{tier1.ci}).
+In CI, \resnum{replay/ci}{tier1.k} of \resnum{replay/ci}{tier1.n} runs exit 0 (\resnum{replay/ci}{tier1.rate}, CI \resnum{replay/ci}{tier1.ci}).
+Two kinds of failure make up the gap.
+First, the same OB run (seed 3) exits 6 on the second laptop and in CI: \resnum{replay/second-laptop}{tier1.outcomes.6} run on the second laptop and \resnum{replay/ci}{tier1.outcomes.6} in CI.
+Exit 6 means that, of the hashes replay decides on (verdict, trace and card), only the card differs.
+The diagnostic comparison reports \code{evidence.parquet} as the first divergent artefact for this run, and also for many runs that exit 0 on the second laptop and in CI, but for none on the recording laptop; no summary key holds that count (it is only in each site's per-run \code{replay.csv}), so we give none.
+That run's recomputed \code{verdict_hash} equals the recorded one.
+Second, on the second laptop \resnum{replay/second-laptop}{tier1.outcomes.timeout} TT run (seed 1) was killed at the bench timeout and produced no replayed hash.
+The verdict is therefore reproduced on \resnum{replay/second-laptop}{tier1.k_verdict} of \resnum{replay/second-laptop}{tier1.n} runs on the second laptop and on \resnum{replay/ci}{tier1.k_verdict} of \resnum{replay/ci}{tier1.n} in CI.
+No replay that finished produced a different \code{verdict_hash}.
+Under the Tier-1 definition of docs/04 §7 (exit 0), H6a misses on the second laptop and in CI.
+Under H6a's literal wording (\code{verdict_hash} reproduced), it holds in CI and misses on the second laptop, because of the timeout.
+In both readings, the misses are a narrative that differed and a replay that did not finish; no replay that finished changed a verdict.
+
+\paragraph{Tier 2 (H6b)}
+H6b reports the Tier-2 regeneration match rate and sets no target.
+Tier 2 regenerates a fixed, seeded sample of \resnum{replay/recording}{tier2.n} recorded \code{veyltrace:brief} runs with proposer seed 1, in a fixed hash order, with the model, and a run matches if its regenerated \code{proposals.json} is byte-identical to the recorded one.
+A logged deviation of 22 November 2026, made before any replay ran, moved Tier 2 from a single-slot \code{llama-server} to the recording's own Ollama provider with the same model; \S\ref{sec:receipts} describes the pre-registered runtime.
+No regeneration matched: \resnum{replay/recording}{tier2.k} of \resnum{replay/recording}{tier2.n} (rate \resnum{replay/recording}{tier2.rate}, exact 95\% CI \resnum{replay/recording}{tier2.ci}).
+The regenerated verdicts did not carry the recorded \code{verdict_hash} either: \resnum{replay/recording}{tier2.k_verdict} of \resnum{replay/recording}{tier2.n} did.
+On this setup, then, a verdict is reproducible from its recorded model output, not by running the model again.

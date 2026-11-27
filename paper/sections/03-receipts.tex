@@ -19,5 +19,6 @@ It is wrapped as an in-toto Statement~\cite{intoto}, whose subjects are matched 
 \paragraph{Replay tiers}
 \emph{Tier~1} replay re-hashes the stored outputs of the deterministic steps up to the graph, the resolved configuration, the calibration file and the cassette, then re-runs evidence, slate, proposer (from the cassette), claim pass, verdict and card, and compares every hash; a full mode re-runs the whole pipeline from the raw inputs.
 Its exit code separates a verdict mismatch from changed inputs, an invalid configuration, a drifted environment and a mismatch in the narrative only.
-\emph{Tier~2} regenerates the LLM output with a pinned model, a single server slot, prompt caching off and a fixed seed, and we report how often it matches the recording byte for byte; we measure this rate rather than promise it.
+\emph{Tier~2} regenerates the LLM output on the recording's own runtime, with the pinned model, the recorded run's resolved configuration and its seed, and we report how often it matches the recording byte for byte; we measure this rate rather than promise it.
+The protocol pre-registered a different runtime for Tier~2 (\code{llama-server} with one slot and prompt caching off); the change is a logged deviation (\S\ref{sec:deviations}).
 Section~\ref{sec:rq6} reports both tiers.

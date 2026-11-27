@@ -1,50 +1,98 @@
-% §7 Threats to validity (lead). Sources: docs/11 §6 (long form) and docs/04 §11. The process
-% paragraph departs from docs/11 §6's process row (\"a different AI coding agent\", \"human review
-% of every PR\"), which the GitHub record contradicts; docs/11 needs a follow-up fix.
+% §7 Threats to validity (lead). Sources: docs/11 §6 (long form), docs/04 §11 and §12, the cut-list
+% ADR (docs/adr/20261121-ak-r16-cut-list.md), bench/results/not_run.yaml and the frozen R-17 results.
+% The process paragraph departs from docs/11 §6's process row (\"human review of every PR\"),
+% which the GitHub record contradicts; it names no agent tool because no committed file records
+% one per person (the ADR names only \"Lakshanaa's Claude\"); its counts come from
+% docs/adr/20261125-cl-retrospective-post-month-plan.md (§3, Reason's items, 27 Nov); docs/11
+% needs a follow-up fix.
 \section{Threats to Validity}
 \label{sec:threats}
+
+\paragraph{Deviations from the pre-registration}
+The protocol was tagged (\code{prereg-v1}) before any \sys result on a test split, but its deviations log (\code{docs/}\allowbreak\code{04-evaluation-protocol.md}, \S12) has six later rows; one of them was decided after test results had been seen, and another was logged only after the results it governs.
+On 25 Nov, after the RQ1 and RQ2 results were committed, the LLM budget led us to cut every AI arm that needed new model runs; at that point the committed RQ2 result put the \code{brief} arm close to AI off on every RE2 system (proposer lifts of \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} on OB, SS and TT), and the deviations-log row records that this result had been seen.
+The RQ3 and leave-one-system-out (LOSO) experiments therefore ran as AI-off revisions with the same configuration minus the proposer arm (\code{re2-oracle-}\allowbreak\code{rq3-off-v1}, \code{re2-oracle-}\allowbreak\code{loso-off-v1}), and the detected-alert, RE3 and Nezha proposer arms, the $\pm$60\,s and $\pm$120\,s proposer shift cells and the remaining RCAEval-C AI cells were not run (ADR \code{20261121-ak-}\allowbreak\code{r16-cut-list}, addendum of 25 Nov; \code{bench/results/}\allowbreak\code{not_run.yaml}).
+H3a--H3d, H4a and H4c are thus results for the AI-off pipeline only, and H2a is tested only on RE2 with the oracle alert.
+Earlier cuts in the same ADR removed the \code{investigate} mode, the FSE'26 dataset, the VeylLab experiments, the $\pm$30\,s proposer shift cells and the RCAEval-C AI mid-grid before any of those runs; the Observe lane's ADR (\code{20261124-as-}\allowbreak\code{observe-cuts-v1-1}) moves the TSFM plugin and the VeylLab adapter to v1.1, so no result uses real deploy, configuration or flag events.
+The convention that fits $\tau_{\mathrm{nf}}$ was decided on 21 Nov, before any RQ3 result, but its deviations-log row was added on 26 Nov, after the RQ3 results showed its consequence; we report the literal reading of the protocol beside it as a sensitivity analysis computed after the results (\vtref{t07c-rq3-tau-sensitivity}).
+The \code{prior-only} floor was built after the engine freeze, and the protocol row that adds it predicts, from a read-only simulation on the answer keys before any \code{prior-only} run, that it falls below chance on RE2.
+Two results, RE3 and Nezha RQ1, come from derived tags created after the freeze (\code{results-code-}\allowbreak\code{v1-baselines} and \code{results-code-}\allowbreak\code{v1-baselines-2}), which differ from \code{results-code-v1} only in the baseline configuration (\code{bench/baselines.yaml}); no deviations-log row names them.
+A reader should weigh every revised or late-logged result as less protected by the pre-registration than the rest.
 
 \paragraph{Internal validity}
 Harness differences are large in this field: BARO's AC@1 on RE2-TT is 0.67 in RCAEval's harness and 0.32 in PRISM's~\cite{rcaeval2024,prism2026}.
 We therefore run every baseline in one harness with a pinned RCAEval commit, the same inputs and the same denominators, compare only against our own re-runs, and report reproduction gaps; our numbers for published methods may still differ from the published ones.
 The alert-count baseline \code{simplerca} and the ranker \code{prism_m}, which re-implements PRISM's score with one extension for silent services~\cite{prism2026}, are re-implementations from their papers and may differ from the originals.
 We wrote both the predicates and the verifier, so the trials encode our assumptions; for example, T1 expects the root to show an internal anomaly, which network faults often lack.
-All parameters are set a priori in configuration with a cited source and frozen before testing, and we report per-fault-class results, including any high abstention on network faults, rather than tuning it away.
+All parameters are set in configuration, each with a cited source or marked a priori, and frozen before testing.
+The committed tables do not break results down by fault class, so a bias of the trials against network faults is not measured in this version.
 Some defaults came from papers evaluated on RCAEval itself, so some optimism may remain; we treat RE1 as development data and report RE2 and RE3 as test data.
 Repetitions of a fault on the same service are not independent, so splits are made by cluster.
 The lead author built the system and runs the evaluation; the pre-registration tag, the list of development cases and the deviations log bound that risk but do not remove it.
 
 \paragraph{External validity}
 RCAEval's three systems are small demo applications with single injected faults, and real incidents differ.
-Even the retrieval of statistical methods, which is 98--100\% on microservice benchmarks, falls to 35--64\% on industrial control data~\cite{decomprca2026}.
-Nezha and VeylLab, if their adapters are ready in time, add sources but no production data; VeylLab's laptop-collected data, if used, carries host contention, a desktop virtual machine and a single-node cluster, which we record and report.
-The change logs of RCAEval-C are synthetic, and its generated true change encodes the injected service by construction, so RCAEval-C tests how gullible the change channel is, not whether it helps on real change logs, which are noisier; real rollout and flag changes in VeylLab would be the backup evidence.
-Conformal coverage assumes exchangeability, which fails across systems; leave-one-system-out coverage is reported as an empirical result.
+Even simple retrieval transfers poorly: ranking by deviation puts the true cause in the top 15 for 98--100\% of RCAEval RE1 faults but for only 35--64\% on industrial-control and building data~\cite{decomprca2026}.
+Nezha adds a second source but no production data, and VeylLab, the only laptop-collected source, was cut.
+Nezha's export is thin: for both of its systems, logs and traces exist only for the fault's minute and the two minutes after it, and spans carry no status code, so the error-rate signals are empty (\code{docs/engines/}\allowbreak\code{01-infralume.md}).
+On Nezha-TT, \resnum{nezha-oracle-rq1-v1}{tt/veyltrace:off/outcomes.rejected} of \resnum{nezha-oracle-rq1-v1}{tt/veyltrace:off/n_fault} fault cases are rejected and \resnum{nezha-oracle-rq1-v1}{tt/veyltrace:off/n_unranked} are unranked, and on Nezha-OB AC@1 (\resnum{nezha-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1}) is below Chance@1 (\resnum{nezha-oracle-rq1-v1}{ob/veyltrace:off/chance_at_1}); Nezha results may say more about this export than about the method.
+The detected-alert protocol raises no alert on RE2-TT: \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/outcomes.no_alert} of \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/n_fault} TT fault cases have none, so the detected-alert results speak for OB and SS only.
+The change logs of RCAEval-C are synthetic, and its generated true change encodes the injected service by construction, so RCAEval-C tests how gullible the change channel is, not whether it helps on real change logs, which are noisier; with VeylLab cut, no result uses real rollout or flag changes.
+Conformal coverage assumes exchangeability, which can fail across systems, and the LOSO result shows where it does.
+With OB or SS held out, coverage is \resnum{re2-oracle-loso-off-v1}{ob/veyltrace:off/coverage} \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ob.coverage.ci} and \resnum{re2-oracle-loso-off-v1}{ss/veyltrace:off/coverage} \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ss.coverage.ci}, and both intervals contain the 0.90 target.
+With TT held out, coverage is \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/coverage} \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.tt.coverage.ci}, far below the 0.90 target, and calibrating on RE2 and testing on Nezha gives \resnum{re2-to-nezha-transfer-v1}{ob/veyltrace:off/coverage} on OB and \resnum{re2-to-nezha-transfer-v1}{tt/veyltrace:off/coverage} on TT.
+The coverage guarantee of \S\ref{sec:rq3} therefore holds only within a calibration family; a new system may need its own calibration cases.
 
 \paragraph{Construct validity}
-Service-level AC@1 ignores the propagation path and the fault type, and LLM agents identify faulty services better than faulty edges~\cite{openrca2026v2}; we also report fault-type and indicator accuracy, but RCAEval has no path ground truth.
-Proposer lift depends on the predicate library: the LLM can only help through predicates we wrote, so a zero lift is a finding about this library and model, not about LLMs in general, and we report which predicates the model requested.
-RCAEval normal windows are short pre-injection slices that may contain the tail of a previous fault (\S\ref{sec:splits}), so we also report \NOFAULT on VeylLab's no-fault captures if they exist.
-RCAEval has known label issues, such as a case whose folder names the wrong code fault~\cite{rcaevalissue43}, missing logs or traces in some cases, and repeated injections; we report per-fault-class results and list the known issues.
+Service-level AC@1 ignores the propagation path and the fault type, and LLM agents identify the faulty service more often than the full causal path~\cite{openrca2026v2}; we also report a fine AC@k over the cases whose answer key names an indicator, but RCAEval has no path ground truth.
+Proposer lift depends on the predicate library: the LLM can only help through predicates we wrote, so a zero lift is a finding about this library and model, not about LLMs in general.
+We planned to report which predicates the model requested, but no committed result holds them: the result contract has no field for them, so \vtfigref{fig5-predicate-requests} has no data.
+RCAEval normal windows are short pre-injection slices that may contain the tail of a previous fault (\S\ref{sec:splits}), and VeylLab's no-fault captures, which would have checked \NOFAULT on clean windows, were cut.
+The \NOFAULT targets are also the weakest construct in the evaluation.
+Under the logged convention, no held-out normal window is declared \NOFAULT: the false-alarm rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.false_alarm_rate.estimate}, because windows that can never be \NOFAULT push the fitted threshold to its default (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.n_never} of \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.m_fitted} fitting windows in fold A).
+The wrong-\NOFAULT target is then met only because \NOFAULT is never declared.
+Under the literal reading, false alarms are \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.false_alarm_rate.estimate} \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.false_alarm_rate.ci} and wrong \NOFAULT is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.wrong_no_fault_rate.estimate}, so both targets miss, the false-alarm target on its point estimate only (its interval reaches the pre-registered limit of 0.15, that is $\beta + 0.05$ with $\beta = 0.10$); and the LOSO fold with TT held out, which does declare \NOFAULT, has false alarms of \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.false_alarm_rate} with wrong \NOFAULT at \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.wrong_no_fault_rate}.
+None of these settings separates normal from faulty windows well, so we make no claim for the abstention path.
+RCAEval has known label issues, such as a case whose folder names the wrong code fault~\cite{rcaevalissue43}, missing logs or traces in some cases, and repeated injections; they affect every method in the same harness, but we do not measure how much.
 
 \paragraph{Conclusion validity}
-Power is low: according to a pre-registered preprint, about 7 points of AC@1 can be detected on 270 cases and about 14 on 90~\cite{hussain2026prereg}, and clustering raises both, so many per-system comparisons will be inconclusive; we use clustered paired tests with Holm correction and the words ``not detected''.
+Power is low: according to a pre-registered preprint, about 7 points of AC@1 can be detected on 270 cases and about 14 on 90~\cite{hussain2026prereg}, and clustering raises both; we use clustered paired tests with Holm correction and the words ``not detected''.
+H2a held, but only in the weak sense the protocol states: the pooled proposer lift is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci}, so no lift was detected either; on TT the interval \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/ci} ends exactly at 0, so H2a holds there only on the boundary.
+Several values carry no interval.
+The per-seed spread of AC@1 that the protocol asks for (\code{docs/}\allowbreak\code{04-evaluation-protocol.md}, \S8) has no committed source, because the result summaries are not grouped by seed, so seed variance is not reported.
+The planted-decoy flip rates exist per system only (\resnum{re2-oracle-planted-v1}{ob/veyltrace:brief/decoy_top1_change}, \resnum{re2-oracle-planted-v1}{ss/veyltrace:brief/decoy_top1_change} and \resnum{re2-oracle-planted-v1}{tt/veyltrace:brief/decoy_top1_change}); no committed file pools them, and their exact intervals, which only \vtref{t06d-rq2-proposal-arms} prints, are over (case, seed) pairs and may be too narrow, because a case's seeds are not independent.
+The transfer coverage on Nezha has neither an interval nor a pooled value, because no interval file was committed for it.
+Every shift and RCAEval-C effect is a point difference between two experiments with no interval (for example, \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1/difference/vs:re2-shift-m60-v1} on TT at $-60$\,s, which decides H4a).
+H3c is read from the areas under the risk--coverage curves: the result summaries keep only the areas, so \vtfigref{fig6-risk-coverage} shows the areas and their differences, not the curves.
 Split conformal needs at least $1/\alpha - 1 = 9$ calibration cases per stratum, so we calibrate per benchmark family, not per family and telemetry modality.
 
 \paragraph{LLM-specific threats}
-LLM inference is not bit-exactly reproducible across machines~\cite{thinkingmachinesnondeterminism}; Tier-1 replay from recorded cassettes guarantees the verdict, Tier-2 regeneration is measured, and three seeds expose seed variance.
+Every AI result comes from one proposer, Qwen3.5-9B in one 4-bit quantisation and one runtime~\cite{qwen35card}.
+The planned 9B-versus-4B comparison has no experiment, so the proposer results may not hold for another model, size or quantisation.
+The agent-only arm scores higher than the verified arm on every RE2 system (pooled \resnum{re2-oracle-rq2-v1}{pooled/agent-only:brief/ac_at_1} against \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1}), but no paired comparison between them is committed, so this is an untested observation for this one model.
+LLM inference is not bit-exactly reproducible across machines~\cite{thinkingmachinesnondeterminism}; Tier-1 replay from recorded cassettes is designed to reproduce the verdict, and Tier-2 regeneration is measured.
+Replay did not reproduce on every run.
+On the second laptop, \resnum{replay/second-laptop}{tier1.k} of \resnum{replay/second-laptop}{tier1.n} replays exit 0 and \resnum{replay/second-laptop}{tier1.k_verdict} reproduce the verdict hash; in CI the counts are \resnum{replay/ci}{tier1.k} and \resnum{replay/ci}{tier1.k_verdict}.
+One run, the same on both sites, reproduces its verdict and trace but not its card; the team traced the difference to the last digits of intervention evidence computed on different CPUs (issue \#576, deferred to v1.1), and no committed result tests that explanation.
+The second laptop also has one replay that timed out with no replayed hash, so we cannot say whether that run reproduces.
 RCAEval and Nezha have been public since 2023--2024 and may be in pretraining data; no study we found measures this directly.
-Anonymising service names cost one LLM pipeline 0.20--0.21 in accuracy on RE3 in a pre-registered preprint~\cite{hussain2026prereg}; our probe (H4d) is optional, exploratory and has no pre-registered experiment, and the verdict is decided by code in any case.
-Scores published for the model are vendor-reported, so we report only our own measurements, record the quantisation and runtime, and, once issue \#315 lands, count an AI-arm run only on the pinned weight digest.
+Anonymising service names cost one LLM pipeline 0.20--0.21 in accuracy on RE3 in a pre-registered preprint~\cite{hussain2026prereg}; our anonymisation probe (H4d) was optional and was never configured, so contamination is not measured here, and the verdict is decided by code in any case.
+Scores published for the model are vendor-reported, so we report only our own measurements and record the quantisation, the runtime and the GGUF weight digest in the configuration.
 
 \paragraph{Hardware and process}
-CPU speed differs across the team's laptops, so cost numbers are hardware-specific; verdicts do not depend on speed, and we report timings per laptop with its specification.
-Three people, each owning one lane of the code, wrote the system with the same AI coding agent, Claude Code.
-The lead's agent sessions drafted most pull requests, including draft pull requests in the other two lanes.
+CPU speed differs across the team's laptops, so cost numbers are hardware-specific.
+Deterministic verdicts do not depend on speed, but AI-arm verdicts can: a model request that exceeds the configured 240\,s timeout (\code{config/llm.yaml}) is recorded as an outcome, not retried, so a run on a slower or faster machine can lose or keep its proposals.
+Of the \code{brief} runs, \resnum{rq5-ai-cost}{systems.ob.status.failed}, \resnum{rq5-ai-cost}{systems.ss.status.failed} and \resnum{rq5-ai-cost}{systems.tt.status.failed} of \resnum{rq5-ai-cost}{systems.ob.n} per system on OB, SS and TT failed; no committed field records why a run failed.
+The deterministic cost was measured separately on the slowest laptop (\vtref{t08c-rq5-slowest-laptop}), but no committed file records the machine that ran the benchmark experiments, so their timings cannot be tied to a specification; an earlier sample on the slowest laptop was slower, for a reason that was not measured.
+From 26 Nov, disk space forced us to delete each experiment's run directories after a successful run; the committed per-case files and summaries remain, but any statistic they do not hold needs a re-run.
+Three people, each owning one lane of the code, wrote the system with AI coding agents.
+The lead's agent sessions also drafted pull requests in the other two lanes (for example, 23 Explain pull requests on 8 Nov).
+The Explain owner's agent reviewed 40 pull requests from the lead's sessions in the Explain and Reason lanes, and all 10 of its change requests reproduced; this is a review by an agent, not by a second human.
 Many changes had no second human reviewer.
-The Explain lane owner reviewed most of the pull requests drafted for that lane, but the lead-drafted Observe pull requests were merged without a review by the Observe lane owner, and many Reason-lane pull requests were reviewed only through review comments that the lead's own agent sessions wrote.
-In the last week before the results freeze, the lead also merged several pull requests with administrator rights, posting a note that invited the teammates whose work the change touched, or anyone, to review after the merge.
-Agent-written code may contain subtle bugs, and one agent drafting and reviewing much of the system makes review less independent.
+In the Reason lane, which holds the verifier, the rankers, the evidence engine and the benchmark harness, 114 of the 165 merged pull requests had no review, and the lead merged each of them with administrator rights, by deliberate practice when the teammates were busy; this departs from the repository's own rule that no one merges their own pull request (retrospective ADR \code{20261125-cl-}\allowbreak\code{retrospective-post-month-plan}, counts on 27 Nov).
+Teammates did ask for changes on 10 merged Reason-lane pull requests, and the lead reviewed 96 of the 98 pull requests the teammates opened.
+Agent-written code may contain subtle bugs, and one agent drafting and merging much of the system without independent review makes such bugs more likely to survive.
+Some defects did reach the experiment runs: the \code{prior-only} floor was not built, the baseline entries for RE3 and Nezha were first missing and then pointed RCAEval at the wrong data folder, and the LOSO and transfer results went in without their fitted calibration files; each gap was found only when its experiment ran, and each cost a re-run, a new derived code tag or a follow-up commit.
 The process relied on ownership lanes, versioned contracts, golden fixtures and a tests-first rule, and continuous integration ran a determinism gate on engine changes.
-\leadq{add counts from the GitHub record at the results freeze: merged pull requests by author and lane, and those merged without a second human review.}
+\leadq{the retrospective ADR counts unreviewed merges for the Reason lane only (27 Nov); add the Observe and Explain counts of pull requests merged without a second human review, and recount all three lanes at the results freeze.}
 We report this as a threat to validity, not a result, and make no claim about agent productivity.
