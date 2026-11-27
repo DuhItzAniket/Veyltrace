@@ -18,10 +18,10 @@ from veyltrace_stats.exact import clopper_pearson
 NOT_RUN = "not run"
 NOT_RUN_PREFIX = "not run: "  # the bench_summary 1.1 `statistics` string form (03 §13.3)
 #: A pre-registered experiment that a 04 §12 revision replaces did not run itself, but it was not cut
-#: either: its cells read "revised" and name the revision (lead rule R1, R-17 #46).
+#: either: its cells read "revised" and name the revision (04 §12, R-17 #46).
 REVISED = "revised"
 REVISED_AS = "revised as "
-#: Results in a bench_summary minor the tables do not read ran, so they are not "not run" (R5).
+#: Results in a bench_summary minor the tables do not read ran, so they are not "not run".
 NOT_TABULATED = "not tabulated"
 RAN = "ran ("
 UNDEFINED = "n/a"
@@ -61,7 +61,7 @@ def text(value: str) -> Cell:
 
 def not_run(reason: str) -> Cell:
     """A cell that has no value because its experiment has none, with the reason; a reason given as
-    "not run: …" is not doubled. "Not run" is kept for a cut experiment or 04 §6 cell (R1): a
+    "not run: …" is not doubled. "Not run" is kept for a cut experiment or 04 §6 cell: a
     reason that says the experiment was revised (REVISED_AS) or ran in a summary format the tables
     do not read (RAN) gives a "revised" or "not tabulated" cell instead."""
     if reason.startswith(REVISED_AS):
@@ -84,7 +84,7 @@ def absent_reason(reason: str) -> str:
 
 def not_applicable(why: str) -> Cell:
     """A cell whose metric does not apply to its row (no slate, no verifier, no alert, a metric the
-    experiment does not list): "n/a" with the reason, never "not run" (R2)."""
+    experiment does not list): "n/a" with the reason, never "not run"."""
     return Cell(UNDEFINED, NOT_APPLICABLE + why)
 
 

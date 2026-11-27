@@ -172,7 +172,7 @@ def test_an_undefined_no_fault_rate_says_why(results: Path) -> None:
 
 
 def _side_results(results: Path) -> None:
-    """An rq5-ai-cost summary and a perf-o11 CSV of the slowest laptop, as committed (R4)."""
+    """An rq5-ai-cost summary and a perf-o11 CSV of the slowest laptop, as committed."""
     ai = results / "rq5-ai-cost"
     ai.mkdir()
     entry = {"model_wall_ms_p50": 175544.4, "model_wall_ms_p95": 236209.5, "n": 3,

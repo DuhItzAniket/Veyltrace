@@ -56,7 +56,7 @@ def test_the_1_2_entries_render_with_their_reasons(files: dict[str, str], result
         for line in t7.splitlines()
         if line.startswith("| re2-oracle-rq3-v1 | crossfit2 (rcaeval-re2) | 0.1 | ob | veyltrace:off |")
     )
-    bare = re.sub(r"<sup>\d+</sup>", "", row)  # rates without an interval carry a note (R3)
+    bare = re.sub(r"<sup>\d+</sup>", "", row)  # rates without an interval carry a note
     assert (
         "| 0.875 | -0.025 | 1.000 | 1.500 | 1.000 | 0.500 | 0.250 | 0.375 | no value | 0.250 | 0.000 "
         "| 1.000 | 0.750 | 8 | 8 | 0 | none | 4 |" in bare
@@ -248,7 +248,7 @@ def _row(table: str, start: str) -> str:
 
 
 def test_table_6_per_seed_cells_have_no_value_not_not_run(files: dict[str, str]) -> None:
-    """Gap 18 (R1, R3): a seeded arm ran, so its per-seed cell is "no value", pooled rows too."""
+    """Gap 18: a seeded arm ran, so its per-seed cell is "no value", pooled rows too."""
     t6 = files["tables/t06-rq2-re2-oracle-rq2-v1.md"]
     cols = next(line for line in t6.splitlines() if line.startswith("| System |")).split(" | ")
     at = cols.index("Per-seed AC@1 (mean ± SD)")
@@ -260,7 +260,7 @@ def test_table_6_per_seed_cells_have_no_value_not_not_run(files: dict[str, str])
 
 
 def test_agent_only_slate_cells_say_why_they_do_not_apply() -> None:
-    """Gap 22 (R2): agent-only's ranking is not a slate, so a null slate cell names that."""
+    """Gap 22: agent-only's ranking is not a slate, so a null slate cell names that."""
     cell = rq1.value_reason(cells.rate(None), "retrieval_at_k", "retrieval_at_k", "agent_only")
     assert cell.text == "n/a" and cell.note == cells.NOT_APPLICABLE + NO_AGENT_SLATE
 

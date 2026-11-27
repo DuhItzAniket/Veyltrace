@@ -165,7 +165,7 @@ def test_selective_cells_count_confirmed_verdicts_and_say_why_they_are_null(resu
     spec = ctx.spec(RQ3)
     spec = spec.model_copy(update={"metrics": (*spec.metrics, "selective_accuracy")})
     pooled = rq4.pooled(spec, res, "veyltrace:off", rq4.SELECTIVE[0])
-    assert pooled == cells.Cell(NO_VALUE, rq4.NO_POOLED_ENTRY.format("selective_accuracy"))
+    assert pooled == cells.Cell(NO_VALUE, rq4.NO_POOLED_ENTRY.format("ac_at_1_confirmed"))  # the field
     assert rq4.pooled(spec, res, "veyltrace:off", rq4.SELECTIVE[1]).text == cells.UNDEFINED  # a count
     _selective(results, ac_at_1_confirmed=None, answer_rate_confirmed=0.0)
     res = load(results, RQ3, read_register(results))

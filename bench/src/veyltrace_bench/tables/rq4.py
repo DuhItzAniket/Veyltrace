@@ -4,7 +4,7 @@ comes from one experiment. The grid coordinates are read from each experiment's 
 manifest when it ran), never typed here. The unperturbed point of the deterministic arms is
 re2-oracle-rq1-v1; the calibrated unperturbed protocol whose calibration files every perturbed run
 reuses (their YAML headers, 04 §5.4 item 4), re2-oracle-rq3-v1, is the reference of the coverage
-and set-size columns, paired with its 04 §12 revision (R1). Each point shows its 04 §10.3 floors
+and set-size columns, paired with its 04 §12 revision. Each point shows its 04 §10.3 floors
 where their cases match (review M5), the Causatrix rankers alone (04 §6 M3, M4), the fused slate
 and the pipeline arms.
 
@@ -87,7 +87,7 @@ SELECTIVE: tuple[Metric, ...] = (  # H4b, bench_summary 1.2 (CCR #404); counts: 
 ABLATION: tuple[Metric, ...] = (*ACCURACY, *COVERAGE, *SELECTIVE)
 COUNTS = frozenset({"n_decoy", "n_confirmed"})  # per-system counts: a pooled row does not repeat them
 #: Entries of the verified set and status (04 §7), which only a method with a verdict has; summary.json
-#: reports them per system only, so a pooled value needs an rq3-intervals file (R3).
+#: reports them per system only, so a pooled value needs an rq3-intervals file.
 VERDICT_ENTRIES = frozenset({"coverage", "set_size", "selective_accuracy"})
 #: The answer rate behind each selective share and count, the status it counts, and what a null
 #: share means for H4b (which reads CONFIRMED verdicts only, 04 §2).
@@ -104,11 +104,17 @@ NO_ANSWER = "no {} verdict in this group (answer rate 0), so AC@1 among them is 
 NO_DECOY = "no case of this group has a decoy-changed service (Decoy cases = 0), so the share is undefined"
 NO_POOLED_ENTRY = (
     "no pooled value in the committed results: summary.json reports `{}` per system only and no "
-    "rq3-intervals file has a pooled one; the tables compute no new statistics (R3)"
+    "rq3-intervals file has a pooled one; the tables compute no new statistics (04 §10.2)"
 )
 INTERVALS = (
     " 95% cluster-bootstrap intervals in brackets; a value without one says so (04 §8); failed, "
     "timed-out, no-alert, rejected and unranked runs count as misses."
+)
+#: summary.json `outcomes` counts all the group's rows per run outcome (03 §13.3), normal windows
+#: included, so it can exceed the fault-case runs (Table 7 says the same of Runs not ok).
+OUTCOME_ROWS = (
+    " Outcomes counts all the group's rows per run outcome (03 §13.3): its fault-case runs and, in an "
+    "experiment with normal windows, one row per normal window, so it can exceed Fault-case runs."
 )
 OMITTED = (
     " Avg@5, MRR, Fine AC@k and Rerank@1 are listed by these experiments and are in each one's "
@@ -143,7 +149,7 @@ def absent(res: Results, metric: str) -> Cell:
 
 
 def listed(exp: Experiment, res: Results, metric: str) -> Cell | None:
-    """None when the summary can hold `metric`; else its cell: n/a when unlisted (R2), not run
+    """None when the summary can hold `metric`; else its cell: n/a when unlisted, not run
     when the summary has no entry for it."""
     if metric not in exp.metrics:
         return cells.not_run(res.reason) if res.reason else cells.not_applicable(UNLISTED.format(metric))
@@ -219,7 +225,7 @@ def _raw(res: Results, part: str, method: str, entry: str, key: str) -> object:
 
 def reason(res: Results, part: str | None, method: str, metric: Metric, kind: str | None, cell: Cell) -> Cell:
     """A null cell (cells.UNDEFINED_NOTE) says why when the robustness columns explain it: no
-    verdict, no CONFIRMED (or LIKELY) verdict, or no decoy case (R2); `part` None: a pooled cell."""
+    verdict, no CONFIRMED (or LIKELY) verdict, or no decoy case; `part` None: a pooled cell."""
     _, entry, key = metric
     if cell.text != cells.UNDEFINED or cell.note != cells.UNDEFINED_NOTE:
         return cell
@@ -252,7 +258,7 @@ def line(
 def pooled(exp: Experiment, res: Results, method: str, metric: Metric) -> Cell:
     """A pooled cell: n/a for a count or an entry the experiment does not list, else
     rq1.pooled_value; an entry summary.json reports per system only has a value only from an
-    rq3-intervals file (R3)."""
+    rq3-intervals file."""
     _, entry, key = metric
     kind, bench = kinds(exp).get(method), exp.dataset.parts[0].split("-")[0]
     if (why := res.why(method)) is not None:
@@ -264,7 +270,7 @@ def pooled(exp: Experiment, res: Results, method: str, metric: Metric) -> Cell:
     if entry in VERDICT_ENTRIES and kind != VERIFIED:
         return n_a(NO_VERDICT)
     if entry in VERDICT_ENTRIES and (res.rq3 is None or (POOLED_SCOPE, key) not in res.rq3.intervals):
-        return no_value(NO_POOLED_ENTRY.format(entry))
+        return no_value(NO_POOLED_ENTRY.format(key))  # the field, as Table 7: `coverage` may have one
     return reason(res, None, method, metric, kind, pooled_value(res, bench, method, entry, key, kind))
 
 
@@ -341,7 +347,7 @@ def _table(name: str, title: str, caption: str, point: str, points: Sequence[Poi
            metrics: Sequence[Metric]) -> list[Table]:  # fmt: skip
     seeds = any(seeded(ctx.spec(p.experiment_id)) for p in points)
     cols = (point, "Case set", "System", "Method", *columns(seeds, per_seed=False, metrics=metrics))
-    caption += INTERVALS + OMITTED + " Protocol of each experiment: see Sources."
+    caption += INTERVALS + OUTCOME_ROWS + OMITTED + " Protocol of each experiment: see Sources."
     return [Table(name, title, caption, cols, tuple(grid(ctx, points, metrics)), key=(0, 2, 3))]
 
 
@@ -391,8 +397,11 @@ def ablation(ctx: Context) -> list[Table]:
     )
     caption = (
         "RE2, oracle alert, no shift, the named sources dropped before ingest, in 04 §5.2 order. H4b reads "
-        "AC@1 among CONFIRMED in every cell; CONFIRMED verdicts is the answer rate × n_fault of "
-        f"summary.json's selective_accuracy entry.{control}" + _reference_note(ctx, "none")
+        "AC@1 among CONFIRMED in every cell. CONFIRMED verdicts is derived, not read: it is "
+        "answer_rate_confirmed × n_fault of summary.json's selective_accuracy entry, rounded to the "
+        "integer k, and the generator stops unless that product is within 1e-6 of k (a k / n check, "
+        "03 §13.3), so it is the exact count behind the rate, not a new statistic."
+        f"{control}" + _reference_note(ctx, "none")
     )
     title = "Table 11: RQ4 telemetry ablation (H4b)"
     return _table("t11-rq4-ablation", title, caption, "Sources", points, ctx, ABLATION)

@@ -41,8 +41,8 @@ Every experiment YAML in bench/experiments (synth smoke excluded) and the state 
 | re2-oracle-permute-v1 | RQ2 | yes | run | 2 | not run<sup>6</sup> | re2-oracle-permute-v1 @ fixture |
 | re2-oracle-planted-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
 | re2-oracle-prior-only-v1 | RQ1 | yes | run | 3 | not run<sup>6</sup> | re2-oracle-prior-only-v1 @ fixture |
-| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run; 8 metrics without interval (avg_at_5, chance, cost, fine_ac_at_k, lift, mrr, rerank_at_1, retrieval_at_k) | re2-oracle-rq1-v1 @ fixture |
-| re2-oracle-rq2-v1 | RQ2 | yes | run | 6 | 6 intervals, 2 comparisons, 0 not run; 8 metrics without interval (avg_at_5, chance, cost, fine_ac_at_k, lift, mrr, rerank_at_1, retrieval_at_k) | re2-oracle-rq2-v1 @ fixture |
+| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run; 9 metrics without interval (ac_at_k: ac_at_2,4; avg_at_5; chance; cost; fine_ac_at_k; lift; mrr; rerank_at_1; retrieval_at_k) | re2-oracle-rq1-v1 @ fixture |
+| re2-oracle-rq2-v1 | RQ2 | yes | run | 6 | 6 intervals, 2 comparisons, 0 not run; 9 metrics without interval (ac_at_k: ac_at_2–5; avg_at_5; chance; cost; fine_ac_at_k; lift; mrr; rerank_at_1; retrieval_at_k) | re2-oracle-rq2-v1 @ fixture |
 | re2-oracle-rq3-investigate-v1 | RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-investigate-v1 (not run) |
 | re2-oracle-rq3-off-v1 | RQ3 | no | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-off-v1 (not run) |
 | re2-oracle-rq3-v1 | RQ3 | yes | run | 6 | not run<sup>6</sup> | re2-oracle-rq3-v1 @ fixture |

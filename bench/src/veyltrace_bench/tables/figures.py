@@ -5,7 +5,7 @@ experiment and commit: the figure's data of record) and one SVG per panel. A poi
 is a CSV row with its reason and is left out of the plot, never drawn as 0; the SVG says how many
 points it lacks, and how many have no interval. Coordinates (shift, sources dropped, decoy grid)
 come from the YAMLs. Figures pair a pre-registered experiment with its 04 §12 revisions as the
-tables do (generate.paired, lead rule R1): each revised point follows the pre-registered point it
+tables do (generate.paired, 04 §12): each revised point follows the pre-registered point it
 replaces, and both are labelled by their source.
 """
 
@@ -74,16 +74,39 @@ def to_csv(rows: Sequence[Datum]) -> bytes:
     return buf.getvalue().encode("utf-8")
 
 
+#: The word a point without a value is shown as, by its CSV status, as the tables print it: n/a
+#: for a metric that does not apply or is undefined, "not run" only for a cut experiment (04 §10.8),
+#: "revised" for one a 04 §12 revision replaces; anything else is "no value" (svg.NO_VALUE).
+SHOWN_AS = (
+    (cells.NOT_APPLICABLE, cells.UNDEFINED),
+    ("undefined: ", cells.UNDEFINED),
+    (cells.NOT_RUN_PREFIX, cells.NOT_RUN),
+    (cells.REVISED_AS, cells.REVISED),
+    (cells.RAN, cells.NOT_TABULATED),
+)
+
+
+def shown_as(point: Point) -> str:
+    """What a point without a value reads in a figure (SHOWN_AS), never the colour or height of 0."""
+    return next((word for prefix, word in SHOWN_AS if point.status.startswith(prefix)), svg.NO_VALUE)
+
+
 def _note(rows: Sequence[Datum]) -> str:
-    """How many points have no value, and how many have a value but no interval (R3)."""
-    n = sum(d.point.value is None for d in rows)
+    """How many points are not plotted, by what they read (n/a, not run, revised, no value), and how
+    many have a value but no interval."""
+    missing = [shown_as(d.point) for d in rows if d.point.value is None]
     bare = sum(d.point.value is not None and d.point.status != "ok" for d in rows)
-    lacking = f"{n} of {len(rows)} points have no value (see the CSV status)" if n else "all points present"
+    kinds = ", ".join(f"{missing.count(w)} {w}" for w in dict.fromkeys(missing))
+    lacking = (
+        f"{len(missing)} of {len(rows)} points not plotted: {kinds} (see the CSV status)"
+        if missing
+        else "all points present"
+    )
     return lacking + (f"; {bare} without an interval ({NO_INTERVAL})" if bare else "")
 
 
 def _label(d: Datum) -> str:
-    """A series label that tells a pre-registered point from its revision's (R1)."""
+    """A series label that tells a pre-registered point from its revision's."""
     return f"{d.series} ({d.source.role})" if d.source.role else d.series
 
 
@@ -135,11 +158,11 @@ def rows4(ctx: Context) -> list[Datum]:
 def draw4(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
     """Fig 4: AC@1 = Retrieval@K × Rerank@1 per RE2 system (oracle, veyltrace:off)."""
     panels = sorted({d.panel for d in rows})
-    values = [
-        [next(d.point.value for d in rows if d.panel == p and d.x == c) for c, _ in FIG4] for p in panels
-    ]
+    points = [[next(d.point for d in rows if d.panel == p and d.x == c) for c, _ in FIG4] for p in panels]
+    values = [[point.value for point in row] for row in points]
+    words = [[shown_as(point) for point in row] for row in points]
     title = "Fig. 4: retrieval vs re-ranking, RE2 oracle, veyltrace:off"
-    image = svg.heatmap(title, panels, [c for c, _ in FIG4], values, _note(rows))
+    image = svg.heatmap(title, panels, [c for c, _ in FIG4], values, _note(rows), words)
     return {"fig4-retrieval-rerank.csv": to_csv(rows), "fig4-retrieval-rerank.svg": image.encode()}
 
 
@@ -193,10 +216,12 @@ def _heatmaps(
     xs = list(cols) if cols is not None else list(dict.fromkeys(d.x for d in rows))
     for panel in sorted({d.panel for d in rows}):
         mine = [d for d in rows if d.panel == panel]
-        found = {(_label(d), d.x): d.point.value for d in mine}
-        values = [[found.get((r, c)) for c in xs] for r in labels]
+        found = {(_label(d), d.x): d.point for d in mine}
+        points = [[found.get((r, c)) for c in xs] for r in labels]
+        values = [[None if p is None else p.value for p in row] for row in points]
+        words = [[svg.NO_VALUE if p is None else shown_as(p) for p in row] for row in points]
         files[f"{name}-{panel}.svg"] = svg.heatmap(
-            f"{title}{panel.upper()}", labels, xs, values, _note(mine) + extra
+            f"{title}{panel.upper()}", labels, xs, values, _note(mine) + extra, words
         ).encode()
     return files
 
@@ -208,7 +233,7 @@ def _off(ctx: Context, grid: Sequence[tuple[str, str, str]], entry_key: tuple[st
 
 #: Fig 8's columns: AC@1 and the status mix bench_summary 1.2 gives per cell (`selective_accuracy`,
 #: CCR #404): the shares of fault-case runs with a CONFIRMED, and a CONFIRMED or LIKELY, verdict.
-#: The full four-status mix is only in per_case.csv, which the figures do not count (R3).
+#: The full four-status mix is only in per_case.csv, which the figures do not count.
 FIG8 = (
     ("AC@1", AC1),
     ("CONFIRMED share", ("selective_accuracy", "answer_rate_confirmed")),
@@ -245,11 +270,11 @@ def draw9(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
 
 
 FIG6 = (("AURC verifier", ("risk_coverage", "aurc_verdict")), ("AURC fused", ("risk_coverage", "aurc_fused")))
-DIFF6 = "AURC V − F"  # H3c's difference, below 0 favours V: only rq3-intervals has it (R4)
-#: Why Fig 6 shows areas, not curves: no committed summary holds a curve (R3: no new statistics).
+DIFF6 = "AURC V − F"  # H3c's difference, below 0 favours V: only rq3-intervals has it
+#: Why Fig 6 shows areas, not curves: no committed summary holds a curve (no new statistics, 04 §10.2).
 NO_CURVES = (
     "; curves not drawn: summary.json keeps the areas only, and the tables compute no curve from "
-    "rq3-intervals rows.csv (R3)"
+    "rq3-intervals rows.csv (04 §10.2)"
 )
 
 
@@ -273,7 +298,7 @@ def _difference(ctx: Context, eid: str, method: str) -> list[Datum]:
 
 def rows6(ctx: Context) -> list[Datum]:
     """Fig 6's data: AURC of V and of F per method and RE2 system (bench_summary 1.2
-    `risk_coverage`, 03 §13.3), with the rq3-intervals bounds where committed (R3), and their
+    `risk_coverage`, 03 §13.3), with the rq3-intervals bounds where committed, and their
     difference V − F (H3c) from rq3-intervals."""
     return [
         d
@@ -292,7 +317,7 @@ def draw6(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
 FIGURES: tuple[tuple[Rows, Draw], ...] = (
     (rows4, draw4), (rows6, draw6), (rows7, draw7), (rows8, draw8), (rows9, draw9),
 )  # fmt: skip
-#: Figures whose experiment ran but whose data no committed result holds (lead rule R7): (name,
+#: Figures whose experiment ran but whose data no committed result holds: (name,
 #: title, experiment, series, x, reason). The figure is not generated, and its CSV has one status row
 #: naming the experiment, so it is never read as "not run".
 GAPS = (
@@ -311,7 +336,7 @@ def gap_rows(ctx: Context, eid: str, series: str, x: str, reason: str) -> list[D
 
 
 def figures(ctx: Context) -> dict[str, bytes]:
-    """Every figure file, as {path relative to the results root: bytes}, revisions paired (R1)."""
+    """Every figure file, as {path relative to the results root: bytes}, revisions paired."""
     files: dict[str, bytes] = {}
     for rows_of, draw in FIGURES:
         files |= draw(ctx, paired(rows_of, ctx))

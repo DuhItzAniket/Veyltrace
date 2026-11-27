@@ -41,7 +41,7 @@ EXPERIMENTS = BENCH / "experiments"
 FIXTURES = BENCH / "tests" / "fixtures" / "tables"
 RQ3, OFF = "re2-oracle-rq3-v1", "re2-oracle-rq3-off-v1"
 REVISED = f"revised as {OFF} (04 §12, 25 Nov)"
-DROPPED = f"{REVISED}; the revision does not run veyltrace:brief ({REVISION_CUT})"  # the cut arm (R1)
+DROPPED = f"{REVISED}; the revision does not run veyltrace:brief ({REVISION_CUT})"  # the cut arm
 
 
 @pytest.fixture
@@ -160,7 +160,7 @@ def test_rq3_intervals_bound_the_rq3_rates_and_must_match_the_summary(results: P
     assert res.rq3 is not None and [n for n, _ in res.hashes][-2:] == [
         f"rq3-intervals/{OFF}/rows.csv",
         f"rq3-intervals/{OFF}/summary.json",
-    ]  # the side file is cited with the experiment (R4)
+    ]  # the side file is cited with the experiment
     off = ("re2-ob", "ob", "veyltrace:off")
     assert res.metric(*off, "coverage", "coverage") == cells.Cell("0.875 [0.625, 1.000]")
     assert res.metric(*off, "coverage", "coverage_gap") == cells.Cell("-0.025", NO_INTERVAL)
@@ -270,4 +270,4 @@ def test_table_a2_lists_the_timing_runs_of_the_development_cases(results: Path) 
     assert f"| {dev[0]} | re2-ob | pipeline timing run, pass 2 (m4.csv) | ok | n/a<sup>" in a2
     assert "aaaaaaaaaaaa" not in a2  # only the development cases (gap 89)
     source = next(line for line in a2.splitlines() if line.startswith("- perf-o11: sha256 "))
-    assert "m4.csv " in source and "README.md " in source  # cited with its file hashes (R4)
+    assert "m4.csv " in source and "README.md " in source  # cited with its file hashes

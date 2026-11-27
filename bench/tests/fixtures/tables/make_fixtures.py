@@ -34,7 +34,7 @@ PER_CASE_HEADER = (
 ENTRIES = ("ac_at_k", "avg_at_5", "chance", "cost", "decoy_ranked_first", "fine_ac_at_k", "lift", "mrr",
            "onset_error", "rerank_at_1", "retrieval_at_k", "coverage", "set_size", "no_fault_rates",
            "risk_coverage", "selective_accuracy", "decoy_top1_change", "permutation_invariance")  # fmt: skip
-#: An R-05-era summary (bench_summary 0.1.0), which the tables read without its contract (R5).
+#: An R-05-era summary (bench_summary 0.1.0), which the tables read without its contract.
 R05_SUMMARY = {
     "experiment_id": "re2-oracle-baselines-r05",
     "groups": [{"dataset": "re2-ob"}, {"dataset": "re2-ss"}],

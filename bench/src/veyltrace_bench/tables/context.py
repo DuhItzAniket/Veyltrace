@@ -48,7 +48,7 @@ _PLANNED = {  # 04 §6 row -> the indexes of its planned columns in _COLUMNS (sy
 CELLS = frozenset(f"{row}/{_COLUMNS[int(i)]}" for row, planned in _PLANNED.items() for i in planned)
 REVISES = "revises "  # the role of a revision's results: "revises <pre-registered id>"
 #: bench/results folders that are neither an experiment nor generated output, and the RQ each
-#: serves (R4): RQ3 intervals (scripts/rq3_intervals.py, #555), RQ6 replay sites (03 §13.5),
+#: serves: RQ3 intervals (scripts/rq3_intervals.py, #555), RQ6 replay sites (03 §13.5),
 #: AI model time and tokens (rq5-ai-cost) and Observe's slowest-laptop measurement (perf-o11, O-11).
 SIDE_RQ = {"perf-o11": "RQ5", "replay": "RQ6", RQ3_DIR: "RQ3", "rq5-ai-cost": "RQ5"}
 NESTED = frozenset({"replay", RQ3_DIR})  # one result per subfolder
@@ -57,7 +57,7 @@ GENERATED_DIRS = frozenset({"figures", "tables"})  # the generator's own output 
 
 @dataclass(frozen=True)
 class Side:
-    """A committed results folder that is not an experiment (R4): `source` names it by its path
+    """A committed results folder that is not an experiment: `source` names it by its path
     under bench/results and hashes its files; `rq3` when it is an rq3-intervals folder."""
 
     source: Results
@@ -98,7 +98,7 @@ class Context:
     dev_cases: tuple[str, ...] | None = None  # bench/dev_cases.yaml; None when the file is absent
     root: Path | None = None  # the repo root: a YAML's `dataset.cases` path is relative to it (04 §9)
     replays: Mapping[str, Replay] = field(default_factory=dict[str, Replay])  # RQ6 role -> result (#440)
-    sides: tuple[Side, ...] = ()  # the other committed results folders, sorted by path (R4)
+    sides: tuple[Side, ...] = ()  # the other committed results folders, sorted by path
 
     def revisions_of(self, experiment_id: str) -> tuple[str, ...]:
         """The 04 §12 revisions of a pre-registered experiment, sorted; () when it has none."""
@@ -186,7 +186,7 @@ def context(results_root: Path, experiments_dir: Path) -> Context:
             spec = exp
         role = PRE_REGISTERED if exp.experiment_id in register.revises.values() else None
         if (old := register.revises.get(exp.experiment_id)) is not None:
-            role = f"{REVISES}{old}"  # a revision names what it revises wherever it is cited (R1)
+            role = f"{REVISES}{old}"  # a revision names what it revises wherever it is cited
         results[exp.experiment_id] = replace(res, protocol=protocol(spec), role=role)
     for old, res in list(results.items()):  # the arms the revisions of a revised experiment run
         if res.revised_as:
@@ -216,7 +216,7 @@ def _side(results_root: Path, folder: Path) -> Side:
 
 def _sides(results_root: Path, experiment_ids: set[str]) -> tuple[Side, ...]:
     """Every committed results folder besides the experiments', the generated tables and figures,
-    and the RQ6 replay roles (Context.replays), sorted by path (R4)."""
+    and the RQ6 replay roles (Context.replays), sorted by path."""
     if not results_root.is_dir():
         return ()
     out: list[Side] = []
