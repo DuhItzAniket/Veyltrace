@@ -18,7 +18,7 @@ from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.cells import Cell
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.render import Row, Table
-from veyltrace_bench.tables.results import Results
+from veyltrace_bench.tables.results import REVISION_ROW, Results
 from veyltrace_contracts.models import SummaryComparison
 
 #: Table 5 variants: (file suffix, benchmark and protocol, RQ1 experiment, prior-only experiment).
@@ -56,7 +56,7 @@ Line = tuple[str, Results | None, list[Cell]]  # (method label, source, cells af
 
 def n_a(why: str) -> Cell:
     """A cell whose column does not apply to its row."""
-    return Cell(cells.UNDEFINED, f"not applicable: {why}")
+    return cells.not_applicable(why)
 
 
 def methods(exp: Experiment) -> list[str]:
@@ -220,19 +220,21 @@ def accuracy(ctx: Context) -> list[Table]:
 
 
 def _windows(ctx: Context, part: str) -> tuple[Cell, Results | None]:
-    """The normal-window count of a part, from the experiment that adds them (H2 of the review)."""
+    """The normal-window count of a part, from the experiment that adds them (H2 of the review);
+    when that experiment did not run but a 04 §12 revision of it did, from the revision, which
+    the cell names with what it revises (R1)."""
     bench = part.split("-", maxsplit=1)[0]
     if (eid := NORMAL_WINDOWS.get(bench)) is None:
         return n_a("this experiment adds no normal windows; no experiment adds them for this benchmark"), None
-    res, exp = ctx.get(eid), ctx.spec(eid)
+    res, exp, revised = ctx.get(eid), ctx.spec(eid), ""
+    if res.revised_as and len(news := ctx.revisions_of(eid)) == 1:  # one revision replaces it
+        res, exp, revised = ctx.get(news[0]), ctx.spec(news[0]), f", revises {eid}, {REVISION_ROW}"
     method = OURS if OURS in methods(exp) else methods(exp)[0]
     cell = res.count(part, res.system_of(part), method, "n_no_truth")
     kind = "no-fault cases" if bench in NO_FAULT_CASES else "normal windows"
-    return (
-        cells.Cell(f"{cell.text} {kind} (from {res.experiment_id})", cell.note)
-        if cell.text != cells.NOT_RUN
-        else cell
-    ), res
+    if res.why(method) is not None or cell.text == cells.NOT_RUN:
+        return cell, res
+    return cells.Cell(f"{cell.text} {kind} (from {res.experiment_id}{revised})", cell.note), res
 
 
 def datasets(ctx: Context) -> list[Table]:

@@ -1,1 +1,1 @@
-{"schema_version":"0.1.0"}
+{"experiment_id": "re2-oracle-baselines-r05", "groups": [{"dataset": "re2-ob"}, {"dataset": "re2-ss"}], "schema_version": "0.1.0", "statistics": "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)"}

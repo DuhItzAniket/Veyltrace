@@ -17,7 +17,7 @@ from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.cells import Cell
 from veyltrace_bench.tables.context import Context
 from veyltrace_bench.tables.render import Row, Table
-from veyltrace_bench.tables.results import Results
+from veyltrace_bench.tables.results import UNLISTED, Results
 from veyltrace_bench.tables.rq1 import (
     FLOORS,
     OTHER_CASES,
@@ -80,9 +80,10 @@ def absent(res: Results, metric: str) -> Cell:
 
 
 def listed(exp: Experiment, res: Results, metric: str) -> Cell | None:
-    """None when the summary can hold `metric`; else its not-run cell (unlisted or no entry)."""
+    """None when the summary can hold `metric`; else its cell: n/a when unlisted (R2), not run
+    when the summary has no entry for it."""
     if metric not in exp.metrics:
-        return cells.not_run(res.reason or f"the experiment does not list the metric `{metric}`")
+        return cells.not_run(res.reason) if res.reason else cells.not_applicable(UNLISTED.format(metric))
     return None if metric in SummaryGroupMetrics.model_fields else absent(res, metric)
 
 

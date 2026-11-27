@@ -1,21 +1,24 @@
-"""The data figures of 11 §5 (R-17): Figs 4, 7, 8, 9 drawn; Figs 5 and 6 as reasoned gaps.
+"""The data figures of 11 §5 (R-17): Figs 4, 6, 7, 8, 9 drawn; Fig 5 as a reasoned gap.
 
 Each figure writes `figures/<name>.csv` (every plotted value with its interval, status and source
-experiment and commit: the figure's data of record) and one SVG per panel. A point that is not
-run is a CSV row with its reason and is left out of the plot, never drawn as 0; the SVG says how
-many points it lacks. Coordinates (shift, sources dropped, decoy grid) come from the YAMLs.
+experiment and commit: the figure's data of record) and one SVG per panel. A point without a value
+is a CSV row with its reason and is left out of the plot, never drawn as 0; the SVG says how many
+points it lacks, and how many have no interval. Coordinates (shift, sources dropped, decoy grid)
+come from the YAMLs. Figures pair a pre-registered experiment with its 04 §12 revisions as the
+tables do (generate.paired, lead rule R1): each revised point follows the pre-registered point it
+replaces, and both are labelled by their source.
 """
 
 from __future__ import annotations
 
 import csv
 import io
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 from veyltrace_bench.tables import svg
 from veyltrace_bench.tables.context import Context
-from veyltrace_bench.tables.results import Point, Results
+from veyltrace_bench.tables.results import NO_INTERVAL, Point, Results
 from veyltrace_bench.tables.rq1 import methods
 from veyltrace_bench.tables.rq4 import BRIEF, RQ1, brief_zero, decoy_point, perturbed
 
@@ -24,6 +27,7 @@ CSV_COLUMNS = ("panel", "series", "x", "value", "low", "high", "status", "experi
 OURS = "veyltrace:off"
 SHIFT_SERIES = ("rcaeval:nsigma", "rcaeval:baro", "simplerca", "causatrix:rrf", OURS, "veyltrace:brief")
 AC1 = ("ac_at_k", "ac_at_1")  # (summary entry, key)
+RQ3 = "re2-oracle-rq3-v1"  # the pre-registered RQ3 experiment of Fig 6; its revisions are paired in
 
 
 @dataclass(frozen=True)
@@ -69,28 +73,73 @@ def to_csv(rows: Sequence[Datum]) -> bytes:
 
 
 def _note(rows: Sequence[Datum]) -> str:
+    """How many points have no value, and how many have a value but no interval (R3)."""
     n = sum(d.point.value is None for d in rows)
-    return f"{n} of {len(rows)} points not run or undefined; see the CSV" if n else "all points present"
+    bare = sum(d.point.value is not None and d.point.status != "ok" for d in rows)
+    lacking = f"{n} of {len(rows)} points have no value (see the CSV status)" if n else "all points present"
+    return lacking + (f"; {bare} without an interval ({NO_INTERVAL})" if bare else "")
 
 
-def fig4(ctx: Context) -> dict[str, bytes]:
+def _label(d: Datum) -> str:
+    """A series label that tells a pre-registered point from its revision's (R1)."""
+    return f"{d.series} ({d.source.role})" if d.source.role else d.series
+
+
+Rows = Callable[[Context], list[Datum]]
+Draw = Callable[[Context, list[Datum]], dict[str, bytes]]
+
+
+def _key(d: Datum) -> tuple[str, str, str]:
+    return d.panel, d.series, d.x
+
+
+def paired(rows_of: Rows, ctx: Context) -> list[Datum]:
+    """`rows_of`'s data and, for each 04 §12 revision (sorted by id), the data of a pass on
+    Context.revised that stand in for the experiment it revises, each right after the last
+    pre-registered datum with the same (panel, series, x); a revised datum without that key goes at
+    the end (as generate.paired does for table rows)."""
+    rows = rows_of(ctx)
+    if not ctx.revises:
+        return rows
+    revised: dict[tuple[str, str, str], list[Datum]] = {}
+    for new in sorted(ctx.revises):
+        for d in rows_of(ctx.revised(new)):
+            if d.source.stands_in_for is not None:
+                revised.setdefault(_key(d), []).append(d)
+    last = {_key(d): n for n, d in enumerate(rows)}
+    out: list[Datum] = []
+    for n, d in enumerate(rows):
+        out.append(d)
+        if last[_key(d)] == n:
+            out += revised.pop(_key(d), [])
+    return out + [d for key in sorted(revised) for d in revised[key]]
+
+
+FIG4 = (
+    ("Retrieval@K", ("retrieval_at_k", "retrieval_at_k")),
+    ("Rerank@1", ("rerank_at_1", "rerank_at_1")),
+    ("AC@1", AC1),
+)
+
+
+def rows4(ctx: Context) -> list[Datum]:
+    return [d for c, ek in FIG4 for d in data(ctx, RQ1, OURS, ek, OURS, c)]
+
+
+def draw4(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
     """Fig 4: AC@1 = Retrieval@K × Rerank@1 per RE2 system (oracle, veyltrace:off)."""
-    eid = RQ1
-    metrics = (("Retrieval@K", ("retrieval_at_k", "retrieval_at_k")),
-               ("Rerank@1", ("rerank_at_1", "rerank_at_1")), ("AC@1", AC1))  # fmt: skip
-    rows = [d for c, ek in metrics for d in data(ctx, eid, OURS, ek, OURS, c)]
     panels = sorted({d.panel for d in rows})
     values = [
-        [next(d.point.value for d in rows if d.panel == p and d.x == c) for c, _ in metrics] for p in panels
+        [next(d.point.value for d in rows if d.panel == p and d.x == c) for c, _ in FIG4] for p in panels
     ]
     title = "Fig. 4: retrieval vs re-ranking, RE2 oracle, veyltrace:off"
-    image = svg.heatmap(title, panels, [c for c, _ in metrics], values, _note(rows))
+    image = svg.heatmap(title, panels, [c for c, _ in FIG4], values, _note(rows))
     return {"fig4-retrieval-rerank.csv": to_csv(rows), "fig4-retrieval-rerank.svg": image.encode()}
 
 
-def fig7(ctx: Context) -> dict[str, bytes]:
-    """Fig 7: AC@1 against the alert shift, one panel per RE2 system. The deterministic arms' 0 s
-    point is re2-oracle-rq1-v1; the brief arm's is computed on its subset (review H1), as Table 10."""
+def rows7(ctx: Context) -> list[Datum]:
+    """Fig 7's data: the deterministic arms' 0 s point is re2-oracle-rq1-v1; the brief arm's is
+    computed on its subset (review H1), as Table 10."""
     exps = perturbed(ctx, "shift")
     det = [(e.protocol.shift_s, e.experiment_id) for e in exps if BRIEF not in methods(e)] + [(0, RQ1)]
     rows = [
@@ -100,9 +149,14 @@ def fig7(ctx: Context) -> dict[str, bytes]:
     zero = brief_zero(ctx)
     brief = sorted([(e.protocol.shift_s, e.experiment_id, None) for e in exps if BRIEF in methods(e)]
                    + [(0, zero.experiment_id, zero.results)], key=lambda p: (p[0], p[1]))  # fmt: skip
-    rows += [d for s, eid, res in brief for d in data(ctx, eid, BRIEF, AC1, BRIEF, str(s), res)]
+    return rows + [d for s, eid, res in brief for d in data(ctx, eid, BRIEF, AC1, BRIEF, str(s), res)]
+
+
+def draw7(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
+    """Fig 7: AC@1 against the alert shift, one panel per RE2 system."""
     files = {"fig7-shift.csv": to_csv(rows)}
     xs = sorted({float(d.x) for d in rows})
+    computed = brief_zero(ctx).subset  # set whether or not the subset point could be computed
     for panel in sorted({d.panel for d in rows}):
         mine = [d for d in rows if d.panel == panel]
         drawn = [(d, v) for d in mine if (v := d.point.value) is not None]
@@ -111,68 +165,78 @@ def fig7(ctx: Context) -> dict[str, bytes]:
             for m in SHIFT_SERIES
         }
         title = f"Fig. 7: AC@1 vs alert shift, RE2-{panel.upper()}"
-        computed = zero.subset  # set whether or not the subset point could be computed
         note = _note(mine) + (f"; {BRIEF} at 0 s {computed}" if computed else "")
         files[f"fig7-shift-{panel}.svg"] = svg.lines(title, "shift (s)", "AC@1", xs, series, note).encode()
     return files
 
 
-def _heatmaps(ctx: Context, name: str, title: str, cells: Sequence[tuple[str, str, str]]) -> dict[str, bytes]:
-    """A heatmap per RE2 system of veyltrace:off's AC@1 over (row label, column label, experiment)."""
-    rows = [d for row, col, eid in cells for d in data(ctx, eid, OURS, AC1, row, col)]
+def _heatmaps(
+    name: str, title: str, rows: list[Datum], cols: Sequence[str] | None = None
+) -> dict[str, bytes]:
+    """A heatmap per panel of the data's values: a row per series label, a column per x."""
     files = {f"{name}.csv": to_csv(rows)}
-    labels, cols = list(dict.fromkeys(r for r, _, _ in cells)), list(dict.fromkeys(c for _, c, _ in cells))
+    labels = list(dict.fromkeys(_label(d) for d in rows))
+    xs = list(cols) if cols is not None else list(dict.fromkeys(d.x for d in rows))
     for panel in sorted({d.panel for d in rows}):
         mine = [d for d in rows if d.panel == panel]
-        found = {(d.series, d.x): d.point.value for d in mine}
-        values = [[found.get((r, c)) for c in cols] for r in labels]
+        found = {(_label(d), d.x): d.point.value for d in mine}
+        values = [[found.get((r, c)) for c in xs] for r in labels]
         files[f"{name}-{panel}.svg"] = svg.heatmap(
-            f"{title}, RE2-{panel.upper()}", labels, cols, values, _note(mine)
+            f"{title}{panel.upper()}", labels, xs, values, _note(mine)
         ).encode()
     return files
 
 
-def fig8(ctx: Context) -> dict[str, bytes]:
-    """Fig 8: AC@1 of veyltrace:off under each telemetry ablation (the status mix has no summary entry)."""
+def _off(ctx: Context, grid: Sequence[tuple[str, str, str]]) -> list[Datum]:
+    """veyltrace:off's AC@1 per RE2 system over (row label, column label, experiment)."""
+    return [d for row, col, eid in grid for d in data(ctx, eid, OURS, AC1, row, col)]
+
+
+def rows8(ctx: Context) -> list[Datum]:
     drops = sorted(
         ("drop " + ";".join(e.protocol.sources_drop), e.experiment_id) for e in perturbed(ctx, "drop")
     )
-    cells = [("none", "AC@1", RQ1), *((label, "AC@1", eid) for label, eid in drops)]
-    return _heatmaps(ctx, "fig8-ablation", "Fig. 8: AC@1 under telemetry ablation", cells)
+    return _off(ctx, [("none", "AC@1", RQ1), *((label, "AC@1", eid) for label, eid in drops)])
 
 
-def fig9(ctx: Context) -> dict[str, bytes]:
-    """Fig 9: AC@1 of veyltrace:off over the RCAEval-C grid, π (rows) × decoy rate (columns)."""
+def draw8(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
+    """Fig 8: AC@1 of veyltrace:off under each telemetry ablation (the status mix has no summary entry)."""
+    return _heatmaps("fig8-ablation", "Fig. 8: AC@1 under telemetry ablation, RE2-", rows)
+
+
+def rows9(ctx: Context) -> list[Datum]:
     exps = sorted(
         (e for e in perturbed(ctx, "decoys") if any(m.id == OURS for m in e.methods)), key=decoy_point
     )
-    cells = [(f"pi={decoy_point(e)[0]:g}", f"{decoy_point(e)[1]:g}/h", e.experiment_id) for e in exps]
-    return _heatmaps(ctx, "fig9-rcaevalc", "Fig. 9: AC@1 over the RCAEval-C grid", cells)
-
-
-def fig6(ctx: Context) -> dict[str, bytes]:
-    """Fig 6 (H3c): AURC of the verified score V against the fused score F per method and RE2 system
-    (bench_summary 1.2 `risk_coverage`, 03 §13.3; lower is better). bench_summary keeps the areas,
-    not the curves, so the figure shows the two areas side by side."""
-    eid = "re2-oracle-rq3-v1"
-    cols = (
-        ("AURC verifier", ("risk_coverage", "aurc_verdict")),
-        ("AURC fused", ("risk_coverage", "aurc_fused")),
+    return _off(
+        ctx, [(f"pi={decoy_point(e)[0]:g}", f"{decoy_point(e)[1]:g}/h", e.experiment_id) for e in exps]
     )
-    rows = [d for m in methods(ctx.spec(eid)) for c, ek in cols for d in data(ctx, eid, m, ek, m, c)]
-    files = {"fig6-risk-coverage.csv": to_csv(rows)}
-    labels = list(dict.fromkeys(d.series for d in rows))
-    for panel in sorted({d.panel for d in rows}):
-        mine = [d for d in rows if d.panel == panel]
-        found = {(d.series, d.x): d.point.value for d in mine}
-        values = [[found.get((r, c)) for c, _ in cols] for r in labels]
-        title = f"Fig. 6: risk-coverage AURC, verifier vs fused score, RE2-{panel.upper()}"
-        files[f"fig6-risk-coverage-{panel}.svg"] = svg.heatmap(
-            title, labels, [c for c, _ in cols], values, _note(mine)
-        ).encode()
-    return files
 
 
+def draw9(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
+    """Fig 9: AC@1 of veyltrace:off over the RCAEval-C grid, π (rows) × decoy rate (columns)."""
+    return _heatmaps("fig9-rcaevalc", "Fig. 9: AC@1 over the RCAEval-C grid, RE2-", rows)
+
+
+FIG6 = (("AURC verifier", ("risk_coverage", "aurc_verdict")), ("AURC fused", ("risk_coverage", "aurc_fused")))
+
+
+def rows6(ctx: Context) -> list[Datum]:
+    """Fig 6's data: AURC of V and of F per method and RE2 system (bench_summary 1.2
+    `risk_coverage`, 03 §13.3), with the rq3-intervals bounds where committed (R3)."""
+    return [d for m in methods(ctx.spec(RQ3)) for c, ek in FIG6 for d in data(ctx, RQ3, m, ek, m, c)]
+
+
+def draw6(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
+    """Fig 6 (H3c): AURC of the verified score V against the fused score F (lower is better).
+    bench_summary keeps the areas, not the curves, so the figure shows the two areas side by side."""
+    title = "Fig. 6: risk-coverage AURC, verifier vs fused score, RE2-"
+    return _heatmaps("fig6-risk-coverage", title, rows, [c for c, _ in FIG6])
+
+
+FIGURES: tuple[tuple[Rows, Draw], ...] = (
+    (rows4, draw4), (rows6, draw6), (rows7, draw7), (rows8, draw8), (rows9, draw9),
+)  # fmt: skip
 GAPS = (
     ("fig5-predicate-requests", "Fig. 5: predicate requests vs claim-pass outcome",
      "predicate requests live in each run's proposals.json; bench_summary has no entry for them"),
@@ -180,10 +244,10 @@ GAPS = (
 
 
 def figures(ctx: Context) -> dict[str, bytes]:
-    """Every figure file, as {path relative to the results root: bytes}."""
+    """Every figure file, as {path relative to the results root: bytes}, revisions paired (R1)."""
     files: dict[str, bytes] = {}
-    for build in (fig4, fig6, fig7, fig8, fig9):
-        files |= build(ctx)
+    for rows_of, draw in FIGURES:
+        files |= draw(ctx, paired(rows_of, ctx))
     for name, title, reason in GAPS:
         files[f"{name}.svg"] = svg.placeholder(title, reason).encode()
     return {f"{FIGURES_DIR}/{k}": v for k, v in sorted(files.items())}

@@ -17,7 +17,15 @@ from veyltrace_stats.exact import clopper_pearson
 
 NOT_RUN = "not run"
 NOT_RUN_PREFIX = "not run: "  # the bench_summary 1.1 `statistics` string form (03 §13.3)
+#: A pre-registered experiment that a 04 §12 revision replaces did not run itself, but it was not cut
+#: either: its cells read "revised" and name the revision (lead rule R1, R-17 #46).
+REVISED = "revised"
+REVISED_AS = "revised as "
+#: Results in a bench_summary minor the tables do not read ran, so they are not "not run" (R5).
+NOT_TABULATED = "not tabulated"
+RAN = "ran ("
 UNDEFINED = "n/a"
+NOT_APPLICABLE = "not applicable: "
 UNDEFINED_NOTE = (
     "null in summary.json: undefined for this group, as no row has the value "
     "(no fault case, no slate, no LLM tokens; 03 §13.3)"
@@ -52,9 +60,32 @@ def text(value: str) -> Cell:
 
 
 def not_run(reason: str) -> Cell:
-    """A cell that has no value, with the reason; a reason given as "not run: …" is not doubled."""
+    """A cell that has no value because its experiment has none, with the reason; a reason given as
+    "not run: …" is not doubled. "Not run" is kept for a cut experiment or 04 §6 cell (R1): a
+    reason that says the experiment was revised (REVISED_AS) or ran in a summary format the tables
+    do not read (RAN) gives a "revised" or "not tabulated" cell instead."""
+    if reason.startswith(REVISED_AS):
+        return Cell(REVISED, reason)
+    if reason.startswith(RAN):
+        return Cell(NOT_TABULATED, reason)
     reason = reason.removeprefix(NOT_RUN_PREFIX)
     return Cell(NOT_RUN, NOT_RUN_PREFIX + reason)
+
+
+def absent_reason(reason: str) -> str:
+    """The text a sources list prints for an experiment without values: the reason, prefixed
+    "not run: " unless it says the experiment was revised or ran in another summary format."""
+    return (
+        reason
+        if reason.startswith((REVISED_AS, RAN))
+        else NOT_RUN_PREFIX + reason.removeprefix(NOT_RUN_PREFIX)
+    )
+
+
+def not_applicable(why: str) -> Cell:
+    """A cell whose metric does not apply to its row (no slate, no verifier, no alert, a metric the
+    experiment does not list): "n/a" with the reason, never "not run" (R2)."""
+    return Cell(UNDEFINED, NOT_APPLICABLE + why)
 
 
 def fixed(value: float, digits: int = RATE_DIGITS, *, signed: bool = False) -> str:

@@ -32,13 +32,15 @@ BUILDERS: tuple[Builder, ...] = (
     results_index, development_cases, datasets, accuracy, rq1_comparisons,
     proposer, calibration, cost, replay, shift, ablation, decoys,
 )  # fmt: skip
-REVISES = "revises "  # the role of a revision's results (Context.revised)
-UNPAIRED: frozenset[Builder] = frozenset({results_index, development_cases})  # list every experiment once
+#: Builders that list every experiment once (A0, A2), or resolve a revision themselves (Table 3
+#: takes its normal windows from the revision, so a second pass would only repeat its rows).
+UNPAIRED: frozenset[Builder] = frozenset({results_index, development_cases, datasets})
 
 
 def _revision(row: Row) -> bool:
-    """Whether the row cites a revision: its source or a second source (`also`) says "revises"."""
-    return any(s.role.startswith(REVISES) for s in (row.source, *row.also) if s is not None and s.role)
+    """Whether the row cites a revision in the slot of the experiment it revises (its source or a
+    second source, `also`, stands in for it; Context.revised), not the revision under its own id."""
+    return any(s.stands_in_for is not None for s in (row.source, *row.also) if s is not None)
 
 
 def _key(table: Table, row: Row) -> tuple[str, ...]:

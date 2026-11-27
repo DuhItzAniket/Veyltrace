@@ -87,6 +87,9 @@ def lines(
     return _frame(title, body)
 
 
+NO_VALUE = "no value"  # a heatmap cell without a value (R1: "not run" only for a cut experiment)
+
+
 def heatmap(
     title: str,
     rows: Sequence[str],
@@ -95,7 +98,7 @@ def heatmap(
     note: str,
 ) -> str:
     """A [0, 1] heatmap (white to blue) with each value printed in its cell; a None cell is grey
-    and reads "not run", never the colour of 0."""
+    and reads "no value" (the CSV status says why: revised, not run or undefined), never the colour of 0."""
     left, top, bottom, right = MARGIN
     w, h = (WIDTH - left - right) / max(1, len(columns)), (HEIGHT - top - bottom) / max(1, len(rows))
     body = [_text(left + w * (j + 0.5), top + h * len(rows) + 16, col) for j, col in enumerate(columns)]
@@ -107,7 +110,7 @@ def heatmap(
             fill = MISSING if v is None else f"#{255 - round(200 * t):02x}{255 - round(150 * t):02x}ff"
             body.append(_el("rect", x=x, y=y, width=w, height=h, fill=fill, stroke="#fff"))
             body.append(
-                _text(x + w / 2, y + h / 2 + 4, "not run" if v is None else fixed(v))
+                _text(x + w / 2, y + h / 2 + 4, NO_VALUE if v is None else fixed(v))
             )  # tables' rounding
     body.append(_text(left, HEIGHT - 6, note, "start", ' fill="#555"'))
     return _frame(title, body)
