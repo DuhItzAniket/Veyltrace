@@ -60,8 +60,10 @@ An alert-shift run (\S\ref{sec:rq4}) therefore changes the windows but not the s
 \paragraph{Anomalies and onsets}
 \eng{Anomara} scores every series against its baseline window with a robust $z$,
 \begin{equation}
-z_t = \frac{x_t - \operatorname{med}_B}{s_B}, \qquad
-s_B = \max\bigl(1.4826\,\text{MAD}_B,\; \text{IQR}_B / 1.349,\; \varepsilon,\; 0.02\,\lvert\operatorname{med}_B\rvert\bigr),
+\begin{aligned}
+z_t &= \frac{x_t - \operatorname{med}_B}{s_B}, \\
+s_B &= \max\bigl(1.4826\,\text{MAD}_B,\; \text{IQR}_B / 1.349,\; \varepsilon,\; 0.02\,\lvert\operatorname{med}_B\rvert\bigr),
+\end{aligned}
 \end{equation}
 where $\varepsilon$ is a fixed floor per family and unit (1\,ms for latency, 1\,MiB for memory), because a flat baseline otherwise gives a scale near zero and an unbounded score.
 The score of a series is the largest $\lvert z \rvert$ that persists with one sign for three consecutive steps of the incident window, and the series is anomalous at a score of 3 or more.
