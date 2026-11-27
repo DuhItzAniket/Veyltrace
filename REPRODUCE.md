@@ -36,7 +36,7 @@ uv run veyltrace bench tables --check
 ```
 
 - The command reads only `bench/experiments/*.yaml` and `bench/results/`, and it writes nothing.
-- Run it at `v1.0.0` or later. The tables are committed at the R-17 result freeze, so on earlier commits `--check` prints `differs: <path>` for every table and figure, because none is committed yet.
+- Run it at `results-v1` (`3ed9d7cd`, the R-17 result freeze) or later. On earlier commits `--check` prints `differs: <path>` for every table and figure, because none is committed yet.
 - Options: `--check`, `--results <dir>` (default `bench/results`) and `--experiments <dir>` (default `bench/experiments`). `veyltrace bench tables --help` shows only `--help`, because the core CLI hands the arguments to bench unparsed.
 - Exit 0 means that every table and figure under `bench/results/tables/` and `bench/results/figures/` regenerates byte-identically, including the headline Table 5 (RQ1, RE2, oracle alert).
 - Exit 2 lists the files that differ.
@@ -52,6 +52,10 @@ Check out the commit that the result's `manifest.json` names (`code.commit`). Th
 | `results-code-v1-cpu` | `281787f1` | `results-code-v1` plus the two 04 §12 revision YAMLs. It produced `re2-oracle-rq3-off-v1` and `re2-oracle-loso-off-v1`, and every crossfit2 experiment with `calibration.fit: false`: the onset shifts, the source drops, metrics-only and the RCAEval-C cells. They reuse the rcaeval-re2 files that `re2-oracle-rq3-off-v1` fits, and `calibrated.check` reads that YAML. Run that experiment first, in the same checkout, so `config/calibration/` holds its files |
 | `results-code-v1-prior` | `9cb317d7` | `results-code-v1` plus the bench-only `prior-only` floor (#562; 04 §12 row of 26 Nov): `re2-oracle-prior-only-v1`, `re3-oracle-prior-only-v1` |
 | `results-replay-v1` | `a2cdc166` | `results-code-v1` plus the RQ6 replay fixes: `replay/recording` |
+| `results-code-v1-baselines` | `1b2f3be5` | `results-code-v1` plus the RCAEval dataset entries for RE3 and Nezha in `bench/baselines.yaml` (#615), no engine or config change: `re3-oracle-rq1-v1` |
+| `results-code-v1-baselines-2` | `0654af62` | `results-code-v1-baselines` with the Nezha entries pointing where RCAEval's `main.py` reads (#627), again only `bench/baselines.yaml`: `nezha-oracle-rq1-v1` |
+
+Two tags mark states of `main` rather than run commits: `results-v1` (`3ed9d7cd`, R-17) is the results freeze, where step 1 regenerates every committed table and figure and from which the paper reads every number, and `v0.9.0` is the M4 milestone (results frozen, paper draft v1).
 
 The headline experiment, as an example:
 
