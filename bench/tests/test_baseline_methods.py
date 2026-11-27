@@ -122,3 +122,24 @@ def test_every_rcaeval_experiment_has_a_dataset_entry_for_each_part() -> None:
         if any(m.kind == "rcaeval" for m in exp.methods):
             missing = [d for d in exp.dataset.parts if d not in datasets]
             assert not missing, f"{path.name}: rcaeval.datasets has no entry for {missing}"
+
+
+#: RCAEval's DATASET_MAP (RCAEval/benchmark/datasets.py at the pinned commit 90b63a46) for the ids
+#: bench passes. main.py reads only DATASET_MAP[id] and downloads the public data there if missing.
+RCAEVAL_DATASET_MAP = {
+    "re2-ob": "data/RE2/RE2-OB",
+    "re2-ss": "data/RE2/RE2-SS",
+    "re2-tt": "data/RE2/RE2-TT",
+    "re3-ob": "data/RE3/RE3-OB",
+    "re3-ss": "data/RE3/RE3-SS",
+    "re3-tt": "data/RE3/RE3-TT",
+}
+
+
+def test_every_rcaeval_dataset_entry_exports_where_main_py_reads() -> None:
+    # nezha rq1 scored downloaded RE2 cases at R-16: its paths were data/Nezha/... (#627)
+    for name, mapping in sorted(rcaeval.settings().datasets.items()):
+        assert mapping.id in RCAEVAL_DATASET_MAP, f"{name}: {mapping.id} is not a mirrored RCAEval id"
+        assert mapping.path == RCAEVAL_DATASET_MAP[mapping.id], (
+            f"{name}: main.py reads {RCAEVAL_DATASET_MAP[mapping.id]}"
+        )
