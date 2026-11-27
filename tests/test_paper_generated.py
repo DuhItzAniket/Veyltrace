@@ -137,6 +137,8 @@ def _world(tmp: Path) -> Path:
     (results / "tables").mkdir()
     (results / "tables" / "t01-demo.tex").write_bytes(b"% table\r\n\\begin{table}x\\end{table}\n")
     (results / "tables" / "t01-demo.md").write_text("| md |\n", encoding="utf-8")
+    (results / "tables" / "t01-demo-paper.tex").write_bytes(b"% paper view\n")
+    (results / "tables" / "t01-demo-full.tex").write_bytes(b"% full grid\n")
     figures = results / "figures"
     figures.mkdir()
     (figures / "fig1-demo.csv").write_text("panel\n", encoding="utf-8")
@@ -343,6 +345,11 @@ def test_svg_to_tikz_converts_every_element() -> None:
     assert out.endswith("\\end{tikzpicture}")
 
 
+def test_svg_text_escapes_as_the_tables_do() -> None:
+    # svg.py writes "AURC V − F" and τ_nf; pdflatex has neither U+2212 nor U+03C4 (R-17 #46)
+    assert mod._tex_text("AURC V − F,  τ_nf ≥ 0") == r"AURC V $-$ F, $\tau$\_nf $\geq$ 0"
+
+
 @pytest.mark.parametrize(
     "svg",
     [
@@ -365,6 +372,9 @@ def test_svg_to_tikz_refuses_what_it_cannot_draw(svg: str) -> None:
 def test_build_writes_tables_figures_and_sorted_numbers(world: Path) -> None:
     out = mod.build(world, tracked=None)
     assert out.files["t01-demo.tex"] == b"% table\r\n\\begin{table}x\\end{table}\n"  # byte copy
+    assert out.files["t01-demo-paper.tex"] == b"% paper view\n"  # \resulttable prefers it
+    assert out.files["t01-demo-full.tex"] == b"% full grid\n"  # \resulttablefull
+    assert (out.tables, out.views, out.grids) == (3, 1, 1)
     assert "t01-demo.md" not in out.files
     figure = out.files["fig1-demo.tex"].decode()
     assert figure.count("\\begin{tikzpicture}") == 2 and "\\vtfigpanels{2}" in figure
@@ -399,6 +409,8 @@ def test_main_writes_and_check_does_not(world: Path, monkeypatch: pytest.MonkeyP
         "fig1-demo.tex",
         "fig2-gap.tex",
         "numbers.tex",
+        "t01-demo-full.tex",
+        "t01-demo-paper.tex",
         "t01-demo.tex",
     ]
     (world / "paper" / "sections" / "02-b.tex").write_text(

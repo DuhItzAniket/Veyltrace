@@ -4,12 +4,15 @@ Why not matplotlib: its SVG and PDF output embed version strings, font paths and
 and differ across freetype builds, so "regenerate identically" would hold on one laptop only; it
 would also be bench's first heavy dependency. These figures are simple marks (points with
 interval bars, connected per series; heatmap cells), drawn with fixed geometry, fixed-precision
-coordinates and a generic font family, so the bytes depend only on the data. R-18's copy step
-converts SVG to vector PDF (`rsvg-convert -f pdf` or Inkscape) for the paper (11 §10).
+coordinates and a generic font family, so the bytes depend only on the data. For the paper,
+scripts/paper_generated.py converts each panel to TikZ (one `tikzpicture`, vector, 11 §10); it knows
+exactly the elements and attributes written here and refuses anything else, so a change to this
+module's markup needs the converter changed with it.
 """
 
 from __future__ import annotations
 
+import re
 import textwrap
 from collections.abc import Mapping, Sequence
 from xml.sax.saxutils import escape
@@ -21,6 +24,19 @@ MARGIN = (56, 16, 56, 140)  # left, top, bottom (ticks, axis label, note), right
 #: Distinguishable categorical colours, dark enough on white (a priori); series beyond 8 repeat.
 PALETTE = ("#1b6ca8", "#d1495b", "#3a7d44", "#edae49", "#6c4f9e", "#00798c", "#8c564b", "#555555")
 MISSING = "#dddddd"  # a heatmap cell without a value: grey, never the colour of 0
+#: A heatmap's left margin fits its longest row label (Fig 6 and 8 labels were cut off at 56 px):
+#: about 6.2 px per 11 px sans-serif character plus the 6 px gap and 4 px of air (a priori). It has
+#: no legend, so its right margin is the top one's 16 px.
+LABEL_CHAR_PX = 6.2
+LABEL_PAD_PX = 10
+#: A note under the plot wraps to lines of at most this many characters: the 584 px from the left
+#: margin to the right edge hold about 94 at LABEL_CHAR_PX, less some air (a priori; Fig 8's
+#: one-line note ran past the edge). Each further line adds LINE_PX to the frame's height.
+NOTE_CHARS = 88
+LINE_PX = 15  # a priori: line spacing of wrapped text (notes, a placeholder's reason)
+#: The generator's number at the start of a title ("Fig. 5: "): the SVG's <title> keeps it (the
+#: repo's numbering), drawn text drops it, since the paper's caption carries LaTeX's number.
+NUMBERED = re.compile(r"^Fig\. \d+: ")
 
 
 def _n(value: float) -> str:
@@ -40,12 +56,22 @@ def _text(x: float, y: float, value: str, anchor: str = "middle", extra: str = "
     return f'<text x="{_n(x)}" y="{_n(y)}" text-anchor="{anchor}"{extra}>{escape(value)}</text>'
 
 
-def _frame(title: str, body: list[str]) -> str:
+def _frame(title: str, body: list[str], extra_lines: int = 0) -> str:
+    """The SVG around `body`, `extra_lines` × LINE_PX taller than HEIGHT for a wrapped note."""
+    height = HEIGHT + LINE_PX * extra_lines
     head = (
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" '
-        f'viewBox="0 0 {WIDTH} {HEIGHT}" font-family="sans-serif" font-size="11">'
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{height}" '
+        f'viewBox="0 0 {WIDTH} {height}" font-family="sans-serif" font-size="11">'
     )
     return "\n".join([head, f"<title>{escape(title)}</title>", *body, "</svg>"]) + "\n"
+
+
+def _note(note: str) -> list[str]:
+    """The note under the plot from the left margin, wrapped to NOTE_CHARS; one line per item."""
+    return [
+        _text(MARGIN[0], HEIGHT - 6 + LINE_PX * i, line, "start", ' fill="#555"')
+        for i, line in enumerate(textwrap.wrap(note, NOTE_CHARS) or [note])
+    ]
 
 
 XY = tuple[float, float, float | None, float | None]  # x, y and the y interval (low, high)
@@ -84,8 +110,8 @@ def lines(
         key_y = top + 12 + 16 * i
         body.append(_el("rect", x=WIDTH - right + 10, y=key_y - 8, width=10, height=10, fill=colour))
         body.append(_text(WIDTH - right + 26, key_y + 1, label, "start"))
-    body.append(_text(left, HEIGHT - 6, note, "start", ' fill="#555"'))
-    return _frame(title, body)
+    notes = _note(note)
+    return _frame(title, body + notes, len(notes) - 1)
 
 
 NO_VALUE = "no value"  # a heatmap cell without a value ("not run" only for a cut experiment, 04 §10.8)
@@ -102,7 +128,9 @@ def heatmap(
     """A [0, 1] heatmap (white to blue) with each value printed in its cell; a None cell is grey
     and reads its word in `missing` (n/a, not run, revised; "no value" by default; the CSV status
     says why), never the colour of 0."""
-    left, top, bottom, right = MARGIN
+    _, top, bottom, _ = MARGIN
+    left = max(MARGIN[0], round(LABEL_PAD_PX + LABEL_CHAR_PX * max((len(r) for r in rows), default=0)))
+    right = top
     w, h = (WIDTH - left - right) / max(1, len(columns)), (HEIGHT - top - bottom) / max(1, len(rows))
     body = [_text(left + w * (j + 0.5), top + h * len(rows) + 16, col) for j, col in enumerate(columns)]
     for i, row in enumerate(rows):
@@ -114,18 +142,18 @@ def heatmap(
             body.append(_el("rect", x=x, y=y, width=w, height=h, fill=fill, stroke="#fff"))
             word = missing[i][j] if missing is not None else NO_VALUE
             body.append(_text(x + w / 2, y + h / 2 + 4, word if v is None else fixed(v)))  # tables' rounding
-    body.append(_text(left, HEIGHT - 6, note, "start", ' fill="#555"'))
-    return _frame(title, body)
+    notes = _note(note)
+    return _frame(title, body + notes, len(notes) - 1)
 
 
 PLACEHOLDER_CHARS = 96  # a priori: about 96 characters of 11 px sans-serif fit across the 640 px frame
-LINE_PX = 15  # a priori: line spacing of the wrapped reason
 
 
 def placeholder(title: str, reason: str) -> str:
-    """A figure that cannot be drawn: its title and the reason, as given (the caller says whether it
-    is "not run" or has no data), wrapped so the paper shows the whole gap."""
+    """A figure that cannot be drawn: its title (without the generator's number) and the reason,
+    as given (the caller says whether it is "not run" or has no data), wrapped so the paper shows
+    the whole gap."""
     lines = textwrap.wrap(reason, PLACEHOLDER_CHARS)
-    body = [_text(WIDTH / 2, HEIGHT / 2, title)]
+    body = [_text(WIDTH / 2, HEIGHT / 2, NUMBERED.sub("", title))]
     body += [_text(WIDTH / 2, HEIGHT / 2 + 18 + LINE_PX * i, line) for i, line in enumerate(lines)]
     return _frame(title, body)

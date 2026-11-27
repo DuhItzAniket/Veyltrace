@@ -6,7 +6,9 @@ then `latexmk` in paper/ (paper/README.md, "Build").
 Why: the paper types no result number by hand (AGENTS.md §4.8, docs/11 §10). This step writes
 three kinds of file into paper/generated/, which nobody edits and git ignores:
 
-- `<name>.tex` for every table: a byte copy of R-17's `bench/results/tables/<name>.tex`.
+- `<name>.tex` for every table: a byte copy of R-17's `bench/results/tables/<name>.tex`, with its
+  full grid `<name>-full.tex` (a longtable, `\\resulttablefull`) and, for a table the main text
+  cites, its compact paper view `<name>-paper.tex`, which `\\resulttable` prefers.
 - `<name>.tex` for every figure: R-17's `bench/results/figures/<name>[-<panel>].svg` panels
   converted to TikZ, one `tikzpicture` per panel, which `\\resultfigure` lays out. The converter
   knows exactly the elements and attributes `veyltrace_bench.tables.svg` writes; anything else is
@@ -36,6 +38,8 @@ from pathlib import Path
 from typing import cast
 
 from veyltrace_bench.tables.cells import RATE_DIGITS, fixed
+from veyltrace_bench.tables.paper import FULL_SUFFIX, PAPER_SUFFIX
+from veyltrace_bench.tables.render import tex_escape
 from veyltrace_bench.tables.results import read_register
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -459,20 +463,6 @@ NUM = re.compile(r"^-?(?:\d+(?:\.\d*)?|\.\d+)$")
 ROTATE = re.compile(r"^rotate\((\S+?)(?:[ ,]+(\S+?)[ ,]+(\S+?))?\)$")
 FAMILIES = {"sans-serif": "\\sffamily", "serif": "\\rmfamily", "monospace": "\\ttfamily"}
 ANCHORS = {"start": "base west", "middle": "base", "end": "base east"}
-TEX_SPECIAL = {
-    "\\": "\\textbackslash{}",
-    "{": "\\{",
-    "}": "\\}",
-    "$": "\\$",
-    "&": "\\&",
-    "#": "\\#",
-    "^": "\\textasciicircum{}",
-    "_": "\\_",
-    "%": "\\%",
-    "~": "\\textasciitilde{}",
-    "<": "\\textless{}",
-    ">": "\\textgreater{}",
-}
 #: Attributes each element may carry, as svg.py writes them; any other is a ConversionError.
 ALLOWED = {
     "rect": {"x", "y", "width", "height", "fill", "stroke", "stroke-width"},
@@ -522,7 +512,8 @@ def _paint(el: ET.Element, source: str, *, fill_default: str | None) -> str:
 
 
 def _tex_text(value: str) -> str:
-    return "".join(TEX_SPECIAL.get(c, c) for c in " ".join(value.split()))
+    """SVG text as LaTeX, escaped as the tables escape theirs (`−`, `τ`, `≥` and the specials)."""
+    return tex_escape(" ".join(value.split()))
 
 
 def _points(value: str | None, source: str) -> list[tuple[str, str]]:
@@ -681,9 +672,11 @@ class Build:
     unresolved: dict[tuple[str, str], str]  # (key, selector) -> reason
     invalid: list[str]  # \resnum uses that do not parse
     uses: list[Use]
-    tables: int = 0
+    tables: int = 0  # every copied table file: <name>.tex, -paper.tex and -full.tex
     figures: int = 0
     panels: int = 0
+    views: int = 0  # -paper.tex among them
+    grids: int = 0  # -full.tex among them
 
 
 def numbers_tex(resolved: Mapping[tuple[str, str], str], unresolved: Mapping[tuple[str, str], str]) -> str:
@@ -738,6 +731,8 @@ def build(root: Path, tracked: frozenset[str] | None) -> Build:
         tables=len(tables),
         figures=len(figures),
         panels=sum(len(v) for v in figures.values()),
+        views=sum(t.name.endswith(f"{PAPER_SUFFIX}.tex") for t in tables),
+        grids=sum(t.name.endswith(f"{FULL_SUFFIX}.tex") for t in tables),
     )
 
 
@@ -773,7 +768,8 @@ def write(target: Path, files: Mapping[str, bytes]) -> tuple[int, int]:
 def report(out: Build, emit: Callable[[str], object] = print) -> None:
     n = len(out.uses)
     emit(
-        f"paper/generated: {out.tables} tables, {out.figures} figures ({out.panels} SVG panels as TikZ), "
+        f"paper/generated: {out.tables - out.views - out.grids} tables ({out.views} paper views, "
+        f"{out.grids} full grids), {out.figures} figures ({out.panels} SVG panels as TikZ), "
         f"numbers.tex: {len(out.resolved)} of {n} \\resnum keys resolve"
     )
     if out.unresolved:
