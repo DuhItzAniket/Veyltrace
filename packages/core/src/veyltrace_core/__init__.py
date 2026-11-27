@@ -7,4 +7,4 @@ lookup, because engines import core and importlib.metadata pulls networking modu
 sys.modules (isolation test, 02 §9).
 """
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"

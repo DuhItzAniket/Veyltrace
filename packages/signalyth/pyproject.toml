@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veyltrace-signalyth"
-version = "0.1.0"
+version = "1.0.0"
 description = "Veyltrace engine 2 (Signalyth): turns telemetry into the signal cube (series, edges, templates, critical path)."
 readme = "README.md"
 requires-python = ">=3.12"

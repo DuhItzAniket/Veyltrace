@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veyltrace-infralume"
-version = "0.1.0"
+version = "1.0.0"
 description = "Veyltrace engine 1 (Infralume): turns one case into canonical telemetry and its case manifest."
 readme = "README.md"
 requires-python = ">=3.12"

@@ -38,7 +38,7 @@ ENGINES = (
 )
 PACKAGES = ("core", *ENGINES, "llm", "gateway")
 CONFIG_SECTIONS = ("core", *ENGINES, "llm", "gateway")
-VERSION = "0.1.0"
+VERSION = "1.0.0"
 # Engine-to-engine dependencies a spec allows, beyond core + contracts (at most these).
 SPEC_ENGINE_DEPS: dict[str, tuple[str, ...]] = {
     "anomara": ("veyltrace-causalith",),  # 03-anomara §5: the shared entry rule veyltrace_causalith.entry

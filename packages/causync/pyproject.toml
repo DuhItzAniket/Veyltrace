@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veyltrace-causync"
-version = "0.1.0"
+version = "1.0.0"
 description = "Veyltrace engine 4 (Causync): time alignment and change events."
 readme = "README.md"
 requires-python = ">=3.12"
