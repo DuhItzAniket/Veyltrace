@@ -35,12 +35,50 @@ ACCURACY = (
 NORMAL_WINDOWS = {"re2": "re2-oracle-rq3-v1", "veyllab": "veyllab-oracle-rq1-v1"}
 NO_FAULT_CASES = frozenset({"veyllab"})
 Metric = tuple[str, str, str]  # (column, summary entry, key)
+#: Table 5's columns (04 §7). Fine-grained AC@k has its own denominator, the fault cases with an
+#: answer-key indicator (`n_fine`), so its count follows it; Retrieval@K is the slate's, then the
+#: decision pool's (`pool_hit`).
 METRICS: tuple[Metric, ...] = (
     ("AC@1", "ac_at_k", "ac_at_1"), ("AC@3", "ac_at_k", "ac_at_3"), ("AC@5", "ac_at_k", "ac_at_5"),
     ("Avg@5", "avg_at_5", "avg_at_5"), ("MRR", "mrr", "mrr"),
-    ("Retrieval@K", "retrieval_at_k", "retrieval_at_k"), ("Rerank@1", "rerank_at_1", "rerank_at_1"),
+    ("Fine AC@1", "fine_ac_at_k", "fine_ac_at_1"), ("Fine AC@3", "fine_ac_at_k", "fine_ac_at_3"),
+    ("Fine AC@5", "fine_ac_at_k", "fine_ac_at_5"), ("Fine cases", "fine_ac_at_k", "n_fine"),
+    ("Retrieval@K", "retrieval_at_k", "retrieval_at_k"),
+    ("Pool retrieval", "retrieval_at_k", "pool_retrieval"), ("Rerank@1", "rerank_at_1", "rerank_at_1"),
     ("Lift@1", "lift", "lift_at_1"), ("AC@1 − Chance@1", "lift", "chance_diff_at_1"),
 )  # fmt: skip
+#: The onset error of the detected protocol (04 §7: median, max and count over the ok runs of cases
+#: with an injection time), shown in the tables of a detected-alert experiment.
+ONSET: tuple[Metric, ...] = (
+    ("Onset n", "onset_error", "n_onset"),
+    ("Onset error median (ms)", "onset_error", "onset_error_median_ms"),
+    ("Onset error max (ms)", "onset_error", "onset_error_max_ms"),
+)
+#: Group counts shown as a metric column, and the key of the entry they belong to: the count is
+#: shown only where that entry is (04 §7 denominators).
+GROUP_COUNTS = {"n_fine": "fine_ac_at_1"}
+DETECTED = "detected"
+#: Method kinds that build no Causatrix slate (RCAEval baselines, prior-only, SimpleRCA,
+#: naive-change), so the slate columns do not apply to them (R2).
+SLATELESS = frozenset({"rcaeval", "internal_baseline"})
+SLATE_ENTRIES = frozenset({"retrieval_at_k", "rerank_at_1"})
+NO_SLATE = "builds no slate, so Retrieval@K, pool retrieval and Rerank@1 do not apply (04 §7)"
+#: A Causatrix arm has no verdict: the decision pool, set and fault type belong to the verifier (runner).
+NO_POOL = (
+    "a Causatrix arm is scored on its slate and has no verdict, so no decision pool (pool_hit empty, 04 §7)"
+)
+NO_POOLED_RATIO = (
+    "no pooled value in the committed results: summary.json pools case means only, and this is a "
+    "ratio of them (04 §8 asks for a pooled interval)"
+)
+NO_POOLED_ONSET = "summary.json reports onset error per system only (04 §7), so it has no pooled value"
+NO_ONSET = "null in summary.json: no ok run of this group has an onset (Onset n = 0; 04 §7)"
+NO_VALUE = "no value"  # a cell whose value no committed file has, with the reason in its note
+#: The note of a floor run under the oracle alert in a detected-alert table (04 §10.3).
+READS_NO_ALERT = (
+    "prior-only reads no alert, so {prior} (oracle alert) is the floor of both RE2 protocols (its YAML "
+    "header, 04 §10.3); it has no no_alert miss, unlike the rows run under the detected alert"
+)
 OUTCOMES = ("ok", "failed", "timeout", "no_alert", "rejected")  # 03 §13.2 run_outcome order
 AC_KEYS = frozenset(f"ac_at_{k}" for k in range(1, 6))  # the keys the chance floor has a counterpart for
 PER_SEED = "Per-seed AC@1 (mean ± SD)"
@@ -104,11 +142,43 @@ def width(per_seed: bool) -> int:
     return 4 if per_seed else 3
 
 
-def method_line(
-    res: Results, part: str, method: str, metrics: Sequence[Metric], *, seeds: bool, per_seed: bool
-) -> Line:
+def kinds(exp: Experiment) -> dict[str, str]:
+    """Method id -> kind."""
+    return {m.id: m.kind for m in exp.methods}
+
+
+def no_value(note: str) -> Cell:
+    return Cell(NO_VALUE, note)
+
+
+def _why_missing(cell: Cell, entry: str, key: str, kind: str | None) -> Cell:
+    """A slate cell without a value names why when the method's kind explains it (R2)."""
+    if cell.text != cells.UNDEFINED:
+        return cell
+    if kind in SLATELESS and entry in SLATE_ENTRIES:
+        return n_a(NO_SLATE)
+    if kind == "causatrix" and key == "pool_retrieval":
+        return n_a(NO_POOL)
+    if entry == "onset_error" and cell.note == cells.UNDEFINED_NOTE:
+        return Cell(cells.UNDEFINED, NO_ONSET)
+    return cell
+
+
+def value(res: Results, part: str, method: str, entry: str, key: str, kind: str | None = None) -> Cell:
+    """One metric cell of a group; a group count (GROUP_COUNTS) where its entry has a value."""
     sys = res.system_of(part)
-    values = [res.metric(part, sys, method, entry, key) for _, entry, key in metrics]
+    if (anchor := GROUP_COUNTS.get(key)) is not None:
+        cell = res.metric(part, sys, method, entry, anchor)
+        missing = cell.text in (cells.UNDEFINED, cells.NOT_RUN, cells.REVISED, cells.NOT_TABULATED)
+        return cell if missing else res.count(part, sys, method, key)
+    return _why_missing(res.metric(part, sys, method, entry, key), entry, key, kind)
+
+
+def method_line(
+    res: Results, part: str, method: str, metrics: Sequence[Metric], *, seeds: bool, per_seed: bool,
+    kind: str | None = None,
+) -> Line:  # fmt: skip
+    values = [value(res, part, method, entry, key, kind) for _, entry, key in metrics]
     return method, res, [*values, *tail(res, part, method, seeds=seeds, per_seed=per_seed)]
 
 
@@ -146,8 +216,9 @@ def floor_lines(
     lines = [chance_line(ctx, eid, part, metrics, per_seed)]
     if prior is not None:
         if same_cases(ctx, eid, prior):
+            known = kinds(ctx.spec(prior))
             lines += [
-                method_line(ctx.get(prior), part, m, metrics, seeds=False, per_seed=per_seed)
+                method_line(ctx.get(prior), part, m, metrics, seeds=False, per_seed=per_seed, kind=known[m])
                 for m in methods(ctx.spec(prior))
             ]
         else:
@@ -157,19 +228,37 @@ def floor_lines(
         if base is None:
             lines.append(na_line(floor, omitted, metrics, per_seed))
         elif same_cases(ctx, eid, base):
-            lines.append(method_line(ctx.get(base), part, floor, metrics, seeds=False, per_seed=per_seed))
+            kind = kinds(ctx.spec(base)).get(floor)
+            lines.append(
+                method_line(ctx.get(base), part, floor, metrics, seeds=False, per_seed=per_seed, kind=kind)
+            )
         else:
             lines.append(na_line(floor, OTHER_CASES, metrics, per_seed))
     return lines
 
 
-def _pooled_row(res: Results, bench: str, method: str, per_seed: bool) -> Row:
-    values = [
-        res.pooled(bench, method, key) if key not in ("rerank_at_1", "lift_at_1")
-        else n_a("a ratio; bench_summary pools case means only")
-        for _, _, key in METRICS
-    ]  # fmt: skip
-    counts = [n_a("pooled rows report the per-system counts above")] * width(per_seed)
+POOLED_COUNTS = "pooled rows report the per-system counts above"
+
+
+def _pooled_value(res: Results, bench: str, method: str, entry: str, key: str, kind: str | None) -> Cell:
+    if (why := res.why(method)) is not None:
+        return cells.not_run(why)
+    if key in GROUP_COUNTS:
+        return n_a(POOLED_COUNTS)
+    if kind in SLATELESS and entry in SLATE_ENTRIES:
+        return n_a(NO_SLATE)
+    if key in ("rerank_at_1", "lift_at_1"):
+        return no_value(NO_POOLED_RATIO)
+    if entry == "onset_error":
+        return no_value(NO_POOLED_ONSET)
+    return _why_missing(res.pooled(bench, method, key), entry, key, kind)
+
+
+def _pooled_row(
+    res: Results, bench: str, method: str, per_seed: bool, metrics: Sequence[Metric], kind: str | None
+) -> Row:
+    values = [_pooled_value(res, bench, method, entry, key, kind) for _, entry, key in metrics]
+    counts = [n_a(POOLED_COUNTS)] * width(per_seed)
     return Row((cells.text(POOLED), cells.text(method), *values, *counts), res)
 
 
@@ -195,20 +284,31 @@ def accuracy_table(
     """Per system: the floors (chance, prior-only from `prior_id`, the FLOORS baselines the
     experiment lacks from `base_id`), then every method of the experiment; then the pooled rows."""
     exp, res = ctx.spec(experiment_id), ctx.get(experiment_id)
-    ids, arms = methods(exp), seeded(exp)
+    ids, arms, known = methods(exp), seeded(exp), kinds(exp)
+    metrics = (*METRICS, *ONSET) if exp.protocol.alert == DETECTED else METRICS
+    other_alert = prior_id is not None and ctx.spec(prior_id).protocol.alert != exp.protocol.alert
+    prior = ctx.get(prior_id) if prior_id is not None else None
     rows: list[Row] = []
     for part in exp.dataset.parts:
-        lines = floor_lines(ctx, experiment_id, part, METRICS, prior=prior_id, base=base_id, per_seed=True)
-        lines += [method_line(res, part, m, METRICS, seeds=m in arms, per_seed=True) for m in ids]
+        lines = floor_lines(ctx, experiment_id, part, metrics, prior=prior_id, base=base_id, per_seed=True)
+        lines += [
+            method_line(res, part, m, metrics, seeds=m in arms, per_seed=True, kind=known[m]) for m in ids
+        ]
         sys = cells.text(res.system_of(part))
-        rows += [Row((sys, cells.text(label), *body), src) for label, src, body in lines]
-    rows += [_pooled_row(res, exp.dataset.parts[0].split("-")[0], m, True) for m in ids]
+        for label, src, body in lines:
+            note = READS_NO_ALERT.format(prior=prior_id) if other_alert and src is prior else None
+            rows.append(Row((sys, Cell(label, note), *body), src))
+    bench = exp.dataset.parts[0].split("-")[0]
+    rows += [_pooled_row(res, bench, m, True, metrics, known[m]) for m in ids]
+    alert = f"; prior-only reads no alert, so its floor is the oracle run {prior_id}" if other_alert else ""
     caption = (
-        f"Protocol: {res.protocol}. AC@k on ranks_rcaeval (status ignored, 04 §7); 95% cluster-bootstrap "
-        "intervals in brackets; failed, timed-out and unranked runs count as misses; a seeded arm's group "
-        "pools its cases × seeds rows (04 §8)."
+        f"Protocol: {res.protocol}. AC@k on ranks_rcaeval (status ignored, 04 §7); fine AC@k over the "
+        "fault cases with an answer-key indicator (Fine cases); 95% cluster-bootstrap intervals in "
+        "brackets; failed, timed-out, no-alert, rejected and unranked runs count as misses; a seeded arm's "
+        f"group pools its cases × seeds rows (04 §8){alert}."
     )
-    return Table(name, title, caption, ("System", "Method", *columns(bool(arms))), tuple(rows), key=(0, 1))
+    cols = ("System", "Method", *columns(bool(arms), metrics=metrics))
+    return Table(name, title, caption, cols, tuple(rows), key=(0, 1))
 
 
 def accuracy(ctx: Context) -> list[Table]:
