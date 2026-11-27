@@ -19,6 +19,7 @@ into the experiment's sources.
 
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,6 +50,9 @@ REVISES, REASON = "revises", "reason"
 #: The 04 §12 row the register's revisions cite (2026-11-25, #532; the not_run.yaml comment above
 #: them). The register names no row per revision, so a revised experiment's cells name this one (R1).
 REVISION_ROW = "04 §12, 25 Nov"
+#: Why that row's revisions drop an arm of the pre-registered experiment (the 04 §12 row of
+#: 2026-11-25 and the YAML headers of its revisions), so a dropped arm cites the cut, not a gap (R1).
+REVISION_CUT = "cut for v1.0 for the LLM budget; #532, ADR 20261121-ak-r16-cut-list, addendum of 25 Nov"
 SUMMARY_VERSIONS = ("1.1.", "1.2.")  # the bench_summary minors the generator reads (03 §13.3)
 #: The reason of results in another bench_summary minor: they ran, so they are "not tabulated" (R5).
 OLD_FORMAT = (
@@ -149,6 +153,12 @@ class Rq3Intervals:
     resamples: int
     intervals: dict[tuple[str, str], tuple[float, float, float]]
     hashes: tuple[tuple[str, str], ...]  # (rq3-intervals/<id>/<file>, sha256) in RQ3_FILES order
+    #: The literal 04 §5.4 τ_nf sensitivity analysis (04 §12 row of 2026-11-21, logged 26 Nov): its
+    #: rates as (scope, metric) -> (estimate, low, high), and each held-out fold's fit, sorted by fold.
+    literal: dict[tuple[str, str], tuple[float, float, float]] = field(
+        default_factory=dict[tuple[str, str], tuple[float, float, float]]
+    )
+    held_out: tuple[tuple[str, dict[str, object]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -206,7 +216,7 @@ class Results:
         if self.reason is None:
             return None
         if method is not None and self.revision_methods is not None and method not in self.revision_methods:
-            return f"{self.reason}; the revision does not run {method}"
+            return f"{self.reason}; the revision does not run {method} ({REVISION_CUT})"
         return self.reason
 
     @property
@@ -300,6 +310,14 @@ class Results:
         if value is not None and abs(estimate - value) > RQ3_TOLERANCE:
             raise ConfigError(f"{self.rq3.name}: {scope} {key} {estimate!r} is not summary.json's {value!r}")
         return low, high
+
+    def side_bounds(self, scope: str, key: str) -> tuple[float, float, float] | None:
+        """(estimate, low, high) of a quantity only rq3-intervals has (e.g. `aurc_difference`, the
+        H3c difference V − F) in `scope`, a system or "pooled"; None without that entry."""
+        if self.rq3 is None or (found := self.rq3.intervals.get((scope, key))) is None:
+            return None
+        self._rq3(scope, key, None)  # the file is for the experiment's one method
+        return found
 
     def point(self, dataset: str, system: str, method: str, entry: str, key: str) -> Point:
         """`metrics[entry][key]` of one group with its interval bounds, for a figure; a value without
@@ -482,7 +500,7 @@ def _bounds(name: str, scope: str, metric: str, entry: object) -> tuple[float, f
     )
     nums = [float(v) for v in got if isinstance(v, int | float) and not isinstance(v, bool)]
     if len(nums) != 3:
-        raise ConfigError(f"{name}: intervals.{scope}.{metric} needs numeric estimate, low and high")
+        raise ConfigError(f"{name}: {scope}.{metric} needs numeric estimate, low and high")
     return nums[0], nums[1], nums[2]
 
 
@@ -498,14 +516,36 @@ def load_rq3(results_root: Path, experiment_id: str) -> Rq3Intervals | None:
     level, resamples, scopes = data.get("level"), data.get("resamples"), data.get("intervals")
     if not isinstance(level, float) or not isinstance(resamples, int) or not isinstance(scopes, dict):
         raise ConfigError(f"{name}/{RQ3_FILES[1]} needs level, resamples and intervals")
-    intervals: dict[tuple[str, str], tuple[float, float, float]] = {}
-    for scope, metrics in sorted(cast(dict[str, object], scopes).items()):
-        if not isinstance(metrics, dict):
-            raise ConfigError(f"{name}: intervals.{scope} is not an object")
-        for metric, entry in sorted(cast(dict[str, object], metrics).items()):
-            intervals[(scope, metric)] = _bounds(name, scope, metric, entry)
+    intervals = _scopes(name, "intervals", cast(dict[str, object], scopes))
+    literal: dict[tuple[str, str], tuple[float, float, float]] = {}
+    held_out: list[tuple[str, dict[str, object]]] = []
+    if (sens := data.get(LITERAL)) is not None:
+        if not isinstance(sens, dict) or not isinstance(folds := sens.get(HELD_OUT), dict):
+            raise ConfigError(f"{name}: {LITERAL} needs a {HELD_OUT} object")
+        rates = {k: v for k, v in cast(dict[str, object], sens).items() if k != HELD_OUT}
+        literal = _scopes(name, LITERAL, rates)
+        for fold, fit in sorted(cast(dict[str, object], folds).items()):
+            if not isinstance(fit, dict):
+                raise ConfigError(f"{name}: {LITERAL}.{HELD_OUT}.{fold} is not an object")
+            held_out.append((fold, {str(k): v for k, v in cast(dict[object, object], fit).items()}))
     hashes = tuple((f"{name}/{f}", sha256_file(out / f)) for f in RQ3_FILES)
-    return Rq3Intervals(name, level, resamples, intervals, hashes)
+    return Rq3Intervals(name, level, resamples, intervals, hashes, literal, tuple(held_out))
+
+
+LITERAL, HELD_OUT = "literal_tau_sensitivity", "held_out_fold"  # rq3-intervals summary.json (#555)
+
+
+def _scopes(
+    name: str, where: str, scopes: dict[str, object]
+) -> dict[tuple[str, str], tuple[float, float, float]]:
+    """(scope, metric) -> (estimate, low, high) of an rq3-intervals `{scope: {metric: interval}}`."""
+    out: dict[tuple[str, str], tuple[float, float, float]] = {}
+    for scope, metrics in sorted(scopes.items()):
+        if not isinstance(metrics, dict):
+            raise ConfigError(f"{name}: {where}.{scope} is not an object")
+        for metric, entry in sorted(cast(dict[str, object], metrics).items()):
+            out[(scope, metric)] = _bounds(name, f"{where}.{scope}", metric, entry)
+    return out
 
 
 REPLAY_ROLES = ("recording", "second-laptop", "ci")  # bench/results/replay/<role>/ (03 §13.5-§13.6)
@@ -537,3 +577,45 @@ def load_replay(results_root: Path, role: str) -> Replay:
         f", {s.ci_run_url}" if s.ci_run_url else ""
     )
     return Replay(Results(name, commit=summary.code.commit, hashes=hashes, protocol=where, path=out), summary)
+
+
+AI_COST_DIR = "rq5-ai-cost"  # bench/results/rq5-ai-cost/ (scripts/rq5_ai_cost.py): recorded model cost
+
+
+@dataclass(frozen=True)
+class AiCost:
+    """`rq5-ai-cost/summary.json`: the AI path's recorded model time and tokens per system (R4),
+    read from the recording of `experiment_id`'s AI arms (`origin`, as the file names it)."""
+
+    experiment_id: str
+    origin: str
+    systems: dict[str, dict[str, object]]
+
+
+def load_ai_cost(folder: Path) -> AiCost:
+    """The parsed `summary.json` of an rq5-ai-cost folder; a malformed file is an error."""
+    name = f"{AI_COST_DIR}/{SUMMARY}"
+    data = _json_object(folder / SUMMARY, name)
+    eid, origin, systems = data.get("experiment_id"), data.get("source"), data.get("systems")
+    if not isinstance(eid, str) or not isinstance(origin, str) or not isinstance(systems, dict):
+        raise ConfigError(f"{name} needs experiment_id, source and systems")
+    out: dict[str, dict[str, object]] = {}
+    for system, entry in sorted(cast(dict[str, object], systems).items()):
+        if not isinstance(entry, dict):
+            raise ConfigError(f"{name}: systems.{system} is not an object")
+        out[system] = {str(k): v for k, v in cast(dict[object, object], entry).items()}
+    return AiCost(eid, origin, out)
+
+
+PERF_DIR = "perf-o11"  # bench/results/perf-o11/ (O-11, #36): pipeline time and memory per case
+PERF_COLUMNS = ("case", "system", "pass", "outcome", "wall_ms", "peak_rss_mb")  # then one `<step>_ms` each
+
+
+def load_perf(path: Path) -> tuple[tuple[str, ...], list[dict[str, str]]]:
+    """A perf-o11 CSV as (its step columns, its rows); a file without the PERF_COLUMNS is an error."""
+    rows = list(csv.DictReader(textio.read_text(path).splitlines()))
+    header = tuple(rows[0]) if rows else ()
+    if not set(PERF_COLUMNS) <= set(header):
+        raise ConfigError(f"{PERF_DIR}/{path.name} needs the columns {', '.join(PERF_COLUMNS)}")
+    steps = tuple(c for c in header if c not in PERF_COLUMNS and c.endswith("_ms"))
+    return steps, rows

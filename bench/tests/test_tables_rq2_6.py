@@ -55,8 +55,9 @@ def test_the_1_2_entries_render_with_their_reasons(files: dict[str, str], result
     )
     bare = re.sub(r"<sup>\d+</sup>", "", row)  # rates without an interval carry a note (R3)
     assert (
-        "| 0.875 | -0.025 | 1.000 | 1.500 | 0.500 | 0.250 | 0.375 | 0.250 | 0.000 |" in bare
-    )  # coverage … wrong NO_FAULT
+        "| 0.875 | -0.025 | 1.000 | 1.500 | 1.000 | 0.500 | 0.250 | 0.375 | no value | 0.250 | 0.000 "
+        "| 1.000 | 0.750 | 8 | 8 | 0 | none | 4 |" in bare
+    )  # coverage … NO_FAULT recall, then the runs (V − F: no rq3-intervals file in the fixture)
     assert "no committed results in bench/results" in t7  # loso did not run: its own reason wins
     assert "alpha 0.1 (each experiment's calibration.alpha" in t7 and NO_ENTRY.format("coverage") not in t7
     arms = files["tables/t06d-rq2-proposal-arms.md"]

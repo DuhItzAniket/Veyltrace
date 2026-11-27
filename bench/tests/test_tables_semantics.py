@@ -26,6 +26,7 @@ from veyltrace_bench.tables.render import Row, Table
 from veyltrace_bench.tables.results import (
     NO_INTERVAL,
     OLD_FORMAT,
+    REVISION_CUT,
     UNLISTED,
     load,
     load_rq3,
@@ -40,6 +41,7 @@ EXPERIMENTS = BENCH / "experiments"
 FIXTURES = BENCH / "tests" / "fixtures" / "tables"
 RQ3, OFF = "re2-oracle-rq3-v1", "re2-oracle-rq3-off-v1"
 REVISED = f"revised as {OFF} (04 §12, 25 Nov)"
+DROPPED = f"{REVISED}; the revision does not run veyltrace:brief ({REVISION_CUT})"  # the cut arm (R1)
 
 
 @pytest.fixture
@@ -99,7 +101,8 @@ def test_a_revised_experiment_reads_revised_not_not_run(results: Path) -> None:
     off = pre.metric("re2-ob", "ob", "veyltrace:off", "ac_at_k", "ac_at_1")
     assert off == cells.Cell(cells.REVISED, REVISED)
     brief = pre.metric("re2-ob", "ob", "veyltrace:brief", "ac_at_k", "ac_at_1")
-    assert brief == cells.Cell(cells.REVISED, f"{REVISED}; the revision does not run veyltrace:brief")
+    assert brief == cells.Cell(cells.REVISED, DROPPED)
+    assert "LLM budget; #532, ADR 20261121-ak-r16-cut-list, addendum of 25 Nov" in DROPPED  # gap 34
     assert pre.pooled("re2", "veyltrace:off", "ac_at_1").text == cells.REVISED
     files = generate.outputs(results, EXPERIMENTS)
     t7 = files["tables/t07-rq3-calibration.md"].decode()
@@ -110,7 +113,8 @@ def test_a_revised_experiment_reads_revised_not_not_run(results: Path) -> None:
 
 def test_the_revision_rows_are_paired_once(results: Path) -> None:
     """generate.paired inserts the rows that stand in for the pre-registered id, not the
-    revision's own rows, although both now carry the role "revises <id>"."""
+    revision's own rows, although both now carry the role "revises <id>"; and the revision's own
+    row under its own id is left out, since the stand-in prints the same values (gap 35)."""
     _revise(results)
     ctx = context.context(results, EXPERIMENTS)
 
@@ -123,8 +127,13 @@ def test_the_revision_rows_are_paired_once(results: Path) -> None:
     assert got == [
         (RQ3, f"{RQ3} (pre-registered; revised as {OFF})"),
         (RQ3, f"{OFF} @ fixture (revises {RQ3})"),
-        (OFF, f"{OFF} @ fixture (revises {RQ3})"),
     ]
+
+    def alone(c: context.Context) -> list[Table]:  # a table citing the revision only by its own id
+        return [Table("t", "T", "c", ("Id",), (Row((cells.text(OFF),), c.get(OFF)),))]
+
+    (table,) = generate.paired(alone, ctx)
+    assert [r.cells[0].text for r in table.rows] == [OFF]  # kept: nothing stands in for it
 
 
 def test_figures_pair_a_revision_like_the_tables(results: Path) -> None:
@@ -135,7 +144,7 @@ def test_figures_pair_a_revision_like_the_tables(results: Path) -> None:
     assert [(r["series"], r["experiment"], r["status"]) for r in ob] == [
         ("veyltrace:off", RQ3, REVISED),
         ("veyltrace:off", OFF, "ok"),  # right after the pre-registered point it replaces
-        ("veyltrace:brief", RQ3, f"{REVISED}; the revision does not run veyltrace:brief"),
+        ("veyltrace:brief", RQ3, DROPPED),
     ]
     assert (ob[1]["value"], ob[1]["low"], ob[1]["high"]) == ("0.25", "0.125", "0.5")  # rq3-intervals
     fused = next(r for r in rows if r["panel"] == "ob" and r["x"] == "AURC fused" and r["experiment"] == OFF)

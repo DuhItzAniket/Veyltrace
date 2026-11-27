@@ -16,11 +16,12 @@ import io
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from veyltrace_bench.tables import svg
+from veyltrace_bench.tables import cells, svg
 from veyltrace_bench.tables.context import Context
-from veyltrace_bench.tables.results import NO_INTERVAL, Point, Results
-from veyltrace_bench.tables.rq1 import methods
+from veyltrace_bench.tables.results import NO_INTERVAL, UNLISTED, Point, Results
+from veyltrace_bench.tables.rq1 import NO_VALUE, methods
 from veyltrace_bench.tables.rq4 import BRIEF, RQ1, brief_zero, decoy_point, perturbed
+from veyltrace_bench.tables.rq23 import DIFFERENCE, NO_DIFFERENCE, RISK
 
 FIGURES_DIR = "figures"
 CSV_COLUMNS = ("panel", "series", "x", "value", "low", "high", "status", "experiment", "commit", "source")
@@ -98,15 +99,19 @@ def paired(rows_of: Rows, ctx: Context) -> list[Datum]:
     """`rows_of`'s data and, for each 04 §12 revision (sorted by id), the data of a pass on
     Context.revised that stand in for the experiment it revises, each right after the last
     pre-registered datum with the same (panel, series, x); a revised datum without that key goes at
-    the end (as generate.paired does for table rows)."""
+    the end, and the revision's own data under its own id are left out (as generate.paired does for
+    table rows)."""
     rows = rows_of(ctx)
     if not ctx.revises:
         return rows
     revised: dict[tuple[str, str, str], list[Datum]] = {}
+    replaced: set[str] = set()
     for new in sorted(ctx.revises):
         for d in rows_of(ctx.revised(new)):
             if d.source.stands_in_for is not None:
                 revised.setdefault(_key(d), []).append(d)
+                replaced.add(new)
+    rows = [d for d in rows if d.source.stands_in_for is not None or d.source.experiment_id not in replaced]
     last = {_key(d): n for n, d in enumerate(rows)}
     out: list[Datum] = []
     for n, d in enumerate(rows):
@@ -172,9 +177,10 @@ def draw7(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
 
 
 def _heatmaps(
-    name: str, title: str, rows: list[Datum], cols: Sequence[str] | None = None
+    name: str, title: str, rows: list[Datum], cols: Sequence[str] | None = None, extra: str = ""
 ) -> dict[str, bytes]:
-    """A heatmap per panel of the data's values: a row per series label, a column per x."""
+    """A heatmap per panel of the data's values: a row per series label, a column per x; `extra`
+    is appended to each panel's note."""
     files = {f"{name}.csv": to_csv(rows)}
     labels = list(dict.fromkeys(_label(d) for d in rows))
     xs = list(cols) if cols is not None else list(dict.fromkeys(d.x for d in rows))
@@ -183,7 +189,7 @@ def _heatmaps(
         found = {(_label(d), d.x): d.point.value for d in mine}
         values = [[found.get((r, c)) for c in xs] for r in labels]
         files[f"{name}-{panel}.svg"] = svg.heatmap(
-            f"{title}{panel.upper()}", labels, xs, values, _note(mine)
+            f"{title}{panel.upper()}", labels, xs, values, _note(mine) + extra
         ).encode()
     return files
 
@@ -220,19 +226,48 @@ def draw9(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
 
 
 FIG6 = (("AURC verifier", ("risk_coverage", "aurc_verdict")), ("AURC fused", ("risk_coverage", "aurc_fused")))
+DIFF6 = "AURC V − F"  # H3c's difference, below 0 favours V: only rq3-intervals has it (R4)
+#: Why Fig 6 shows areas, not curves: no committed summary holds a curve (R3: no new statistics).
+NO_CURVES = (
+    "; curves not drawn: summary.json keeps the areas only, and the tables compute no curve from "
+    "rq3-intervals rows.csv (R3)"
+)
+
+
+def _difference(ctx: Context, eid: str, method: str) -> list[Datum]:
+    """AURC V − F per system with its rq3-intervals interval, or why it has none."""
+    res, exp = ctx.get(eid), ctx.spec(eid)
+    out: list[Datum] = []
+    for part in exp.dataset.parts:
+        sys = res.system_of(part)
+        if (why := res.missing(part, sys, method)) is not None:
+            point = Point(None, status=cells.not_run(why).note or "")
+        elif RISK not in exp.metrics:
+            point = Point(None, status=cells.not_applicable(UNLISTED.format(RISK)).note or "")
+        elif (found := res.side_bounds(sys, DIFFERENCE)) is None:
+            point = Point(None, status=f"{NO_VALUE}: {NO_DIFFERENCE}")
+        else:
+            point = Point(*found)
+        out.append(Datum(sys, method, DIFF6, point, res))
+    return out
 
 
 def rows6(ctx: Context) -> list[Datum]:
     """Fig 6's data: AURC of V and of F per method and RE2 system (bench_summary 1.2
-    `risk_coverage`, 03 §13.3), with the rq3-intervals bounds where committed (R3)."""
-    return [d for m in methods(ctx.spec(RQ3)) for c, ek in FIG6 for d in data(ctx, RQ3, m, ek, m, c)]
+    `risk_coverage`, 03 §13.3), with the rq3-intervals bounds where committed (R3), and their
+    difference V − F (H3c) from rq3-intervals."""
+    return [
+        d
+        for m in methods(ctx.spec(RQ3))
+        for d in [*(d for c, ek in FIG6 for d in data(ctx, RQ3, m, ek, m, c)), *_difference(ctx, RQ3, m)]
+    ]
 
 
 def draw6(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
-    """Fig 6 (H3c): AURC of the verified score V against the fused score F (lower is better).
-    bench_summary keeps the areas, not the curves, so the figure shows the two areas side by side."""
+    """Fig 6 (H3c): AURC of the verified score V against the fused score F (lower is better), and
+    V − F. bench_summary keeps the areas, not the curves, so the figure shows the areas side by side."""
     title = "Fig. 6: risk-coverage AURC, verifier vs fused score, RE2-"
-    return _heatmaps("fig6-risk-coverage", title, rows, [c for c, _ in FIG6])
+    return _heatmaps("fig6-risk-coverage", title, rows, [*(c for c, _ in FIG6), DIFF6], NO_CURVES)
 
 
 FIGURES: tuple[tuple[Rows, Draw], ...] = (
