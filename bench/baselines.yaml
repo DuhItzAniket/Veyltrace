@@ -49,6 +49,8 @@ rcaeval:
     re3-ob: {id: re3-ob, path: data/RE3/RE3-OB}      # RCAEval's own RE3 ids (datasets.py, pinned commit)
     re3-ss: {id: re3-ss, path: data/RE3/RE3-SS}
     re3-tt: {id: re3-tt, path: data/RE3/RE3-TT}
-    nezha-ob: {id: re2-ob, path: data/Nezha/Nezha-OB}  # RCAEval has no Nezha id: as synth, preprocess() is id-independent
-    nezha-tt: {id: re2-tt, path: data/Nezha/Nezha-TT}
+    # RCAEval has no Nezha id: as synth, borrow an RE2 id, and the path must be that id's DATASET_MAP
+    # directory, since main.py reads only DATASET_MAP[id] and downloads RE2 there when it is missing.
+    nezha-ob: {id: re2-ob, path: data/RE2/RE2-OB}
+    nezha-tt: {id: re2-tt, path: data/RE2/RE2-TT}
   report_decomposition: 5   # --report-decomposition K: Retrieval@5 and Rerank@1, as Avg@5's depth
