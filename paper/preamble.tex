@@ -2,6 +2,7 @@
 \usepackage{xspace}
 \usepackage{tabularx}
 \usepackage{url}
+\usepackage{tikz}  % generated figures: scripts/paper_generated.py writes R-17's SVG panels as TikZ
 % \vtkey prints an experiment id or selector in sans serif, breakable at / , : . - _
 \DeclareUrlCommand\vtkey{\urlstyle{sf}\def\UrlBreaks{\do\/\do\,\do\:\do\.\do\-\do\_}}
 
@@ -25,10 +26,11 @@
 \newcommand{\leadq}[1]{\textcolor{blue}{[Open for the lead: #1]}}
 
 % ---------------------------------------------------------------- generated numbers
-% \resnum{<experiment_id>}{<selector>} prints a result number once the generator
-% defines it with \defresnum{<experiment_id>}{<selector>}{<value>} in
-% generated/numbers.tex; until then it prints a red blank naming its source.
-% No number in the paper is typed by hand (docs/11 §10, AGENTS.md §4.8).
+% \resnum{<experiment_id>}{<selector>} prints a result number once
+% scripts/paper_generated.py defines it with \defresnum{<experiment_id>}{<selector>}{<value>}
+% in generated/numbers.tex; until then it prints a red blank naming its source.
+% No number in the paper is typed by hand (docs/11 §10, AGENTS.md §4.8). README.md
+% defines the selector grammar and the formats.
 \makeatletter
 \newcommand{\defresnum}[3]{\expandafter\def\csname vt@num@\detokenize{#1|#2}\endcsname{#3}}
 \newcommand{\resnum}[2]{%
@@ -44,7 +46,8 @@
 % \resulttable[*]{<label>}{<caption>}{<experiment ids>}{<name>} inputs generated/<name>.tex,
 % the copy of R-17's bench/results/tables/<name>.tex, inside the paper's own float: R-17's
 % table float, caption and label are unwrapped, its notes and source lines kept, and its
-% caption printed below them. \resultfigure inputs generated/<name>.pdf. Until a file
+% caption printed below them. \resultfigure inputs generated/<name>.tex (R-17's SVG panels
+% as TikZ, written by scripts/paper_generated.py), else generated/<name>.pdf. Until a file
 % exists, a placeholder names the experiments and R-17's output.
 \makeatletter
 \newcommand{\vt@placeholder}[3]{% kind, experiment ids, where R-17 writes it (sans serif, so long ids break at hyphens)
@@ -65,10 +68,27 @@
   \caption{#3}\label{#2}
   \IfFileExists{generated/#5.tex}{\vt@inputgenerated{generated/#5.tex}}{\vt@placeholder{table}{#4}{\textsf{bench/results/tables/\detokenize{#5}.\{md,tex\}}, copied to \textsf{paper/generated/\detokenize{#5}.tex}}}
   \IfBooleanTF{#1}{\end{table*}}{\end{table}}}
+% A generated figure file is \vtfigpanels{<n>} followed by one \vtfigpanel{<tikzpicture>} per
+% SVG panel, drawn at 1 px = 1 pt and scaled as a whole (text included, as an SVG viewer
+% scales it). Panels sit \vt@perrow to a row: 2 in a starred figure, 1 (stacked) otherwise,
+% so a three-panel figure* takes two rows and fits the text height.
+\newcount\vt@perrow
+\newcount\vt@inrow
+\newlength{\vt@panelw}
+\newcommand{\vtfigpanels}[1]{%
+  \vt@inrow=0
+  \ifnum#1<\vt@perrow \vt@perrow=#1\relax\fi
+  \setlength{\vt@panelw}{\dimexpr(\linewidth-1em*\numexpr\vt@perrow-1\relax)/\vt@perrow\relax}}
+\newcommand{\vtfigpanel}[1]{%
+  \ifnum\vt@inrow=\vt@perrow \par\medskip\vt@inrow=0 \fi
+  \ifnum\vt@inrow>0 \hfill\fi
+  \advance\vt@inrow by 1
+  \resizebox{\vt@panelw}{!}{#1}}
 \NewDocumentCommand{\resultfigure}{s m m m m}{%
-  \IfBooleanTF{#1}{\begin{figure*}[t]}{\begin{figure}[t]}
+  \IfBooleanTF{#1}{\begin{figure*}[t]\vt@perrow=2 }{\begin{figure}[t]\vt@perrow=1 }
   \centering
-  \IfFileExists{generated/#5.pdf}{\includegraphics[width=\linewidth]{generated/#5.pdf}}{\vt@placeholder{figure}{#4}{\textsf{bench/results/figures/\detokenize{#5}.csv} and \textsf{\detokenize{#5}[-\textless panel\textgreater].svg}, to become \textsf{paper/generated/\detokenize{#5}.pdf} (conversion not decided)}}
+  \IfFileExists{generated/#5.tex}{\input{generated/#5.tex}\par}{%
+    \IfFileExists{generated/#5.pdf}{\includegraphics[width=\linewidth]{generated/#5.pdf}}{\vt@placeholder{figure}{#4}{\textsf{bench/results/figures/\detokenize{#5}.csv} and \textsf{\detokenize{#5}[-\textless panel\textgreater].svg}, drawn as TikZ in \textsf{paper/generated/\detokenize{#5}.tex} by \textsf{scripts/paper\_generated.py}}}}
   \caption{#3}\label{#2}
   \IfBooleanTF{#1}{\end{figure*}}{\end{figure}}}
 % \diagram[*]{<label>}{<caption>}{<name>}{<what to draw>}: hand-drawn figures live in

@@ -1,2 +1,4 @@
 # LaTeX build output: latexmkrc writes everything, including main.pdf, to build/
 build/
+# Written by scripts/paper_generated.py from committed bench/results (README.md, "Build"); never committed
+generated/
