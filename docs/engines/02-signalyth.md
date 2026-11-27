@@ -55,7 +55,7 @@ Count-type series (`rps`, `log_rate`, `log_error_rate`, `tmpl:*`) are **zero-fil
 
 ### 3.2 Metrics
 
-1. **Map name → signal, family, klass** with the first matching rule (case-insensitive regex on `name`). The table is config (`metrics.family_rules`): each rule is `{pattern, signal, family, klass}` with optional `exact` (the raw name that keeps itself as the signal) and `quantile`; `signal: "{name}"` means the sanitised raw name, and the last rule must match everything. Defaults:
+1. **Map name → signal, family, klass** with the first matching rule (case-insensitive regex on `name`). The table is config (`metrics.family_rules`): each rule is `{pattern, signal, family, klass}` with optional `exact` (the raw name that keeps itself as the signal) and `quantile`; `signal: "{name}"` means the sanitised raw name, and the last rule must match everything. That is not checked when the config loads: a metric name that no rule matches raises `ValueError` at run time (`metrics.py`, `classify`). Defaults:
 
 | # | Pattern on `name` | `signal` | `family` | `klass` |
 |---|---|---|---|---|
@@ -255,7 +255,7 @@ charge(s, x, y): add (y - x) to self(svc(s)) if s is not client-like, else to ga
 
 ## 8. Performance budget
 
-Per RE2 case: ≤ 10 s and ≤ 1.5 GB peak RSS (*estimate*, allocation of the 30 s / 3 GB budget). Drivers: RE2-TT spans (median ≈ 778k, max 1.54 M per case) and logs (median ≈ 268k lines) ([rcaeval_facts §Metric step and windows][rf-step]). Mining runs on distinct masked messages only, expected to be hundreds to low thousands per case (*estimate*, [rcaeval_facts §Engineering][rf-eng]). Critical path is the hot loop. Measured for O-11 (#36, 23 Nov 2026, Apple M4, one RE2-TT case with 1.14 M spans and no logs, AI off): the Signalyth step takes 6.6 s, most of it in the critical-path walk, and adds about 0.9 GB to the process's peak RSS. That is one case on a fast machine; the slowest-laptop measurement is open. Any change to `cp.max_traces_per_window` is v1.1 work and needs an ADR.
+Per RE2 case: ≤ 10 s and ≤ 1.5 GB peak RSS (*estimate*, allocation of the 30 s / 3 GB budget). Drivers: RE2-TT spans (median ≈ 778k, max 1.54 M per case) and logs (median ≈ 268k lines) ([rcaeval_facts §Metric step and windows][rf-step]). Mining runs on distinct masked messages only, expected to be hundreds to low thousands per case (*estimate*, [rcaeval_facts §Engineering][rf-eng]). Critical path is the hot loop. Measured for O-11 (#36, 23 Nov 2026, M-series Mac, 10 cores, one RE2-TT case with 1.14 M spans and no logs, AI off, warm cache): the Signalyth step takes 6.6 s, the warm per-step figure, most of it in the critical-path walk, and adds about 0.9 GB to the process's peak RSS. That is one case on a fast machine. On the slowest laptop (i5-1135G7; 10 RE2-TT cases, warm pass, 26 Nov 2026) the per-case rows are in `bench/results/perf-o11/i5-1135g7.csv` (column `signalyth_ms`); O-11's result and the v1.1 follow-up are #36 and #540. Any change to `cp.max_traces_per_window` is v1.1 work and needs an ADR.
 
 ## 9. Evaluation hooks and ablations
 
