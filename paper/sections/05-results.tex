@@ -16,7 +16,7 @@ Every pre-registered experiment appears in the results index (Table~\ref{tab:ind
 
 \resulttable*{tab:rq1}{RQ1 accuracy on RE2 under the oracle alert, per system: AC@1, AC@3 and AC@5 with 95\% cluster-bootstrap intervals and Rerank@1, for the floors (chance, \code{prior-only}), the reproduced baselines (N-Sigma, BARO, alert counting), each Causatrix ranker alone, the fused slate and \code{veyltrace:off}; Table~\ref{tab:rq1-full} has every metric.}{re2-oracle-rq1-v1, re2-oracle-prior-only-v1}{t05-rq1-re2-oracle}
 
-\resulttable{tab:rq1cmp}{RQ1 paired comparisons of \code{veyltrace:off} with the best reproduced simple baseline (H1a per system, H1b pooled): difference in AC@1, 95\% cluster-bootstrap interval, sign-flip and McNemar $p$, Holm-adjusted within family \code{rq1}.}{re2-oracle-rq1-v1}{t05c-rq1-comparisons}
+\resulttable{tab:rq1cmp}{RQ1 paired comparisons of \code{veyltrace:off} with the best reproduced simple baseline (H1a per system, H1b pooled): difference in AC@1, 95\% cluster-bootstrap interval, sign-flip $p$ and its Holm adjustment within family \code{rq1}; Table~\ref{tab:rq1cmp-full} adds McNemar $p$.}{re2-oracle-rq1-v1}{t05c-rq1-comparisons}
 
 Tables~\ref{tab:rq1} and~\ref{tab:rq1cmp} report accuracy per system.
 The comparison is with the best reproduced simple baseline as defined in \S\ref{sec:baselines}; the floors are shown beside it, not compared.
