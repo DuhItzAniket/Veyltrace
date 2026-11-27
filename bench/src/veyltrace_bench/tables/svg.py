@@ -88,7 +88,7 @@ def lines(
     return _frame(title, body)
 
 
-NO_VALUE = "no value"  # a heatmap cell without a value (R1: "not run" only for a cut experiment)
+NO_VALUE = "no value"  # a heatmap cell without a value ("not run" only for a cut experiment, 04 §10.8)
 
 
 def heatmap(
@@ -97,9 +97,11 @@ def heatmap(
     columns: Sequence[str],
     values: Sequence[Sequence[float | None]],
     note: str,
+    missing: Sequence[Sequence[str]] | None = None,
 ) -> str:
     """A [0, 1] heatmap (white to blue) with each value printed in its cell; a None cell is grey
-    and reads "no value" (the CSV status says why: revised, not run or undefined), never the colour of 0."""
+    and reads its word in `missing` (n/a, not run, revised; "no value" by default; the CSV status
+    says why), never the colour of 0."""
     left, top, bottom, right = MARGIN
     w, h = (WIDTH - left - right) / max(1, len(columns)), (HEIGHT - top - bottom) / max(1, len(rows))
     body = [_text(left + w * (j + 0.5), top + h * len(rows) + 16, col) for j, col in enumerate(columns)]
@@ -110,9 +112,8 @@ def heatmap(
             t = 0.0 if v is None else min(1.0, max(0.0, v))  # colour scale clamped to [0, 1]
             fill = MISSING if v is None else f"#{255 - round(200 * t):02x}{255 - round(150 * t):02x}ff"
             body.append(_el("rect", x=x, y=y, width=w, height=h, fill=fill, stroke="#fff"))
-            body.append(
-                _text(x + w / 2, y + h / 2 + 4, NO_VALUE if v is None else fixed(v))
-            )  # tables' rounding
+            word = missing[i][j] if missing is not None else NO_VALUE
+            body.append(_text(x + w / 2, y + h / 2 + 4, word if v is None else fixed(v)))  # tables' rounding
     body.append(_text(left, HEIGHT - 6, note, "start", ' fill="#555"'))
     return _frame(title, body)
 
@@ -123,7 +124,7 @@ LINE_PX = 15  # a priori: line spacing of the wrapped reason
 
 def placeholder(title: str, reason: str) -> str:
     """A figure that cannot be drawn: its title and the reason, as given (the caller says whether it
-    is "not run" or has no data, lead rule R7), wrapped so the paper shows the whole gap."""
+    is "not run" or has no data), wrapped so the paper shows the whole gap."""
     lines = textwrap.wrap(reason, PLACEHOLDER_CHARS)
     body = [_text(WIDTH / 2, HEIGHT / 2, title)]
     body += [_text(WIDTH / 2, HEIGHT / 2 + 18 + LINE_PX * i, line) for i, line in enumerate(lines)]

@@ -59,11 +59,11 @@ ONSET: tuple[Metric, ...] = (
 GROUP_COUNTS = {"n_fine": "fine_ac_at_1"}
 DETECTED = "detected"
 #: Method kinds that build no Causatrix slate (RCAEval baselines, prior-only, SimpleRCA,
-#: naive-change), so the slate columns do not apply to them (R2).
+#: naive-change), so the slate columns do not apply to them.
 SLATELESS = frozenset({"rcaeval", "internal_baseline"})
 SLATE_ENTRIES = frozenset({"retrieval_at_k", "rerank_at_1"})
 NO_SLATE = "builds no slate, so Retrieval@K, pool retrieval and Rerank@1 do not apply (04 §7)"
-#: agent-only ranks the model's proposals, then the slate (04 §4): its ranking is not a slate (R2).
+#: agent-only ranks the model's proposals, then the slate (04 §4): its ranking is not a slate.
 NO_AGENT_SLATE = (
     "agent-only ranks the model's proposals before the slate (04 §4), so its ranking is not a slate and "
     "Retrieval@K, pool retrieval and Rerank@1 do not apply (04 §7)"
@@ -88,10 +88,10 @@ READS_NO_ALERT = (
 OUTCOMES = ("ok", "failed", "timeout", "no_alert", "rejected")  # 03 §13.2 run_outcome order
 AC_KEYS = frozenset(f"ac_at_{k}" for k in range(1, 6))  # the keys the chance floor has a counterpart for
 PER_SEED = "Per-seed AC@1 (mean ± SD)"
-#: A seeded arm ran, but no committed file has its per-seed values: "no value", not "not run" (R1, R3).
+#: A seeded arm ran, but no committed file has its per-seed values: "no value", not "not run".
 NO_PER_SEED = (
     "no per-seed value in the committed results: summary.json groups by dataset, system and method, "
-    "not by seed (03 §13.3), and the tables compute no new statistics (R3); 04 §8 asks for per-seed "
+    "not by seed (03 §13.3), and the tables compute no new statistics (04 §10.2); 04 §8 asks for per-seed "
     "values and their mean ± SD"
 )
 KIND_ORDER = ("rcaeval", "internal_baseline", "causatrix", "agent_only", "veyltrace")  # floors first
@@ -175,7 +175,7 @@ def no_value(note: str) -> Cell:
 
 
 def value_reason(cell: Cell, entry: str, key: str, kind: str | None) -> Cell:
-    """A slate cell without a value names why when the method's kind explains it (R2)."""
+    """A slate cell without a value names why when the method's kind explains it."""
     if cell.text != cells.UNDEFINED:
         return cell
     if kind in SLATELESS and entry in SLATE_ENTRIES:
@@ -265,13 +265,15 @@ def floor_lines(
 POOLED_COUNTS = "pooled rows report the per-system counts above"
 
 
-def _pooled_value(res: Results, bench: str, method: str, entry: str, key: str, kind: str | None) -> Cell:
+def pooled_value(res: Results, bench: str, method: str, entry: str, key: str, kind: str | None) -> Cell:
     if (why := res.why(method)) is not None:
         return cells.not_run(why)
     if key in GROUP_COUNTS:
         return n_a(POOLED_COUNTS)
     if kind in SLATELESS and entry in SLATE_ENTRIES:
         return n_a(NO_SLATE)
+    if kind == AGENT_ONLY and entry in SLATE_ENTRIES:  # n/a per system for the same reason
+        return n_a(NO_AGENT_SLATE)
     if key in ("rerank_at_1", "lift_at_1"):
         return no_value(NO_POOLED_RATIO)
     if entry == "onset_error":
@@ -283,7 +285,7 @@ def _pooled_row(
     res: Results, bench: str, method: str, per_seed: bool, metrics: Sequence[Metric], kind: str | None,
     seeds: bool = False,
 ) -> Row:  # fmt: skip
-    values = [_pooled_value(res, bench, method, entry, key, kind) for _, entry, key in metrics]
+    values = [pooled_value(res, bench, method, entry, key, kind) for _, entry, key in metrics]
     counts = [n_a(POOLED_COUNTS)] * width(per_seed)
     if per_seed and seeds:  # a pooled per-seed AC@1 is defined (04 §8): not a per-system count
         counts[0] = spread(res, None, method, seeds=seeds)
@@ -352,7 +354,7 @@ def accuracy(ctx: Context) -> list[Table]:
 def _windows(ctx: Context, part: str) -> tuple[Cell, Results | None]:
     """The normal-window count of a part, from the experiment that adds them (H2 of the review);
     when that experiment did not run but a 04 §12 revision of it did, from the revision, which
-    the cell names with what it revises (R1)."""
+    the cell names with what it revises."""
     bench = part.split("-", maxsplit=1)[0]
     if (eid := NORMAL_WINDOWS.get(bench)) is None:
         return n_a("this experiment adds no normal windows; no experiment adds them for this benchmark"), None

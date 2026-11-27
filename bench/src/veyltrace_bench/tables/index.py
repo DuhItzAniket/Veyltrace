@@ -2,11 +2,11 @@
 cell or marks it "not run" with a reason; 04 §10.8), and Table A2, the development cases, which no
 test table includes and which are reported separately (04 §1, §10.5).
 
-A0 lists every committed results folder (R4): the experiments, then the side results (RQ3
+A0 lists every committed results folder: the experiments, then the side results (RQ3
 intervals, replay sites, AI cost, Observe's performance sample), then the 04 §6 cells that only the
-register names or that nothing covers. "Not run" is kept for a cut experiment or cell (R1); a
+register names or that nothing covers. "Not run" is kept for a cut experiment or cell; a
 revised pre-registered experiment says which revision replaces it, and results in an older summary
-minor say they ran but are not tabulated (R5).
+minor say they ran but are not tabulated.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from veyltrace_bench.summary import METRIC_KEYS
 from veyltrace_bench.tables import cells
 from veyltrace_bench.tables.context import CELLS, DEV_CASES, Context, Side
 from veyltrace_bench.tables.render import Row, Table
-from veyltrace_bench.tables.results import ENTRY_OF, EXACT_SHARES, PER_CASE, Replay, Results
+from veyltrace_bench.tables.results import EXACT_SHARES, PER_CASE, REVISION_CUT, Replay, Results
 from veyltrace_contracts.models import SummaryGroupMetrics
 from veyltrace_core import io, textio
 from veyltrace_core.errors import ConfigError
@@ -69,22 +69,51 @@ def covered(exp: Experiment) -> set[str]:
     return {f"{row}/{col}" for col in cols}
 
 
+#: Keys of a summary entry that are not values with an interval: counts, the slate sizes K and the
+#: per-fold lists (03 §13.3).
+NOT_VALUES = frozenset({"retrieval_k", "by_fold"})
+
+
+def _short(keys: list[str]) -> str:
+    """An entry's keys without interval, in key order, `<stem>_at_<k>` keys of one stem joined
+    (`lift_at_1`, …, `lift_at_5` as `lift_at_1–5`; `ac_at_2`, `ac_at_4` as `ac_at_2,4`)."""
+    stems: dict[str, list[int]] = {}
+    for key in keys:
+        stem, _, k = key.rpartition("_at_")
+        stems.setdefault(stem if stem and k.isdigit() else key, []).extend([int(k)] if k.isdigit() else [])
+    out: list[str] = []
+    for stem, ks in stems.items():
+        if not ks:
+            out.append(stem)
+        elif len(ks) > 2 and ks == list(range(ks[0], ks[-1] + 1)):
+            out.append(f"{stem}_at_{ks[0]}–{ks[-1]}")
+        else:
+            out.append(f"{stem}_at_{','.join(map(str, ks))}")
+    return ", ".join(out)
+
+
 def _without_interval(res: Results) -> list[str]:
-    """The summary entries with a value in some group but no interval in any committed file
-    (summary.json, rq3-intervals; the shares the tables give an exact interval excepted), R3."""
+    """The summary entries with a value in some group whose key has no interval in any committed
+    file (summary.json, rq3-intervals; the shares the tables give an exact interval excepted, 04 §8).
+    Counted per key, so `lift` is listed for Lift@k although the AC@k − Chance@k of its entry has an
+    interval: an entry with only some keys without interval is listed as `<entry>: <those keys>`."""
     if res.summary is None or isinstance(stats := res.summary.statistics, str):
         return []
-    have = {ENTRY_OF.get(i.metric) for i in stats.intervals}
-    have |= {ENTRY_OF.get(metric) for _, metric in (res.rq3.intervals if res.rq3 else {})}
-    valued: set[str] = set()
+    have = {i.metric for i in stats.intervals}
+    have |= {metric for _, metric in (res.rq3.intervals if res.rq3 else {})}
+    valued: dict[str, set[str]] = {}
     for group in res.summary.groups:
         for entry in SummaryGroupMetrics.model_fields:
             if (values := getattr(group.metrics, entry)) is None:
                 continue
-            keys = [k for k in METRIC_KEYS.get(entry, ()) if not k.startswith("n_") and k != "retrieval_k"]
-            if any(getattr(values, k, None) is not None for k in keys):
-                valued.add(entry)
-    return sorted(valued - have - set(EXACT_SHARES))
+            keys = [k for k in METRIC_KEYS.get(entry, ()) if not k.startswith("n_") and k not in NOT_VALUES]
+            valued.setdefault(entry, set()).update(k for k in keys if getattr(values, k, None) is not None)
+    out: list[str] = []
+    for entry, keys in sorted(valued.items()):
+        bare = [k for k in METRIC_KEYS[entry] if k in keys - have - set(EXACT_SHARES)]
+        if bare:
+            out.append(entry if len(bare) == len(keys) else f"{entry}: {_short(bare)}")
+    return out
 
 
 def _plural(n: int, noun: str) -> str:
@@ -93,7 +122,7 @@ def _plural(n: int, noun: str) -> str:
 
 def _statistics(res: Results, status: cells.Cell) -> cells.Cell:
     """The summary's interval, comparison and not-run counts, the RQ3 intervals beside it, and the
-    metrics no committed file gives an interval (R3); `status` when there is no summary."""
+    metrics no committed file gives an interval; `status` when there is no summary."""
     if res.old is not None:
         found = res.old.statistics or "no statistics string"
         return cells.Cell("none", f"bench_summary {res.old.version} statistics: {found}")
@@ -108,7 +137,7 @@ def _statistics(res: Results, status: cells.Cell) -> cells.Cell:
     if res.rq3 is not None:
         text += f"; + {_plural(len(res.rq3.intervals), 'RQ3 interval')} ({res.rq3.name})"
     if missing := _without_interval(res):
-        text += f"; {_plural(len(missing), 'metric')} without interval ({', '.join(missing)})"
+        text += f"; {_plural(len(missing), 'metric')} without interval ({'; '.join(missing)})"
     return cells.text(text)
 
 
@@ -117,10 +146,13 @@ def _status(exp: Experiment, res: Results) -> cells.Cell:
         return cells.text("run")
     if res.old is not None:
         return cells.Cell(f"run (bench_summary {res.old.version})", res.reason)
-    why = res.reason or "no results"
     ran = res.revision_methods  # the arms of the pre-registered experiment its revisions drop
-    if ran is not None and (dropped := sorted({m.id for m in exp.methods} - ran)):
-        why += f"; the revision does not run {', '.join(dropped)}"
+    dropped = sorted({m.id for m in exp.methods} - ran) if ran is not None else []
+    if len(dropped) == 1:
+        return cells.not_run(res.why(dropped[0]) or "no results")  # the cut reason, as in every table
+    why = res.reason or "no results"
+    if dropped:
+        why += f"; the revision does not run {', '.join(dropped)} ({REVISION_CUT})"
     return cells.not_run(why)
 
 
@@ -194,7 +226,7 @@ def results_index(ctx: Context) -> list[Table]:
 
 def _dev_rows(ctx: Context) -> dict[str, list[tuple[Results, dict[str, object]]]]:
     """The per_case.csv rows of the development cases, by case, from every committed experiment
-    that kept them (an older summary minor included, R5), in experiment order."""
+    that kept them (an older summary minor included), in experiment order."""
     dev = set(ctx.dev_cases or ())
     found: dict[str, list[tuple[Results, dict[str, object]]]] = {case: [] for case in sorted(dev)}
     for exp in ctx.experiments:

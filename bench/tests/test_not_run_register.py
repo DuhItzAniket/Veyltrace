@@ -25,10 +25,14 @@ VEYLLAB = (
     "VeylLab: 8 of 120 captures, no adapter yet (X-11, O-07); "
     "X-14 moves to v1.1 (ADR 20261121-ak-r16-cut-list)"
 )
+ADR = "ADR 20261121-ak-r16-cut-list"  # 04 §10 rule 8: a cut item prints with its ADR reference
+INVESTIGATE = f"`investigate` mode is cut (07 §1.1 cut item 3; {ADR})"
 CUTS = {
-    "fse26-oracle-rq1-v1": "stretch dataset; size, format and licence not verified (07 §1.1 cut item 2)",
-    "re2-oracle-investigate-v1": "`investigate` mode is cut (07 §1.1 cut item 3)",
-    "re2-oracle-rq3-investigate-v1": "`investigate` mode is cut (07 §1.1 cut item 3)",
+    "fse26-oracle-rq1-v1": (
+        f"stretch dataset; size, format and licence not verified (07 §1.1 cut item 2; {ADR})"
+    ),
+    "re2-oracle-investigate-v1": INVESTIGATE,
+    "re2-oracle-rq3-investigate-v1": INVESTIGATE,
     **dict.fromkeys(
         (  # the RCAEval-C AI grid: mid-grid cut on 21 Nov, the 4 corners on 25 Nov
             *(f"rcaevalc-pi{p}-l{r}-ai-v1" for p in ("0", "05", "1") for r in ("0", "2", "6")),
@@ -55,6 +59,7 @@ def test_the_register_holds_exactly_the_approved_cuts() -> None:
     yamls = {p.stem for p in EXPERIMENTS.glob("*.yaml")}
     assert set(CUTS) - yamls == {"cloud-opsbench/agent-only"} <= CELLS  # every other key is an experiment
     assert set(REVISES) | set(REVISES.values()) <= yamls
+    assert all(ADR in why for key, why in CUTS.items() if "/" not in key)  # every cut experiment cites it
 
 
 def test_a_revision_is_its_pre_registered_experiment_minus_the_brief_arm() -> None:

@@ -8,7 +8,7 @@ benchmark and alert protocol where the cases match (review M5). Metrics an exper
 a bench_summary 1.1 file has no entry for (coverage, set size, risk–coverage, NO_FAULT rates, decoy
 top-1 change, permutation invariance) become "not run" cells that name the missing entry. Values no
 committed file has (a pooled H2b/H2c share, the exploratory verifier vs agent-only comparison, 04
-§7 proposal outcomes) say so; the tables compute no new statistics (lead rule R3).
+§7 proposal outcomes) say so; the tables compute no new statistics (04 §10.2).
 """
 
 from __future__ import annotations
@@ -46,10 +46,10 @@ ARMS = EXACT_SHARES  # entry -> its pair count
 #: The AC@k keys Table 6d shows for a proposal arm (its YAML's primary metric family, 04 §7).
 ARM_AC = ("ac_at_1", "ac_at_3", "ac_at_5")
 AC_ENTRY = "ac_at_k"
-#: bench_summary keeps the H2b/H2c shares per system only; a pooled share would be a new statistic (R3).
+#: bench_summary keeps the H2b/H2c shares per system only; a pooled share would be a new statistic.
 NO_POOLED_SHARE = (
     "no pooled value in the committed results: summary.json reports `{}` per system only "
-    "(03 §13.3), and the tables compute no new statistics (R3)"
+    "(03 §13.3), and the tables compute no new statistics (04 §10.2)"
 )
 #: 04 §7 "Proposal outcomes" have no bench_summary entry, so Table 6 says so instead of a column.
 PROPOSAL_OUTCOMES = (
@@ -58,12 +58,12 @@ PROPOSAL_OUTCOMES = (
     "decision-pool retrieval."
 )
 #: 04 §2 RQ2 and the experiment's YAML header name verifier vs agent-only exploratory; summary.json
-#: has a comparison only where its statistics block computed one, so a missing pair says so (R1).
+#: has a comparison only where its statistics block computed one, so a missing pair says so.
 EXPLORATORY = "exploratory"
 NO_EXPLORATORY = (
     "no value in the committed results: summary.json statistics has no {a} − {b} comparison; 04 §2 RQ2 "
     "names verifier vs agent-only exploratory (unadjusted, 04 §8), and the tables compute no new "
-    "statistics (R3)"
+    "statistics (04 §10.2)"
 )
 SEEDED_MCNEMAR = "a seeded arm's per-case hit is a mean over seeds, not boolean, so no McNemar (04 §8)"
 UNADJUSTED = "no Holm family: non-inferiority and exploratory comparisons are unadjusted (04 §8)"
@@ -190,7 +190,7 @@ def proposer(ctx: Context) -> list[Table]:
 
 #: (column, bench_summary 1.2 entry, key) of Table 7 (03 §13.3, CCR #404, 04 §7 Coverage, Set size,
 #: NO_FAULT rates). AC@1 and Retrieval@K take summary.json's bootstrap interval; coverage, the AURCs
-#: and the NO_FAULT rates take rq3-intervals' (R3, R4); the other values say they have none.
+#: and the NO_FAULT rates take rq3-intervals'; the other values say they have none.
 CALIBRATION = (
     ("AC@1", "ac_at_k", "ac_at_1"), ("Retrieval@K", "retrieval_at_k", "retrieval_at_k"),
     ("Coverage", "coverage", "coverage"), ("Coverage − (1 − alpha)", "coverage", "coverage_gap"),
@@ -212,11 +212,11 @@ NOT_OK = ("failed", "rejected", "timeout", "no_alert")  # summary outcomes other
 NO_DIFFERENCE = (
     "no value in the committed results: AURC V − F and its interval are in rq3-intervals/<id>/summary.json "
     "(`aurc_difference`), and no such file is committed for this experiment; the tables compute no new "
-    "statistics (R3)"
+    "statistics (04 §10.2)"
 )
 NO_POOLED_RQ3 = (
     "no pooled value in the committed results: summary.json reports `{}` per system only and no "
-    "rq3-intervals file has a pooled one; the tables compute no new statistics (R3)"
+    "rq3-intervals file has a pooled one; the tables compute no new statistics (04 §10.2)"
 )
 NO_NORMAL = (
     "undefined: the experiment has no normal windows (dataset.normal_windows: none), so the rate has "
@@ -239,7 +239,7 @@ def _labels(exp: Experiment, system: str, method: str) -> tuple[Cell, ...]:
 
 
 def _undefined(res: Results, part: str, sys: str, method: str, key: str, cell: Cell) -> Cell:
-    """A null NO_FAULT rate says why it is undefined when the summary shows it (R2)."""
+    """A null NO_FAULT rate says why it is undefined when the summary shows it."""
     group = res.group(part, sys, method)
     rates = group.metrics.no_fault_rates if group is not None else None
     if cell.note != cells.UNDEFINED_NOTE or rates is None:
@@ -437,7 +437,7 @@ def calibration(ctx: Context) -> list[Table]:
         "AURC is better. AC@1 and Retrieval@K carry summary.json's 95% cluster-bootstrap interval; coverage, "
         "the AURCs, AURC V − F and the false-alarm and wrong NO_FAULT rates carry the 95% cluster-bootstrap "
         "interval of rq3-intervals/<id>/summary.json where one is committed (scripts/rq3_intervals.py, #555; "
-        "R3, R4). Set-size columns are over the runs with a set; Runs not ok counts all the group's rows "
+        "04 §8). Set-size columns are over the runs with a set; Runs not ok counts all the group's rows "
         "(fault cases and normal windows). τ_nf follows the 04 §12 row of 2026-11-21 (logged 26 Nov; ADR "
         "20261121-ak-calibration-fit-conventions): when its rank index lands on +∞, τ_nf = default_tau with "
         "calibrated = false, which gives a held-out false-alarm rate of 1; Table 7c is the literal 04 §5.4 "
@@ -464,7 +464,7 @@ def calibration(ctx: Context) -> list[Table]:
         "rule gives it, without the +∞ fallback, per held-out fold (windows that can never be NO_FAULT and "
         "m as rq3-intervals records them), then the false-alarm and wrong NO_FAULT rates it gives per "
         "system and pooled, with 95% cluster-bootstrap intervals (rq3-intervals/<id>/summary.json "
-        "`literal_tau_sensitivity`, R4), next to Table 7's. Experiments without normal windows have no "
+        "`literal_tau_sensitivity`), next to Table 7's. Experiments without normal windows have no "
         "τ_nf. Protocol: see Sources."
     )
     t7 = Table(

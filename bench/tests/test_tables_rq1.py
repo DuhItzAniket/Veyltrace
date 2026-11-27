@@ -60,7 +60,7 @@ def test_table_5_shows_each_system_next_to_its_floors(files: dict[str, str]) -> 
     assert _row(t5, "ob", "prior-only").startswith("| ob | prior-only | 0.250<sup>")  # its statistics are off
     off = _row(t5, "ob", "veyltrace:off")
     assert off.startswith("| ob | veyltrace:off | 0.500 [0.375, 0.625] |") and "| 0.875 (K=5)<sup>" in off
-    assert "| 4.000<sup>" in off and "| 0.375<sup>" in off  # Lift@1 = 0.5 / 0.125: no interval (R3)
+    assert "| 4.000<sup>" in off and "| 0.375<sup>" in off  # Lift@1 = 0.5 / 0.125: no interval
     assert off.endswith(
         "| 8 | 0 | 8/0/0/0/0 | re2-oracle-rq1-v1 @ fixture |"
     )  # fault cases, unranked, outcomes

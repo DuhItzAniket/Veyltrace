@@ -6,12 +6,12 @@ SHA-256 of all three result files traces each number back to them (04 §10.2). A
 without usable results is still a `Results`, holding the reason it is "not run": a missing
 directory (with the reason from the R-16 cut list in `<results>/not_run.yaml` when it has one),
 an incomplete result, a dirty work tree, or results of another version of the experiment YAML than
-the committed one. Two cases are not "not run" (lead rules R1 and R5 of R-17 #46): a pre-registered
+the committed one. Two cases are not "not run" (R-17 #46): a pre-registered
 experiment that a 04 §12 revision replaces says "revised as <id>", and results in an older summary
 version ran, so they keep their provenance and say they are not tabulated. A file that claims the
 current version but breaks its contract is an error, never a silent "not run".
 
-Besides summary.json, one committed side result gives intervals (R3, R4):
+Besides summary.json, one committed side result gives intervals:
 `rq3-intervals/<id>/summary.json` holds the 95% cluster-bootstrap intervals of the RQ3 rates and
 areas that summary.json leaves without one (scripts/rq3_intervals.py, #555); its files are hashed
 into the experiment's sources.
@@ -48,13 +48,15 @@ FILES = (MANIFEST, PER_CASE, SUMMARY)  # sorted: the order of the hashes in a ta
 REGISTER = "not_run.yaml"
 REVISES, REASON = "revises", "reason"
 #: The 04 §12 row the register's revisions cite (2026-11-25, #532; the not_run.yaml comment above
-#: them). The register names no row per revision, so a revised experiment's cells name this one (R1).
+#: them). The register names no row per revision, so a revised experiment's cells name this one.
 REVISION_ROW = "04 §12, 25 Nov"
 #: Why that row's revisions drop an arm of the pre-registered experiment (the 04 §12 row of
-#: 2026-11-25 and the YAML headers of its revisions), so a dropped arm cites the cut, not a gap (R1).
+#: 2026-11-25 and the YAML headers of its revisions), so a dropped arm cites the cut, not a gap.
 REVISION_CUT = "cut for v1.0 for the LLM budget; #532, ADR 20261121-ak-r16-cut-list, addendum of 25 Nov"
 SUMMARY_VERSIONS = ("1.1.", "1.2.")  # the bench_summary minors the generator reads (03 §13.3)
-#: The reason of results in another bench_summary minor: they ran, so they are "not tabulated" (R5).
+#: The older bench_summary versions committed results use (the R-05 baselines, #377): they ran, so
+#: they are "not tabulated", never "not run". Any other version is an error, not a silent skip.
+OLD_VERSIONS = frozenset({"0.1.0"})
 OLD_FORMAT = (
     "ran (bench_summary {}); its summary.json is not tabulated: the tables read 1.1 and 1.2 (03 §13.3)"
 )
@@ -66,9 +68,16 @@ NEW_IN_1_2 = frozenset({"coverage", "set_size", "no_fault_rates", "risk_coverage
 EXACT_SHARES = {"decoy_top1_change": "n_pairs", "permutation_invariance": "n_cases"}
 NO_RESULTS = "no committed results in bench/results"  # the row names the experiment
 NO_GROUP = "its summary.json has no group for this dataset, system and method"
-UNLISTED = "the experiment does not list the metric `{}`"  # n/a, never "not run" (R2)
-#: A value without an interval in any committed file (R3: 04 §8 asks for one; no new statistics here).
+UNLISTED = "the experiment does not list the metric `{}`"  # n/a, never "not run"
+#: A value without an interval in any committed file (04 §8 asks for one; no new statistics, 04 §10.2).
 NO_INTERVAL = "no interval in the committed results (04 §8 asks for one)"
+#: A pooled value that no committed file has, in an experiment that ran: "no value", never "not run".
+NO_VALUE = "no value"
+NO_POOLED = "no pooled value in the committed results: summary.json statistics has no pooled {} `{}` interval"
+#: Counts recovered exactly from a share and its denominator in the same entry (k = share · n, as
+#: cells.exact_share does), never a new statistic: the CONFIRMED verdicts behind H4b's AC@1 among
+#: CONFIRMED (bench_summary 1.2 `selective_accuracy`, 03 §13.3).
+DERIVED_COUNTS = {"n_confirmed": ("answer_rate_confirmed", "n_fault")}
 SHORT_COMMIT = 8  # commit prefix printed in a row's source cell; the sources list has the full id
 SHORT_SHA = 12  # experiment_sha256 prefix in a not-run reason
 
@@ -89,7 +98,7 @@ RQ3_TOLERANCE = 1e-8
 
 
 def revised_reason(revisions: tuple[str, ...]) -> str:
-    """The reason of a pre-registered experiment its 04 §12 revisions replace (R1)."""
+    """The reason of a pre-registered experiment its 04 §12 revisions replace."""
     return f"{cells.REVISED_AS}{' and '.join(revisions)} ({REVISION_ROW})"
 
 
@@ -163,7 +172,7 @@ class Rq3Intervals:
 
 @dataclass(frozen=True)
 class OldSummary:
-    """What a summary.json of an older bench_summary minor shows, read without validation (R5)."""
+    """What a summary.json of an older bench_summary minor shows, read without validation."""
 
     version: str
     groups: int | None  # its number of groups, None when it has no group list
@@ -185,11 +194,11 @@ class Results:
     path: Path | None = None  # bench/results/<id>/, for the per_case.csv a subset point reads (H1)
     interval_note: str | None = None  # why values recomputed outside summary.json have no interval
     file_version: str = ""  # schema_version as summary.json records it (io reads an older minor as current)
-    revised_as: tuple[str, ...] = ()  # the 04 §12 revisions replacing it, when it has no results (R1)
+    revised_as: tuple[str, ...] = ()  # the 04 §12 revisions replacing it, when it has no results
     revision_methods: frozenset[str] | None = None  # the methods those revisions run (set by context)
     stands_in_for: str | None = None  # the pre-registered id whose slot a revision fills (Context.revised)
-    old: OldSummary | None = None  # an older summary minor: what it shows (R5)
-    rq3: Rq3Intervals | None = None  # the RQ3 intervals of the experiment's one method (R3, R4)
+    old: OldSummary | None = None  # an older summary minor: what it shows
+    rq3: Rq3Intervals | None = None  # the RQ3 intervals of the experiment's one method
     _groups: dict[tuple[str, str, str], SummaryGroup] = field(
         default_factory=dict[tuple[str, str, str], SummaryGroup]
     )
@@ -263,6 +272,8 @@ class Results:
             return cells.not_run(f"summary.json is bench_summary 1.1, which has no `{entry}` entry (re-run)")
         if values is None:
             return cells.not_applicable(UNLISTED.format(entry))
+        if key in DERIVED_COUNTS:
+            return cells.count(_derived(values, key))
         value = getattr(values, key)
         if isinstance(value, list):  # retrieval_k: the slate sizes K of the group's runs
             return cells.text(";".join(str(v) for v in value))
@@ -292,7 +303,7 @@ class Results:
         return cells.rate(value, note=f"no interval: {why}")
 
     def _other_rate(self, system: str, key: str, value: float | None) -> Cell:
-        """A rate that is not a case mean: its rq3-intervals interval, else why it has none (R3)."""
+        """A rate that is not a case mean: its rq3-intervals interval, else why it has none."""
         if value is None:
             return cells.rate(value)
         if (bounds := self._rq3(system, key, value)) is not None:
@@ -321,7 +332,7 @@ class Results:
 
     def point(self, dataset: str, system: str, method: str, entry: str, key: str) -> Point:
         """`metrics[entry][key]` of one group with its interval bounds, for a figure; a value without
-        an interval in any committed file says so in its status (R3)."""
+        an interval in any committed file says so in its status."""
         if (why := self.missing(dataset, system, method)) is not None:
             return Point(None, status=cells.not_run(why).note or "")
         group = self.group(dataset, system, method)
@@ -347,7 +358,7 @@ class Results:
 
     def _undefined_pooled(self, bench: str, method: str, key: str) -> Cell | None:
         """n/a when no per-system group of `method` in `bench` has a value for `key`: its entry is
-        unlisted or null in every group (R2). None when a group has a value or there is no group."""
+        unlisted or null in every group. None when a group has a value or there is no group."""
         mine = [g for (d, _, m), g in self._groups.items() if m == method and d.split("-", 1)[0] == bench]
         if not mine or (entry := ENTRY_OF.get(key)) is None:
             return None
@@ -374,7 +385,7 @@ class Results:
         if (why := self.stats_reason) is not None:
             return cells.not_run(why)
         if self.summary is None:  # values recomputed from per_case.csv: no pooled interval either
-            return cells.not_applicable(  # the table code computes no new statistics (R3)
+            return cells.not_applicable(  # the table code computes no new statistics (04 §10.2)
                 f"no pooled value for values recomputed from per_case.csv ({self.role})"
                 if self.role
                 else "no summary.json"
@@ -384,12 +395,25 @@ class Results:
         for item in self.summary.statistics.not_run:
             if item.scope == scope:
                 return cells.not_run(f"{scope} {item.reason}")
-        return cells.not_run(f"summary.json statistics has no pooled {bench} `{key}` interval")
+        return Cell(NO_VALUE, NO_POOLED.format(bench, key))
+
+
+def _derived(values: object, key: str) -> int | None:
+    """A DERIVED_COUNTS count of a summary entry: share · n, None when the share is null; a share
+    that is not k / n for an integer k breaks 03 §13.3 and is an error."""
+    share_key, n_key = DERIVED_COUNTS[key]
+    share, n = getattr(values, share_key), getattr(values, n_key)
+    if share is None or n is None:
+        return None
+    k = round(share * n)
+    if abs(share * n - k) > cells.SHARE_TOLERANCE:
+        raise ConfigError(f"summary.json {share_key} {share!r} of n = {n} is not k / n for an integer k")
+    return int(k)
 
 
 def _version(path: Path) -> str:
-    """The `schema_version` a result file claims, read before validation so an older file becomes
-    a "not run" reason instead of an error."""
+    """The `schema_version` a result file claims, read before validation so an OLD_VERSIONS file is
+    listed as not tabulated instead of failing its contract."""
     data = json.loads(textio.read_bytes(path))
     return str(data.get("schema_version")) if isinstance(data, dict) else "unknown"
 
@@ -408,8 +432,13 @@ def load(
     for name in FILES:
         if not (out / name).is_file():
             return Results(experiment_id, f"incomplete result: no {name} (bench writes {MANIFEST} last)")
-    if not (version := _version(out / SUMMARY)).startswith(SUMMARY_VERSIONS):
+    if (version := _version(out / SUMMARY)) in OLD_VERSIONS:
         return _old(out, experiment_id, version, yaml_sha256)
+    if not version.startswith(SUMMARY_VERSIONS):
+        raise ConfigError(
+            f"bench/results/{experiment_id}/{SUMMARY} is bench_summary {version}: the tables read 1.1 "
+            f"and 1.2 and list {', '.join(sorted(OLD_VERSIONS))} as not tabulated (03 §13.3)"
+        )
     manifest = io.read_path("bench_manifest", out / MANIFEST, validate=True)
     summary = io.read_path("bench_summary", out / SUMMARY, validate=True)
     assert isinstance(manifest, BenchManifest) and isinstance(summary, BenchSummary)
@@ -452,7 +481,7 @@ def _json_object(path: Path, name: str) -> dict[str, object]:
 
 
 def _old(out: Path, experiment_id: str, version: str, yaml_sha256: str | None) -> Results:
-    """Results in an older bench_summary minor (R5): they ran, so they keep their commit and hashes
+    """Results in an older bench_summary minor: they ran, so they keep their commit and hashes
     and say they are not tabulated. The manifest is read as JSON, without its contract, for the
     same provenance checks as a current one."""
     where = f"bench/results/{experiment_id}"
@@ -584,7 +613,7 @@ AI_COST_DIR = "rq5-ai-cost"  # bench/results/rq5-ai-cost/ (scripts/rq5_ai_cost.p
 
 @dataclass(frozen=True)
 class AiCost:
-    """`rq5-ai-cost/summary.json`: the AI path's recorded model time and tokens per system (R4),
+    """`rq5-ai-cost/summary.json`: the AI path's recorded model time and tokens per system,
     read from the recording of `experiment_id`'s AI arms (`origin`, as the file names it)."""
 
     experiment_id: str

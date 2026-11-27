@@ -59,7 +59,7 @@ Notes:
 
 1. exact binomial interval over (case, seed) pairs, as 04 RQ2 pre-registers for H2b and H2c; a case's seeds are not independent, so this interval can be narrower than a case-clustered one
 2. not run: its summary.json has no group for this dataset, system and method
-3. no pooled value in the committed results: summary.json reports `permutation_invariance` per system only (03 §13.3), and the tables compute no new statistics (R3)
+3. no pooled value in the committed results: summary.json reports `permutation_invariance` per system only (03 §13.3), and the tables compute no new statistics (04 §10.2)
 4. no interval: not run: fixture statistics are off
 5. not run: fixture statistics are off
 6. not applicable: pooled rows report the per-system counts above

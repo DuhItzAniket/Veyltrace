@@ -3,11 +3,11 @@
 Table 8 holds the cost percentiles of the RE2 oracle RQ1 and RQ2 experiments per system and method
 (nearest-rank p50/p95 over the group's rows, 03 §13.3); Table A1 holds them for every experiment,
 so the cost of every reported number is on record (04 §6 "RQ5 cost is recorded on every run").
-Two committed side results complete RQ5 (lead rule R4): Table 8b is the AI path's recorded model
+Two committed side results complete RQ5: Table 8b is the AI path's recorded model
 time and tokens (`bench/results/rq5-ai-cost`, since the AI arms' bench rows are replays without
 model time), and Table 8c the slowest laptop's per-case pipeline time and memory, per step, that
 H5 is read against (`bench/results/perf-o11`, O-11). Both are printed as their files hold them;
-the tables compute no new statistics (R3). Table 9 holds the RQ6 replay rates of
+the tables compute no new statistics (04 §10.2). Table 9 holds the RQ6 replay rates of
 `bench/results/replay/<role>/` (#440).
 """
 
@@ -80,7 +80,7 @@ def _replayed(res: Results) -> frozenset[str]:
 def _cost_cell(
     exp: Experiment, res: Results, part: str, sys: str, method: str, key: str, ai: str | None
 ) -> Cell:
-    """One cost value, or why it has none: unlisted, slate reuse, or a replayed AI arm (R2)."""
+    """One cost value, or why it has none: unlisted, slate reuse, or a replayed AI arm."""
     if "cost" not in exp.metrics:
         why = res.why(method)
         return (
@@ -241,7 +241,7 @@ def cost(ctx: Context) -> list[Table]:
         f"{PERF_DIR}/{SLOWEST}, pass {WARM_PASS} (the warm pass H5 is read against, against 30 s and 3 GB; "
         f"machine, sample rule and date in bench/results/{PERF_DIR}/README.md). Not bench output: no "
         "experiment YAML and no summary.json, AI off; a 10-case sample per RE2 system, so its p95 is the "
-        "maximum. The tables compute no percentiles from it (R3)."
+        "maximum. The tables compute no percentiles from it (04 §10.2)."
     )
     return [
         Table("t08-rq5-cost", "Table 8: RQ5 cost on RE2", caption, COLUMNS8, main, key=key),
