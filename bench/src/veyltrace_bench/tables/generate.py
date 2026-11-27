@@ -12,6 +12,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
+from veyltrace_bench.tables import paper
 from veyltrace_bench.tables.context import Context, context
 from veyltrace_bench.tables.figures import FIGURES_DIR, figures
 from veyltrace_bench.tables.index import development_cases, results_index
@@ -91,16 +92,25 @@ def paired(build: Builder, ctx: Context) -> list[Table]:
 def outputs(
     results_root: Path, experiments_dir: Path, builders: Sequence[Builder] = BUILDERS
 ) -> dict[str, bytes]:
-    """Every generated file, as {path relative to the results root: bytes}, sorted by path."""
+    """Every generated file, as {path relative to the results root: bytes}, sorted by path: per
+    table its `.md` and `.tex`, its full grid as a longtable (`-full.tex`) and, for a table the
+    paper's main text cites (paper.VIEWS), its compact paper view (`-paper.tex`)."""
     ctx = context(results_root, experiments_dir)
     files: dict[str, bytes] = {}
     for build in builders:
         for table in paired(build, ctx):
-            for suffix, render in ((".md", markdown), (".tex", latex)):
+            rendered = {
+                ".md": markdown(table),
+                ".tex": latex(table),
+                f"{paper.FULL_SUFFIX}.tex": paper.full_latex(table),
+            }
+            if (view := paper.VIEWS.get(table.name)) is not None:
+                rendered[f"{paper.PAPER_SUFFIX}.tex"] = paper.paper_latex(paper.build(table, view))
+            for suffix, text in rendered.items():
                 path = f"{TABLES_DIR}/{table.name}{suffix}"
                 if path in files:
                     raise ConfigError(f"two tables are named {table.name!r}")
-                files[path] = render(table).encode("utf-8")
+                files[path] = text.encode("utf-8")
     return dict(sorted((files | figures(ctx)).items()))
 
 

@@ -4,8 +4,10 @@ Why not matplotlib: its SVG and PDF output embed version strings, font paths and
 and differ across freetype builds, so "regenerate identically" would hold on one laptop only; it
 would also be bench's first heavy dependency. These figures are simple marks (points with
 interval bars, connected per series; heatmap cells), drawn with fixed geometry, fixed-precision
-coordinates and a generic font family, so the bytes depend only on the data. R-18's copy step
-converts SVG to vector PDF (`rsvg-convert -f pdf` or Inkscape) for the paper (11 §10).
+coordinates and a generic font family, so the bytes depend only on the data. For the paper,
+scripts/paper_generated.py converts each panel to TikZ (one `tikzpicture`, vector, 11 §10); it knows
+exactly the elements and attributes written here and refuses anything else, so a change to this
+module's markup needs the converter changed with it.
 """
 
 from __future__ import annotations
@@ -21,6 +23,11 @@ MARGIN = (56, 16, 56, 140)  # left, top, bottom (ticks, axis label, note), right
 #: Distinguishable categorical colours, dark enough on white (a priori); series beyond 8 repeat.
 PALETTE = ("#1b6ca8", "#d1495b", "#3a7d44", "#edae49", "#6c4f9e", "#00798c", "#8c564b", "#555555")
 MISSING = "#dddddd"  # a heatmap cell without a value: grey, never the colour of 0
+#: A heatmap's left margin fits its longest row label (Fig 6 and 8 labels were cut off at 56 px):
+#: about 6.2 px per 11 px sans-serif character plus the 6 px gap and 4 px of air (a priori). It has
+#: no legend, so its right margin is the top one's 16 px.
+LABEL_CHAR_PX = 6.2
+LABEL_PAD_PX = 10
 
 
 def _n(value: float) -> str:
@@ -102,7 +109,9 @@ def heatmap(
     """A [0, 1] heatmap (white to blue) with each value printed in its cell; a None cell is grey
     and reads its word in `missing` (n/a, not run, revised; "no value" by default; the CSV status
     says why), never the colour of 0."""
-    left, top, bottom, right = MARGIN
+    _, top, bottom, _ = MARGIN
+    left = max(MARGIN[0], round(LABEL_PAD_PX + LABEL_CHAR_PX * max((len(r) for r in rows), default=0)))
+    right = top
     w, h = (WIDTH - left - right) / max(1, len(columns)), (HEIGHT - top - bottom) / max(1, len(rows))
     body = [_text(left + w * (j + 0.5), top + h * len(rows) + 16, col) for j, col in enumerate(columns)]
     for i, row in enumerate(rows):
@@ -114,7 +123,7 @@ def heatmap(
             body.append(_el("rect", x=x, y=y, width=w, height=h, fill=fill, stroke="#fff"))
             word = missing[i][j] if missing is not None else NO_VALUE
             body.append(_text(x + w / 2, y + h / 2 + 4, word if v is None else fixed(v)))  # tables' rounding
-    body.append(_text(left, HEIGHT - 6, note, "start", ' fill="#555"'))
+    body.append(_text(MARGIN[0], HEIGHT - 6, note, "start", ' fill="#555"'))
     return _frame(title, body)
 
 

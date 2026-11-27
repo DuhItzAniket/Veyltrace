@@ -126,11 +126,24 @@ _TEX = {
     "−": "$-$", "–": "--", "—": "---", "≥": r"$\geq$", "≤": r"$\leq$", "±": r"$\pm$",
     "×": r"$\times$", "→": r"$\rightarrow$", "≈": r"$\approx$", "`": "",
     "|": r"\textbar{}", "<": r"\textless{}", ">": r"\textgreater{}",
+    "τ": r"$\tau$", "∞": r"$\infty$", "λ": r"$\lambda$", "π": r"$\pi$",
 }  # fmt: skip
 
 
 def tex_escape(value: str) -> str:
     return "".join(_TEX.get(ch, ch) for ch in value)
+
+
+def tex_cells(table: Table) -> tuple[list[list[str]], list[str]]:
+    """Every row's LaTeX cells with their note marks, its source cell last, and the note texts in
+    marker order: the body `latex` prints, for renderers that lay it out differently (paper.py)."""
+    notes = _Notes(lambda i: rf"\textsuperscript{{{i}}}")
+    return _cells(table, notes, tex_escape), notes.texts
+
+
+def source_lines(table: Table, digits: int = TEX_HASH) -> list[str]:
+    """The sources list, one line per cited experiment, with `digits` of each SHA-256."""
+    return _source_lines(table, digits)
 
 
 def latex(table: Table) -> str:

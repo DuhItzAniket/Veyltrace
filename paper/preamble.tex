@@ -1,6 +1,7 @@
 % Preamble for the Veyltrace paper (owned by the lead; README.md explains every macro).
 \usepackage{xspace}
 \usepackage{tabularx}
+\usepackage{longtable}  % the appendix's full result grids (\resulttablefull)
 \usepackage{url}
 \usepackage{tikz}  % generated figures: scripts/paper_generated.py writes R-17's SVG panels as TikZ
 % \vtkey prints an experiment id or selector in sans serif, breakable at / , : . - _
@@ -43,8 +44,9 @@
 \InputIfFileExists{generated/numbers}{}{}
 
 % ---------------------------------------------------------------- generated tables and figures
-% \resulttable[*]{<label>}{<caption>}{<experiment ids>}{<name>} inputs generated/<name>.tex,
-% the copy of R-17's bench/results/tables/<name>.tex, inside the paper's own float: R-17's
+% \resulttable[*]{<label>}{<caption>}{<experiment ids>}{<name>} inputs generated/<name>-paper.tex
+% (R-17's compact paper view: headline columns, chosen rows) when it exists, else
+% generated/<name>.tex (copies of R-17's bench/results/tables/), inside the paper's own float: R-17's
 % table float, caption and label are unwrapped, its notes and source lines kept, and its
 % caption printed below them. \resultfigure inputs generated/<name>.tex (R-17's SVG panels
 % as TikZ, written by scripts/paper_generated.py), else generated/<name>.pdf. Until a file
@@ -66,8 +68,28 @@
 \NewDocumentCommand{\resulttable}{s m m m m}{%
   \IfBooleanTF{#1}{\begin{table*}[t]}{\begin{table}[t]}
   \caption{#3}\label{#2}
-  \IfFileExists{generated/#5.tex}{\vt@inputgenerated{generated/#5.tex}}{\vt@placeholder{table}{#4}{\textsf{bench/results/tables/\detokenize{#5}.\{md,tex\}}, copied to \textsf{paper/generated/\detokenize{#5}.tex}}}
+  \IfFileExists{generated/#5-paper.tex}{\vt@inputgenerated{generated/#5-paper.tex}}{%
+    \IfFileExists{generated/#5.tex}{\vt@inputgenerated{generated/#5.tex}}{\vt@placeholder{table}{#4}{\textsf{bench/results/tables/\detokenize{#5}.\{md,tex\}}, copied to \textsf{paper/generated/\detokenize{#5}.tex}}}}
   \IfBooleanTF{#1}{\end{table*}}{\end{table}}}
+% \resulttablefull{<label>}{<caption>}{<name>} prints R-17's full grid generated/<name>-full.tex
+% (one longtable per column part, breaking across pages) for the appendix. longtable needs one
+% column, so the first full grid switches the rest of the document to \onecolumn (a new page).
+% The generated file calls \vtfullcaption (part 1: caption and label), \vtfullnext{<k>} and
+% \vtfullpart{<k>}{<n>} (later parts) and \vtfullcont{<k>}{<n>} (the head of a continued page).
+\newcommand{\vt@fullcaption}{}
+\newcommand{\vt@fulllabel}{}
+\newcommand{\vtfullcaption}{\caption{\vt@fullcaption}\label{\vt@fulllabel}}
+% Each longtable steps the table counter, so \vtfullnext{<k>}, before a later part, keeps its
+% table's number and gives hyperref a distinct anchor.
+\newcommand{\vtfullnext}[1]{\addtocounter{table}{-1}\def\theHtable{\arabic{table}.#1}}
+\newcommand{\vtfullpart}[2]{\caption*{Table~\ref{\vt@fulllabel}, continued: columns, part #1 of #2}}
+\newcommand{\vtfullcont}[2]{\textit{Table~\ref{\vt@fulllabel}, continued} (columns, part #1 of #2)}
+\newcommand{\resulttablefull}[3]{%
+  \if@twocolumn\onecolumn\fi
+  \IfFileExists{generated/#3-full.tex}{%
+    \begingroup\def\vt@fullcaption{#2}\def\vt@fulllabel{#1}%
+    \input{generated/#3-full.tex}\endgroup\par\addvspace{\bigskipamount}}{%
+    \vt@placeholder{full table}{#3}{\textsf{bench/results/tables/\detokenize{#3}-full.tex}, copied to \textsf{paper/generated/}}\par\addvspace{\bigskipamount}}}
 % A generated figure file is \vtfigpanels{<n>} followed by one \vtfigpanel{<tikzpicture>} per
 % SVG panel, drawn at 1 px = 1 pt and scaled as a whole (text included, as an SVG viewer
 % scales it). Panels sit \vt@perrow to a row: 2 in a starred figure, 1 (stacked) otherwise,
