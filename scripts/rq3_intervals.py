@@ -21,8 +21,9 @@ root service or fault label, so the file does not publish the case-to-truth mapp
 - `literal_tau`, a sensitivity analysis computed after the results (04 §12, row of 26 Nov): τ_nf by
   the literal 04 §5.4 item 6 reading, where windows Causentra can never call NO_FAULT (M undefined or
   a silent service) are left out of m instead of scoring +∞, and the held-out NO_FAULT rates that τ
-  would give. The windows are the held-out windows of the other fold: M does not depend on the
-  calibration (bench calibration.py), and the file that serves fold X is fit on the other fold.
+  would give. The windows are the held-out windows of the other folds: M does not depend on the
+  calibration (bench calibration.py), and the file that serves fold X is fit on the other folds
+  (the other fold of crossfit2, the other two systems of LOSO).
   The rule used is Causentra's (09 §3.8): NO_FAULT iff M is defined, no service is silent and
   M ≤ τ_nf at 9 decimals. A NO_FAULT status is checked before every other status, so these two rates
   are exact for that τ. The other columns (sets, AURC) would also change, and are not recomputed.
@@ -226,22 +227,25 @@ def literal_tau(windows: Sequence[Row], beta: float) -> dict[str, object]:
     }  # fmt: skip
 
 
-def group(rows: Sequence[Row], seed: int, resamples: int, pooled: bool) -> dict[str, Any]:
+def group(rows: Sequence[Row], seed: int, resamples: int, pooled: bool, with_aurc: bool) -> dict[str, Any]:
+    """The intervals of one system (or pooled); AURC only where the experiment pre-registers
+    `risk_coverage` (re2-oracle-loso-off-v1 does not, #635)."""
     fault = [r for r in rows if r.fault]
     normal = [r for r in rows if not r.fault]
     return {
         "coverage": mean_interval(fault, lambda r: r.in_set, seed, resamples, pooled),
         "false_alarm_rate": mean_interval(normal, lambda r: r.status != NO_FAULT, seed, resamples, pooled),
         "wrong_no_fault_rate": mean_interval(fault, lambda r: r.status == NO_FAULT, seed, resamples, pooled),
-        **aurc_intervals(rows, seed, resamples),
+        **(aurc_intervals(rows, seed, resamples) if with_aurc else {}),
     }
 
 
 def sensitivity(rows: Sequence[Row], beta: float, seed: int, resamples: int) -> dict[str, object]:
-    """Per fold: the literal τ fit on the other fold's windows, and the held-out NO_FAULT rates with it."""
+    """Per fold: the literal τ fit on the other folds' windows, and the held-out NO_FAULT rates with it."""
     folds = sorted({r.fold for r in rows})
-    if len(folds) != 2:
-        raise SystemExit(f"rq3: the literal-τ sensitivity needs two folds, got {folds}")
+    if len(folds) < 2:
+        raise SystemExit(f"rq3: the literal-τ sensitivity needs at least two folds, got {folds}")
+    fit_on_label = "the other fold" if len(folds) == 2 else "the other folds"  # crossfit2 text kept (#555)
     taus: dict[str, dict[str, object]] = {}
     for fold in folds:
         fit_on = [r for r in rows if not r.fault and r.fold != fold]
@@ -251,9 +255,7 @@ def sensitivity(rows: Sequence[Row], beta: float, seed: int, resamples: int) -> 
         tau = taus[r.fold]["tau_nf_literal"]
         return isinstance(tau, float) and r.no_fault_at(tau)
 
-    out: dict[str, object] = {
-        "held_out_fold": {f: {"fit_on": "the other fold", **t} for f, t in taus.items()}
-    }
+    out: dict[str, object] = {"held_out_fold": {f: {"fit_on": fit_on_label, **t} for f, t in taus.items()}}
     for system in [*sorted({r.system for r in rows}), POOLED]:
         mine = rows if system == POOLED else [r for r in rows if r.system == system]
         pooled = system == POOLED
@@ -269,13 +271,16 @@ def check_against_summary(result: Mapping[str, Mapping[str, Any]], summary: Mapp
     """The point estimates must equal the committed summary.json's (03 §13.3), or the join is wrong."""
     for g in cast("list[dict[str, Any]]", summary["groups"]):
         mine, m = result[g["system"]], g["metrics"]
-        pairs = (
+        pairs = [
             ("coverage", m["coverage"]["coverage"]),
             ("false_alarm_rate", m["no_fault_rates"]["false_alarm_rate"]),
             ("wrong_no_fault_rate", m["no_fault_rates"]["wrong_no_fault_rate"]),
-            ("aurc_verdict", m["risk_coverage"]["aurc_verdict"]),
-            ("aurc_fused", m["risk_coverage"]["aurc_fused"]),
-        )
+        ]
+        if "aurc_verdict" in mine:  # computed only with risk_coverage, so the summary has it too
+            pairs += [
+                ("aurc_verdict", m["risk_coverage"]["aurc_verdict"]),
+                ("aurc_fused", m["risk_coverage"]["aurc_fused"]),
+            ]
         for name, want in pairs:
             got = mine[name]["estimate"]
             if abs(float(got) - float(want)) > SUMMARY_TOLERANCE:
@@ -324,10 +329,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     seed, resamples = exp.statistics.bootstrap.seed, exp.statistics.bootstrap.resamples
     beta = fitted_beta(args.results / exp.experiment_id / "calibration")
     rows = load_rows(exp, args.results, args.runs_root, args.data_root)
+    with_aurc = "risk_coverage" in exp.metrics
     result: dict[str, dict[str, Any]] = {}
     for system in sorted({r.system for r in rows}):
-        result[system] = group([r for r in rows if r.system == system], seed, resamples, pooled=False)
-    result[POOLED] = group(rows, seed, resamples, pooled=True)
+        mine = [r for r in rows if r.system == system]
+        result[system] = group(mine, seed, resamples, pooled=False, with_aurc=with_aurc)
+    result[POOLED] = group(rows, seed, resamples, pooled=True, with_aurc=with_aurc)
     summary = json.loads((args.results / exp.experiment_id / "summary.json").read_text(encoding="utf-8"))
     check_against_summary(result, summary)
     doc = {

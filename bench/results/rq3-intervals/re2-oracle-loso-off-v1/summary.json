@@ -1,0 +1,199 @@
+{
+  "beta": 0.1,
+  "experiment_id": "re2-oracle-loso-off-v1",
+  "intervals": {
+    "ob": {
+      "coverage": {
+        "estimate": 0.853932584,
+        "high": 0.943820225,
+        "low": 0.752941176,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "false_alarm_rate": {
+        "estimate": 1.0,
+        "high": 1.0,
+        "low": 1.0,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "pooled": {
+      "coverage": {
+        "estimate": 0.711610487,
+        "high": 0.769524093,
+        "low": 0.655552434,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "false_alarm_rate": {
+        "estimate": 0.779026217,
+        "high": 0.816479401,
+        "low": 0.746212121,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.194756554,
+        "high": 0.235955056,
+        "low": 0.152379533,
+        "n": 267,
+        "n_clusters": 90
+      }
+    },
+    "ss": {
+      "coverage": {
+        "estimate": 0.887640449,
+        "high": 0.944444444,
+        "low": 0.820224719,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "false_alarm_rate": {
+        "estimate": 1.0,
+        "high": 1.0,
+        "low": 1.0,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "tt": {
+      "coverage": {
+        "estimate": 0.393258427,
+        "high": 0.5173659,
+        "low": 0.26129022,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "false_alarm_rate": {
+        "estimate": 0.337078652,
+        "high": 0.449438202,
+        "low": 0.233333333,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.584269663,
+        "high": 0.711111111,
+        "low": 0.459664751,
+        "n": 89,
+        "n_clusters": 30
+      }
+    }
+  },
+  "level": 0.95,
+  "literal_tau_sensitivity": {
+    "held_out_fold": {
+      "loso-ob": {
+        "fit_on": "the other folds",
+        "lands_on_infinity": true,
+        "m_fitted": 178,
+        "m_literal": 147,
+        "n_never": 31,
+        "rank_index_fitted": 162,
+        "rank_index_literal": 134,
+        "tau_nf_literal": 10.540365769
+      },
+      "loso-ss": {
+        "fit_on": "the other folds",
+        "lands_on_infinity": true,
+        "m_fitted": 178,
+        "m_literal": 144,
+        "n_never": 34,
+        "rank_index_fitted": 162,
+        "rank_index_literal": 131,
+        "tau_nf_literal": 10.197935186
+      },
+      "loso-tt": {
+        "fit_on": "the other folds",
+        "lands_on_infinity": false,
+        "m_fitted": 178,
+        "m_literal": 173,
+        "n_never": 5,
+        "rank_index_fitted": 162,
+        "rank_index_literal": 157,
+        "tau_nf_literal": 10.521891254
+      }
+    },
+    "ob": {
+      "false_alarm_rate": {
+        "estimate": 0.06741573,
+        "high": 0.127906977,
+        "low": 0.022222222,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.595505618,
+        "high": 0.719101124,
+        "low": 0.466666667,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "pooled": {
+      "false_alarm_rate": {
+        "estimate": 0.329588015,
+        "high": 0.381140811,
+        "low": 0.280898876,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.464419476,
+        "high": 0.529850746,
+        "low": 0.399253731,
+        "n": 267,
+        "n_clusters": 90
+      }
+    },
+    "ss": {
+      "false_alarm_rate": {
+        "estimate": 0.584269663,
+        "high": 0.674157303,
+        "low": 0.488882576,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.213483146,
+        "high": 0.303370787,
+        "low": 0.134831461,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "tt": {
+      "false_alarm_rate": {
+        "estimate": 0.337078652,
+        "high": 0.449438202,
+        "low": 0.233333333,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.584269663,
+        "high": 0.711111111,
+        "low": 0.459664751,
+        "n": 89,
+        "n_clusters": 30
+      }
+    }
+  },
+  "resamples": 2000,
+  "seed": 1
+}

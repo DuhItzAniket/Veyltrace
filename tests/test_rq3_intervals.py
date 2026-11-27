@@ -96,6 +96,32 @@ def test_sensitivity_fits_each_fold_on_the_other_folds_windows() -> None:
     assert got["ob"]["false_alarm_rate"]["estimate"] == pytest.approx(1 / 20)
 
 
+def test_loso_fits_each_held_out_system_on_the_other_systems_windows() -> None:
+    # re2-oracle-loso-off-v1 has three folds, one per held-out system (#635)
+    rows = [
+        _row(i, system=s, fault=False, m=float(i), fold=f"loso-{s}")
+        for s, ms in (("ob", range(1, 11)), ("ss", range(11, 21)), ("tt", range(21, 31)))
+        for i in ms
+    ]
+    got = rq3.sensitivity(rows, 0.1, seed=1, resamples=50)
+    held = got["held_out_fold"]
+    assert sorted(held) == ["loso-ob", "loso-ss", "loso-tt"]
+    assert {h["fit_on"] for h in held.values()} == {"the other folds"}
+    # 20 windows each: the ceil(21 * 0.9) = 19th smallest of the other two systems' M
+    assert held["loso-ob"]["m_literal"] == 20 and held["loso-ob"]["tau_nf_literal"] == 29.0
+    assert held["loso-ss"]["tau_nf_literal"] == 29.0
+    assert held["loso-tt"]["tau_nf_literal"] == 19.0
+    # tt windows (M 21..30) against tau 19: every one alarms; ob and ss windows are all <= 29
+    assert got["tt"]["false_alarm_rate"]["estimate"] == 1.0
+    assert got["ob"]["false_alarm_rate"]["estimate"] == 0.0
+
+
+def test_one_fold_is_refused() -> None:
+    rows = [_row(i, fault=False, m=float(i), fold="all") for i in range(1, 11)]
+    with pytest.raises(SystemExit, match="at least two folds"):
+        rq3.sensitivity(rows, 0.1, seed=1, resamples=10)
+
+
 def test_find_run_needs_exactly_one_matching_verdict(tmp_path: Path) -> None:
     for name, h in (("a", "h1"), ("b", "h2"), ("c", "h2")):
         (tmp_path / name).mkdir()
@@ -120,6 +146,22 @@ def test_a_summary_that_disagrees_is_refused() -> None:
     metrics["coverage"]["coverage"] = 0.6
     with pytest.raises(SystemExit):
         rq3.check_against_summary(mine, {"groups": [{"system": "ob", "metrics": metrics}]})
+
+
+def test_without_risk_coverage_there_is_no_aurc_to_compute_or_check() -> None:
+    # re2-oracle-loso-off-v1 does not pre-register risk_coverage, so its summary has none (#635)
+    rows = [_row(i) for i in range(10)] + [_row(100 + i, fault=False) for i in range(5)]
+    got = rq3.group(rows, seed=1, resamples=20, pooled=False, with_aurc=False)
+    assert sorted(got) == ["coverage", "false_alarm_rate", "wrong_no_fault_rate"]
+    assert "aurc_difference" in rq3.group(rows, seed=1, resamples=20, pooled=False, with_aurc=True)
+    est = {"estimate": 0.5}
+    mine = {"ob": {k: est for k in ("coverage", "false_alarm_rate", "wrong_no_fault_rate")}}
+    metrics = {
+        "coverage": {"coverage": 0.5},
+        "no_fault_rates": {"false_alarm_rate": 0.5, "wrong_no_fault_rate": 0.5},
+        "risk_coverage": None,
+    }
+    rq3.check_against_summary(mine, {"groups": [{"system": "ob", "metrics": metrics}]})
 
 
 def test_rows_csv_has_opaque_clusters_and_no_truth_labels(tmp_path: Path) -> None:
