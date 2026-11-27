@@ -51,11 +51,13 @@ In \sys the verifier is code: each LLM claim is a named predicate that code re-e
 \paragraph{The calibration gap.}
 Little RCA work states how far an answer can be trusted.
 LM-PACE prompts a retrieval-augmented GPT-4 to rate how well its answer is grounded in the incident and how it compares with historical incidents. On more than 100,000 Microsoft incidents, this reduces the expected calibration error of root-cause confidence to 31\% of that of direct prompting~\cite{lmpace2024}. It calibrates a confidence score rather than returning a candidate set.
-Yu et al.\ build on the conformal methods CONCH and CROC with weighted variants whose confidence sets contain the true changepoint or root-cause stream with a user-specified probability under corrupted observations~\cite{conch2026}.
+CROC gives conformal confidence sets, with finite-sample coverage, for the stream whose distribution changed first among several streams. It assumes that at least one stream changed, so it has no no-change answer, and it is evaluated on simulated, image and review-text streams~\cite{croc2026}.
+Yu et al.\ add weighted variants of CROC and of the changepoint method CONCH~\cite{conchloc2026} that keep this coverage under a Huber-type contamination model of corrupted observations and shrink the sets, and evaluate them on image and call-record data~\cite{conch2026}.
 Gaikwad and Pandey describe CoreSec, a production system for RCA in datacenter Clos fabrics, which composes telemetry agents so that it either reaches a deterministic decision or abstains explicitly when the evidence is ambiguous~\cite{abstention2026osdi}.
+Its abstention follows fixed rules and thresholds derived from production incidents, and it returns a rule-based attribution, not a candidate set with a coverage target.
 The other conformal work we found targets rankings~\cite{conformalranking2025}, risk control in two-stage retrieval~\cite{conformalretrieval2024} and abstention in LLM question answering~\cite{conformalabstention2024}, not RCA. A recent LLM-RCA benchmark reports no confidence scores and scores a case without an answer as zero~\cite{rcatlas2026}.
-To our knowledge, based on searches up to October 2026, \sys gives the first conformal candidate sets with a no-fault option for microservice RCA (\S\ref{sec:conformal}).
-\leadq{docs/11 \S11: CONCH/CROC and the OSDI'26 Abstention Protocol have now been checked on their arXiv abstract and USENIX pages only; read both in full, and search ICSE, FSE, ASE and arXiv full text, before keeping the ``first'' sentence.}
+To our knowledge, based on web and arXiv searches up to November 2026 and on the full texts of CROC, Yu et al., CoreSec and LM-PACE (arXiv version), \sys gives the first conformal candidate sets with a no-fault option for microservice RCA (\S\ref{sec:conformal}).
+Unlike CROC, \sys may answer that no service is at fault, with a threshold fitted as a conformal quantile over normal windows (\S\ref{sec:conformal}; on RE2 it falls back to its default, \S\ref{sec:rq3}), and its candidates are services rather than streams.
 
 \paragraph{Change-aware RCA.}
 Industrial systems treat recent changes as prime suspects.
@@ -66,8 +68,8 @@ DeltaRCA uses an LLM agent to find the operations that code changes affect, and 
 Gandalf, ChangeRCA and Meta's health checks gate rollouts or rank changes on proprietary data, and the public benchmarks carry no change events (Section~\ref{sec:intro}).
 \sys instead treats change proximity and changed-versus-peer contrast as one evidence channel among several (\S\ref{sec:evidence}), and RCAEval-C tests how easily decoy changes mislead that channel (\S\ref{sec:rq4}).
 
-% Table 1 is hand-written (not generated). Cells come from docs/11 §4, the research notes and the
-% citation verifiers' reading of the primary pages; see the legend.
+% Table 1 is hand-written (not generated). Every cell was checked against the full text of the cited
+% version (arXiv HTML/PDF; LM-PACE as arXiv 2309.05833v3) and DecompRCA's README in Nov 2026 (#661); see the legend.
 \begin{table}[t]
 \caption{Closest prior work against the properties \sys targets.}
 \label{tab:related}
@@ -78,17 +80,17 @@ Gandalf, ChangeRCA and Meta's health checks gate rollouts or rank changes on pro
 Work & Verifies claims & Abstains? & Replayable? & Runs & Per-case \\
  & in code? & & & locally? & outputs? \\
 \midrule
-PRISM~\cite{prism2026} & -- & no & no & yes & no \\
-Simple LLM harnesses~\cite{rcatlas2026} & no & no\textsuperscript{a} & no & no & no \\
+PRISM~\cite{prism2026} & -- & no & no & yes & no\textsuperscript{a} \\
+Simple LLM harnesses~\cite{rcatlas2026} & no & no\textsuperscript{b} & no & no & no \\
 GALA+~\cite{galaplus2026} & no & no & no & no & no \\
-DecompRCA~\cite{decomprca2026} & no & no & no & partial\textsuperscript{b} & no \\
-EviRCA~\cite{evirca2026} & no & no & no & no\textsuperscript{c} & no \\
-SpecRCA~\cite{specrca2026} & no & no & no & partial\textsuperscript{d} & no \\
+DecompRCA~\cite{decomprca2026} & no & no & no\textsuperscript{c} & partial\textsuperscript{d} & no \\
+EviRCA~\cite{evirca2026} & no & no & no & no\textsuperscript{e} & no \\
+SpecRCA~\cite{specrca2026} & no & no & no & no\textsuperscript{f} & no \\
 DiagGuard~\cite{diagguard2026} & no & no & no & no & no \\
-ARGUS~\cite{argus2026} & partial\textsuperscript{e} & partial\textsuperscript{f} & no & no & no \\
+ARGUS~\cite{argus2026} & partial\textsuperscript{g} & no\textsuperscript{h} & no & no & no \\
 LM-PACE~\cite{lmpace2024} & no & no & no & no & no \\
 \midrule
-\sys (this paper) & yes & yes & yes & yes & yes\textsuperscript{g} \\
+\sys (this paper) & yes & yes & yes & yes & yes\textsuperscript{i} \\
 \bottomrule
 \end{tabularx}
 
@@ -99,13 +101,14 @@ LM-PACE~\cite{lmpace2024} & no & no & no & no & no \\
 \emph{Replayable}: a third party can re-derive each verdict exactly from recorded artefacts, including any LLM output.
 \emph{Runs locally}: the system as evaluated runs on one machine without a hosted model.
 \emph{Per-case outputs}: per-case predictions are released.
-\emph{yes}/\emph{partial}: described in the paper; \emph{no}: not described in the paper or its released material as we read them (abstracts, the sections summarised in our notes and the pages checked for this section, October--November 2026).
-\textsuperscript{a}A case without an answer scores zero.
-\textsuperscript{b}Its baseline runner needs no API key; the re-ranking call goes to a hosted API.
-\textsuperscript{c}The abstract does not name the two LLMs, so local execution is not described.
-\textsuperscript{d}The evaluated verifier is a distilled 3B model; the design also has a larger LLM write the final synthesis.
-\textsuperscript{e}A sufficiency gate checks that minimum evidence exists; claims are not described as re-evaluated.
-\textsuperscript{f}Writes ``Unknown'' for missing values and rejects reports without minimum evidence.
-\textsuperscript{g}Design properties of \sys; \S\ref{sec:rq6} measures replay and \S\ref{sec:rq5} cost.
-\leadq{check every cell against the full texts before submission.}
+\emph{yes}/\emph{partial}: described in the paper; \emph{no}: not described in the paper or its released material as we read them (the full text of each cited work, LM-PACE as its arXiv v3, and DecompRCA's repository README, November 2026).
+\textsuperscript{a}Its reproducibility appendix describes pre-computed results for all 735 cases but gives no link to them.
+\textsuperscript{b}A case without an answer scores zero.
+\textsuperscript{c}Its code can re-score stored LLM responses without API calls, but the stored responses are not released.
+\textsuperscript{d}Its baseline runner needs no API key; the re-ranking call goes to a hosted API.
+\textsuperscript{e}The paper names its two LLMs but not where they run.
+\textsuperscript{f}The paper does not say where its distilled 3B verifier or the larger LLM that writes the final synthesis runs.
+\textsuperscript{g}A sufficiency gate checks that minimum evidence exists, and the confidence label is computed from the investigation trace; claims are not described as re-evaluated.
+\textsuperscript{h}The prompt asks for ``Unknown'' instead of an inferred value; the paper does not say whether a run can end without a root cause.
+\textsuperscript{i}Design properties of \sys; \S\ref{sec:rq6} measures replay and \S\ref{sec:rq5} cost.
 \end{table}
