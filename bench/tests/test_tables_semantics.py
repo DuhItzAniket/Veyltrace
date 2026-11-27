@@ -181,7 +181,7 @@ def test_an_older_summary_ran_and_keeps_its_provenance(results: Path) -> None:
     res = load(results, "re2-oracle-baselines-r05", read_register(results))
     assert res.reason == OLD_FORMAT.format("0.1.0") and res.commit == "fixture" and len(res.hashes) == 3
     assert res.old is not None and res.old.groups == 2 and res.label == "re2-oracle-baselines-r05 @ fixture"
-    assert cells.not_run(res.reason).text == cells.NOT_TABULATED
+    assert res.reason is not None and cells.not_run(res.reason).text == cells.NOT_TABULATED
     index = generate.outputs(results, EXPERIMENTS)["tables/a0-results-index.md"].decode()
     assert "| re2-oracle-baselines-r05 | RQ1 | no | run (bench_summary 0.1.0)<sup>" in index
     assert "| 2 | none<sup>" in index
