@@ -1,0 +1,273 @@
+{
+  "beta": 0.1,
+  "experiment_id": "re2-oracle-rq3-off-v1",
+  "intervals": {
+    "ob": {
+      "aurc_difference": {
+        "estimate": 0.327128255,
+        "high": 0.447858676,
+        "low": 0.198468763,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "aurc_fused": {
+        "estimate": 0.184270106,
+        "high": 0.289852603,
+        "low": 0.094404849,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "aurc_verdict": {
+        "estimate": 0.511398361,
+        "high": 0.664774528,
+        "low": 0.342296592,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "coverage": {
+        "estimate": 0.865168539,
+        "high": 0.954545455,
+        "low": 0.764044944,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "false_alarm_rate": {
+        "estimate": 1.0,
+        "high": 1.0,
+        "low": 1.0,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "pooled": {
+      "aurc_difference": {
+        "estimate": 0.230168474,
+        "high": 0.289991162,
+        "low": 0.172320223,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "aurc_fused": {
+        "estimate": 0.235667888,
+        "high": 0.294942088,
+        "low": 0.186195904,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "aurc_verdict": {
+        "estimate": 0.465836362,
+        "high": 0.543863133,
+        "low": 0.392932629,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "coverage": {
+        "estimate": 0.91011236,
+        "high": 0.947565543,
+        "low": 0.861535581,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "false_alarm_rate": {
+        "estimate": 1.0,
+        "high": 1.0,
+        "low": 1.0,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "n": 267,
+        "n_clusters": 90
+      }
+    },
+    "ss": {
+      "aurc_difference": {
+        "estimate": 0.34003548,
+        "high": 0.442093398,
+        "low": 0.232785006,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "aurc_fused": {
+        "estimate": 0.194646916,
+        "high": 0.30249146,
+        "low": 0.117387805,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "aurc_verdict": {
+        "estimate": 0.534682395,
+        "high": 0.655067562,
+        "low": 0.412097944,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "coverage": {
+        "estimate": 0.91011236,
+        "high": 0.966666667,
+        "low": 0.842696629,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "false_alarm_rate": {
+        "estimate": 1.0,
+        "high": 1.0,
+        "low": 1.0,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "tt": {
+      "aurc_difference": {
+        "estimate": 0.208588894,
+        "high": 0.290594911,
+        "low": 0.126860931,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "aurc_fused": {
+        "estimate": 0.122969422,
+        "high": 0.189543212,
+        "low": 0.075769034,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "aurc_verdict": {
+        "estimate": 0.331558316,
+        "high": 0.442760997,
+        "low": 0.223298491,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "coverage": {
+        "estimate": 0.95505618,
+        "high": 1.0,
+        "low": 0.888888889,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "false_alarm_rate": {
+        "estimate": 1.0,
+        "high": 1.0,
+        "low": 1.0,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.0,
+        "high": 0.0,
+        "low": 0.0,
+        "n": 89,
+        "n_clusters": 30
+      }
+    }
+  },
+  "level": 0.95,
+  "literal_tau_sensitivity": {
+    "held_out_fold": {
+      "foldA": {
+        "fit_on": "the other fold",
+        "lands_on_infinity": true,
+        "m_fitted": 133,
+        "m_literal": 114,
+        "n_never": 19,
+        "rank_index_fitted": 121,
+        "rank_index_literal": 104,
+        "tau_nf_literal": 10.462365165
+      },
+      "foldB": {
+        "fit_on": "the other fold",
+        "lands_on_infinity": true,
+        "m_fitted": 134,
+        "m_literal": 118,
+        "n_never": 16,
+        "rank_index_fitted": 122,
+        "rank_index_literal": 108,
+        "tau_nf_literal": 10.545486573
+      }
+    },
+    "ob": {
+      "false_alarm_rate": {
+        "estimate": 0.08988764,
+        "high": 0.177777778,
+        "low": 0.02247191,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.595505618,
+        "high": 0.719101124,
+        "low": 0.466666667,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "pooled": {
+      "false_alarm_rate": {
+        "estimate": 0.198501873,
+        "high": 0.250973799,
+        "low": 0.149812734,
+        "n": 267,
+        "n_clusters": 90
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.617977528,
+        "high": 0.689144961,
+        "low": 0.543071161,
+        "n": 267,
+        "n_clusters": 90
+      }
+    },
+    "ss": {
+      "false_alarm_rate": {
+        "estimate": 0.168539326,
+        "high": 0.247191011,
+        "low": 0.101123596,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.674157303,
+        "high": 0.797752809,
+        "low": 0.539325843,
+        "n": 89,
+        "n_clusters": 30
+      }
+    },
+    "tt": {
+      "false_alarm_rate": {
+        "estimate": 0.337078652,
+        "high": 0.449438202,
+        "low": 0.233333333,
+        "n": 89,
+        "n_clusters": 30
+      },
+      "wrong_no_fault_rate": {
+        "estimate": 0.584269663,
+        "high": 0.711111111,
+        "low": 0.459664751,
+        "n": 89,
+        "n_clusters": 30
+      }
+    }
+  },
+  "resamples": 2000,
+  "seed": 1
+}

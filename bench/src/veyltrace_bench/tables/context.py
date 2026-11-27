@@ -18,15 +18,18 @@ from veyltrace_bench.experiment import Experiment, load_experiment
 from veyltrace_bench.tables.results import (
     REGISTER,
     REPLAY_ROLES,
+    RQ3_DIR,
     Replay,
     Results,
+    Rq3Intervals,
     load,
     load_replay,
+    load_rq3,
     read_register,
 )
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError
-from veyltrace_core.hashing import sha256_text_lf
+from veyltrace_core.hashing import sha256_file, sha256_text_lf
 from veyltrace_core.yaml12 import load_yaml_bytes
 
 SYNTH = "synth"  # smoke dataset, never reported (04 §3, §9)
@@ -43,6 +46,23 @@ _PLANNED = {  # 04 §6 row -> the indexes of its planned columns in _COLUMNS (sy
     "cloud-opsbench": "5",
 }  # fmt: skip
 CELLS = frozenset(f"{row}/{_COLUMNS[int(i)]}" for row, planned in _PLANNED.items() for i in planned)
+REVISES = "revises "  # the role of a revision's results: "revises <pre-registered id>"
+#: bench/results folders that are neither an experiment nor generated output, and the RQ each
+#: serves: RQ3 intervals (scripts/rq3_intervals.py, #555), RQ6 replay sites (03 §13.5),
+#: AI model time and tokens (rq5-ai-cost) and Observe's slowest-laptop measurement (perf-o11, O-11).
+SIDE_RQ = {"perf-o11": "RQ5", "replay": "RQ6", RQ3_DIR: "RQ3", "rq5-ai-cost": "RQ5"}
+NESTED = frozenset({"replay", RQ3_DIR})  # one result per subfolder
+GENERATED_DIRS = frozenset({"figures", "tables"})  # the generator's own output (generate.GENERATED)
+
+
+@dataclass(frozen=True)
+class Side:
+    """A committed results folder that is not an experiment: `source` names it by its path
+    under bench/results and hashes its files; `rq3` when it is an rq3-intervals folder."""
+
+    source: Results
+    rq: str
+    rq3: Rq3Intervals | None = None
 
 
 def protocol(exp: Experiment) -> str:
@@ -78,6 +98,11 @@ class Context:
     dev_cases: tuple[str, ...] | None = None  # bench/dev_cases.yaml; None when the file is absent
     root: Path | None = None  # the repo root: a YAML's `dataset.cases` path is relative to it (04 §9)
     replays: Mapping[str, Replay] = field(default_factory=dict[str, Replay])  # RQ6 role -> result (#440)
+    sides: tuple[Side, ...] = ()  # the other committed results folders, sorted by path
+
+    def revisions_of(self, experiment_id: str) -> tuple[str, ...]:
+        """The 04 §12 revisions of a pre-registered experiment, sorted; () when it has none."""
+        return tuple(sorted(new for new, old in self.revises.items() if old == experiment_id))
 
     def get(self, experiment_id: str) -> Results:
         if experiment_id not in self.results:
@@ -95,10 +120,11 @@ class Context:
         """This context with the results and spec of the experiment `new` revises replaced by
         `new`'s, so a builder's pass on it yields the revised rows. The spec keeps the
         pre-registered id, so a builder looking it up by id gets the revision's results, which say
-        "revises <id>" in their source cell."""
+        "revises <id>" in their source cell and stand in for it (`stands_in_for`, which tells
+        generate.paired these rows from the revision's own, cited by its id)."""
         old = self.revises[new]
         results, specs = dict(self.results), dict(self.specs)
-        results[old] = replace(self.results[new], role=f"revises {old}")
+        results[old] = replace(self.results[new], role=f"{REVISES}{old}", stands_in_for=old)
         specs[old] = self.spec(new).model_copy(update={"experiment_id": old})
         return replace(self, results=results, specs=specs)
 
@@ -159,8 +185,48 @@ def context(results_root: Path, experiments_dir: Path) -> Context:
         else:
             spec = exp
         role = PRE_REGISTERED if exp.experiment_id in register.revises.values() else None
+        if (old := register.revises.get(exp.experiment_id)) is not None:
+            role = f"{REVISES}{old}"  # a revision names what it revises wherever it is cited
         results[exp.experiment_id] = replace(res, protocol=protocol(spec), role=role)
+    for old, res in list(results.items()):  # the arms the revisions of a revised experiment run
+        if res.revised_as:
+            ran = {m.id for new in res.revised_as for m in (specs.get(new) or _yaml(keep, new)).methods}
+            results[old] = replace(res, revision_methods=frozenset(ran))
     cells = {k: v for k, v in register.reasons.items() if k in CELLS and k not in ids}
     root = experiments_dir.resolve().parents[1]  # bench/experiments -> the repo
     replays = {role: load_replay(results_root, role) for role in REPLAY_ROLES}
-    return Context(tuple(e for e, _ in keep), results, specs, cells, register.revises, dev, root, replays)
+    sides = _sides(results_root, {e.experiment_id for e, _ in found})
+    return Context(
+        tuple(e for e, _ in keep), results, specs, cells, register.revises, dev, root, replays, sides
+    )
+
+
+def _yaml(keep: list[tuple[Experiment, str]], experiment_id: str) -> Experiment:
+    return next(e for e, _ in keep if e.experiment_id == experiment_id)
+
+
+def _side(results_root: Path, folder: Path) -> Side:
+    name = folder.relative_to(results_root).as_posix()
+    files = sorted(p for p in folder.iterdir() if p.is_file())
+    hashes = tuple((p.name, sha256_file(p)) for p in files)
+    top = name.split("/", 1)[0]
+    rq3 = load_rq3(results_root, folder.name) if top == RQ3_DIR else None
+    return Side(Results(name, hashes=hashes, path=folder), SIDE_RQ.get(top, "-"), rq3)
+
+
+def _sides(results_root: Path, experiment_ids: set[str]) -> tuple[Side, ...]:
+    """Every committed results folder besides the experiments', the generated tables and figures,
+    and the RQ6 replay roles (Context.replays), sorted by path."""
+    if not results_root.is_dir():
+        return ()
+    out: list[Side] = []
+    for top in sorted(p for p in results_root.iterdir() if p.is_dir()):
+        if top.name in experiment_ids or top.name in GENERATED_DIRS:
+            continue
+        if top.name not in NESTED:
+            out.append(_side(results_root, top))
+            continue
+        for sub in sorted(p for p in top.iterdir() if p.is_dir()):
+            if not (top.name == "replay" and sub.name in REPLAY_ROLES):
+                out.append(_side(results_root, sub))
+    return tuple(out)

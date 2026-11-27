@@ -9,6 +9,8 @@ code (core's DIRTY_PATHS) equals each source manifest's `code.commit` (bench ref
 not `main` after `results-code-v1`); the committed recording result; the archive (zip or tar, no
 member outside the runs root) giving `<runs root>/bench-ai/`; the dry run's bytes of the recorded
 run directories equal to the recording host's (`--expect-bytes`; its run count is the CSV's).
+Both bench calls name the recording result's source experiments (`--experiment`), so bench
+replays the same sources and never scans other manifests under the results root.
 A corrupt run file is left to replay, which re-hashes every input (exit 3).
 
 Exit: 0 every run replayed with exit 0 (100%); 1 a step failed or below 100%; 2 refused before any
@@ -154,6 +156,12 @@ def bench_replay(repo: Path, args: Sequence[str]) -> subprocess.CompletedProcess
     return got
 
 
+def source_args(summary: Mapping[str, Any]) -> list[str]:
+    """`--experiment <id>` for each source of the recording result: the second-laptop result must
+    name the same sources, and other manifests under the results root may be unreadable (R-05)."""
+    return [arg for src in summary["sources"] for arg in ("--experiment", str(src["experiment_id"]))]
+
+
 def dry_run_count(out: str) -> tuple[int, int]:
     """(N, B) from bench's --dry-run line `runs: N, bytes: B`."""
     if found := re.search(r"^runs: (\d+), bytes: (\d+)$", out, re.MULTILINE):
@@ -216,7 +224,7 @@ def run(a: argparse.Namespace) -> int:
         extract(archive.resolve(), runs_root)
     if not (runs_root / KEPT).is_dir():
         raise Refused(f"{runs_root / KEPT} does not exist: extract the archive so that it holds bench-ai/")
-    common = ["--runs-root", str(runs_root), "--results", str(results)]
+    common = ["--runs-root", str(runs_root), "--results", str(results), *source_args(rec)]
     dry = bench_replay(repo, [*common, "--dry-run"])
     if dry.returncode != 0:
         raise Refused(f"the dry run exited {dry.returncode}")

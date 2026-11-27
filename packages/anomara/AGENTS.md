@@ -16,8 +16,8 @@ Engine 3, pipeline step 3. Scores every series with `robust_z` (multi-part scale
 - `score_norm = log1p(score)` for `robust_z` (Causentra's `NO_FAULT` statistic relies on it).
 - Entry services: copy `alert.detector.entry_services` when set, else call `veyltrace_causalith.entry.entry_services()`. Never write a second entry rule.
 - Determinism: exact medians/quantiles; BOCPD in log space with one sequential time loop and no matrix products; no RNG; ties → earliest time.
-- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `numpy`, `scipy`, `pyarrow`, `duckdb`, `veyltrace_causalith.entry`, stdlib. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `transformers`.
-- `torch` and the TSFM model package only inside `veyltrace_anomara/tsfm/`, imported lazily when `tsfm.enabled` (off by default), CPU, offline, pinned weights (optional extra `tsfm`; cut-list item 1).
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `numpy`, `pyarrow`, `veyltrace_causalith.entry`, stdlib. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `transformers`.
+- The TSFM plugin is not built and is cut to v1.1 (03-anomara §3.9). When it is built: `torch` and the model package only inside `veyltrace_anomara/tsfm/`, imported lazily when `tsfm.enabled` (off by default), CPU, offline, pinned weights (optional extra `tsfm`).
 
 ## Commands
 | Task | Command |

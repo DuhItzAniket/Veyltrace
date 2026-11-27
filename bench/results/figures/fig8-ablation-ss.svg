@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="375" viewBox="0 0 640 375" font-family="sans-serif" font-size="11">
+<title>Fig. 8: AC@1 and status mix under telemetry ablation, RE2-SS</title>
+<text x="174" y="320" text-anchor="middle">AC@1</text>
+<text x="354" y="320" text-anchor="middle">CONFIRMED share</text>
+<text x="534" y="320" text-anchor="middle">CONFIRMED or LIKELY share</text>
+<text x="78" y="44" text-anchor="end">none</text>
+<rect x="84" y="16" width="180" height="48" fill="#a1b8ff" stroke="#fff"/>
+<text x="174" y="44" text-anchor="middle">0.472</text>
+<rect x="264" y="16" width="180" height="48" fill="#dddddd" stroke="#fff"/>
+<text x="354" y="44" text-anchor="middle">n/a</text>
+<rect x="444" y="16" width="180" height="48" fill="#dddddd" stroke="#fff"/>
+<text x="534" y="44" text-anchor="middle">n/a</text>
+<text x="78" y="92" text-anchor="end">drop metrics</text>
+<rect x="84" y="64" width="180" height="48" fill="#d9e2ff" stroke="#fff"/>
+<text x="174" y="92" text-anchor="middle">0.191</text>
+<rect x="264" y="64" width="180" height="48" fill="#ffffff" stroke="#fff"/>
+<text x="354" y="92" text-anchor="middle">0.000</text>
+<rect x="444" y="64" width="180" height="48" fill="#ffffff" stroke="#fff"/>
+<text x="534" y="92" text-anchor="middle">0.000</text>
+<text x="78" y="140" text-anchor="end">drop logs</text>
+<rect x="84" y="112" width="180" height="48" fill="#688eff" stroke="#fff"/>
+<text x="174" y="140" text-anchor="middle">0.753</text>
+<rect x="264" y="112" width="180" height="48" fill="#ffffff" stroke="#fff"/>
+<text x="354" y="140" text-anchor="middle">0.000</text>
+<rect x="444" y="112" width="180" height="48" fill="#ffffff" stroke="#fff"/>
+<text x="534" y="140" text-anchor="middle">0.000</text>
+<text x="78" y="188" text-anchor="end">drop traces</text>
+<rect x="84" y="160" width="180" height="48" fill="#a1b8ff" stroke="#fff"/>
+<text x="174" y="188" text-anchor="middle">0.472</text>
+<rect x="264" y="160" width="180" height="48" fill="#edf2ff" stroke="#fff"/>
+<text x="354" y="188" text-anchor="middle">0.090</text>
+<rect x="444" y="160" width="180" height="48" fill="#b3c6ff" stroke="#fff"/>
+<text x="534" y="188" text-anchor="middle">0.382</text>
+<text x="78" y="236" text-anchor="end">drop events</text>
+<rect x="84" y="208" width="180" height="48" fill="#a1b8ff" stroke="#fff"/>
+<text x="174" y="236" text-anchor="middle">0.472</text>
+<rect x="264" y="208" width="180" height="48" fill="#edf2ff" stroke="#fff"/>
+<text x="354" y="236" text-anchor="middle">0.090</text>
+<rect x="444" y="208" width="180" height="48" fill="#b3c6ff" stroke="#fff"/>
+<text x="534" y="236" text-anchor="middle">0.382</text>
+<text x="78" y="284" text-anchor="end">metrics only</text>
+<rect x="84" y="256" width="180" height="48" fill="#688eff" stroke="#fff"/>
+<text x="174" y="284" text-anchor="middle">0.753</text>
+<rect x="264" y="256" width="180" height="48" fill="#ffffff" stroke="#fff"/>
+<text x="354" y="284" text-anchor="middle">0.000</text>
+<rect x="444" y="256" width="180" height="48" fill="#ffffff" stroke="#fff"/>
+<text x="534" y="284" text-anchor="middle">0.000</text>
+<text x="56" y="354" text-anchor="start" fill="#555">2 of 18 points not plotted: 2 n/a (see the CSV status); 10 without an interval (no</text>
+<text x="56" y="369" text-anchor="start" fill="#555">interval in the committed results (04 §8 asks for one))</text>
+</svg>

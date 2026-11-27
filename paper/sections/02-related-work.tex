@@ -1,8 +1,111 @@
-% §2 Background and related work (lead). Source: docs/11 §4 (related-work map) and §11 (claim register).
+% §2 Background and related work (lead). Sources: docs/11 §4 (related-work map) and §11 (claim register),
+% numbers confirmed in research_notes/Veyltrace v2 SOTA root cause analysis/*.md and reports/, and bibliographic
+% fields checked on the primary pages (arXiv, Crossref, ACL Anthology, USENIX, PMLR, FSE listings) in Nov 2026.
+% Every number is context from the cited paper, not a comparison; our own results are not discussed here.
+% Numbers already quoted in §1 (RCAtlas harness means, OpenRCA 2.0 exact set, ORCA-bench, SREGym, DiagGuard
+% +3.5--35.1, planted decoys, onset shift, per-case audit, PetShop) and §3 (DecompRCA 98--100% and 57.8%,
+% causal F1 0.1--0.54) are referred to, not repeated.
 \section{Background and Related Work}
 \label{sec:related}
 
-\leadq{not drafted in R-18. Condense docs/11 §4 into six paragraphs: statistical methods lead on RCAEval; LLM harnesses versus strict metrics; hybrids; verification; the calibration gap; change-aware RCA. Every number is context from the cited paper, not a comparison.}
+\paragraph{Statistical methods lead on RCAEval.}
+On RCAEval~\cite{rcaeval2024}, a public benchmark of 735 microservice failure cases, statistical deviation scoring is the strongest non-LLM family in the results we found.
+PRISM~\cite{prism2026}, a single-author preprint (the method is renamed CIE in its second version) with no public code repository as of November 2026, separates each service's internal anomalies (resource usage such as CPU, memory and disk I/O) from the external ones observable at its boundary (latency, request rate and error rate). It reports 0.68 Top-1, averaged over fault types, together with 0.91 Top-3 and 0.87 Avg@5 on RCAEval's 735 cases.
+BARO~\cite{baro2024} and N-Sigma, both implemented in RCAEval's code~\cite{rcaeval2024}, are the usual simple references.
+DecompRCA~\cite{decomprca2026} separates retrieval failures (the true cause is never a candidate) from re-ranking failures (it is a candidate but ranked too low).
+On RCAEval's RE1 suites retrieval is close to solved (\S\ref{sec:slate}). On industrial cyber-physical benchmarks, the statistical baseline that scores every sensor ranks the true cause wrongly in 79--100\% of cases, and no graph-based method clearly beat the strongest statistical baseline.
+Causal discovery has not changed this picture.
+In one study, most graph-learning RCA methods performed about as well as a random ranking, and the slowest needed more than an hour per case: neural Granger discovery with RUN~\cite{run2024} took 1,078--4,938\,s per case on the datasets where it finished and did not finish within the time limit on the larger ones~\cite{causalinference2024ase}.
+On PetShop, no causal method that was not given the call graph beat plain ranked correlation~\cite{petshop2024}.
+\sys keeps this family as its rankers (\S\ref{sec:slate}) and puts its effort into re-ranking and verification, not into learning a graph.
 
-% Table 1 is hand-written (not generated): one row per close work, columns
-% "verifies claims in code?", "abstains?", "replayable?", "runs locally?", "per-case outputs?".
+\paragraph{LLM harnesses versus strict metrics.}
+Early LLM-based RCA systems differ in how much of the workflow they fix in advance. Flow-of-Action guides a multi-agent system with standard operating procedures~\cite{flowofaction2025}, RCAgent lets a tool-augmented agent collect and analyse the data autonomously~\cite{rcagent}, and mABC lets agents reach a decision by voting~\cite{mabc2024}.
+RCAtlas re-ran them on its 90 cases, re-implementing Flow-of-Action and RCAgent over shared data tools and running mABC from its released code. They reached a mean PR@1 of 53.3\%, 49.3\% and 15.6\% respectively, averaged over partly different sets of models, which is below the simple harnesses quoted in Section~\ref{sec:intro}~\cite{rcatlas2026}.
+The same study's case studies show how an LLM that decides can fail without warning: in one case Flow-of-Action's LLM judge declared a wrong service the root cause in the first round, and in another mABC stopped at a caller because it inspects only received calls and so cannot see a service that has stopped receiving them~\cite{rcatlas2026}.
+Strict metrics stay low even for strong models.
+Besides the exact-set, on-call and unseen-failure results in Section~\ref{sec:intro}, OpenRCA~2.0 finds that LLMs recover propagation edges less reliably than the services involved (mean Edge F1 43.4\% against mean Node F1 62.2\%)~\cite{openrca2026v2}.
+On OpenRCA~1.0, the best original configuration solved 11.34\% of cases~\cite{openrca2025}. A public issue reports that this is not significantly above the 7.46\% of a leave-one-out predictor that reads no telemetry but uses the labels of the other cases (exact McNemar $p = 0.06$); the maintainers reply that the paper already reports random guessing and that this predictor is not free of information~\cite{openrcaissue23}.
+The strongest results in this line that we found all use commercial models served through APIs.
+We found no paper that evaluates a model of at most 10B parameters as the investigating agent on RCAEval, OpenRCA or RCABench; the closest is ThinkFL, which uses reinforcement fine-tuning to turn a 3B model (Llama-3.2-3B) into an agent that calls diagnostic tools over several rounds, but evaluates it on the AIOps 2022 dataset and on a TrainTicket deployment the authors built themselves~\cite{thinkfl}.
+
+\paragraph{Hybrids: code prepares, the LLM decides.}
+Hybrid designs pair deterministic candidate generation or evidence extraction with an LLM that makes the final choice.
+GALA+~\cite{galaplus2026} combines a metric ranking from BARO with a trace ranking from STRIX (itself a reciprocal-rank fusion of three trace scores) through an LLM consolidation step, then lets a graph-bounded LLM agent investigate. It reports 74.44 and 73.33 AC@1 on two 90-case benchmarks, probably RE2-OB and RE2-TT, against 66.67 for the best non-LLM baseline in its harness.
+DecompRCA~\cite{decomprca2026} re-ranks the candidates of a multi-signal statistical retriever with one listwise LLM call. In its full pipeline it matches or exceeds the best baseline on every suite, by up to 12 points top@1. When all methods rank the same retrieved candidates, the true cause is guaranteed to be among them and the LLM is given a short system description, it leads the best baseline by 7--18 points on every benchmark.
+In RCAtlas's re-run, however, its candidate pool capped its accuracy (\S\ref{sec:slate})~\cite{rcatlas2026}.
+EviRCA lets the LLM see only deterministic evidence cards through a small set of read-only tools and reports 40.6--43.9\% on OpenRCA while using 15--26$\times$ fewer tokens~\cite{evirca2026}.
+KRCA builds a skeleton causal graph from anomalous metrics and has LLM agents verify it, reporting 0.88 AC@1 for service localisation on labelled production failures from one company~\cite{krca2026}.
+In each of these, code improves what the LLM sees, but the LLM's output is the answer.
+\sys inverts the roles: the LLM may add candidates and request checks (\S\ref{sec:proposer}), and a fixed decision function sets the verdict (\S\ref{sec:verifier}).
+Table~\ref{tab:related} compares the closest works on the properties this paper targets.
+
+\paragraph{Verification.}
+Explicit verification is where hybrids report gains in trustworthiness, but the verifiers we found are themselves LLMs or rules about the presence of evidence.
+DiagGuard adds a verifier and a grounder, implemented through prompts and tools, to existing LLM agents (Section~\ref{sec:intro}). In the study's trajectory analysis, the rate of ``semantics misread'' failures, in which the model misreads what the evidence means, did not fall (11.8\% without DiagGuard, 13.6\% with it)~\cite{diagguard2026}.
+SpecRCA drafts candidate hypotheses with a lightweight non-LLM model and verifies the candidates in parallel. For each candidate, a distilled 3B LLM checks the candidate's own state, its parents and its children. This reaches R@1 61.34 at 9.89\,s per query on AIOps~2022, a preliminary result on one dataset~\cite{specrca2026}.
+ARGUS runs a ReAct agent over read-only cluster and telemetry tools. It rejects reports that lack the minimum evidence for the alert type and writes ``Unknown'' instead of inferring missing values. Its confidence label is computed from the investigation trace (the tool-call success ratio and the number of other sources consulted) rather than generated by the model. It found the root cause in 10 of 10 fault scenarios, with one run per scenario, at one company~\cite{argus2026}.
+We found no paper that isolates a purely deterministic verifier over LLM proposals.
+In \sys the verifier is code: each LLM claim is a named predicate that code re-evaluates for every candidate in the pool (\S\ref{sec:evidence}), and free-text rationale never reaches the decision.
+
+\paragraph{The calibration gap.}
+Little RCA work states how far an answer can be trusted.
+LM-PACE prompts a retrieval-augmented GPT-4 to rate how well its answer is grounded in the incident and how it compares with historical incidents. On more than 100,000 Microsoft incidents, this reduces the expected calibration error of root-cause confidence to 31\% of that of direct prompting~\cite{lmpace2024}. It calibrates a confidence score rather than returning a candidate set.
+Yu et al.\ build on the conformal methods CONCH and CROC with weighted variants whose confidence sets contain the true changepoint or root-cause stream with a user-specified probability under corrupted observations~\cite{conch2026}.
+Gaikwad and Pandey describe CoreSec, a production system for RCA in datacenter Clos fabrics, which composes telemetry agents so that it either reaches a deterministic decision or abstains explicitly when the evidence is ambiguous~\cite{abstention2026osdi}.
+The other conformal work we found targets rankings~\cite{conformalranking2025}, risk control in two-stage retrieval~\cite{conformalretrieval2024} and abstention in LLM question answering~\cite{conformalabstention2024}, not RCA. A recent LLM-RCA benchmark reports no confidence scores and scores a case without an answer as zero~\cite{rcatlas2026}.
+To our knowledge, based on searches up to October 2026, \sys gives the first conformal candidate sets with a no-fault option for microservice RCA (\S\ref{sec:conformal}).
+\leadq{docs/11 \S11: CONCH/CROC and the OSDI'26 Abstention Protocol have now been checked on their arXiv abstract and USENIX pages only; read both in full, and search ICSE, FSE, ASE and arXiv full text, before keeping the ``first'' sentence.}
+
+\paragraph{Change-aware RCA.}
+Industrial systems treat recent changes as prime suspects.
+Gandalf correlates fault signals with ongoing rollouts in space and time to stop bad Azure deployments. It reports 92.4\% precision on data-plane rollouts and 94.9\% precision over more than 1,200 region-level control-plane deployments~\cite{gandalf2020}.
+ChangeRCA finds the defective change among the candidate changes behind a change-induced incident, on WeChat data that is not public~\cite{changerca2024}.
+Meta's deployment health checks compare the cohort under test with a control cohort drawn from the unchanged fleet. Meta reports that a one-year quality-improvement programme for these checks cut the fleet-wide false-positive rate from 12.1\% to 2.7\%~\cite{metahealth2026}.
+DeltaRCA uses an LLM agent to find the operations that code changes affect, and uses them to guide weight propagation in trace-based spectrum localisation~\cite{deltarca}.
+Gandalf, ChangeRCA and Meta's health checks gate rollouts or rank changes on proprietary data, and the public benchmarks carry no change events (Section~\ref{sec:intro}).
+\sys instead treats change proximity and changed-versus-peer contrast as one evidence channel among several (\S\ref{sec:evidence}), and RCAEval-C tests how easily decoy changes mislead that channel (\S\ref{sec:rq4}).
+
+% Table 1 is hand-written (not generated). Cells come from docs/11 §4, the research notes and the
+% citation verifiers' reading of the primary pages; see the legend.
+\begin{table}[t]
+\caption{Closest prior work against the properties \sys targets.}
+\label{tab:related}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\linewidth}{@{}Xccccc@{}}
+\toprule
+Work & Verifies claims & Abstains? & Replayable? & Runs & Per-case \\
+ & in code? & & & locally? & outputs? \\
+\midrule
+PRISM~\cite{prism2026} & -- & no & no & yes & no \\
+Simple LLM harnesses~\cite{rcatlas2026} & no & no\textsuperscript{a} & no & no & no \\
+GALA+~\cite{galaplus2026} & no & no & no & no & no \\
+DecompRCA~\cite{decomprca2026} & no & no & no & partial\textsuperscript{b} & no \\
+EviRCA~\cite{evirca2026} & no & no & no & no\textsuperscript{c} & no \\
+SpecRCA~\cite{specrca2026} & no & no & no & partial\textsuperscript{d} & no \\
+DiagGuard~\cite{diagguard2026} & no & no & no & no & no \\
+ARGUS~\cite{argus2026} & partial\textsuperscript{e} & partial\textsuperscript{f} & no & no & no \\
+LM-PACE~\cite{lmpace2024} & no & no & no & no & no \\
+\midrule
+\sys (this paper) & yes & yes & yes & yes & yes\textsuperscript{g} \\
+\bottomrule
+\end{tabularx}
+
+\smallskip
+\raggedright
+\emph{Verifies claims in code}: every claim an LLM makes is re-evaluated by deterministic code before it can change the answer (--: the method uses no LLM).
+\emph{Abstains}: the system can return no root cause (abstention, inconclusive or no fault).
+\emph{Replayable}: a third party can re-derive each verdict exactly from recorded artefacts, including any LLM output.
+\emph{Runs locally}: the system as evaluated runs on one machine without a hosted model.
+\emph{Per-case outputs}: per-case predictions are released.
+\emph{yes}/\emph{partial}: described in the paper; \emph{no}: not described in the paper or its released material as we read them (abstracts, the sections summarised in our notes and the pages checked for this section, October--November 2026).
+\textsuperscript{a}A case without an answer scores zero.
+\textsuperscript{b}Its baseline runner needs no API key; the re-ranking call goes to a hosted API.
+\textsuperscript{c}The abstract does not name the two LLMs, so local execution is not described.
+\textsuperscript{d}The evaluated verifier is a distilled 3B model; the design also has a larger LLM write the final synthesis.
+\textsuperscript{e}A sufficiency gate checks that minimum evidence exists; claims are not described as re-evaluated.
+\textsuperscript{f}Writes ``Unknown'' for missing values and rejects reports without minimum evidence.
+\textsuperscript{g}Design properties of \sys; \S\ref{sec:rq6} measures replay and \S\ref{sec:rq5} cost.
+\leadq{check every cell against the full texts before submission.}
+\end{table}

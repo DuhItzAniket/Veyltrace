@@ -11,21 +11,30 @@
   note = {Postmortems from 2010--2017}, url = {https://sre.google/workbook/postmortem-analysis/},
   source = {novel_building_blocks.md sec. Q5}}
 
-@misc{rcaeval2024, author = {{[authors to fill]}}, year = {2024}, title = {{RCAEval} [full title to fill]},
-  howpublished = {arXiv:2412.17015}, url = {https://arxiv.org/pdf/2412.17015v5},
-  note = {Code and data: \url{https://github.com/phamquiluan/RCAEval}}, source = {rcaeval_facts.md header}}
+@inproceedings{rcaeval2024, author = {Pham, Luan and Zhang, Hongyu and Ha, Huong and Salim, Flora and Zhang, Xiuzhen},
+  title = {{RCAEval}: A Benchmark for Root Cause Analysis of Microservice Systems with Telemetry Data},
+  booktitle = {Companion Proceedings of the ACM Web Conference 2025 (WWW '25 Companion)}, address = {Sydney, NSW, Australia}, publisher = {ACM},
+  pages = {777--780}, year = {2025}, doi = {10.1145/3701716.3715290},
+  note = {arXiv:2412.17015. Code and data: \url{https://github.com/phamquiluan/RCAEval}}, url = {https://arxiv.org/abs/2412.17015},
+  source = {rcaeval_facts.md header; arXiv 2412.17015 and Crossref, checked Nov 2026}}
 
-@inproceedings{petshop2024, author = {{[authors to fill]}}, year = {2024}, title = {{PetShop} [full title to fill]},
-  booktitle = {Proceedings of CLeaR 2024, PMLR 236}, pages = {957--978}, url = {https://proceedings.mlr.press/v236/hardt24a.html},
-  note = {arXiv:2311.04806}, source = {benchmarks_and_testbed.md sec. Q1}}
+@inproceedings{petshop2024, author = {Hardt, Michaela and Orchard, William Roy and Bl{\"o}baum, Patrick and Kirschbaum, Elke and Kasiviswanathan, Shiva},
+  title = {The {PetShop} Dataset --- Finding Causes of Performance Issues across Microservices},
+  booktitle = {Proceedings of the Third Conference on Causal Learning and Reasoning}, series = {Proceedings of Machine Learning Research}, volume = {236},
+  pages = {957--978}, year = {2024}, editor = {Locatello, Francesco and Didelez, Vanessa}, publisher = {PMLR},
+  url = {https://proceedings.mlr.press/v236/hardt24a.html}, note = {arXiv:2311.04806},
+  source = {benchmarks_and_testbed.md sec. Q1; PMLR page checked Nov 2026 (author names in the PMLR form; arXiv v2 spells some differently)}}
 
-@inproceedings{openrca2025, author = {{[authors to fill]}}, year = {2025}, title = {{OpenRCA} [full title to fill]}, booktitle = {ICLR},
+@inproceedings{openrca2025, author = {Xu, Junjielong and Zhang, Qinan and Zhong, Zhiqing and He, Shilin and Zhang, Chaoyun and Lin, Qingwei and Pei, Dan and He, Pinjia and Zhang, Dongmei and Zhang, Qi},
+  title = {{OpenRCA}: Can Large Language Models Locate the Root Cause of Software Failures?},
+  booktitle = {International Conference on Learning Representations (ICLR)}, year = {2025},
   url = {https://proceedings.iclr.cc/paper_files/paper/2025/file/d29b8d53678015079e1d245c023e49d2-Paper-Conference.pdf},
-  source = {benchmarks_and_testbed.md sec. Q1; docs/11 sec. 4.3}}
+  source = {benchmarks_and_testbed.md sec. Q1; docs/11 sec. 4.3; ICLR 2025 PDF page 1, checked Nov 2026}}
 
-@misc{openrca2026v2, author = {Fang and Yang and Shang and Lu and Xu and Wang and Zhang and Zhang and Yu and He}, year = {2026},
-  title = {From Outcome Labels to Causal Process Supervision}, howpublished = {arXiv:2606.27154, preprint}, note = {{OpenRCA} 2.0},
-  url = {https://arxiv.org/html/2606.27154v2}, source = {sota_methods_2026.md sec. Q2}}
+@misc{openrca2026v2, author = {Fang, Aoyang and Yang, Yifan and Shang, Jin'ao and Lu, Qisheng and Xu, Junjielung and Wang, Rui and Zhang, Songhan and Zhang, Yuzhong and Yu, Boxi and He, Pinjia}, year = {2026},
+  title = {{OpenRCA} 2.0: From Outcome Labels to Causal Process Supervision}, howpublished = {arXiv preprint arXiv:2606.27154},
+  note = {v2, 30 Jun 2026}, url = {https://arxiv.org/abs/2606.27154},
+  source = {sota_methods_2026.md sec. Q2; arXiv 2606.27154 v2, checked Nov 2026. Fifth author spelled as on arXiv; likely Junjielong Xu}}
 
 @misc{orcabench2026, author = {{[authors to fill]}}, year = {2026}, title = {{ORCA-bench} [full title to fill]},
   howpublished = {arXiv:2607.28545, preprint}, url = {https://arxiv.org/abs/2607.28545}, source = {sota_methods_2026.md sec. Q2}}
@@ -33,19 +42,23 @@
 @misc{sregym2026, author = {{[authors to fill]}}, year = {2026}, title = {{SREGym} [full title to fill]},
   howpublished = {arXiv:2605.07161, preprint}, url = {https://arxiv.org/html/2605.07161v1}, source = {sota_methods_2026.md sec. Q2}}
 
-@misc{rcatlas2026, author = {Bi and Zhang and Li and Wang and Ma}, year = {2026},
-  title = {Free to Look, Free to Reason: Simple {LLM} Harnesses Outdiagnose Hand-Crafted {RCA} Agents},
-  howpublished = {arXiv:2610.35767, preprint}, url = {https://arxiv.org/html/2610.35767}, source = {sota_methods_2026.md sec. Q2}}
+@misc{rcatlas2026, author = {Bi, Tingzhu and Zhang, Xun and Li, Jinglin and Wang, Ping and Ma, Meng}, year = {2026},
+  title = {Free to Look, Free to Reason: Simple {LLM} Harnesses Outdiagnose Hand-Crafted Root Cause Analysis Agents},
+  howpublished = {arXiv preprint arXiv:2610.35767}, doi = {10.48550/arXiv.2610.35767}, url = {https://arxiv.org/abs/2610.35767},
+  source = {sota_methods_2026.md sec. Q2; arXiv 2610.35767, checked Nov 2026}}
 
 @misc{hussain2026prereg, author = {Hussain and Farrukh}, year = {2026}, title = {[title to fill]},
   howpublished = {Research Square preprint, pre-registered}, doi = {10.21203/rs.3.rs-11401166/v1},
   url = {https://doi.org/10.21203/rs.3.rs-11401166/v1}, source = {benchmarks_and_testbed.md sec. Q1, Q2}}
 
-@misc{diagguard2026, author = {Lu and Fang and others}, year = {2026}, title = {Beyond Fault Localization [full title to fill]},
-  howpublished = {arXiv:2608.21310, preprint}, url = {https://arxiv.org/abs/2608.21310}, source = {verified_agents_local_llms.md sec. Q1 (title), Q2; sota_methods_2026.md sec. Q2 (authors, URL)}}
+@misc{diagguard2026, author = {Lu, Qisheng and Fang, Aoyang and Xu, Junjielong and Shang, Jin'ao and Zhang, Songhan and Yang, Yifan and Yan, Xiaochuan and He, Pinjia}, year = {2026},
+  title = {Beyond Fault Localization: A Trajectory-Level Study of {LLM} Agents for Microservice Root Cause Analysis},
+  howpublished = {arXiv preprint arXiv:2608.21310}, note = {v2, 9 Oct 2026}, url = {https://arxiv.org/abs/2608.21310},
+  source = {verified_agents_local_llms.md sec. Q1, Q2; arXiv 2608.21310 v2, checked Nov 2026}}
 
-@misc{prism2026, author = {{[author to fill]}}, year = {2026}, title = {{PRISM} [full title to fill]},
-  howpublished = {arXiv:2601.21359, preprint}, url = {https://arxiv.org/html/2601.21359}, source = {rcaeval_facts.md header}}
+@misc{prism2026, author = {Pham, Luan}, year = {2026}, title = {Graph-Free Root Cause Analysis},
+  howpublished = {arXiv preprint arXiv:2601.21359}, note = {v1 (29 Jan 2026) names the method PRISM; v2 (11 Nov 2026) renames it CIE},
+  url = {https://arxiv.org/abs/2601.21359v1}, source = {rcaeval_facts.md header; arXiv 2601.21359 v1 and v2, checked Nov 2026}}
 
 @inproceedings{fang2026rethinking, author = {Fang and others}, year = {2026}, booktitle = {FSE},
   title = {Rethinking the Evaluation of Microservice {RCA} with a Fault Propagation-Aware Benchmark},
@@ -57,24 +70,37 @@
 @misc{thinkingmachinesnondeterminism, author = {{Thinking Machines}}, title = {Defeating Nondeterminism in {LLM} Inference},
   howpublished = {Blog post}, url = {https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/}, source = {verified_agents_local_llms.md sec. Q3}}
 
-@inproceedings{lmpace2024, author = {{[authors to fill]}}, year = {2024}, booktitle = {FSE Industry},
-  title = {{LM-PACE} [full title to fill]},
-  note = {arXiv:2309.05833}, url = {https://arxiv.org/pdf/2309.05833}, source = {verified_agents_local_llms.md sec. Q6; only the FSE 2024 listing's URL slug spells part of the title}}
+@inproceedings{lmpace2024, author = {Zhang, Dylan and Zhang, Xuchao and Bansal, Chetan and Las-Casas, Pedro and Fonseca, Rodrigo and Rajmohan, Saravan},
+  title = {{LM-PACE}: Confidence Estimation by Large Language Models for Effective Root Causing of Cloud Incidents},
+  booktitle = {Companion Proceedings of the 32nd ACM International Conference on the Foundations of Software Engineering (FSE Companion '24), Industry Track},
+  pages = {388--398}, year = {2024}, publisher = {ACM}, address = {Porto de Galinhas, Brazil}, doi = {10.1145/3663529.3663858},
+  note = {arXiv:2309.05833 (as PACE-LM)},
+  source = {verified_agents_local_llms.md sec. Q6; FSE 2024 listing, arXiv and Crossref, checked Nov 2026 (first author as in the DOI record)}}
 
-@misc{conch2026, author = {{[authors to fill]}}, year = {2026}, title = {{CONCH/CROC} [full title to fill]},
-  howpublished = {arXiv:2607.26481, seen only as a search snippet}, url = {https://arxiv.org/pdf/2607.26481}, source = {verified_agents_local_llms.md sec. Q6}}
+@misc{conch2026, author = {Yu, Seunghun and Zhu, Meiyi and Popovski, Petar and Kang, Joonhyuk and Simeone, Osvaldo}, year = {2026},
+  title = {Conformal Changepoint Localization and Root Cause Analysis with Corrupted Observations},
+  howpublished = {arXiv preprint arXiv:2607.26481}, doi = {10.48550/arXiv.2607.26481}, note = {v1, 29 Jul 2026},
+  url = {https://arxiv.org/abs/2607.26481},
+  source = {verified_agents_local_llms.md sec. Q6; arXiv abstract page and API, checked Nov 2026; full text not read}}
 
-@inproceedings{abstention2026osdi, author = {{[authors to fill]}}, year = {2026}, booktitle = {OSDI (listing)},
-  title = {The Abstention Protocol: {RCA} for {Clos} Fabrics}, note = {Seen only as a listing snippet},
-  url = {https://papers.cool/venue/gaikwad@osdi26@USENIX}, source = {verified_agents_local_llms.md sec. Q6}}
+@inproceedings{abstention2026osdi, author = {Gaikwad, Madhava and Pandey, Deepak},
+  title = {The Abstention Protocol: {RCA} for {Clos} Fabrics},
+  booktitle = {20th USENIX Symposium on Operating Systems Design and Implementation (OSDI 26)}, year = {2026}, address = {Seattle, WA},
+  pages = {405--421}, isbn = {978-1-939133-55-7}, publisher = {USENIX Association},
+  url = {https://www.usenix.org/conference/osdi26/presentation/gaikwad},
+  source = {verified_agents_local_llms.md sec. Q6; USENIX presentation page checked Nov 2026 (listed in the Operational Systems category); full text not read}}
 
-@inproceedings{decomprca2026, author = {Muhammad and Luan Pham and Barri{\`e}re and Shetty and Pulga and Salim}, year = {2026}, booktitle = {NeurIPS Evaluations and Datasets Track},
-  title = {Where Root Cause Analysis Fails: A Retrieval-Reranking Decomposition}, note = {arXiv:2609.36686},
-  url = {https://arxiv.org/abs/2609.36686}, source = {sota_methods_2026.md sec. Q1}}
+@inproceedings{decomprca2026, author = {Muhammad, Hada Melino and Pham, Luan and Barri{\`e}re, Laure and Shetty, Sachin and Pulga, Leonardo and Salim, Flora D.},
+  title = {Where Root Cause Analysis Fails: A Retrieval-Reranking Decomposition},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS 2026), Evaluations and Datasets Track}, year = {2026},
+  note = {Accepted per the arXiv comment; arXiv:2609.36686. Code: \url{https://github.com/cruiseresearchgroup/DecompRCA}},
+  url = {https://arxiv.org/abs/2609.36686}, source = {sota_methods_2026.md sec. Q1; arXiv 2609.36686 and repository BibTeX, checked Nov 2026}}
 
-% ---- method (R-18b)
-@misc{baro2024, author = {{[authors to fill]}}, year = {2024}, title = {{BARO} [full title to fill]}, howpublished = {arXiv:2405.09330; FSE 2024 per docs/02},
-  url = {https://arxiv.org/html/2405.09330}, source = {rcaeval_facts.md sec. Anomaly scoring methods; venue from docs/02 sec. 6.7}}
+@article{baro2024, author = {Pham, Luan and Ha, Huong and Zhang, Hongyu},
+  title = {{BARO}: Robust Root Cause Analysis for Microservices via Multivariate {Bayesian} Online Change Point Detection},
+  journal = {Proceedings of the ACM on Software Engineering}, volume = {1}, number = {FSE}, pages = {2214--2237}, year = {2024},
+  doi = {10.1145/3660805}, note = {FSE 2024; arXiv:2405.09330},
+  source = {rcaeval_facts.md sec. Anomaly scoring methods; arXiv 2405.09330 and Crossref, checked Nov 2026}}
 
 @misc{tracerca, author = {{[authors to fill]}}, title = {{TraceRCA} [full title, venue and year to fill]}, howpublished = {IEEE Xplore 9521340},
   url = {https://ieeexplore.ieee.org/abstract/document/9521340}, source = {rcaeval_facts.md sec. Traces: spectrum and timing}}
@@ -85,30 +111,64 @@
 @misc{microrank, author = {{[authors to fill]}}, title = {{MicroRank} [full title, venue and year to fill]}, doi = {10.1145/3442381.3449905},
   url = {https://unpaywall.org/10.1145%2F3442381.3449905}, source = {docs/11 sec. 4.2 only, flagged [v1 notes]; verify}}
 
-@misc{metahealth2026, author = {{[authors to fill]}}, year = {2026}, title = {Meta Service Health Checks [full title to fill]},
-  howpublished = {arXiv:2608.20513, preprint}, url = {https://arxiv.org/html/2608.20513}, source = {novel_building_blocks.md sec. Q5}}
+@inproceedings{metahealth2026, author = {KL, Prakash and Korenkov, Anton and Thakore, Uttam and Hegre, Christopher}, year = {2026},
+  title = {Making Deployments Safe at {Meta}: Health Checks for Continuous Change-Safety},
+  booktitle = {IEEE International Symposium on Software Reliability Engineering (ISSRE 2026), Industry Track},
+  note = {Accepted per the arXiv comment and journal-ref; arXiv preprint arXiv:2608.20513}, url = {https://arxiv.org/abs/2608.20513},
+  source = {novel_building_blocks.md sec. Q5; arXiv 2608.20513, checked Nov 2026; no IEEE proceedings page or pages yet}}
 
 @inproceedings{idi2025, author = {{[authors to fill]}}, year = {2025}, title = {Robust Root Cause Diagnosis using In-Distribution Interventions},
   booktitle = {ICLR}, note = {arXiv:2505.00930}, url = {https://arxiv.org/abs/2505.00930}, source = {novel_building_blocks.md sec. Q4}}
 
-@inproceedings{causalinference2024ase, author = {Pham and Ha and Zhang}, year = {2024}, booktitle = {ASE},
-  title = {``How far are we?'' [full title to fill]}, note = {arXiv:2408.13729},
-  url = {https://arxiv.org/html/2408.13729v1}, source = {novel_building_blocks.md sec. Q4}}
+@inproceedings{causalinference2024ase, author = {Pham, Luan and Ha, Huong and Zhang, Hongyu},
+  title = {Root Cause Analysis for Microservice System based on Causal Inference: How Far Are We?},
+  booktitle = {Proceedings of the 39th IEEE/ACM International Conference on Automated Software Engineering (ASE '24)}, pages = {706--715}, year = {2024},
+  doi = {10.1145/3691620.3695065}, note = {arXiv:2408.13729}, url = {https://arxiv.org/abs/2408.13729},
+  source = {novel_building_blocks.md sec. Q4; arXiv 2408.13729 and Crossref, checked Nov 2026}}
 
-@inproceedings{galaplus2026, author = {{[authors to fill]}}, year = {2026}, title = {{GALA+} [full title to fill]}, booktitle = {ASE},
-  note = {arXiv:2608.08968}, url = {https://arxiv.org/html/2608.08968v1}, source = {sota_methods_2026.md sec. Q1, Q3}}
+@inproceedings{galaplus2026, author = {Tian, Yifang and Liu, Yaming and Chong, Zichun and Huang, Zihang and Li, Yiran and Jacobsen, Hans-Arno},
+  title = {{GALA}: Graph-Augmented {LLM} Agents for Root Cause Analysis and Incident Response in Microservices},
+  booktitle = {Proceedings of the 41st IEEE/ACM International Conference on Automated Software Engineering (ASE '26)}, address = {Munich, Germany}, year = {2026},
+  note = {The system is called GALA+ in the abstract; arXiv:2608.08968}, url = {https://arxiv.org/abs/2608.08968},
+  source = {sota_methods_2026.md sec. Q1, Q3; arXiv 2608.08968 v1, checked Nov 2026}}
 
-@inproceedings{conformalranking2025, author = {{[authors to fill]}}, year = {2025}, title = {Transductive Conformal Inference for Full Ranking},
-  booktitle = {NeurIPS}, note = {arXiv:2501.11384}, url = {https://arxiv.org/abs/2501.11384v3}, source = {novel_building_blocks.md sec. Q7}}
+@inproceedings{cormack2009rrf, author = {Cormack, Gordon V. and Clarke, Charles L. A. and Buettcher, Stefan},
+  title = {Reciprocal Rank Fusion Outperforms {Condorcet} and Individual Rank Learning Methods},
+  booktitle = {Proceedings of the 32nd International ACM SIGIR Conference on Research and Development in Information Retrieval (SIGIR '09)}, address = {Boston, MA, USA}, publisher = {ACM},
+  pages = {758--759}, year = {2009}, doi = {10.1145/1571941.1572114},
+  note = {Author PDF: \url{https://cormack.uwaterloo.ca/cormacksigir09-rrf.pdf}}, url = {https://doi.org/10.1145/1571941.1572114},
+  source = {Crossref record for DOI 10.1145/1571941.1572114 and the authors' PDF (sec. 1, Table 1), checked Nov 2026}}
 
-@misc{conformalretrieval2024, author = {{[authors to fill]}}, year = {2024}, title = {Conformal Ranked Retrieval},
-  howpublished = {arXiv:2404.17769, preprint}, url = {https://arxiv.org/html/2404.17769v1}, source = {novel_building_blocks.md sec. Q7}}
+@article{angelopoulos2023conformal, author = {Angelopoulos, Anastasios N. and Bates, Stephen},
+  title = {Conformal Prediction: A Gentle Introduction},
+  journal = {Foundations and Trends in Machine Learning}, volume = {16}, number = {4}, pages = {494--591}, year = {2023},
+  doi = {10.1561/2200000101}, note = {arXiv:2107.07511, as ``A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification''; split-conformal guarantee: Theorem 1 and Appendix D (Theorem D.1) of arXiv v6},
+  url = {https://doi.org/10.1561/2200000101},
+  source = {Crossref record and publisher page (DOI redirect to emerald.com/ftmal) for 10.1561/2200000101, and arXiv 2107.07511 v6 (7 Dec 2022), checked Nov 2026}}
+
+@inproceedings{conformalranking2025, author = {Fermanian, Jean-Baptiste and Humbert, Pierre and Blanchard, Gilles}, year = {2025},
+  title = {Transductive Conformal Inference for Full Ranking},
+  booktitle = {Advances in Neural Information Processing Systems 38 (NeurIPS 2025)}, doi = {10.52202/085713-0212}, note = {arXiv:2501.11384},
+  url = {https://papers.nips.cc/paper_files/paper/2025/hash/0922ceebb39f1c76e64ef03d0885fa82-Abstract-Conference.html},
+  source = {novel_building_blocks.md sec. Q7; arXiv API and NeurIPS proceedings page, checked Nov 2026}}
+
+@misc{conformalretrieval2024, author = {Xu, Yunpeng and Ying, Mufang and Guo, Wenge and Wei, Zhi}, year = {2024},
+  title = {Two-stage Risk Control with Application to Ranked Retrieval},
+  howpublished = {arXiv preprint arXiv:2404.17769}, note = {v3, 1 Feb 2025; v1 was titled ``Conformal Ranked Retrieval''},
+  url = {https://arxiv.org/abs/2404.17769},
+  source = {novel_building_blocks.md sec. Q7; arXiv 2404.17769 v1 and v3, checked Nov 2026}}
 
 @article{abreu2009ochiai, author = {Abreu and others}, year = {2009}, title = {[title to fill]}, journal = {Journal of Systems and Software},
   url = {https://webarchive.di.uminho.pt/haslab.uminho.pt/ruimaranhao/files/jss09.pdf}, source = {rcaeval_facts.md sec. Traces: spectrum and timing}}
 
 @misc{intoto, author = {{in-toto}}, title = {in-toto attestation spec v1, Statement [exact title to fill]},
   url = {https://github.com/in-toto/attestation/blob/main/spec/v1/statement.md}, source = {verified_agents_local_llms.md sec. Q7}}
+
+@misc{w3cprov2013, author = {Moreau, Luc and Missier, Paolo}, year = {2013},
+  title = {{PROV-DM}: The {PROV} Data Model},
+  howpublished = {W3C Recommendation, 30 April 2013}, note = {Editors; latest version \url{https://www.w3.org/TR/prov-dm/}},
+  url = {https://www.w3.org/TR/2013/REC-prov-dm-20130430/},
+  source = {W3C TR page REC-prov-dm-20130430, checked Nov 2026}}
 
 @inproceedings{provagent2025, author = {{[authors to fill]}}, year = {2025}, title = {{PROV-AGENT} [full title to fill]}, booktitle = {IEEE e-Science},
   note = {arXiv:2508.02866}, url = {https://arxiv.org/abs/2508.02866}, source = {verified_agents_local_llms.md sec. Q7}}
@@ -132,3 +192,75 @@
 
 @misc{rcaevalissue43, author = {{RCAEval issue tracker}}, title = {{RCAEval} issue \#43 [title to fill]},
   url = {https://github.com/phamquiluan/RCAEval/issues/43}, source = {rcaeval_facts.md sec. Data quirks}}
+
+@inproceedings{run2024, author = {Lin, Cheng-Ming and Chang, Ching and Wang, Wei-Yao and Wang, Kuang-Da and Peng, Wen-Chih},
+  title = {Root Cause Analysis in Microservice Using Neural {Granger} Causal Discovery},
+  booktitle = {Proceedings of the AAAI Conference on Artificial Intelligence}, volume = {38}, number = {1}, pages = {206--213}, year = {2024},
+  doi = {10.1609/aaai.v38i1.27772}, note = {arXiv:2402.01140},
+  source = {docs/11 sec. 4.1; arXiv 2402.01140 and Crossref, checked Nov 2026}}
+
+@inproceedings{flowofaction2025, author = {Pei, Changhua and Wang, Zexin and Liu, Fengrui and Li, Zeyan and Liu, Yang and He, Xiao and Kang, Rong and Zhang, Tieying and Chen, Jianjun and Li, Jianhui and Xie, Gaogang and Pei, Dan},
+  title = {Flow-of-Action: {SOP} Enhanced {LLM}-Based Multi-Agent System for Root Cause Analysis},
+  booktitle = {Companion Proceedings of the ACM Web Conference 2025 (WWW '25 Companion), Industry Track}, pages = {422--431}, year = {2025},
+  doi = {10.1145/3701716.3715225}, note = {arXiv:2502.08224}, url = {https://arxiv.org/abs/2502.08224},
+  source = {docs/11 sec. 4.3; arXiv 2502.08224 and Crossref, checked Nov 2026}}
+
+@inproceedings{rcagent, author = {Wang, Zefan and Liu, Zichuan and Zhang, Yingying and Zhong, Aoxiao and Wang, Jihong and Yin, Fengbin and Fan, Lunting and Wu, Lingfei and Wen, Qingsong},
+  title = {{RCAgent}: Cloud Root Cause Analysis by Autonomous Agents with Tool-Augmented Large Language Models},
+  booktitle = {Proceedings of the 33rd ACM International Conference on Information and Knowledge Management (CIKM '24)}, address = {Boise, ID, USA}, publisher = {ACM},
+  pages = {4966--4974}, year = {2024}, doi = {10.1145/3627673.3680016},
+  note = {arXiv:2310.16340}, url = {https://arxiv.org/abs/2310.16340},
+  source = {arXiv 2310.16340 v3 abstract page and Crossref record for 10.1145/3627673.3680016, re-checked 27 Nov 2026}}
+
+@inproceedings{mabc2024, author = {Zhang, Wei and Guo, Hongcheng and Yang, Jian and Tian, Zhoujin and Zhang, Yi and Chaoran, Yan and Li, Zhoujun and Li, Tongliang and Shi, Xu and Zheng, Liangfan and Zhang, Bo},
+  title = {m{ABC}: Multi-Agent Blockchain-inspired Collaboration for Root Cause Analysis in Micro-Services Architecture},
+  booktitle = {Findings of the Association for Computational Linguistics: EMNLP 2024}, editor = {Al-Onaizan, Yaser and Bansal, Mohit and Chen, Yun-Nung},
+  month = nov, year = {2024}, address = {Miami, Florida, USA}, publisher = {Association for Computational Linguistics}, pages = {4017--4033},
+  doi = {10.18653/v1/2024.findings-emnlp.232}, url = {https://aclanthology.org/2024.findings-emnlp.232/}, note = {arXiv:2404.12135},
+  source = {docs/11 sec. 4.3; ACL Anthology and Crossref, checked Nov 2026. Author name copied as the Anthology gives it (Chaoran, Yan); arXiv lists Chaoran Yan: check the PDF}}
+
+@misc{openrcaissue23, author = {{OpenRCA issue tracker}},
+  title = {Constant-prediction baseline scores 7.46\% on {OpenRCA} without reading any telemetry},
+  year = {2026}, howpublished = {GitHub issue \#23, microsoft/OpenRCA}, note = {Opened 29 Jul 2026; maintainer reply 12 Oct 2026},
+  url = {https://github.com/microsoft/OpenRCA/issues/23}, source = {sota_methods_2026.md sec. Q2; issue page checked Nov 2026}}
+
+@article{thinkfl, author = {Zhang, Lingzhe and Zhai, Yunpeng and Jia, Tong and Duan, Chiming and Yu, Siyu and Gao, Jinyang and Ding, Bolin and Wu, Zhonghai and Li, Ying},
+  title = {{ThinkFL}: Self-Refining Failure Localization for Microservice Systems via Reinforcement Fine-Tuning},
+  journal = {ACM Transactions on Software Engineering and Methodology}, volume = {35}, number = {9}, year = {2026}, doi = {10.1145/3789262},
+  note = {arXiv:2504.18776 (v2, 16 Jan 2026; ``accepted by TOSEM'26'')}, url = {https://arxiv.org/abs/2504.18776},
+  source = {arXiv 2504.18776 abs and HTML v2; Crossref record for 10.1145/3789262, checked 27 Nov 2026}}
+
+@inproceedings{krca2026, author = {Jiang, Jiamin and Feng, Jingfei and Luo, Yu and Zhang, Qingliang and Sun, Yongqian and Gu, Wenwei and Zhang, Shenglin and Cui, Tianyu and Wu, Yao and Huang, Jielong and Qi, Nan and Pei, Dan},
+  title = {{KRCA}: An Efficient Root Cause Analysis System in Hyper-scale Microservice Systems via Agentic {AI}},
+  booktitle = {Proceedings of the 41st IEEE/ACM International Conference on Automated Software Engineering (ASE '26)}, pages = {3804--3815}, year = {2026},
+  publisher = {ACM}, address = {Munich, Germany}, doi = {10.1145/3832783.3834468}, note = {arXiv:2607.01788},
+  source = {sota_methods_2026.md sec. Q3; arXiv 2607.01788 v3 and Crossref, checked Nov 2026}}
+
+@inproceedings{specrca2026, author = {Zhang, Lingzhe and Jia, Tong and Zhai, Yunpeng and Pan, Leyi and Duan, Chiming and He, Minghua and Xiao, Pei and Li, Ying},
+  title = {Hypothesize-Then-Verify: Speculative Root Cause Analysis for Microservices with Pathwise Parallelism},
+  booktitle = {Proceedings of the IEEE/ACM 48th International Conference on Software Engineering: New Ideas and Emerging Results (ICSE-NIER '26)},
+  pages = {21--25}, year = {2026}, publisher = {ACM}, address = {Rio de Janeiro, Brazil}, doi = {10.1145/3786582.3786803}, note = {arXiv:2601.02736},
+  source = {verified_agents_local_llms.md sec. Q1; arXiv 2601.02736 and Crossref, checked Nov 2026}}
+
+@misc{argus2026, author = {Senja, Ergi and Razavi Zadegan, Seyed Mohammad Reza and Leitner, Philipp},
+  title = {{ARGUS}: {MCP}-Grounded Root Cause Analysis for {Kubernetes} Incidents},
+  year = {2026}, howpublished = {arXiv preprint arXiv:2608.23084}, url = {https://arxiv.org/abs/2608.23084},
+  source = {verified_agents_local_llms.md sec. Q2; arXiv 2608.23084, checked Nov 2026}}
+
+@article{changerca2024, author = {Yu, Guangba and Chen, Pengfei and He, Zilong and Yan, Qiuyu and Luo, Yu and Li, Fangyuan and Zheng, Zibin},
+  title = {{ChangeRCA}: Finding Root Causes from Software Changes in Large Online Systems},
+  journal = {Proceedings of the ACM on Software Engineering}, volume = {1}, number = {FSE}, pages = {24--46}, year = {2024}, month = jul,
+  publisher = {Association for Computing Machinery}, doi = {10.1145/3643728}, note = {FSE 2024}, url = {https://doi.org/10.1145/3643728},
+  source = {docs/11 sec. 4.6; FSE 2024 listing and Crossref, checked Nov 2026}}
+
+@inproceedings{deltarca, author = {Zhang, Min and Zhang, Chenxi and Xie, Senyu and Chen, Shihong and Wu, Lei and Peng, Xin},
+  title = {Enhancing Trace-Based Root Cause Analysis for Microservice Systems via Code Change Understanding},
+  booktitle = {Proceedings of the 41st IEEE/ACM International Conference on Automated Software Engineering (ASE '26)}, address = {Munich, Germany}, publisher = {ACM},
+  pages = {1612--1624}, year = {2026}, doi = {10.1145/3832783.3837424},
+  note = {The method is named DeltaRCA in the abstract}, url = {https://doi.org/10.1145/3832783.3837424},
+  source = {Crossref record for the DOI (title, authors, proceedings, event location, pages, publisher, date 2026-10-07) and the ASE 2026 research-track page on conf.researchr.org (title, authors, DOI, abstract), both checked 27 Nov 2026; the ACM DL page was not read}}
+
+@misc{conformalabstention2024, author = {Abbasi Yadkori, Yasin and Kuzborskij, Ilja and Stutz, David and Gy{\"o}rgy, Andr{\'a}s and Fisch, Adam and Doucet, Arnaud and Beloshapka, Iuliya and Weng, Wei-Hung and Yang, Yao-Yuan and Szepesv{\'a}ri, Csaba and Cemgil, Ali Taylan and Tomasev, Nenad},
+  title = {Mitigating {LLM} Hallucinations via Conformal Abstention},
+  year = {2024}, howpublished = {arXiv preprint arXiv:2405.01563}, url = {https://arxiv.org/abs/2405.01563},
+  source = {sota_methods_2026.md sec. Q6; arXiv 2405.01563 and arXiv API, checked Nov 2026 (v1 dated 4 Apr 2024 by arXiv itself)}}

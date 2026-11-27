@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="375" viewBox="0 0 640 375" font-family="sans-serif" font-size="11">
+<title>Fig. 7: AC@1 vs alert shift, RE2-OB</title>
+<rect x="56" y="16" width="444" height="288" fill="none" stroke="#999"/>
+<text x="50" y="308" text-anchor="end">0.00</text>
+<text x="50" y="236" text-anchor="end">0.25</text>
+<text x="50" y="164" text-anchor="end">0.50</text>
+<text x="50" y="92" text-anchor="end">0.75</text>
+<text x="50" y="20" text-anchor="end">1.00</text>
+<text x="56" y="320" text-anchor="middle">-120</text>
+<text x="167" y="320" text-anchor="middle">-60</text>
+<text x="222.5" y="320" text-anchor="middle">-30</text>
+<text x="278" y="320" text-anchor="middle">0</text>
+<text x="333.5" y="320" text-anchor="middle">30</text>
+<text x="389" y="320" text-anchor="middle">60</text>
+<text x="500" y="320" text-anchor="middle">120</text>
+<text x="278" y="336" text-anchor="middle">shift (s)</text>
+<text x="14" y="160" text-anchor="middle" transform="rotate(-90 14 160)">AC@1</text>
+<polyline points="56,67.78 167,71.01 222.5,64.54 278,77.48 333.5,190.74 389,278.11 500,291.06" fill="none" stroke="#1b6ca8" stroke-width="1.5"/>
+<line x1="56" y1="103.37" x2="56" y2="38.65" stroke="#1b6ca8"/>
+<circle cx="56" cy="67.78" r="3" fill="#1b6ca8"/>
+<line x1="167" y1="109.84" x2="167" y2="38.65" stroke="#1b6ca8"/>
+<circle cx="167" cy="71.01" r="3" fill="#1b6ca8"/>
+<line x1="222.5" y1="100.13" x2="222.5" y2="35.41" stroke="#1b6ca8"/>
+<circle cx="222.5" cy="64.54" r="3" fill="#1b6ca8"/>
+<line x1="278" y1="116.31" x2="278" y2="44.8" stroke="#1b6ca8"/>
+<circle cx="278" cy="77.48" r="3" fill="#1b6ca8"/>
+<line x1="333.5" y1="229.57" x2="333.5" y2="153.6" stroke="#1b6ca8"/>
+<circle cx="333.5" cy="190.74" r="3" fill="#1b6ca8"/>
+<line x1="389" y1="297.53" x2="389" y2="252.8" stroke="#1b6ca8"/>
+<circle cx="389" cy="278.11" r="3" fill="#1b6ca8"/>
+<line x1="500" y1="300.8" x2="500" y2="278.11" stroke="#1b6ca8"/>
+<circle cx="500" cy="291.06" r="3" fill="#1b6ca8"/>
+<rect x="510" y="20" width="10" height="10" fill="#1b6ca8"/>
+<text x="526" y="29" text-anchor="start">rcaeval:nsigma</text>
+<polyline points="56,255.46 167,258.7 222.5,258.7 278,261.93 333.5,193.98 389,216.63 500,216.63" fill="none" stroke="#d1495b" stroke-width="1.5"/>
+<line x1="56" y1="287.82" x2="56" y2="216.63" stroke="#d1495b"/>
+<circle cx="56" cy="255.46" r="3" fill="#d1495b"/>
+<line x1="167" y1="291.06" x2="167" y2="219.87" stroke="#d1495b"/>
+<circle cx="167" cy="258.7" r="3" fill="#d1495b"/>
+<line x1="222.5" y1="294.18" x2="222.5" y2="217.6" stroke="#d1495b"/>
+<circle cx="222.5" cy="258.7" r="3" fill="#d1495b"/>
+<line x1="278" y1="294.18" x2="278" y2="223.98" stroke="#d1495b"/>
+<circle cx="278" cy="261.93" r="3" fill="#d1495b"/>
+<line x1="333.5" y1="236.04" x2="333.5" y2="151.87" stroke="#d1495b"/>
+<circle cx="333.5" cy="193.98" r="3" fill="#d1495b"/>
+<line x1="389" y1="261.45" x2="389" y2="168.09" stroke="#d1495b"/>
+<circle cx="389" cy="216.63" r="3" fill="#d1495b"/>
+<line x1="500" y1="258.71" x2="500" y2="168.09" stroke="#d1495b"/>
+<circle cx="500" cy="216.63" r="3" fill="#d1495b"/>
+<rect x="510" y="36" width="10" height="10" fill="#d1495b"/>
+<text x="526" y="45" text-anchor="start">rcaeval:baro</text>
+<polyline points="56,90.43 167,87.19 222.5,90.43 278,90.43 333.5,90.43 389,93.66 500,93.66" fill="none" stroke="#3a7d44" stroke-width="1.5"/>
+<line x1="56" y1="133.83" x2="56" y2="48.73" stroke="#3a7d44"/>
+<circle cx="56" cy="90.43" r="3" fill="#3a7d44"/>
+<line x1="167" y1="130.55" x2="167" y2="48" stroke="#3a7d44"/>
+<circle cx="167" cy="87.19" r="3" fill="#3a7d44"/>
+<line x1="222.5" y1="132.49" x2="222.5" y2="51.2" stroke="#3a7d44"/>
+<circle cx="222.5" cy="90.43" r="3" fill="#3a7d44"/>
+<line x1="278" y1="132.49" x2="278" y2="51.2" stroke="#3a7d44"/>
+<circle cx="278" cy="90.43" r="3" fill="#3a7d44"/>
+<line x1="333.5" y1="132.49" x2="333.5" y2="51.2" stroke="#3a7d44"/>
+<circle cx="333.5" cy="90.43" r="3" fill="#3a7d44"/>
+<line x1="389" y1="135.73" x2="389" y2="52.4" stroke="#3a7d44"/>
+<circle cx="389" cy="93.66" r="3" fill="#3a7d44"/>
+<line x1="500" y1="137.09" x2="500" y2="54.4" stroke="#3a7d44"/>
+<circle cx="500" cy="93.66" r="3" fill="#3a7d44"/>
+<rect x="510" y="52" width="10" height="10" fill="#3a7d44"/>
+<text x="526" y="61" text-anchor="start">simplerca</text>
+<polyline points="56,83.96 167,77.48 222.5,80.72 278,77.48 333.5,77.48 389,80.72 500,83.96" fill="none" stroke="#edae49" stroke-width="1.5"/>
+<line x1="56" y1="118.4" x2="56" y2="51.2" stroke="#edae49"/>
+<circle cx="56" cy="83.96" r="3" fill="#edae49"/>
+<line x1="167" y1="109.84" x2="167" y2="45.45" stroke="#edae49"/>
+<circle cx="167" cy="77.48" r="3" fill="#edae49"/>
+<line x1="222.5" y1="113.08" x2="222.5" y2="48.73" stroke="#edae49"/>
+<circle cx="222.5" cy="80.72" r="3" fill="#edae49"/>
+<line x1="278" y1="109.84" x2="278" y2="45.45" stroke="#edae49"/>
+<circle cx="278" cy="77.48" r="3" fill="#edae49"/>
+<line x1="333.5" y1="109.84" x2="333.5" y2="45.45" stroke="#edae49"/>
+<circle cx="333.5" cy="77.48" r="3" fill="#edae49"/>
+<line x1="389" y1="115.2" x2="389" y2="48.36" stroke="#edae49"/>
+<circle cx="389" cy="80.72" r="3" fill="#edae49"/>
+<line x1="500" y1="117.48" x2="500" y2="51.6" stroke="#edae49"/>
+<circle cx="500" cy="83.96" r="3" fill="#edae49"/>
+<rect x="510" y="68" width="10" height="10" fill="#edae49"/>
+<text x="526" y="77" text-anchor="start">causatrix:rrf</text>
+<polyline points="56,155.15 167,151.91 222.5,145.44 278,151.91 333.5,145.44 389,126.02 500,93.66" fill="none" stroke="#6c4f9e" stroke-width="1.5"/>
+<line x1="56" y1="189.49" x2="56" y2="120.73" stroke="#6c4f9e"/>
+<circle cx="56" cy="155.15" r="3" fill="#6c4f9e"/>
+<line x1="167" y1="185.6" x2="167" y2="116.31" stroke="#6c4f9e"/>
+<circle cx="167" cy="151.91" r="3" fill="#6c4f9e"/>
+<line x1="222.5" y1="177.8" x2="222.5" y2="113.08" stroke="#6c4f9e"/>
+<circle cx="222.5" cy="145.44" r="3" fill="#6c4f9e"/>
+<line x1="278" y1="184.83" x2="278" y2="117.43" stroke="#6c4f9e"/>
+<circle cx="278" cy="151.91" r="3" fill="#6c4f9e"/>
+<line x1="333.5" y1="179.64" x2="333.5" y2="109.84" stroke="#6c4f9e"/>
+<circle cx="333.5" cy="145.44" r="3" fill="#6c4f9e"/>
+<line x1="389" y1="161.62" x2="389" y2="91.25" stroke="#6c4f9e"/>
+<circle cx="389" cy="126.02" r="3" fill="#6c4f9e"/>
+<line x1="500" y1="124.8" x2="500" y2="64" stroke="#6c4f9e"/>
+<circle cx="500" cy="93.66" r="3" fill="#6c4f9e"/>
+<rect x="510" y="84" width="10" height="10" fill="#6c4f9e"/>
+<text x="526" y="93" text-anchor="start">veyltrace:off</text>
+<line x1="278" y1="185.94" x2="278" y2="120.51" stroke="#00798c"/>
+<circle cx="278" cy="154.07" r="3" fill="#00798c"/>
+<rect x="510" y="100" width="10" height="10" fill="#00798c"/>
+<text x="526" y="109" text-anchor="start">veyltrace:brief</text>
+<text x="56" y="354" text-anchor="start" fill="#555">6 of 42 points not plotted: 6 not run (see the CSV status); H4a tests ±60 and ±120 s,</text>
+<text x="56" y="369" text-anchor="start" fill="#555">other shifts are exploratory (04 §2)</text>
+</svg>

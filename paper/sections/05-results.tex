@@ -1,39 +1,78 @@
-% §5 Results: structure only until R-16 (#45) and R-17 (#46). Every number is a \resnum
-% blank keyed by the README rule, and every table or figure a \resulttable/\resultfigure
-% placeholder named after R-17's output (bench/results/tables/<name>, figures/<name>).
-% Sentences state the pre-registered decision rule, never an outcome; the verdict wording
-% of each hypothesis is written only after the numbers exist. Every one of the 55
+% §5 Results, draft v1 (R-18, #47) on the frozen R-17 results (#46). Every number is a \resnum
+% keyed by the README rule, and every table or figure a \resulttable/\resultfigure named after
+% R-17's output (bench/results/tables/<name>, figures/<name>). Each pre-registered hypothesis is
+% stated with its docs/04 §2 criterion and its verdict; revisions (docs/04 §12) and cuts (ADR
+% 20261121-ak-r16-cut-list) are disclosed where the affected result is reported. A value that no
+% committed file holds is said in words, never computed here (docs/04 §10.2). Every one of the 55
 % pre-registered experiments has a slot here or in the appendix (Table A0 lists all).
 \section{Results}
 \label{sec:results}
 
-All numbers come from one engine-freeze commit and the experiment configurations frozen at \code{prereg-v1}.
+All numbers come from the engine code frozen at the tag \code{results-code-v1} (commit \code{9e553e1c}) and the experiment configurations frozen at \code{prereg-v1}, except the two RQ3 revisions logged in the pre-registration's deviation log (25~Nov~2026), whose configurations were added at \code{results-code-}\allowbreak\code{v1-cpu}.
+Some runs were made at later commits that change no engine code and no engine configuration.
+The AI-off revisions of RQ3, the alert shifts, the telemetry ablation and RCAEval-C ran at \code{results-code-}\allowbreak\code{v1-cpu} (\code{281787f1}), and the \code{prior-only} floor at \code{results-code-}\allowbreak\code{v1-prior} (\code{9cb317d7}).
+The RE3 and Nezha accuracy runs ran at \code{1b2f3be5} and \code{0654af62} (tags \code{results-code-}\allowbreak\code{v1-baselines} and \code{results-code-}\allowbreak\code{v1-baselines-2}), which add only the RCAEval dataset entries of the baseline harness.
+Every table names the commit behind each of its rows.
 Every pre-registered experiment appears in the results index (Table~\ref{tab:index}), with its status; one that did not run is listed there as not run, with its reason and the decision record behind it.
-\leadq{name the engine-freeze tag (R-16 plan: \code{results-code-v1}) once it exists. Pooled values and every pooled interval (H1b, H2a, pooled AC@1) wait for the pooled bootstrap (R-16 B9, Observe lane). Metrics that \code{bench_summary} 1.1 has no entry for are flagged where they appear.}
+Two RQ3 experiments were run as revisions logged in the pre-registration's deviation log; we report each revision where the pre-registered result would stand (\S\ref{sec:rq3}).
+Where the protocol asks for a value that no committed result holds, we say so and compute none.
 
 \subsection{RQ1: Accuracy}
 \label{sec:rq1}
 
-\resulttable*{tab:rq1}{RQ1 accuracy on RE2 under the oracle alert, per system: AC@1, AC@3, AC@5, Avg@5, Retrieval@5 and Rerank@1 with 95\% cluster-bootstrap intervals, for the floors (chance, \code{prior-only}), the reproduced baselines (N-Sigma, BARO, alert counting), each Causatrix ranker alone, the fused slate and \code{veyltrace:off}.}{re2-oracle-rq1-v1, re2-oracle-prior-only-v1}{t05-rq1-re2-oracle}
+\resulttable*{tab:rq1}{RQ1 accuracy on RE2 under the oracle alert, per system: AC@1, AC@3 and AC@5 with 95\% cluster-bootstrap intervals and Rerank@1, for the floors (chance, \code{prior-only}), the reproduced baselines (N-Sigma, BARO, alert counting), each Causatrix ranker alone, the fused slate and \code{veyltrace:off}; Table~\ref{tab:rq1-full} has every metric.}{re2-oracle-rq1-v1, re2-oracle-prior-only-v1}{t05-rq1-re2-oracle}
 
-\resulttable{tab:rq1cmp}{RQ1 paired comparisons of \code{veyltrace:off} with the best reproduced simple baseline (H1a per system, H1b pooled): difference in AC@1, 95\% cluster-bootstrap interval, sign-flip and McNemar $p$, Holm-adjusted within family \code{rq1}.}{re2-oracle-rq1-v1}{t05c-rq1-comparisons}
+\resulttable{tab:rq1cmp}{RQ1 paired comparisons of \code{veyltrace:off} with the best reproduced simple baseline (H1a per system, H1b pooled): difference in AC@1, 95\% cluster-bootstrap interval, sign-flip $p$ and its Holm adjustment within family \code{rq1}; Table~\ref{tab:rq1cmp-full} adds McNemar $p$.}{re2-oracle-rq1-v1}{t05c-rq1-comparisons}
 
-Tables~\ref{tab:rq1} and~\ref{tab:rq1cmp} report accuracy per system.
+Tables~\ref{tab:rq1} and~\ref{tab:rq1cmp} report accuracy per system on RE2 under the oracle alert.
 The comparison is with the best reproduced simple baseline as defined in \S\ref{sec:baselines}; the floors are shown beside it, not compared.
+N-Sigma has the highest AC@1 of the three candidates on every system and pooled: \resnum{re2-oracle-rq1-v1}{ob/rcaeval:nsigma/ac_at_1}, \resnum{re2-oracle-rq1-v1}{ss/rcaeval:nsigma/ac_at_1} and \resnum{re2-oracle-rq1-v1}{tt/rcaeval:nsigma/ac_at_1} on OB, SS and TT, and \resnum{re2-oracle-rq1-v1}{pooled/rcaeval:nsigma/ac_at_1} pooled.
+\code{veyltrace:off} reaches \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1}, and \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off/ac_at_1} pooled.
+
 H1a holds if, on no RE2 system, the 95\% interval of the paired AC@1 difference lies entirely below zero.
 The differences are \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} on OB (95\% CI \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}), \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} on SS (\resnum{re2-oracle-rq1-v1}{ss/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}) and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} on TT (\resnum{re2-oracle-rq1-v1}{tt/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}).
-For H1b, the pooled difference is \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} (95\% CI \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}; Holm-adjusted permutation $p = $ \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/holm_p}).
-For H1c, Retrieval@5 is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/retrieval_at_k}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/retrieval_at_k} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/retrieval_at_k} on OB, SS and TT, against a target of 0.90 per system.
-\leadq{verdict on H1a--H1c in one sentence each, and the stretch criterion (a significant per-system gain on at least two systems).}
+Every interval lies entirely below zero, so H1a is missed on all three systems: by the pre-registered interval criterion, the AI-off pipeline is worse than N-Sigma on OB, SS and TT.
+On TT the sign-flip test is not significant ($p = $ \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off-vs-best_simple_baseline/ac_at_1/holm_p}, the same unadjusted and Holm-adjusted; Table~\ref{tab:rq1cmp}), so there the interval alone decides the miss.
+H1b holds if the pooled difference is positive, its interval excludes zero and the cluster permutation test is significant after Holm correction.
+The pooled difference is \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/difference} (95\% CI \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/ci}; Holm-adjusted sign-flip $p = $ \resnum{re2-oracle-rq1-v1}{pooled/veyltrace:off-vs-best_simple_baseline/ac_at_1/holm_p}).
+The difference is significant but negative, so H1b is missed: pooled over RE2, the pipeline is worse than N-Sigma, not better.
+The stretch criterion, a significant per-system gain on at least two systems, is missed as well, because no per-system difference is positive.
+Its Holm-adjusted $p$ values are \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off-vs-best_simple_baseline/ac_at_1/holm_p}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off-vs-best_simple_baseline/ac_at_1/holm_p} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off-vs-best_simple_baseline/ac_at_1/holm_p} on OB, SS and TT; H1a itself is decided by the unadjusted interval, as pre-registered.
 
-Under the detected-alert protocol (Table~\ref{tab:rq1det}), AC@1 of \code{veyltrace:off} is \resnum{re2-detected-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re2-detected-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/ac_at_1} on OB, SS and TT; the table gives the fault cases with no detected breach, which count as misses, and the median onset error per system.
-On RE3's code faults (Table~\ref{tab:rq1re3}), AC@1 of \code{veyltrace:off} is \resnum{re3-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re3-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re3-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1} on OB, SS and TT.
-Nezha, VeylLab and the stretch FSE'26 Train Ticket set are reported per system where they ran (Tables~\ref{tab:rq1nezha}, \ref{tab:rq1lab} and~\ref{tab:rq1fse}).
+H1c holds if Retrieval@5 is at least 0.90 per RE2 system.
+It is \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/retrieval_at_k}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/retrieval_at_k} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/retrieval_at_k} on OB, SS and TT, so H1c holds on all three systems: the root is almost always among the five slate candidates.
+Rerank@1, the share of retrieved roots that are ranked first, is only \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/rerank_at_1}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/rerank_at_1} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/rerank_at_1}; no interval is committed for it.
+Nearly all misses are therefore re-ranking errors, not retrieval errors (Figure~\ref{fig:decomp}).
 
 \resultfigure{fig:decomp}{Where errors come from: AC@1 decomposed into Retrieval@5 (truth in the slate) and Rerank@1 (truth ranked first given retrieval), per RE2 system.}{re2-oracle-rq1-v1}{fig4-retrieval-rerank}
 
-Figure~\ref{fig:decomp} separates retrieval from re-ranking errors; the single-ranker and fused-slate rows of Table~\ref{tab:rq1} show what each ranker, the fusion and the verifier add.
-\leadq{failure taxonomy of the misses by fault class (expected: network faults, where T1 fails), from per\_case.csv.}
+The single-ranker and fused-slate rows of Table~\ref{tab:rq1} locate the loss.
+The fused slate without the verifier (\code{causatrix:rrf}) scores \resnum{re2-oracle-rq1-v1}{ob/causatrix:rrf/ac_at_1}, \resnum{re2-oracle-rq1-v1}{ss/causatrix:rrf/ac_at_1} and \resnum{re2-oracle-rq1-v1}{tt/causatrix:rrf/ac_at_1} on OB, SS and TT (\resnum{re2-oracle-rq1-v1}{pooled/causatrix:rrf/ac_at_1} pooled), above \code{veyltrace:off} on every system.
+Both arms share the upstream steps (Infralume to Causalith) and re-run FaultLoom and Causatrix with the same configuration, so they rank the same slate (deviation log, 21~Nov~2026); on these point values the verifier's re-ranking lowers top-1 accuracy relative to the slate it receives.
+No paired comparison of the two arms is committed, so we report this as an observation, not a test.
+\leadq{failure taxonomy of the misses by fault class (expected: network faults, where T1 fails). No committed table breaks the misses down by fault class; computing one from \code{per_case.csv} would be a new statistic, which docs/04 §10.2 rules out in the tables. Decide whether R-17 adds such a table or the paper drops the taxonomy.}
+
+The \code{prior-only} floor carries a note of the deviation log (26~Nov~2026).
+A simulation on the answer keys, run before any \code{prior-only} result existed, showed that cross-fitting deals each root's clusters alternately to the folds, so a case's own root is slightly rarer in the fold that fits it, and \code{prior-only} was expected to fall below chance on RE2.
+On OB its AC@1 is \resnum{re2-oracle-prior-only-v1}{ob/prior-only/ac_at_1} against a Chance@1 of \resnum{re2-oracle-prior-only-v1}{ob/prior-only/chance_at_1}; on SS and TT it lies above chance.
+The intervals of AC@1 minus Chance@1 are \resnum{re2-oracle-prior-only-v1}{ob/prior-only/chance_diff_at_1/ci}, \resnum{re2-oracle-prior-only-v1}{ss/prior-only/chance_diff_at_1/ci} and \resnum{re2-oracle-prior-only-v1}{tt/prior-only/chance_diff_at_1/ci} on OB, SS and TT, so \code{prior-only} differs significantly from chance on no RE2 system.
+The predicted bias therefore appears on OB only, and on no system is it significant.
+The floor enters no pre-registered test.
+
+Under the detected-alert protocol (Table~\ref{tab:rq1det}), AC@1 of \code{veyltrace:off} is \resnum{re2-detected-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re2-detected-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/ac_at_1} on OB, SS and TT, and \resnum{re2-detected-rq1-v1}{pooled/veyltrace:off/ac_at_1} pooled.
+A fault case with no detected breach counts as a miss for every method: there are \resnum{re2-detected-rq1-v1}{ob/veyltrace:off/outcomes.no_alert}, \resnum{re2-detected-rq1-v1}{ss/veyltrace:off/outcomes.no_alert} and \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/outcomes.no_alert} such cases of \resnum{re2-detected-rq1-v1}{ob/veyltrace:off/n_fault}, \resnum{re2-detected-rq1-v1}{ss/veyltrace:off/n_fault} and \resnum{re2-detected-rq1-v1}{tt/veyltrace:off/n_fault}.
+On TT no fault case raises an alert, so every method scores zero there.
+On OB and SS, N-Sigma scores \resnum{re2-detected-rq1-v1}{ob/rcaeval:nsigma/ac_at_1} and \resnum{re2-detected-rq1-v1}{ss/rcaeval:nsigma/ac_at_1} under the same alerts.
+The median onset error of \code{veyltrace:off} is \resnum{re2-detected-rq1-v1}{ob/veyltrace:off/onset_error.onset_error_median_ms}\,ms on OB and \resnum{re2-detected-rq1-v1}{ss/veyltrace:off/onset_error.onset_error_median_ms}\,ms on SS.
+The detected-alert protocol is reported beside the oracle protocol and enters no pre-registered test.
+
+On RE3's code faults (Table~\ref{tab:rq1re3}; \resnum{re3-oracle-rq1-v1}{ob/veyltrace:off/n_fault} cases per system), AC@1 of \code{veyltrace:off} is \resnum{re3-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re3-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re3-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1} on OB, SS and TT.
+N-Sigma scores \resnum{re3-oracle-rq1-v1}{ob/rcaeval:nsigma/ac_at_1}, \resnum{re3-oracle-rq1-v1}{ss/rcaeval:nsigma/ac_at_1} and \resnum{re3-oracle-rq1-v1}{tt/rcaeval:nsigma/ac_at_1}, and \code{simplerca} \resnum{re3-oracle-rq1-v1}{ob/simplerca/ac_at_1}, \resnum{re3-oracle-rq1-v1}{ss/simplerca/ac_at_1} and \resnum{re3-oracle-rq1-v1}{tt/simplerca/ac_at_1}.
+On these point values the pipeline is below both baselines on OB, above \code{simplerca} but below N-Sigma on SS, and level with N-Sigma and below \code{simplerca} on TT; RE3 enters no pre-registered test.
+On Nezha (Table~\ref{tab:rq1nezha}), AC@1 of \code{veyltrace:off} is \resnum{nezha-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1} on OB, below its Chance@1 of \resnum{nezha-oracle-rq1-v1}{ob/veyltrace:off/chance_at_1}, against \resnum{nezha-oracle-rq1-v1}{ob/rcaeval:nsigma/ac_at_1} for N-Sigma and \resnum{nezha-oracle-rq1-v1}{ob/simplerca/ac_at_1} for \code{simplerca}.
+On Nezha's TT it is \resnum{nezha-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1}, where Chance@1 is \resnum{nezha-oracle-rq1-v1}{tt/veyltrace:off/chance_at_1} and N-Sigma and \code{simplerca} score \resnum{nezha-oracle-rq1-v1}{tt/rcaeval:nsigma/ac_at_1} and \resnum{nezha-oracle-rq1-v1}{tt/simplerca/ac_at_1}.
+Nezha enters no pre-registered test of RQ1.
+VeylLab and the stretch FSE'26 Train Ticket set were not run (Tables~\ref{tab:rq1lab} and~\ref{tab:rq1fse}): VeylLab had too few captures and no ingest adapter, and the FSE'26 set's size, format and licence were not verified (decision record \code{20261121-ak-}\allowbreak\code{r16-cut-list} and its addendum of 22~Nov).
 
 \subsection{RQ2: Proposer lift}
 \label{sec:rq2}
@@ -43,37 +82,102 @@ Figure~\ref{fig:decomp} separates retrieval from re-ranking errors; the single-r
 \subsection{RQ3: Calibration and abstention}
 \label{sec:rq3}
 
-\resulttable*{tab:rq3}{RQ3 calibration on held-out folds, per experiment, system and AI arm: AC@1, Retrieval@K, coverage at $\alpha = 0.10$, set size, risk--coverage (AURC) and the \NOFAULT rates on fault cases and normal windows; cross-fit, leave-one-system-out and (where its adapter exists) RE2-to-Nezha transfer splits.}{re2-oracle-rq3-v1, re2-oracle-rq3-investigate-v1, re2-oracle-loso-v1, re2-to-nezha-transfer-v1, veyllab-oracle-rq1-v1, veyllab-oracle-rq2-v1}{t07-rq3-calibration}
+\resulttable*{tab:rq3}{RQ3 calibration of \code{veyltrace:off} on held-out folds, per experiment and system: coverage at $\alpha = 0.10$, mean set size, the AURC difference $V - F$ and the \NOFAULT rates on normal windows (false alarm) and fault cases (wrong \NOFAULT), with 95\% cluster-bootstrap intervals where one is committed; cross-fit, leave-one-system-out and RE2-to-Nezha transfer splits. The two RE2 experiments are the AI-off revisions of the pre-registered ones. The full grid (Table~\ref{tab:rq3-full}, released as \code{bench/results/}\allowbreak\code{tables/}\allowbreak\code{t07-rq3-calibration.md}) adds AC@1, Retrieval@K, both AURCs, the row counts and the experiments that were not run.}{re2-oracle-rq3-off-v1 (revises re2-oracle-rq3-v1), re2-oracle-loso-off-v1 (revises re2-oracle-loso-v1), re2-to-nezha-transfer-v1; not run: re2-oracle-rq3-investigate-v1, veyllab-oracle-rq1-v1, veyllab-oracle-rq2-v1}{t07-rq3-calibration}
 
-\leadq{\code{bench_summary} 1.1 has no \code{coverage}, \code{set_size}, \code{risk_coverage} or \code{no_fault_rates} entry, so R-17 marks Table~\ref{tab:rq3} and Figure~\ref{fig:riskcov} as not run; RQ3 needs a contract change before its numbers can be generated. Its keys below are provisional, and the change must also give a family-level (\code{pooled}) coverage, because H3a is stated per calibration family.}
-H3a holds if held-out coverage is at least 0.85 per calibration family: it is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/coverage} for \code{veyltrace:off}, \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:brief/coverage} for \code{veyltrace:brief} and \resnum{re2-oracle-rq3-investigate-v1}{pooled/veyltrace:investigate/coverage} for \code{veyltrace:investigate} on its subset (Table~\ref{tab:rq3}).
-For H3b, the mean set size is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/set_size.mean} and \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:brief/set_size.mean}, against a target of at most 3.
-For H3c, the AURC of the verified score is \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/risk_coverage.aurc_v} against \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/risk_coverage.aurc_f} for the fused score (Figure~\ref{fig:riskcov}).
-For H3d, leave-one-system-out coverage is \resnum{re2-oracle-loso-v1}{ob/veyltrace:off/coverage}, \resnum{re2-oracle-loso-v1}{ss/veyltrace:off/coverage} and \resnum{re2-oracle-loso-v1}{tt/veyltrace:off/coverage} with OB, SS and TT held out, and, if the Nezha adapter (O-08) lands, coverage after transfer to Nezha is \resnum{re2-to-nezha-transfer-v1}{pooled/veyltrace:off/coverage}.
-On held-out normal windows, \sys answered \NOFAULT on \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/no_fault_rates.normal_declared_no_fault} of windows (target at least 0.85), and on fault cases it wrongly answered \NOFAULT on \resnum{re2-oracle-rq3-v1}{pooled/veyltrace:off/no_fault_rates.wrong_no_fault} (target at most 0.05).
-\leadq{verdict on H3a--H3d and the \NOFAULT targets; abstention per fault class.}
+The pre-registered experiments \code{re2-oracle-}\allowbreak\code{rq3-v1} and \code{re2-oracle-}\allowbreak\code{loso-v1} also calibrate \code{veyltrace:brief}.
+That arm was cut for the LLM budget, and both experiments were run as \code{re2-oracle-}\allowbreak\code{rq3-off-v1} and \code{re2-oracle-}\allowbreak\code{loso-off-v1}, the same configurations without the \code{brief} arm (deviation log, 25~Nov~2026; addendum of 25~Nov to decision record \code{20261121-ak-}\allowbreak\code{r16-cut-list}).
+The log records that the RQ1 and RQ2 results had been seen when this was decided, and that no cut arm had run.
+Every RQ3 verdict below therefore holds for \code{veyltrace:off} only.
+The RQ3 experiment of the \code{investigate} arm was not run, because that mode is cut, and neither were the VeylLab experiments (Table~\ref{tab:index}).
+Table~\ref{tab:rq3} gives the 95\% cluster-bootstrap intervals that the protocol asks for wherever a committed file holds one; the per-fold values (Table~\ref{tab:rq3folds}) and the transfer experiment have none.
 
-\resultfigure{fig:riskcov}{Risk--coverage curves of the verified score $V$ and the fused score $F$ on RE2 held-out folds; lower area is better (H3c).}{re2-oracle-rq3-v1}{fig6-risk-coverage}
+H3a holds if held-out coverage is at least 0.85 per calibration family at $\alpha = 0.10$; the R-12 acceptance band is $1 - \alpha \pm 0.05$ on RE2.
+For the RE2 family, coverage is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.coverage.estimate} (95\% CI \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.coverage.ci}), so H3a holds, and the whole interval lies inside the band.
+Per system, coverage is \resnum{re2-oracle-rq3-off-v1}{ob/veyltrace:off/coverage} on OB (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.ob.coverage.ci}), \resnum{re2-oracle-rq3-off-v1}{ss/veyltrace:off/coverage} on SS (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.ss.coverage.ci}) and \resnum{re2-oracle-rq3-off-v1}{tt/veyltrace:off/coverage} on TT (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.tt.coverage.ci}).
+Every point estimate is at least 0.85, but the lower bounds on OB and SS fall below it, and TT's point estimate lies just above the band.
+Coverage also differs between folds: on OB it is below 0.85 in one of the two held-out folds (Table~\ref{tab:rq3folds}).
+H3b holds if the mean set size is at most 3.
+It is \resnum{re2-oracle-rq3-off-v1}{ob/veyltrace:off/set_size.set_size_mean}, \resnum{re2-oracle-rq3-off-v1}{ss/veyltrace:off/set_size.set_size_mean} and \resnum{re2-oracle-rq3-off-v1}{tt/veyltrace:off/set_size.set_size_mean} on OB, SS and TT, so H3b is missed on OB and SS and holds on TT.
+No committed file holds a pooled mean set size or an interval for it, so we state none.
+
+H3c holds if the AURC of the verified score $V$ is lower than that of the fused score $F$.
+Pooled over RE2, the AURC of $V$ is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.aurc_verdict.estimate} and that of $F$ is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.aurc_fused.estimate}; their difference $V - F$ is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.aurc_difference.estimate} (95\% CI \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.aurc_difference.ci}).
+Per system, $V - F$ is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.ob.aurc_difference.estimate} on OB (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.ob.aurc_difference.ci}), \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.ss.aurc_difference.estimate} on SS (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.ss.aurc_difference.ci}) and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.tt.aurc_difference.estimate} on TT (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.tt.aurc_difference.ci}; Figure~\ref{fig:riskcov}).
+Every interval lies above zero, so H3c is missed in the opposite direction: as a signal for abstention, $V$ is worse than $F$ on every RE2 system.
+
+\resultfigure{fig:riskcov}{Risk--coverage areas (AURC) of the verified score $V$ and the fused score $F$, and their difference $V - F$, per RE2 system on held-out folds of the AI-off revision; lower area is better (H3c). The pre-registered rows show as revised.}{re2-oracle-rq3-off-v1 (revises re2-oracle-rq3-v1)}{fig6-risk-coverage}
+
+H3d (expected negative) predicts that leave-one-system-out coverage falls below the nominal 0.90.
+With OB, SS and TT held out, coverage is \resnum{re2-oracle-loso-off-v1}{ob/veyltrace:off/coverage} (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ob.coverage.ci}), \resnum{re2-oracle-loso-off-v1}{ss/veyltrace:off/coverage} (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ss.coverage.ci}) and \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/coverage} (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.tt.coverage.ci}); over the three held-out systems it is \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.pooled.coverage.estimate} (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.pooled.coverage.ci}).
+Every point estimate is below 0.90, so the expected negative result holds.
+The gaps to $1 - \alpha$ are \resnum{re2-oracle-loso-off-v1}{ob/veyltrace:off/coverage_gap}, \resnum{re2-oracle-loso-off-v1}{ss/veyltrace:off/coverage_gap} and \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/coverage_gap} with OB, SS and TT held out: small for OB and SS, large for TT.
+Of the per-system intervals only TT's excludes 0.90; the pooled interval excludes it too.
+Calibrated on OB and SS, the sets on TT are also small, with a mean size of \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/set_size.set_size_mean}.
+After transfer from RE2 (OB and TT) to Nezha, coverage is \resnum{re2-to-nezha-transfer-v1}{ob/veyltrace:off/coverage} on OB and \resnum{re2-to-nezha-transfer-v1}{tt/veyltrace:off/coverage} on TT.
+No committed file holds an interval for either value, or a pooled transfer coverage, so these are point estimates only; both lie far below nominal.
+
+The \NOFAULT targets are that at least 85\% of held-out normal windows are answered \NOFAULT, that is, a false-alarm rate of at most $\beta + 0.05$ with $\beta = 0.10$, and that at most 5\% of fault cases are wrongly answered \NOFAULT.
+Each RE2 system has \resnum{re2-oracle-rq3-off-v1}{ob/veyltrace:off/no_fault_rates.n_normal} held-out normal windows.
+The false-alarm rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.false_alarm_rate.estimate} (95\% CI \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.false_alarm_rate.ci}) pooled, and \resnum{re2-oracle-rq3-off-v1}{ob/veyltrace:off/no_fault_rates.false_alarm_rate}, \resnum{re2-oracle-rq3-off-v1}{ss/veyltrace:off/no_fault_rates.false_alarm_rate} and \resnum{re2-oracle-rq3-off-v1}{tt/veyltrace:off/no_fault_rates.false_alarm_rate} on OB, SS and TT: no normal window is answered \NOFAULT, and the first target is missed.
+The wrong-\NOFAULT rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.wrong_no_fault_rate.estimate} (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.wrong_no_fault_rate.ci}), so the second target holds, but only vacuously, because the system never answers \NOFAULT.
+
+The cause is a fitting convention adopted before any RQ3 result existed and later logged as a deviation (21~Nov~2026, logged 26~Nov; decision record \code{20261121-ak-}\allowbreak\code{calibration-fit-conventions}).
+A normal window that can never be \NOFAULT, for example one with a silent service, scores $+\infty$ and stays among the $m$ calibration windows.
+On RE2, \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.n_never} of \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.m_fitted} windows are of this kind for the fit applied to fold A, and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.n_never} of \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.m_fitted} for fold B.
+That is enough for the rank index of $\tau_\text{nf}$ to land on $+\infty$ in both folds, so $\tau_\text{nf}$ falls back to its uncalibrated default, $\log(1+3)$, and with that threshold no held-out normal window is answered \NOFAULT.
+The literal reading of the protocol's rule drops those windows from $m$ and gives $\tau_\text{nf} = $ \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.tau_nf_literal} and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.tau_nf_literal} for folds A and B (Table~\ref{tab:rq3tau}); this sensitivity analysis was computed after the results.
+Under it, the pooled false-alarm rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.false_alarm_rate.estimate} (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.false_alarm_rate.ci}) and the wrong-\NOFAULT rate \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.wrong_no_fault_rate.estimate} (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.wrong_no_fault_rate.ci}).
+Per system, the false-alarm rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.ob.false_alarm_rate.estimate} on OB (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.ob.false_alarm_rate.ci}), \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.ss.false_alarm_rate.estimate} on SS (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.ss.false_alarm_rate.ci}) and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.tt.false_alarm_rate.estimate} on TT (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.tt.false_alarm_rate.ci}), and the wrong-\NOFAULT rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.ob.wrong_no_fault_rate.estimate}, \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.ss.wrong_no_fault_rate.estimate} and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.tt.wrong_no_fault_rate.estimate}.
+Under this reading the false-alarm target holds on OB and is missed on SS and TT; pooled, it is missed on the point estimate, which is above the 0.15 limit, although the interval's lower bound just includes the limit.
+The wrong-\NOFAULT target is missed by far on every system and pooled.
+
+Leave-one-system-out calibration does answer \NOFAULT when TT is held out, because few of the OB and SS windows it is fitted on are silent (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{literal_tau_sensitivity.held_out_fold.loso-tt.n_never} of \resnum{rq3-intervals/re2-oracle-loso-off-v1}{literal_tau_sensitivity.held_out_fold.loso-tt.m_fitted}) and its rank index stays finite (Table~\ref{tab:rq3tau}).
+On TT, the false-alarm rate is then \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.false_alarm_rate} (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.tt.false_alarm_rate.ci}) and the wrong-\NOFAULT rate \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.wrong_no_fault_rate} (\resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.tt.wrong_no_fault_rate.ci}), so both rates are outside their targets, unlike the cross-fit case, where the wrong-\NOFAULT target holds vacuously.
+These two TT rates are the same as those of the literal reading under cross-fitting above, although they come from separate committed entries of the two experiments.
+With OB or SS held out, no window is answered \NOFAULT, as under cross-fitting.
+These leave-one-system-out rates are exploratory, because the targets are defined on the cross-fit folds.
+\leadq{abstention per fault class: no committed table breaks coverage, set size or the \NOFAULT rates down by fault class, and computing one here would be a new statistic (docs/04 §10.2). Decide whether R-17 adds it or the paper drops it.}
 
 \subsection{RQ4: Robustness}
 \label{sec:rq4}
 
 \lanesectionor{observe-rq4}{05-rq4-shift-ablation}
 
+\paragraph{Verdicts for H4a and H4b}
+H4a misses on TT and holds on OB and SS: only on TT does the largest drop over the $\pm 60$ and $\pm 120$\,s shifts exceed the 0.10 limit, and it comes from the $-60$\,s shift (difference \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1/difference/vs:re2-shift-m60-v1}).
+These drops are point estimates: no committed result holds an interval on a difference between two experiments, although docs/04 §2 asks for one per cell.
+The shifted AI runs were cut (decision record \code{20261121-ak-}\allowbreak\code{r16-cut-list}, 21~Nov and addendum of 25~Nov), so H4a is tested for \code{veyltrace:off} only.
+H4b misses: in every ablation cell with at least one \st{CONFIRMED} verdict, fewer than 90\% of those verdicts are correct.
+The highest share is \resnum{re2-drop-events-v1}{tt/veyltrace:off/selective_accuracy.ac_at_1_confirmed}, on TT with events dropped, and the same as with logs dropped (\resnum{re2-drop-logs-v1}{tt/veyltrace:off/selective_accuracy.ac_at_1_confirmed}).
+A cell with no \st{CONFIRMED} verdict, which includes every metrics-only cell, leaves the share undefined, and we do not count it as holding.
+No committed file holds an interval for these shares or a pooled share (Table~\ref{tab:ablation}).
+
 \paragraph{Decoy changes (RCAEval-C)}
 \resultfigure*{fig:rcaevalc}{RCAEval-C: AC@1 of \code{veyltrace:off} over the true-change probability $\pi$ and the decoy rate $\lambda$, one panel per RE2 system.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1 (9 deterministic cells)}{fig9-rcaevalc}
-\resulttable*{tab:rcaevalc}{RCAEval-C grid: AC@1, AC@3, Retrieval@K and \code{decoy_ranked_first} per cell, system and method, including \code{naive-change} and, on the 90-case subset, the AI arms.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1 (all RE2 cases), rcaevalc-pi{0,05,1}-l{0,2,6}-ai-v1 (90-case subset)}{t12-rq4-rcaevalc}
+\resulttable*{tab:rcaevalc}{RCAEval-C grid: AC@1 and \code{decoy_ranked_first} of \code{veyltrace:off} and \code{naive-change} per cell and system on all RE2 cases; the full grid (Table~\ref{tab:rcaevalc-full}, released as \code{bench/results/}\allowbreak\code{tables/}\allowbreak\code{t12-rq4-rcaevalc.md}) adds AC@3, Retrieval@K and every method. The AI cells of the grid were not run.}{rcaevalc-pi{0,05,1}-l{0,2,6}-v1 (all RE2 cases); not run: rcaevalc-pi{0,05,1}-l{0,2,6}-ai-v1}{t12-rq4-rcaevalc}
 H4c holds if decoy changes alone ($\pi = 0$) cost at most 0.05 in AC@1 against no change events and a true change raises AC@1.
-At the highest decoy rate ($\pi = 0$, $\lambda = 6$ per hour), AC@1 of \code{veyltrace:off} changes by \resnum{rcaevalc-pi0-l0-v1}{ob/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1}, \resnum{rcaevalc-pi0-l0-v1}{ss/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1} and \resnum{rcaevalc-pi0-l0-v1}{tt/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l6-v1} on OB, SS and TT against no change events; Table~\ref{tab:rcaevalc} gives $\lambda = 2$ and the true-change cells.
-A decoy-changed service is ranked first in \resnum{rcaevalc-pi0-l6-v1}{ob/veyltrace:off/decoy_ranked_first}, \resnum{rcaevalc-pi0-l6-v1}{ss/veyltrace:off/decoy_ranked_first} and \resnum{rcaevalc-pi0-l6-v1}{tt/veyltrace:off/decoy_ranked_first} of OB, SS and TT cases at that rate; \code{naive-change} is in the same table (Figure~\ref{fig:rcaevalc}).
-\leadq{the shift and RCAEval-C configurations list \code{coverage} and \code{set_size}, which the runner refused at the time of writing; check before R-16 runs them.}
+Every AI cell of the grid was cut for the LLM budget (decision record \code{20261121-ak-}\allowbreak\code{r16-cut-list}, 21~Nov and addendum of 25~Nov), so H4c is tested for \code{veyltrace:off} only.
+The cell with no change events matches the unperturbed run: its AC@1 differs from \code{re2-oracle-rq1-v1} by \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l0-v1}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l0-v1} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi0-l0-v1} on OB, SS and TT.
+Over the decoy rates $\lambda = 2$ and 6 per hour at $\pi = 0$, the largest drop in AC@1 is \resnum{rcaevalc-pi0-l0-v1}{ob/veyltrace:off/ac_at_1/max_drop/vs:rcaevalc-pi0-l2-v1,rcaevalc-pi0-l6-v1}, \resnum{rcaevalc-pi0-l0-v1}{ss/veyltrace:off/ac_at_1/max_drop/vs:rcaevalc-pi0-l2-v1,rcaevalc-pi0-l6-v1} and \resnum{rcaevalc-pi0-l0-v1}{tt/veyltrace:off/ac_at_1/max_drop/vs:rcaevalc-pi0-l2-v1,rcaevalc-pi0-l6-v1} on OB, SS and TT, so the decoy part of H4c holds on every system; these are point estimates with no interval.
+At $\lambda = 6$ per hour, a decoy-changed service is ranked first in \resnum{rcaevalc-pi0-l6-v1}{ob/veyltrace:off/decoy_ranked_first} (\resnum{rcaevalc-pi0-l6-v1}{ob/veyltrace:off/decoy_ranked_first/ci}), \resnum{rcaevalc-pi0-l6-v1}{ss/veyltrace:off/decoy_ranked_first} (\resnum{rcaevalc-pi0-l6-v1}{ss/veyltrace:off/decoy_ranked_first/ci}) and \resnum{rcaevalc-pi0-l6-v1}{tt/veyltrace:off/decoy_ranked_first} (\resnum{rcaevalc-pi0-l6-v1}{tt/veyltrace:off/decoy_ranked_first/ci}) of OB, SS and TT cases.
+A true change on the root ($\pi = 1$, no decoys) changes AC@1 by \resnum{rcaevalc-pi0-l0-v1}{ob/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi1-l0-v1}, \resnum{rcaevalc-pi0-l0-v1}{ss/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi1-l0-v1} and \resnum{rcaevalc-pi0-l0-v1}{tt/veyltrace:off/ac_at_1/difference/vs:rcaevalc-pi1-l0-v1} against $\pi = 0$, with no interval, so the second part is missed on TT.
+H4c therefore holds partly: the decoy part on every system, the true-change part on OB and SS in point estimate only.
+The change channel adds little: \code{naive-change}, which blames the latest change, reaches \resnum{rcaevalc-pi1-l0-v1}{ob/naive-change/ac_at_1} on OB at $\pi = 1$ and ranks a decoy first in \resnum{rcaevalc-pi0-l6-v1}{ob/naive-change/decoy_ranked_first} of OB cases at $\lambda = 6$ (Table~\ref{tab:rcaevalc}, Figure~\ref{fig:rcaevalc}).
 These change logs are synthetic (\S\ref{sec:threats}).
-H4d (exploratory) is an optional name-anonymisation probe with no pre-registered experiment; it is reported only if run.
+H4d (exploratory) is an optional name-anonymisation probe with no pre-registered experiment; no experiment configuration enables it, so no committed result tests it.
 
 \subsection{RQ5: Cost}
 \label{sec:rq5}
 
 \lanesectionor{observe-rq5}{05-rq5}
+
+\paragraph{Verdict for H5}
+H5 misses.
+On the slowest laptop (Table~\ref{tab:rq5laptop}, warm pass), peak memory stays within 3\,GB on every RE2 system and the time per case within 30\,s on OB and SS, but not on TT; the sample holds 10 cases per system, so its p95 is its maximum.
+The bench runs, on a machine that no committed file records, show the same pattern, with a TT p95 of \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.wall_ms_p95}\,ms.
+The replayed AI arms record no run cost, so the proposer's cost is the model time its recording logged: its p95 is \resnum{rq5-ai-cost}{systems.ob.model_wall_ms_p95}, \resnum{rq5-ai-cost}{systems.ss.model_wall_ms_p95} and \resnum{rq5-ai-cost}{systems.tt.model_wall_ms_p95}\,ms on OB, SS and TT (Table~\ref{tab:rq5ai}), over the 180{,}000\,ms budget on every system.
+The model client stops a request after 240\,s (\code{config/llm.yaml}) and records it as an outcome, not as a longer time, and \resnum{rq5-ai-cost}{systems.ob.status.failed}, \resnum{rq5-ai-cost}{systems.ss.status.failed} and \resnum{rq5-ai-cost}{systems.tt.status.failed} of \resnum{rq5-ai-cost}{systems.ob.n} recorded runs per system failed; the recorded time of each request is thus bounded by the timeout, and these p95 values may understate the time the proposer would need without it.
+The narration budget cannot be decided: every card in these runs was narrated from templates with no model call, and no committed file holds a narration time.
 
 \subsection{RQ6: Replay}
 \label{sec:rq6}

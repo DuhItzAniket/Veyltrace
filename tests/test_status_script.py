@@ -109,3 +109,18 @@ def test_render_is_stable_for_the_same_input() -> None:
     prs = [_pr(1, "observe/1-a")]
     assert status.render(tasks, prs, "abc1234def") == status.render(tasks, prs, "abc1234def")
     assert "at main `abc1234`" in status.render(tasks, prs, "abc1234def")
+
+
+def test_a_merged_pr_that_is_part_of_the_issue_counts_as_progress() -> None:
+    # R-11 (#28) shipped through "part of #28" PRs and closed no R-11x sub-issue (#640)
+    merged = [
+        {"number": 307, "headRefName": "reason/298-dev-cases", "body": "Closes #298, part of R-11 (#28)."},
+        {"number": 465, "headRefName": "reason/464-rq1", "body": "Part of #28 and #45"},
+        {"number": 9, "headRefName": "main-fix", "body": "see #77 for context"},
+    ]
+    refs = status.merged_refs(merged)
+    assert {28, 298, 45, 464} <= refs
+    assert 77 not in refs  # a bare mention is not work on the issue
+    issue = {"number": 28, "title": "R-11 Bench", "state": "OPEN", "url": "u"}
+    assert status.issue_state(issue, set()) == status.TODO
+    assert status.issue_state(issue, refs) == status.DOING

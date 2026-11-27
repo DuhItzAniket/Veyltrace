@@ -34,6 +34,13 @@ PER_CASE_HEADER = (
 ENTRIES = ("ac_at_k", "avg_at_5", "chance", "cost", "decoy_ranked_first", "fine_ac_at_k", "lift", "mrr",
            "onset_error", "rerank_at_1", "retrieval_at_k", "coverage", "set_size", "no_fault_rates",
            "risk_coverage", "selective_accuracy", "decoy_top1_change", "permutation_invariance")  # fmt: skip
+#: An R-05-era summary (bench_summary 0.1.0), which the tables read without its contract.
+R05_SUMMARY = {
+    "experiment_id": "re2-oracle-baselines-r05",
+    "groups": [{"dataset": "re2-ob"}, {"dataset": "re2-ss"}],
+    "schema_version": "0.1.0",
+    "statistics": "not run: cluster bootstrap CIs and tests come from bench/stats (O-14)",
+}
 
 
 def _example(name: str) -> dict[str, Any]:
@@ -236,7 +243,7 @@ def main() -> None:
     write("re2-oracle-rq3-v1", summary("re2-oracle-rq3-v1", rq3, "not run: fixture statistics are off"))
     old = OUT / "re2-oracle-baselines-r05"
     write("re2-oracle-baselines-r05", None)
-    textio.write_text(old / "summary.json", '{"schema_version":"0.1.0"}\n')  # an R-05-era summary
+    textio.write_text(old / "summary.json", json.dumps(R05_SUMMARY, sort_keys=True) + "\n")
     textio.write_text(
         OUT / "not_run.yaml", "fse26-oracle-rq1-v1: stretch dataset not verified (07 §1.1 cut item 2)\n"
     )

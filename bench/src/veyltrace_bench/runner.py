@@ -48,6 +48,7 @@ from veyltrace_bench import (
     normal_windows,
     permuted,
     planted,
+    prior_only,
     rcaeval,
     simplerca,
     splits,
@@ -552,11 +553,13 @@ def _run_method(
     if method.kind == "rcaeval":
         return _run_rcaeval(exp, method, cases, bench_runs, reports, overlays, split)
     root, extra = bench_runs, None
+    prior = method.kind == "internal_baseline" and method.id == prior_only.METHOD
     if method.kind == "internal_baseline":
         root, extra = (
             bench_runs / BASELINE_RUNS / slug(method.id),
-            {"to_step": INPUT_STEP, "baseline": method.id},
+            {"to_step": SERVICES_STEP if prior else INPUT_STEP, "baseline": method.id},
         )
+    by_id = {k.case_id: k for k in cases}  # prior-only's counts: this dataset part's cases only
     out: list[Scored] = []
     for key, variant, seed in _units(method, cases, windows or []):
         keys = calibrated.first_run(split, key.case_id)
@@ -565,6 +568,8 @@ def _run_method(
         done = reuse or _timed(
             exp, method, key, root, timed, extra, overlays.get(key.case_id), keys, variant, seed, pin
         )
+        if prior:
+            done = _prior_ranks(done, key, split, by_id)
         if sources is not None and plain and method.kind == upstream.SOURCE_KIND and method.ai.mode == "off":
             sources[(method.id, key.case_id)] = done
         if ai_runs is not None and variant is None and method.ai.mode != "off":
@@ -589,6 +594,20 @@ def _run_method(
 
 
 type Unit = tuple[AnswerKeyRow, str | None, int | None]  # (case, variant, seed): one run of a method
+
+
+def _prior_ranks(
+    done: Executed, key: AnswerKeyRow, split: calibrated.Split | None, keys: Mapping[str, AnswerKeyRow]
+) -> Executed:
+    """prior-only's ranks for an Infralume-only run (`prior_only`). A run that wrote no
+    case_manifest keeps ranks None, so it is scored as a failed run, as for the other baselines."""
+    if split is None:  # check_baselines refuses this before the first case
+        raise ConfigError(f"methods {prior_only.METHOD}: needs a calibration split")
+    case = _read("case_manifest", done.run_dir if done.outcome == "ok" else None, CaseManifest)
+    if case is None:
+        return done
+    counts = prior_only.root_counts(key.case_id, split.plan, keys)
+    return replace(done, ranks=prior_only.rank(case.services, counts))
 
 
 def _units(method: MethodSpec, cases: list[AnswerKeyRow], windows: list[AnswerKeyRow]) -> list[Unit]:
@@ -779,6 +798,8 @@ def check_baselines(exp: Experiment, repo: Path) -> None:
     valid before the first case (a missing venv names the setup script)."""
     if any(m.kind == "internal_baseline" and m.id == "simplerca" for m in exp.methods):
         baselines.load("simplerca", simplerca.SimpleRcaConfig, repo)
+    if any(m.kind == "internal_baseline" and m.id == prior_only.METHOD for m in exp.methods):
+        prior_only.check_split(exp.split.scheme)
     wrapped = [m for m in exp.methods if m.kind == "rcaeval"]
     if not wrapped:
         return
@@ -792,8 +813,8 @@ def check_baselines(exp: Experiment, repo: Path) -> None:
 
 def method_config_sha256(method: MethodSpec, cfg: ResolvedConfig) -> str:
     """03 §13.4 configs[].config_sha256: the pipeline config, plus a baseline's own section."""
-    if method.kind not in BASELINE_KINDS or method.id == naive_change.METHOD:
-        return config_sha256(cfg)  # naive-change has no settings of its own
+    if method.kind not in BASELINE_KINDS or method.id in (naive_change.METHOD, prior_only.METHOD):
+        return config_sha256(cfg)  # naive-change and prior-only have no settings of their own
     name = "rcaeval" if method.kind == "rcaeval" else "simplerca"
     return baselines.config_sha256(config_sha256(cfg), name)
 

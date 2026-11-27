@@ -7,7 +7,7 @@ We fixed the research questions, hypotheses, datasets, splits, methods, metrics,
 The protocol, the Reason-lane engine configurations (core, FaultLoom, Causatrix and Causentra) and the 55 experiment configurations marked as pre-registered are frozen at the git tag \code{prereg-v1} (annotated on 18 November 2026), following a pre-registered RCAEval study, posted as a preprint, that tagged a commit before seeing any fault window~\cite{hussain2026prereg}.
 Before the tag we ran only baseline reproduction on RE2, development on synthetic cases and RE1, and three development cases, one per RE2 system, which are excluded from every test table.
 Any later change to a frozen file is a logged deviation; if one is motivated by test results, we report both the pre-registered and the revised numbers.
-\leadq{deviations: docs/04 §12 is empty at the time of writing; list every row here at M4, including the R-16 cut list and the upstream-reuse decision if they become deviations.}
+Section~\ref{sec:deviations} lists every logged deviation and every pre-registered experiment that was cut.
 Every number in Section~\ref{sec:results} traces from a generated table to a summary file, its manifest, a committed experiment configuration and a clean code commit.
 
 \subsection{Research questions and hypotheses}
@@ -43,11 +43,13 @@ RE3 adds 90 cases with code-level faults, and RE1 (375 metric-only cases) is the
 Ground truth is the case folder name, from which the benchmark harness derives an answer key that no engine can read; engines see only an opaque case identifier.
 Because RCAEval injects faults into only five services per system, a ranker that reads no telemetry reaches an Avg@5 of 0.488 on held-out incidents~\cite{buljic2026prior}, which is why we report AC@1, lift over chance and, on RE2 and RE3, a prior-only floor.
 \emph{RCAEval-C} adds synthetic change events to RE2 (\S\ref{sec:protocols}); \emph{normal windows} are pre-injection segments of RE2 cases (\S\ref{sec:splits}).
-Nezha~\cite{nezha2023} (101 cases on OB and TT, with metrics, logs and traces) is pre-registered as a cross-source check, and VeylLab, our laptop-collected dataset with real deploy, configuration and flag events and no-fault controls, where it reaches its target size; both need ingest adapters that are not built at the time of writing.
-The propagation-aware Train Ticket set of Fang et al.~\cite{fang2026rethinking} is pre-registered as a stretch dataset, because its size, format and licence are unverified.
+Nezha~\cite{nezha2023} (101 cases on OB and TT, with metrics, logs and traces) is pre-registered as a cross-source check; its ingest adapter is part of the engine-freeze commit, and Nezha is reported with the proposer off only (\S\ref{sec:deviations}).
+VeylLab, our laptop-collected dataset with real deploy, configuration and flag events and no-fault controls, was pre-registered where it reaches its target size; it did not (8 of 120 captures, and no ingest adapter), and both VeylLab experiments are cut.
+No result in this paper therefore uses real change events; RCAEval-C's changes are synthetic.
+The propagation-aware Train Ticket set of Fang et al.~\cite{fang2026rethinking} was pre-registered as a stretch dataset and is cut, because its size, format and licence were not verified.
 A pre-registered dataset or arm that cannot run is reported as not run, with its reason and the decision record that cut it (Appendix~\ref{sec:appendix}).
 Five synthetic cases serve only as continuous-integration fixtures and are never reported.
-\leadq{no cut is decided yet (the R-16 cut list is open); update this paragraph when it is. Nezha and VeylLab depend on O-07 and O-08. The Observe lane may take this subsection over (docs/11 §5).}
+\leadq{the Observe lane may take this subsection over (docs/11 §5).}
 
 \resulttable{tab:datasets}{Datasets: cases, exclusions, fault cases and normal windows per dataset part.}{re2-oracle-rq1-v1, re3-oracle-rq1-v1, nezha-oracle-rq1-v1, veyllab-oracle-rq1-v1, fse26-oracle-rq1-v1}{t03-datasets}
 
@@ -57,14 +59,15 @@ Five synthetic cases serve only as continuous-integration fixtures and are never
 All methods run in one harness, on the same cases, inputs and alert times, in one pinned environment, and we never mix published numbers into our tables.
 The honest floors are chance, reported as a metric of every group, and \code{prior-only}, which ranks services by how often they are the root in the calibration fold and reads no telemetry; floors are shown in every accuracy table (\code{prior-only} on RE2 and RE3 only, chance everywhere) but are not candidates for the comparisons below.
 N-Sigma and BARO run from RCAEval's own code at tag 1.12.0 in an isolated environment and receive the same alert time as \sys.
-In this harness, RCAEval's BARO reproduces the RE2-TT results published with the benchmark~\cite{rcaeval2024} to two decimals: AC@1 0.67, AC@3 0.82 and Avg@5 0.80 (experiment \code{re2-oracle-baselines-r05}, the baseline-reproduction run made before the tag: not pre-registered, on all 270 RE2 cases including the development cases, in an older summary format).
+In this harness, RCAEval's BARO reproduces the RE2-TT results published with the benchmark~\cite{rcaeval2024} to two decimals: AC@1 \resnum{re2-oracle-baselines-r05}{tt/rcaeval:baro/ac_at_1}, AC@3 \resnum{re2-oracle-baselines-r05}{tt/rcaeval:baro/ac_at_k.ac_at_3} and Avg@5 \resnum{re2-oracle-baselines-r05}{tt/rcaeval:baro/avg_at_5} (experiment \code{re2-oracle-}\allowbreak\code{baselines-r05}, the baseline-reproduction run made before the tag: not pre-registered, on all 270 RE2 cases including the development cases, in an older summary format).
 \code{simplerca} is our re-implementation of the alert-count baseline of Fang et al.~\cite{fang2026rethinking}, which ranks services by the number of metric, trace and log alerts.
 The \emph{best reproduced simple baseline} of H1a and H1b is whichever of \code{rcaeval:nsigma}, \code{rcaeval:baro} and \code{simplerca} has the highest AC@1 on the same evaluation cases, chosen per system for H1a and pooled over RE2 for H1b; choosing it on the test cases favours the baseline.
 Each Causatrix ranker alone (\code{causatrix:<ranker>}) and the fused slate without the verifier (\code{causatrix:rrf}) are ablations.
-The \sys arms are \code{veyltrace:off}; \code{veyltrace:brief}, with the proposer in its one- or two-call mode over evidence cards and the verifier on, run with three seeds; \code{veyltrace:investigate}, the multi-turn mode with the verifier on, on a 90-case subset with one case per cluster and three seeds; and \code{agent-only:brief}, which ranks the same model's hypotheses in order with no verifier.
-The proposer is Qwen3.5-9B~\cite{qwen35card} in a 4-bit quantisation, served locally; its GGUF weight digest is to be set in the configuration after benchmarking the model, and issue \#315 adds a check that an AI-arm run counts only on that pinned digest (the digest is unset and the issue open at the time of writing), and scores published for it are vendor-reported.
+The \sys arms are \code{veyltrace:off}; \code{veyltrace:brief}, with the proposer in its one- or two-call mode over evidence cards and the verifier on, run with three seeds; \code{veyltrace:}\allowbreak\code{investigate}, the multi-turn mode with the verifier on, pre-registered on a 90-case subset with one case per cluster and three seeds and cut before it ran (\S\ref{sec:deviations}); and \code{agent-only:brief}, which ranks the same model's hypotheses in order with no verifier.
+The proposer is Qwen3.5-9B~\cite{qwen35card} in a 4-bit quantisation, served locally; its GGUF weight digest is pinned in the configuration, an AI-arm run counts only on that digest (issue \#315, part of the engine-freeze commit), and scores published for the model are vendor-reported.
 On RCAEval-C we add \code{naive-change}, which blames the service with the latest change before the alert.
-\leadq{no cut is decided yet; a cut arm is reported as not run with its ADR (docs/04 §10). docs/04 §4 also lists \code{prism-plain} and RCAEval's other methods ``where runnable'', but no pre-registered experiment configures them: report them as not run or drop them from the list.}
+The protocol also lists \code{prism-plain}, a re-implementation of PRISM from its paper, and RCAEval's other methods where they run; no pre-registered experiment configures any of them, and \code{prism-plain} was never built, so none of them is reported.
+A cut arm is reported as not run, with its reason and the decision record that cut it.
 
 \subsection{Alert and perturbation protocols}
 \label{sec:protocols}
@@ -74,7 +77,7 @@ The perturbation protocols, all fixed a priori, are:
 \begin{itemize}
 \item \emph{onset shift}: $-120$, $-60$, $+60$ and $+120$\,s added to the oracle alert time ($\pm 30$\,s exploratory), because a two-minute shift took N-Sigma from 0.80 to 0.07 AC@1 on RE2 in a pre-registered preprint~\cite{hussain2026prereg};
 \item \emph{telemetry ablation}: drop metrics, logs, traces or events, or keep metrics only; Sock Shop's lack of traces is a natural experiment;
-\item \emph{leave-one-system-out calibration}: calibrate on two systems and test on the third, and, once the Nezha adapter exists, calibrate on RE2 (OB and TT) and test on Nezha;
+\item \emph{leave-one-system-out calibration}: calibrate on two systems and test on the third, and calibrate on RE2 (OB and TT) and test on Nezha;
 \item \emph{RCAEval-C}: a true change on the root at a uniform 0--120\,s before injection with probability $\pi \in \{0, 0.5, 1\}$, and Poisson decoy changes on other services at $\lambda \in \{0, 2, 6\}$ per hour from 30 minutes before to 5 minutes after injection, of kind deploy, configuration or flag; true and decoy changes share one schema, so the channel cannot tell them apart by format;
 \item \emph{planted decoy proposal}: one fabricated proposal per case for a healthy service, with false claims;
 \item \emph{proposal permutation}: the recorded proposals re-ordered with a seeded permutation and the verifier re-run from the cassette.
@@ -87,9 +90,12 @@ Every threshold and weight in the Reason engines was set a priori with a cited s
 A \emph{cluster} is a (system, root service, fault) triple: RCAEval's repetitions of a cluster share deployments and database state, so they are not independent and never straddle splits.
 Within each (system, fault class) stratum, clusters are shuffled with a fixed seed and dealt alternately into folds A and B, and we cross-fit: calibrate on A and test on B, then the reverse, so every case gets exactly one test prediction from a calibration that shares no cluster with it.
 Calibration is fitted separately for each AI arm and alert protocol, because $V$ differs between arms; perturbed runs reuse the files of their unperturbed protocol, so any coverage drift under perturbation shows.
+In this paper only \code{veyltrace:off} under the oracle alert is calibrated: the experiments that would calibrate the \code{brief} arm were revised to run without it (\S\ref{sec:deviations}).
 With the three development cases excluded, an RE2 fold holds about 134 cases, so $\hat{q}$ is about the 122nd smallest calibration score.
 
-Normal windows for \NOFAULT come from RCAEval pre-injection segments, from one synthetic no-fault case used only for calibration, and from VeylLab's no-fault captures once they exist.
+The protocol takes normal windows for \NOFAULT from RCAEval pre-injection segments and from one synthetic no-fault case used only for calibration; VeylLab's no-fault captures were pre-registered as a third source, but VeylLab is cut.
+The pre-registered RE2 calibration configurations, frozen at the tag, add only the pre-injection segments, so the committed RE2 fits use those alone (\resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.m_fitted} and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.m_fitted} windows in the two fits).
+\leadq{docs/04 §5.4 item 6 lists the synthetic no-fault case as a normal-window source, but \code{re2-oracle-rq3-v1} at \code{prereg-v1} sets \code{normal_windows:} \code{rcaeval_pre_injection} only, and no docs/04 §12 row covers the difference. Decide whether it needs a row.}
 For the pre-injection segments, the oracle alert is moved 510\,s before injection, so the incident window ends 30\,s before the fault.
 RE2 has only about 12 minutes of data before injection, so these windows keep about 1.5 minutes of baseline, and segments with less than 60\,s of baseline are dropped.
 A segment may contain the tail of the previous case's fault, because RCAEval started the next case about 1.5 minutes after the previous fault with no baseline check (stated by the RCAEval author for RE2-TT; not documented for OB and SS); this biases $\tau_\text{nf}$ upwards, towards more \NOFAULT answers on faults, and we report it.
@@ -98,11 +104,11 @@ Normal windows follow the same clusters and folds, so the held-out false-alarm r
 \subsection{Metrics}
 \label{sec:metrics}
 
-Accuracy is AC@$k$ ($k = 1, 3, 5$), Avg@5 and MRR on the service ranking after RCAEval's coarse name transform, with fine-grained AC@$k$ on (service, indicator) and fault-type accuracy.
+Accuracy is AC@$k$ ($k = 1, 3, 5$), Avg@5 and MRR on the service ranking after RCAEval's coarse name transform, with fine-grained AC@$k$ on (service, indicator) and fault-type accuracy (not reported, \S\ref{sec:deviations}).
 We decompose AC@1 as Retrieval@K $\times$ Rerank@1~\cite{decomprca2026} and also report decision-pool retrieval.
 Chance@$k$ is $\min(k, n_i)/n_i$ averaged over cases with $n_i$ services, and lift is AC@$k$ divided by Chance@$k$.
-Calibration is held-out coverage, its gap to $1-\alpha$, coverage given pool retrieval, and set size; abstention is the risk--coverage curve and its area (AURC) for $V$ and for $F$, selective accuracy among \st{CONFIRMED} and \st{LIKELY} verdicts, and the \NOFAULT false-alarm and wrong-\NOFAULT rates.
-The LLM arms add proposer lift, proposal outcomes, decoy flips and permutation invariance; cost is wall time, peak memory and tokens per case; replay is the Tier-1 and Tier-2 rates.
+Calibration is held-out coverage, its gap to $1-\alpha$, coverage given pool retrieval, and set size; abstention is the area under the risk--coverage curve (AURC) for $V$ and for $F$ (the committed summaries keep the areas, not the curves), selective accuracy among \st{CONFIRMED} and \st{LIKELY} verdicts, and the \NOFAULT false-alarm and wrong-\NOFAULT rates.
+The LLM arms add proposer lift, proposal outcomes (not reported, \S\ref{sec:deviations}), decoy flips and permutation invariance; cost is wall time, peak memory and tokens per case; replay is the Tier-1 and Tier-2 rates.
 Failed, timed-out and unranked runs count as misses, and every denominator is the full split.
 AC@$k$ is computed on a ranking that the verifier writes for every status, so abstention cannot raise accuracy.
 We do not use expected calibration error, because \sys outputs a set and a status, not a probability.
@@ -114,8 +120,58 @@ Outcomes are paired by case, and clusters are the resampling unit: 90 on RE2 and
 Confidence intervals are 95\% percentile cluster-bootstrap intervals with 2,000 seeded resamples.
 The primary test is a two-sided cluster sign-flip permutation test on the paired AC@1 difference with 10,000 seeded flips, with an exact McNemar test as a secondary check and Holm correction within the families \code{rq1} and \code{rq2}; non-inferiority (H1a) is decided by the unadjusted interval.
 With about 30\% discordant cases, the minimum detectable difference is about 7 points on 270 cases and about 14 on 90, according to a pre-registered preprint~\cite{hussain2026prereg}, so per-system differences smaller than that are reported as ``not detected'', never as ``no difference''.
-LLM arms use at least three seeds; we report each seed and the mean and standard deviation, and paired tests use each case's mean hit over seeds.
-Per-system results are primary, pooled results support only H1b and H2a within RE2, and no test pools across datasets, because selecting one method across systems can pick the worse method for a given system~\cite{hu2026audit}.
+LLM arms use three seeds.
+The protocol asks for each seed's AC@1 with its mean and standard deviation, but no committed summary holds them (\S\ref{sec:deviations}).
+Paired tests use each case's mean hit over seeds.
+Per-system results are primary; pooled results decide only H1b, H2a and H3a, whose unit is the RE2 calibration family, and other pooled values are descriptive; no test pools across datasets, because selecting one method across systems can pick the worse method for a given system~\cite{hu2026audit}.
 Proportions use cluster-bootstrap intervals where clusters exist and exact binomial intervals otherwise.
-The LLM arms follow the 2026 reporting guidelines for empirical software-engineering studies that involve LLMs~\cite{llmguidelines2026}: model, quantisation and GGUF weight digest (pinned and checked per run once issue \#315 lands), runtime, decoding parameters, budgets, prompts and schemas, interaction logs, seeds, hardware, contamination and non-determinism are all reported.
-\leadq{RQ5 timings come from one solo run of \code{re2-oracle-rq1-v1} (R-16 plan, decision 3); say so here once it is decided.}
+The LLM arms follow the 2026 reporting guidelines for empirical software-engineering studies that involve LLMs~\cite{llmguidelines2026}: model, quantisation and GGUF weight digest (pinned and checked per run, issue \#315), runtime, decoding parameters, budgets, prompts and schemas, interaction logs, seeds, hardware, contamination and non-determinism are reported, with three exceptions (\S\ref{sec:deviations}): no committed file records the machine of the bench runs, the anonymisation probe that would test contamination was never configured, and per-seed values have no source.
+H5's deterministic budget is read against a separate per-case sample on the slowest laptop, which records its machine (Table~\ref{tab:rq5laptop}), not against the bench runs; the sample covers a subset of each system's RE2 cases, not every case.
+\leadq{which bench runs shared the machine (R-16 plan, decision 3)? State it here once it is decided.}
+
+\subsection{Deviations from the pre-registration}
+\label{sec:deviations}
+
+The protocol's deviations log (docs/04 §12) has six rows after the tag.
+Each row gives its date, the frozen item it changes, its reason, whether test results had been seen, and its decision record (ADR).
+Table~\ref{tab:index} in the appendix gives, for every experiment result and replay site, its code commit; for every result, the SHA-256 of its files; and for every experiment not run, its reason and, where one exists, its ADR.
+\leadq{docs/04 §9 generates tables from summary files only, and §12 clears the replay summaries (22 November row) but not the other side results: Tables 7, 7b and 7c read \code{rq3-intervals}, Table 8b reads \code{rq5-ai-cost}, and Table 8c reads the \code{perf-o11} samples, none of which is a bench summary. Add a §12 row, or disclose it here as an unlogged clarification; until then, do not call the six rows complete for the reporting rules.}
+
+\paragraph{Logged deviations}
+\begin{itemize}
+\item \emph{Upstream reuse} (21 November 2026; ADR \code{20261121-ak-}\allowbreak\code{slate-method-}\allowbreak\code{upstream-reuse}). The single-ranker methods \code{causatrix:<ranker>} reuse the upstream steps of the \code{veyltrace:off} run of the same case and experiment, and run only FaultLoom and Causatrix, to save compute in the R-16 runs. Reuse applies only when the upstream configuration, the code commit and the output hashes match; on the synthetic cases the reused slates are byte-identical to full runs. Their time and memory cover two steps only, so the cost tables give them no cost. No RQ1 table had been read.
+\item \emph{Tier-2 runtime} (22 November; ADR \code{20261122-ak-}\allowbreak\code{rq6-replay-results}). Tier-2 regeneration runs on the recording's own provider (Ollama, \code{qwen3.5:9b}, with the recorded run's resolved configuration) instead of \code{llama-server} with one slot and prompt caching off, because regenerating on another runtime would measure the runtime change, not regeneration. No replay had run. A second row of the same date and ADR clarifies that the replay table reads the committed replay summaries under the same rule as the summary files.
+\item \emph{RQ3 without the proposer} (25 November; ADR \code{20261121-ak-}\allowbreak\code{r16-cut-list}, addendum of 25 November). The pre-registered \code{re2-oracle-rq3-v1} and \code{re2-oracle-loso-v1} ran as \code{re2-oracle-}\allowbreak\code{rq3-off-v1} and \code{re2-oracle-}\allowbreak\code{loso-off-v1}, the same configurations without the \code{veyltrace:brief} arm. The reason is the LLM budget: the arms that need new model runs required about 200 hours of model time on the recording laptop, against about 70 hours left (\estimate). Test results had been seen: RQ1 and RQ2 were committed, and the proposer's lift over AI off was \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} (OB), \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} (SS) and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/difference} (TT) in AC@1 (\S\ref{sec:rq2}). No cut arm had run. H3a--H3d and the \NOFAULT targets are therefore estimated on the AI-off path only. The pre-registered \code{brief}-arm values cannot be reported next to the revised ones, because they were never run.
+\item \emph{Windows that can never be \NOFAULT} (decided 21 November with ADR \code{20261121-ak-}\allowbreak\code{calibration-fit-conventions}; logged 26 November). A normal window that \sys can never declare \NOFAULT (a failed or timed-out run, an undefined $M$, or a silent service) scores $+\infty$ and stays among the $m$ windows of the $\tau_\text{nf}$ fit. When the $\lceil (m+1)(1-\beta) \rceil$-th smallest score is $+\infty$, $\tau_\text{nf}$ falls back to the default $\log(1+3)$ and is marked uncalibrated, as with fewer than nine windows. No RQ3 result existed when the convention was set; the ADR assumed that the protocol needed no row, and review found the row missing. Under cross-fitting on RE2 (\code{re2-oracle-}\allowbreak\code{rq3-off-v1}) the index lands on $+\infty$ in both folds: \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.n_never} of \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.m_fitted} and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.n_never} of \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.m_fitted} fitted windows can never be \NOFAULT. The held-out false-alarm rate is therefore \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.false_alarm_rate.estimate}. Under leave-one-system-out calibration with TT held out, \sys does declare \NOFAULT (false-alarm rate \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.false_alarm_rate}). Section~\ref{sec:rq3} also reports the literal reading of docs/04 §5.4, under which $\tau_\text{nf}$ is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldA.tau_nf_literal} and \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.held_out_fold.foldB.tau_nf_literal} in the two folds, as a sensitivity analysis computed after the results.
+\item \emph{The prior-only floor} (26 November; no ADR, the row itself). \code{prior-only} was not built at the engine-freeze commit, so the runner refused both prior-only experiments before their first case. It was then built in the benchmark harness as the protocol defines it, with no engine change, and both experiments ran at \code{results-code-}\allowbreak\code{v1-prior}. Before any prior-only run, a read-only simulation on the answer keys showed that the cross-fitting deal leaves a case's own root with about one calibration cluster fewer than its rivals, so \code{prior-only} is expected below Chance@1 on RE2. The floor enters no hypothesis test and is kept as pre-registered.
+\end{itemize}
+
+\paragraph{Cut experiments}
+The cut list (ADR \code{20261121-ak-}\allowbreak\code{r16-cut-list}) reports these pre-registered experiments and matrix cells as not run:
+\begin{itemize}
+\item \emph{21 November}: the FSE'26 stretch dataset (size, format and licence not verified); \code{veyltrace:}\allowbreak\code{investigate} on RE2, with and without calibration (the \code{investigate} mode is cut); the $\pm 30$\,s \code{brief} shifts (exploratory in the protocol); the Cloud-OpsBench \code{agent-only} cell (optional, with no experiment configuration); and the five RCAEval-C AI cells in the middle of the grid.
+\item \emph{22 November} (addendum, asked for by the Observe and Explain lanes): both VeylLab experiments (8 of 120 captures and no adapter).
+\item \emph{25 November} (addendum, LLM budget, with the test results above already seen): every remaining AI arm that needs new model runs, namely the proposer under the detected alert, on RE3 and on Nezha, the $\pm 60$ and $\pm 120$\,s \code{brief} shifts and the four RCAEval-C AI corners. The five middle cells take the same reason. The planted-decoy and permutation experiments are kept, because they replay the recorded \code{brief} runs without a model call.
+\end{itemize}
+The proposer is therefore measured only on RE2 under the oracle alert: H2a is tested only there, and H4a and H4c only on the AI-off path.
+The cut arms are candidates for a later release.
+Two lane decisions cut no further experiment but narrow what this release covers: ADR \code{20261123-cl-}\allowbreak\code{explain-scope-cuts} moves the MCP server and lab collection beyond the live demo to the next release, and ADR \code{20261124-as-}\allowbreak\code{observe-cuts-v1-1} moves the Anomara time-series foundation-model plugin and the VeylLab adapter there too.
+
+\paragraph{Commits behind the results}
+The engine freeze is the tag \code{results-code-v1} (\code{9e553e1c}).
+The RE2 RQ1 experiments under both alert protocols, RQ2 under the oracle alert, the planted-decoy and permutation runs and the transfer to Nezha ran there.
+The shift, ablation, RCAEval-C and revised RQ3 runs ran at \code{results-code-}\allowbreak\code{v1-cpu} (\code{281787f1}), which adds only the two revised experiment configurations, and the prior-only runs at \code{results-code-}\allowbreak\code{v1-prior} (\code{9cb317d7}).
+The RE3 and Nezha RQ1 results ran at \code{results-code-}\allowbreak\code{v1-baselines} (\code{1b2f3be5}) and \code{results-code-}\allowbreak\code{v1-baselines-2} (\code{0654af62}).
+Each of these two adds only the RCAEval dataset entries for RE3 and Nezha to the baseline configuration, with no engine or configuration change, and no row of docs/04 §12 names them.
+Each replay site records the commit it replayed at; Table~\ref{tab:index} lists them.
+
+\paragraph{Pre-registered items with no result}
+Five items have no committed result and were cut by no decision record.
+The anonymisation probe (H4d) was optional and was never configured.
+The exploratory comparison of the 9B and 4B models (RQ2) has no experiment that runs a 4B model.
+The per-seed AC@1 with its mean and standard deviation (\S\ref{sec:stats}) has no source, because the summary files are not grouped by seed; the paired tests use each case's mean hit over seeds, as planned.
+Proposal outcomes (\S\ref{sec:metrics}) have no source either: no committed summary holds them.
+Fault-type accuracy (\S\ref{sec:metrics}) has no summary metric: only the per-case files record each case's hit, and the protocol takes every reported number from a summary file (docs/04 §10.2), so we compute none here.
+Besides these five items, five matrix cells of docs/04 §6 have no experiment configuration, no recorded reason and no decision record (Table~\ref{tab:index}).
+Three are the RE1 tuning cells (baselines, rankers and AI off); RE1 served only development before the tag (\S\ref{sec:eval}), and the protocol never reports it as a test result.
+Two are the optional \code{investigate} cells, under planted decoy proposals and on VeylLab; the cut of the \code{investigate} mode would cover them, but the cut list does not name them.

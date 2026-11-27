@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from veyltrace_bench import cli as bench_cli
-from veyltrace_bench.tables import generate
+from veyltrace_bench.tables import generate, rq1
 from veyltrace_core import textio
 
 BENCH = Path(__file__).resolve().parents[1]
@@ -40,6 +40,13 @@ def _row(text: str, *starts: str) -> str:
     return found[0]
 
 
+def _cell(table: str, row: str, column: str) -> str:
+    """The cell of `row` under the header `column`."""
+    header = next(line for line in table.splitlines() if line.startswith("| System |"))
+    names = [c.strip() for c in header.strip("|").split("|")]
+    return [c.strip() for c in row.strip("|").split("|")][names.index(column)]
+
+
 def test_table_5_re2_oracle_matches_its_golden_file(files: dict[str, str]) -> None:
     assert files[T5] == textio.read_text(FIXTURES / "expected" / "t05-rq1-re2-oracle.md")
 
@@ -53,7 +60,7 @@ def test_table_5_shows_each_system_next_to_its_floors(files: dict[str, str]) -> 
     assert _row(t5, "ob", "prior-only").startswith("| ob | prior-only | 0.250<sup>")  # its statistics are off
     off = _row(t5, "ob", "veyltrace:off")
     assert off.startswith("| ob | veyltrace:off | 0.500 [0.375, 0.625] |") and "| 0.875 (K=5)<sup>" in off
-    assert "| 4.000 | 0.375<sup>" in off  # Lift@1 = 0.5 / 0.125; AC@1 − Chance@1 without an interval
+    assert "| 4.000<sup>" in off and "| 0.375<sup>" in off  # Lift@1 = 0.5 / 0.125: no interval
     assert off.endswith(
         "| 8 | 0 | 8/0/0/0/0 | re2-oracle-rq1-v1 @ fixture |"
     )  # fault cases, unranked, outcomes
@@ -71,7 +78,10 @@ def test_not_run_experiments_render_whole_tables(files: dict[str, str]) -> None:
     detected = files["tables/t05-rq1-re2-detected.md"]
     assert "results from a dirty work tree are never used" in detected
     assert "| ob | veyltrace:off | not run<sup>" in detected
-    assert "| ob | prior-only | 0.250<sup>" in detected  # prior-only reads no alert: the same floor
+    assert "| ob | prior-only<sup>" in detected  # prior-only reads no alert: the same floor, with a note
+    assert "| 0.250<sup>" in next(
+        line for line in detected.splitlines() if line.startswith("| ob | prior-only")
+    )
     fse = files["tables/t05-rq1-fse26-oracle.md"]
     assert "stretch dataset not verified" in fse and "fse26-oracle-rq1-v1 (not run)" in fse
 
@@ -126,12 +136,71 @@ def test_mcnemar_says_why_it_is_missing(results: Path) -> None:
     assert "not applicable: no paired cases" in table and "McNemar is off" not in table
 
 
-def test_table_3_pairs_a_revision_of_its_second_source(results: Path) -> None:
+def test_table_3_keeps_its_windows_source_when_the_pre_registered_one_ran(results: Path) -> None:
     textio.write_text(results / "not_run.yaml", "re2-oracle-loso-v1: {revises: re2-oracle-rq3-v1}\n")
     t3 = generate.outputs(results, EXPERIMENTS)["tables/t03-datasets.md"].decode().splitlines()
-    base = next(n for n, line in enumerate(t3) if line.startswith("| re2-ob | ob |"))
-    assert "4 normal windows (from re2-oracle-rq3-v1)" in t3[base]
+    ob = [line for line in t3 if line.startswith("| re2-ob | ob |")]
+    assert len(ob) == 1 and "4 normal windows (from re2-oracle-rq3-v1)" in ob[0]  # one row per part (gap 1)
+
+
+def test_table_5_shows_fine_ac_pool_retrieval_and_why_a_slate_metric_is_missing(
+    files: dict[str, str],
+) -> None:
+    t5 = files[T5]
+    header = next(line for line in t5.splitlines() if line.startswith("| System |"))
     assert (
-        t3[base + 1].startswith("| re2-ob | ob |") and "not run<sup>" in t3[base + 1]
-    )  # the revision, not run
-    assert any(line.startswith("- re2-oracle-loso-v1 (revises re2-oracle-rq3-v1): not run") for line in t3)
+        "| MRR | Fine AC@1 | Fine AC@3 | Fine AC@5 | Fine cases | Retrieval@K | Pool retrieval | Rerank@1 |"
+        in header
+    )  # gaps 3, 7, 13: 04 §7 fine-grained AC@k, with its own denominator, and decision-pool retrieval
+    off = _row(t5, "ob", "veyltrace:off")
+    assert "| 0.250<sup>" in off and "| 0.875 (K=5)<sup>" in off and "| 0.875<sup>" in off
+    assert _cell(t5, off, "Fine cases") == "8" and _cell(t5, off, "Fine AC@1").startswith("0.250")
+    assert _cell(t5, off, "Pool retrieval").startswith("0.875")
+    for method in ("prior-only", "rcaeval:baro", "simplerca"):  # gap 5: n/a with the reason, not "not run"
+        row = _row(t5, "ob", method)
+        assert "not run" not in row
+    assert rq1.NO_SLATE in t5
+    for method in ("rcaeval:baro", "rcaeval:nsigma", "simplerca"):  # gap 6: the pooled slate cell is n/a
+        row = _row(t5, "pooled", method)
+        assert (
+            _cell(t5, row, "Retrieval@K")
+            == _cell(t5, row, "Pool retrieval")
+            == _cell(t5, _row(t5, "ob", method), "Retrieval@K")
+        )
+    assert rq1.NO_POOLED_RATIO in t5  # gap 4: pooled Lift@1 / Rerank@1 have no value, and say why
+    assert "no-alert, rejected" in t5  # gap 11: every non-ok run is a miss
+
+
+def _clean_detected(results: Path) -> None:
+    """The fixture's dirty re2-detected-rq1-v1, made clean, with onset errors on re2-ob only."""
+    out = results / "re2-detected-rq1-v1"
+    manifest = json.loads(textio.read_text(out / "manifest.json"))
+    manifest["code"]["dirty"] = False
+    textio.write_text(out / "manifest.json", json.dumps(manifest))
+    doc = json.loads(textio.read_text(out / "summary.json"))
+    for g in doc["groups"]:
+        ob = g["dataset"] == "re2-ob"  # re2-ss: no ok run has an onset, as re2-tt in the committed run
+        g["metrics"]["onset_error"] = {
+            "n_onset": 6 if ob else 0, "onset_error_median_ms": 31000.0 if ob else None,
+            "onset_error_max_ms": 604000.0 if ob else None,
+        }  # fmt: skip
+    textio.write_text(out / "summary.json", json.dumps(doc))
+
+
+def test_the_detected_table_has_onset_error_and_says_prior_only_reads_no_alert(results: Path) -> None:
+    _clean_detected(results)
+    t5 = generate.outputs(results, EXPERIMENTS)["tables/t05-rq1-re2-detected.md"].decode()
+    header = next(line for line in t5.splitlines() if line.startswith("| System |"))
+    assert "| Onset n | Onset error median (ms) | Onset error max (ms) |" in header  # gap 8
+    assert "| 6 | 31000 | 604000 |" in _row(t5, "ob", "veyltrace:off")
+    assert rq1.NO_ONSET in t5  # re2-ss has no onset error: no ok run with an onset
+    assert rq1.NO_POOLED_ONSET in t5  # pooled onset error: per system only
+    prior = next(line for line in t5.splitlines() if line.startswith("| ob | prior-only<sup>"))
+    assert "re2-oracle-prior-only-v1 @ fixture" in prior  # gap 10: the floor's protocol, in place
+    assert rq1.READS_NO_ALERT.format(prior="re2-oracle-prior-only-v1") in t5
+    oracle = files_of(results)["tables/t05-rq1-re2-oracle.md"]
+    assert "Onset n" not in oracle and "| ob | prior-only |" in oracle  # oracle tables: neither
+
+
+def files_of(results: Path) -> dict[str, str]:
+    return {k: v.decode() for k, v in generate.outputs(results, EXPERIMENTS).items() if k.endswith(".md")}

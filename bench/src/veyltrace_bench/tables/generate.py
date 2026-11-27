@@ -12,6 +12,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
+from veyltrace_bench.tables import paper
 from veyltrace_bench.tables.context import Context, context
 from veyltrace_bench.tables.figures import FIGURES_DIR, figures
 from veyltrace_bench.tables.index import development_cases, results_index
@@ -32,13 +33,22 @@ BUILDERS: tuple[Builder, ...] = (
     results_index, development_cases, datasets, accuracy, rq1_comparisons,
     proposer, calibration, cost, replay, shift, ablation, decoys,
 )  # fmt: skip
-REVISES = "revises "  # the role of a revision's results (Context.revised)
-UNPAIRED: frozenset[Builder] = frozenset({results_index, development_cases})  # list every experiment once
+#: Builders that list every experiment once (A0, A2), or resolve a revision themselves (Table 3
+#: takes its normal windows from the revision, so a second pass would only repeat its rows).
+UNPAIRED: frozenset[Builder] = frozenset({results_index, development_cases, datasets})
 
 
 def _revision(row: Row) -> bool:
-    """Whether the row cites a revision: its source or a second source (`also`) says "revises"."""
-    return any(s.role.startswith(REVISES) for s in (row.source, *row.also) if s is not None and s.role)
+    """Whether the row cites a revision in the slot of the experiment it revises (its source or a
+    second source, `also`, stands in for it; Context.revised), not the revision under its own id."""
+    return any(s.stands_in_for is not None for s in (row.source, *row.also) if s is not None)
+
+
+def _standalone(row: Row, replaced: set[str]) -> bool:
+    """Whether the row cites a revision under its own id while the revised pass of the same table
+    cites it in the slot of the experiment it revises (`replaced`): the same values twice."""
+    src = row.source
+    return src is not None and src.stands_in_for is None and src.experiment_id in replaced
 
 
 def _key(table: Table, row: Row) -> tuple[str, ...]:
@@ -50,7 +60,9 @@ def paired(build: Builder, ctx: Context) -> list[Table]:
     §12), the builder runs again once per revision (sorted by id), and each row citing that
     revision goes right after the last pre-registered row with the same key (`Table.key`, e.g.
     system and method), both labelled by their source cell; a revised row whose key the
-    pre-registered table lacks (a method the revision added) goes at the end (M1 of the review)."""
+    pre-registered table lacks (a method the revision added) goes at the end (M1 of the review).
+    The revision's own rows, under its own id, are then left out of that table, since the revised
+    rows print the same values (gap 35 of the R-17 audit)."""
     tables = build(ctx)
     if not ctx.revises or build in UNPAIRED:
         return tables
@@ -58,14 +70,17 @@ def paired(build: Builder, ctx: Context) -> list[Table]:
     out: list[Table] = []
     for i, table in enumerate(tables):
         revised: dict[tuple[str, ...], list[Row]] = {}
-        for twin in twins:
+        replaced: set[str] = set()
+        for new, twin in zip(sorted(ctx.revises), twins, strict=True):
             if twin[i].name != table.name:
                 raise ConfigError(f"the revised pass of {table.name!r} built {twin[i].name!r} instead")
             for row in filter(_revision, twin[i].rows):
                 revised.setdefault(_key(table, row), []).append(row)
-        last = {_key(table, row): n for n, row in enumerate(table.rows)}
+                replaced.add(new)
+        kept = [row for row in table.rows if not _standalone(row, replaced)]
+        last = {_key(table, row): n for n, row in enumerate(kept)}
         rows: list[Row] = []
-        for n, row in enumerate(table.rows):
+        for n, row in enumerate(kept):
             rows.append(row)
             if last[_key(table, row)] == n:
                 rows += revised.pop(_key(table, row), [])
@@ -77,17 +92,31 @@ def paired(build: Builder, ctx: Context) -> list[Table]:
 def outputs(
     results_root: Path, experiments_dir: Path, builders: Sequence[Builder] = BUILDERS
 ) -> dict[str, bytes]:
-    """Every generated file, as {path relative to the results root: bytes}, sorted by path."""
+    """Every generated file, as {path relative to the results root: bytes}, sorted by path: per
+    table its `.md` and `.tex`, its full grid as a longtable (`-full.tex`) and, for a table the
+    paper's main text cites (paper.VIEWS), its compact paper view (`-paper.tex`). In every `.tex`,
+    a reference by the generator's number ("Table 7c") is the paper's \\vtref macro instead, since
+    LaTeX numbers the PDF (paper.link_numbers); the `.md` keeps the generator's numbers."""
     ctx = context(results_root, experiments_dir)
+    tables = [table for build in builders for table in paired(build, ctx)]
+    drawn = figures(ctx)
+    targets = paper.number_targets(tables, sorted({Path(p).stem for p in drawn if p.endswith(".csv")}))
     files: dict[str, bytes] = {}
-    for build in builders:
-        for table in paired(build, ctx):
-            for suffix, render in ((".md", markdown), (".tex", latex)):
-                path = f"{TABLES_DIR}/{table.name}{suffix}"
-                if path in files:
-                    raise ConfigError(f"two tables are named {table.name!r}")
-                files[path] = render(table).encode("utf-8")
-    return dict(sorted((files | figures(ctx)).items()))
+    for table in tables:
+        rendered = {
+            ".md": markdown(table),
+            ".tex": latex(table),
+            f"{paper.FULL_SUFFIX}.tex": paper.full_latex(table),
+        }
+        if (view := paper.VIEWS.get(table.name)) is not None:
+            rendered[f"{paper.PAPER_SUFFIX}.tex"] = paper.paper_latex(paper.build(table, view))
+        for suffix, text in rendered.items():
+            path = f"{TABLES_DIR}/{table.name}{suffix}"
+            if path in files:
+                raise ConfigError(f"two tables are named {table.name!r}")
+            linked = paper.link_numbers(text, targets, path) if suffix.endswith(".tex") else text
+            files[path] = linked.encode("utf-8")
+    return dict(sorted((files | drawn).items()))
 
 
 def _on_disk(root: Path) -> list[str]:

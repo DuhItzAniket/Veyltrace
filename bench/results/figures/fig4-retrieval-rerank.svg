@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="375" viewBox="0 0 640 375" font-family="sans-serif" font-size="11">
+<title>Fig. 4: retrieval vs re-ranking, RE2 oracle, veyltrace:off</title>
+<text x="150.67" y="320" text-anchor="middle">Retrieval@K</text>
+<text x="340" y="320" text-anchor="middle">Rerank@1</text>
+<text x="529.33" y="320" text-anchor="middle">AC@1</text>
+<text x="50" y="68" text-anchor="end">ob</text>
+<rect x="56" y="16" width="189.33" height="96" fill="#3769ff" stroke="#fff"/>
+<text x="150.67" y="68" text-anchor="middle">1.000</text>
+<rect x="245.33" y="16" width="189.33" height="96" fill="#95b0ff" stroke="#fff"/>
+<text x="340" y="68" text-anchor="middle">0.528</text>
+<rect x="434.67" y="16" width="189.33" height="96" fill="#95b0ff" stroke="#fff"/>
+<text x="529.33" y="68" text-anchor="middle">0.528</text>
+<text x="50" y="164" text-anchor="end">ss</text>
+<rect x="56" y="112" width="189.33" height="96" fill="#396bff" stroke="#fff"/>
+<text x="150.67" y="164" text-anchor="middle">0.989</text>
+<rect x="245.33" y="112" width="189.33" height="96" fill="#a0b7ff" stroke="#fff"/>
+<text x="340" y="164" text-anchor="middle">0.477</text>
+<rect x="434.67" y="112" width="189.33" height="96" fill="#a1b8ff" stroke="#fff"/>
+<text x="529.33" y="164" text-anchor="middle">0.472</text>
+<text x="50" y="260" text-anchor="end">tt</text>
+<rect x="56" y="208" width="189.33" height="96" fill="#3b6cff" stroke="#fff"/>
+<text x="150.67" y="260" text-anchor="middle">0.978</text>
+<rect x="245.33" y="208" width="189.33" height="96" fill="#87a5ff" stroke="#fff"/>
+<text x="340" y="260" text-anchor="middle">0.598</text>
+<rect x="434.67" y="208" width="189.33" height="96" fill="#8aa7ff" stroke="#fff"/>
+<text x="529.33" y="260" text-anchor="middle">0.584</text>
+<text x="56" y="354" text-anchor="start" fill="#555">all points present; 3 without an interval (no interval in the committed results (04 §8</text>
+<text x="56" y="369" text-anchor="start" fill="#555">asks for one))</text>
+</svg>

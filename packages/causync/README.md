@@ -10,7 +10,7 @@ Spec: [docs/engines/04-causync.md](../../docs/engines/04-causync.md). Rules for 
 
 | | |
 |---|---|
-| Reads | `case_manifest`, `alert`, `telemetry.{events,spans,logs}`, `signal_cube.series`, `anomalies`, `onsets` |
+| Reads | `case_manifest`, `telemetry.{events,spans,logs}`, `signal_cube.series`, `anomalies`, `onsets` |
 | Writes | `alignment.json`, `changes.parquet` |
 | Config | `config/causync.yaml` |
 

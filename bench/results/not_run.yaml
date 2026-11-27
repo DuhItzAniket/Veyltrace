@@ -8,11 +8,11 @@
 # remaining LLM-heavy AI arm for v1.0 (ADR addendum of 25 Nov, #532); they are candidates for v1.2.
 
 # 07 §1.1 cut item 2: the FSE'26 TrainTicket adapter.
-fse26-oracle-rq1-v1: "stretch dataset; size, format and licence not verified (07 §1.1 cut item 2)"
+fse26-oracle-rq1-v1: "stretch dataset; size, format and licence not verified (07 §1.1 cut item 2; ADR 20261121-ak-r16-cut-list)"
 
 # 07 §1.1 cut item 3: Relentra `investigate` mode (`brief` is kept).
-re2-oracle-investigate-v1: "`investigate` mode is cut (07 §1.1 cut item 3)"
-re2-oracle-rq3-investigate-v1: "`investigate` mode is cut (07 §1.1 cut item 3)"
+re2-oracle-investigate-v1: "`investigate` mode is cut (07 §1.1 cut item 3; ADR 20261121-ak-r16-cut-list)"
+re2-oracle-rq3-investigate-v1: "`investigate` mode is cut (07 §1.1 cut item 3; ADR 20261121-ak-r16-cut-list)"
 
 # New cut (ADR 20261121-ak-r16-cut-list): the RCAEval-C AI mid-grid (21 Nov); the 4 corners followed on 25 Nov (below).
 rcaevalc-pi0-l2-ai-v1: "LLM budget; v1.0 runs the AI arm only on RE2 with the oracle alert, no shift and no decoy changes; candidate for v1.2 (ADR 20261121-ak-r16-cut-list)"

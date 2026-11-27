@@ -15,7 +15,16 @@ from pathlib import Path
 import pytest
 
 from veyltrace_bench.tables import cells
-from veyltrace_bench.tables.results import NO_GROUP, NO_RESULTS, Register, load, read_register
+from veyltrace_bench.tables.results import (
+    NO_GROUP,
+    NO_INTERVAL,
+    NO_RESULTS,
+    OLD_FORMAT,
+    UNLISTED,
+    Register,
+    load,
+    read_register,
+)
 from veyltrace_core import textio
 from veyltrace_core.errors import ConfigError, ContractValidationError
 from veyltrace_core.hashing import sha256_text_lf
@@ -59,10 +68,7 @@ def test_each_kind_of_missing_result_is_not_run_with_its_reason(results: Path) -
     assert (
         reason("re3-oracle-rq2-v1") == "incomplete result: no summary.json (bench writes manifest.json last)"
     )
-    assert (
-        reason("re2-oracle-baselines-r05")
-        == "summary.json is bench_summary 0.1.0; tables read 1.1 and 1.2 (re-run)"
-    )
+    assert reason("re2-oracle-baselines-r05") == OLD_FORMAT.format("0.1.0")  # ran: not tabulated
     assert reason("re2-detected-rq1-v1") == "results from a dirty work tree are never used (04 §10.2)"
 
 
@@ -86,16 +92,14 @@ def test_metric_cells_carry_their_interval_or_say_why_not(results: Path) -> None
     assert rq1.metric(*off, "ac_at_k", "ac_at_2").note == (
         "no interval: summary.json statistics has no `ac_at_2` interval for this group"
     )
-    assert rq1.metric(*off, "lift", "lift_at_1") == cells.Cell("4.000")  # a ratio has no interval
+    assert rq1.metric(*off, "lift", "lift_at_1") == cells.Cell("4.000", NO_INTERVAL)  # a ratio: none
     assert rq1.metric(*off, "cost", "wall_ms_p95") == cells.Cell("31000")
     assert rq1.metric(*off, "cost", "tokens_in_p50").text == "n/a"
     assert rq1.metric(*off, "retrieval_at_k", "retrieval_k") == cells.Cell("5")
     assert rq1.metric(*off, "retrieval_at_k", "retrieval_at_k").text == "0.875 (K=5)"  # K from retrieval_k
     assert rq1.metric("re2-ob", "ob", "rcaeval:baro", "rerank_at_1", "rerank_at_1").text == "n/a"
     assert rq1.metric("re2-ob", "ob", "rcaeval:baro", "retrieval_at_k", "retrieval_at_k").text == "n/a"
-    assert rq1.metric(*off, "onset_error", "n_onset") == cells.not_run(
-        "the experiment does not list the metric `onset_error`"
-    )
+    assert rq1.metric(*off, "onset_error", "n_onset") == cells.not_applicable(UNLISTED.format("onset_error"))
     assert rq1.metric("re2-tt", "tt", "veyltrace:off", "ac_at_k", "ac_at_1") == cells.not_run(NO_GROUP)
     assert rq1.count(*off, "n_fault") == cells.Cell("8") and rq1.count(*off, "timeout") == cells.Cell("0")
     assert rq1.pooled("re2", "veyltrace:off", "ac_at_1") == cells.not_run(
@@ -149,10 +153,10 @@ def test_the_register_holds_reasons_and_revisions(results: Path) -> None:
     assert read_register(results) == Register()
 
 
-@pytest.mark.parametrize("version", ["1.1.0", "1.2.0", "1.3.0"])
-def test_summaries_of_1_1_and_1_2_are_read_others_are_not_run(results: Path, version: str) -> None:
+@pytest.mark.parametrize("version", ["1.1.0", "1.2.0"])
+def test_summaries_of_1_1_and_1_2_are_read(results: Path, version: str) -> None:
     """1.2 is the current minor (#411); a 1.1 file reads with the 1.2 entries null, and the cell
-    names the file's version; any other minor is refused as "not run"."""
+    names the file's version."""
     path = results / "re2-oracle-rq3-v1" / "summary.json"
     doc = json.loads(textio.read_text(path))
     doc["schema_version"] = version
@@ -164,12 +168,22 @@ def test_summaries_of_1_1_and_1_2_are_read_others_are_not_run(results: Path, ver
     textio.write_text(path, json.dumps(doc))
     res = load(results, "re2-oracle-rq3-v1", NONE)
     cell = res.metric("re2-ob", "ob", "veyltrace:off", "coverage", "coverage")
-    if version == "1.3.0":
-        assert res.reason == "summary.json is bench_summary 1.3.0; tables read 1.1 and 1.2 (re-run)"
-    elif version == "1.2.0":
-        assert res.reason is None and res.file_version == "1.2.0" and cell == cells.Cell("0.875")
+    if version == "1.2.0":
+        assert res.reason is None and res.file_version == "1.2.0" and cell == cells.Cell("0.875", NO_INTERVAL)
     else:
         assert res.reason is None and res.file_version == "1.1.0"
         assert cell == cells.not_run(
             "summary.json is bench_summary 1.1, which has no `coverage` entry (re-run)"
         )
+
+
+@pytest.mark.parametrize("version", ["1.3.0", "0.2.0", "2.0.0"])
+def test_an_unknown_summary_version_is_refused(results: Path, version: str) -> None:
+    """Only bench_summary 0.1.0 (the R-05 baselines) is listed as ran but not tabulated; any other
+    version the tables do not read is an error, never a quiet "not tabulated" row."""
+    path = results / "re2-oracle-rq3-v1" / "summary.json"
+    doc = json.loads(textio.read_text(path))
+    doc["schema_version"] = version
+    textio.write_text(path, json.dumps(doc))
+    with pytest.raises(ConfigError, match=f"bench_summary {version}"):
+        load(results, "re2-oracle-rq3-v1", NONE)

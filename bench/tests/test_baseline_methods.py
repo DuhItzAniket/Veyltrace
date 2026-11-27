@@ -11,6 +11,7 @@ from typing import cast
 
 import pyarrow as pa
 import pytest
+import yaml
 
 from veyltrace_bench import rcaeval, runner
 from veyltrace_bench.experiment import load_experiment, unsupported
@@ -83,12 +84,16 @@ def test_baselines_run_on_synth_next_to_veyltrace(tmp_path: Path) -> None:
 
 def test_chance_and_unbuilt_baselines_are_named_not_run(tmp_path: Path) -> None:
     text = textio.read_text(EXPERIMENT)
-    extra = '  - {id: "chance", kind: internal_baseline}\n  - {id: "prior-only", kind: internal_baseline}\n'
+    extra = (
+        '  - {id: "chance", kind: internal_baseline}\n  - {id: "prior-only", kind: internal_baseline}\n'
+        '  - {id: "prism-plain", kind: internal_baseline}\n'
+    )
     path = tmp_path / "exp.yaml"
     path.write_text(text.replace(OFF, OFF + extra), encoding="utf-8")
     todo = unsupported(load_experiment(path))
     assert any("chance" in t and "`chance` metric" in t for t in todo)
-    assert any(t.startswith("methods prior-only: internal baseline not built") for t in todo)
+    assert not any(t.startswith("methods prior-only") for t in todo)  # built (#561); split checked at run
+    assert any(t.startswith("methods prism-plain: internal baseline not built") for t in todo)
 
 
 def test_an_unwrapped_rcaeval_method_is_refused_before_the_first_case(
@@ -102,3 +107,39 @@ def test_an_unwrapped_rcaeval_method_is_refused_before_the_first_case(
     with pytest.raises(ConfigError, match="'mmbaro' is not in"):
         runner.run_experiment(path, out_root=tmp_path / "r", runs_root=tmp_path / "runs")
     assert not (tmp_path / "runs").exists()
+
+
+def test_every_rcaeval_experiment_has_a_dataset_entry_for_each_part() -> None:
+    # re3/nezha rq1 were refused at R-16 because baselines.yaml mapped only RE2 (#615)
+    datasets = rcaeval.settings().datasets
+    not_run = cast(
+        "dict[str, object]", yaml.safe_load(textio.read_text(ROOT / "bench" / "results" / "not_run.yaml"))
+    )
+    for path in sorted((ROOT / "bench" / "experiments").glob("*.yaml")):
+        exp = load_experiment(path)
+        if exp.experiment_id in not_run:  # cut from v1.0 (not_run.yaml): never run, so never refused
+            continue
+        if any(m.kind == "rcaeval" for m in exp.methods):
+            missing = [d for d in exp.dataset.parts if d not in datasets]
+            assert not missing, f"{path.name}: rcaeval.datasets has no entry for {missing}"
+
+
+#: RCAEval's DATASET_MAP (RCAEval/benchmark/datasets.py at the pinned commit 90b63a46) for the ids
+#: bench passes. main.py reads only DATASET_MAP[id] and downloads the public data there if missing.
+RCAEVAL_DATASET_MAP = {
+    "re2-ob": "data/RE2/RE2-OB",
+    "re2-ss": "data/RE2/RE2-SS",
+    "re2-tt": "data/RE2/RE2-TT",
+    "re3-ob": "data/RE3/RE3-OB",
+    "re3-ss": "data/RE3/RE3-SS",
+    "re3-tt": "data/RE3/RE3-TT",
+}
+
+
+def test_every_rcaeval_dataset_entry_exports_where_main_py_reads() -> None:
+    # nezha rq1 scored downloaded RE2 cases at R-16: its paths were data/Nezha/... (#627)
+    for name, mapping in sorted(rcaeval.settings().datasets.items()):
+        assert mapping.id in RCAEVAL_DATASET_MAP, f"{name}: {mapping.id} is not a mirrored RCAEval id"
+        assert mapping.path == RCAEVAL_DATASET_MAP[mapping.id], (
+            f"{name}: main.py reads {RCAEVAL_DATASET_MAP[mapping.id]}"
+        )

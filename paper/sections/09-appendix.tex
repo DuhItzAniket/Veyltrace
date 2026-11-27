@@ -1,25 +1,58 @@
 % Appendix (all authors). Planned content from docs/11 §5. The generated tables below give
-% every pre-registered experiment a slot: Table A0 lists all 55 with their status (a cut
+% every pre-registered experiment a slot: the results index lists all 55 with their status (a cut
 % experiment appears there as not run, with its reason and ADR, docs/04 §10).
+% The main text prints compact paper views of its tables (R-17, lead decision of 27 Nov); the
+% full grids follow here as longtables (\resulttablefull), which switch to one column. A grid
+% longer than about four pages (lead decision, 27 Nov) is not printed: \resulttableentry names
+% its released file and size instead. Every table a generated caption or note cites (\vtref) is
+% printed or entered here, so no reference falls back to a file name.
 \section{Appendix}
 \label{sec:appendix}
 
 \leadq{still to write: the predicate library; configuration defaults with their sources; prompts and JSON schemas; hardware per laptop; the pinned RCAEval commit.}
 
-\resulttable*{tab:index}{Results index: every experiment configuration (synthetic smoke runs excluded) with its research questions, whether it is pre-registered, its status (run, or not run with the reason), its result groups and its statistics.}{every non-synthetic configuration in bench/experiments/, including all 55 pre-registered ones}{a0-results-index}
-\leadq{docs/04 §10 asks for each not-run cell's decision record (ADR), and §10.2 for the code commit and result hashes behind every number; R-17's index has neither column yet.}
+Table~\ref{tab:index} maps every result to its source.
+For each committed experiment result it prints the code commit and the SHA-256 of the manifest, the per-case file and the summary file.
+For the side results (RQ3 intervals, replay sites, AI-path cost and the performance samples) it prints the SHA-256 of their own files, and for each replay site the commit it replayed at.
+For each experiment that did not run, it prints the reason and the decision record (ADR) that cut it, with two exceptions.
+The Cloud-OpsBench \code{agent-only} cell has no experiment configuration, and its note gives only the reason, although the same cut list covers it.
+Five docs/04 §6 matrix cells, the three RE1 tuning cells (baselines, rankers and AI off) and the two optional \code{investigate} cells under planted decoy proposals and on VeylLab, have no experiment configuration, and their note gives neither a reason nor an ADR (\S\ref{sec:deviations}).
+A revised experiment names its revision and the docs/04 §12 row that made it (\S\ref{sec:deviations}).
+\leadq{which runs shared the machine (R-16 plan, decision 3) is not in R-17's cost table; add it there or state it in §5.5.}
 
-\resulttable*{tab:costall}{Cost of every experiment: p50 and p95 wall time, peak memory and tokens per case.}{every experiment in bench/results/}{a1-cost-all}
-\leadq{which runs shared the machine (R-16 plan, decision 3) is not in R-17's table; add it there or state it in §5.5.}
+\resulttablefull{tab:index}{Results index: every experiment configuration (synthetic smoke runs excluded) with its research questions, whether it is pre-registered, its status (run, or not run with the reason), its result groups and its statistics.}{a0-results-index}
+\resulttablefull{tab:devcases}{Development cases: their rows in the committed per-case results, reported apart from every accuracy table (docs/04 §10.5).}{a2-development-cases}
 
-\resulttable*{tab:rq1det}{RQ1 accuracy on RE2 under the detected alert.}{re2-detected-rq1-v1}{t05-rq1-re2-detected}
-\resulttable*{tab:rq1re3}{RQ1 accuracy on RE3 (code faults) under the oracle alert.}{re3-oracle-rq1-v1, re3-oracle-prior-only-v1}{t05-rq1-re3-oracle}
-\resulttable*{tab:rq1nezha}{RQ1 accuracy on Nezha under the oracle alert.}{nezha-oracle-rq1-v1}{t05-rq1-nezha-oracle}
-\resulttable*{tab:rq1lab}{RQ1 accuracy on VeylLab under the oracle alert.}{veyllab-oracle-rq1-v1}{t05-rq1-veyllab-oracle}
-\resulttable*{tab:rq1fse}{RQ1 accuracy on the FSE'26 Train Ticket set (stretch) under the oracle alert.}{fse26-oracle-rq1-v1}{t05-rq1-fse26-oracle}
+% Full grids of the main text's tables, in the order the main text cites them, with the tables
+% their generated captions cite next to them.
+\resulttablefull{tab:datasets-full}{Datasets (full grid of Table~\ref{tab:datasets}).}{t03-datasets}
+\resulttablefull{tab:rq1-full}{RQ1 accuracy on RE2 under the oracle alert (full grid of Table~\ref{tab:rq1}).}{t05-rq1-re2-oracle}
+\resulttablefull{tab:rq1cmp-full}{RQ1 paired comparisons (full grid of Table~\ref{tab:rq1cmp}).}{t05c-rq1-comparisons}
+\resulttablefull{tab:rq2-full}{RQ2 on RE2 under the oracle alert (full grid of Table~\ref{tab:rq2}).}{t06-rq2-re2-oracle-rq2-v1}
+\resulttablefull{tab:rq2cmp-full}{RQ2 paired comparisons (full grid of Table~\ref{tab:rq2cmp}).}{t06c-rq2-comparisons}
+\resulttablefull{tab:rq2arms-full}{RQ2 proposal arms (full grid of Table~\ref{tab:rq2arms}).}{t06d-rq2-proposal-arms}
+\resulttableentry{tab:rq3-full}{RQ3 calibration (full grid of Table~\ref{tab:rq3}).}{t07-rq3-calibration}
+\resulttablefull{tab:rq3folds}{RQ3 coverage and false-alarm rate per held-out fold.}{t07b-rq3-folds}
+\resulttablefull{tab:rq3tau}{RQ3 sensitivity: the literal docs/04 §5.4 reading of $\tau_{nf}$ per held-out fold, and its \NOFAULT rates.}{t07c-rq3-tau-sensitivity}
+\resulttableentry{tab:shift-full}{Alert-shift robustness (full grid of Table~\ref{tab:shift}).}{t10-rq4-shift}
+\resulttableentry{tab:ablation-full}{Telemetry ablation (full grid of Table~\ref{tab:ablation}).}{t11-rq4-ablation}
+\resulttableentry{tab:rcaevalc-full}{RCAEval-C grid (full grid of Table~\ref{tab:rcaevalc}).}{t12-rq4-rcaevalc}
+\resulttablefull{tab:rq5-full}{RQ5 cost on RE2 (full grid of Table~\ref{tab:rq5}).}{t08-rq5-cost}
+\resulttablefull{tab:rq5ai}{RQ5: the AI path's recorded model time and tokens per system, and narration.}{t08b-rq5-ai-cost}
+\resulttablefull{tab:rq5laptop}{RQ5: the slowest laptop's per-case pipeline time and memory, per step, which H5 is read against.}{t08c-rq5-slowest-laptop}
+\resulttablefull{tab:rq6-full}{RQ6 replay (full grid of Table~\ref{tab:rq6}).}{t09-rq6-replay}
 
-\resulttable*{tab:rq2det}{RQ2 on RE2 under the detected alert.}{re2-detected-rq2-v1}{t06-rq2-re2-detected-rq2-v1}
-\resulttable*{tab:rq2re3}{RQ2 on RE3.}{re3-oracle-rq2-v1}{t06-rq2-re3-oracle-rq2-v1}
-\resulttable*{tab:rq2inv}{RQ2 exploratory: \code{veyltrace:investigate} on the 90-case RE2 subset.}{re2-oracle-investigate-v1}{t06-rq2-re2-oracle-investigate-v1}
-\resulttable*{tab:rq2nezha}{RQ2 on Nezha.}{nezha-oracle-brief-v1}{t06-rq2-nezha-oracle-brief-v1}
-\resulttable*{tab:rq2lab}{RQ2 on VeylLab.}{veyllab-oracle-rq2-v1}{t06-rq2-veyllab-oracle-rq2-v1}
+% Tables only the appendix prints.
+\resulttableentry{tab:costall}{Cost of every experiment: p50 and p95 wall time, peak memory and tokens per case.}{a1-cost-all}
+
+\resulttablefull{tab:rq1det}{RQ1 accuracy on RE2 under the detected alert.}{t05-rq1-re2-detected}
+\resulttablefull{tab:rq1re3}{RQ1 accuracy on RE3 (code faults) under the oracle alert.}{t05-rq1-re3-oracle}
+\resulttablefull{tab:rq1nezha}{RQ1 accuracy on Nezha under the oracle alert.}{t05-rq1-nezha-oracle}
+\resulttablefull{tab:rq1lab}{RQ1 accuracy on VeylLab under the oracle alert (not run; Table~\ref{tab:index}).}{t05-rq1-veyllab-oracle}
+\resulttablefull{tab:rq1fse}{RQ1 accuracy on the FSE'26 Train Ticket set (stretch) under the oracle alert (not run; Table~\ref{tab:index}).}{t05-rq1-fse26-oracle}
+
+\resulttablefull{tab:rq2det}{RQ2 on RE2 under the detected alert (AI arms not run; Table~\ref{tab:index}).}{t06-rq2-re2-detected-rq2-v1}
+\resulttablefull{tab:rq2re3}{RQ2 on RE3 (AI arms not run; Table~\ref{tab:index}).}{t06-rq2-re3-oracle-rq2-v1}
+\resulttablefull{tab:rq2inv}{RQ2 exploratory: \code{veyltrace:}\allowbreak\code{investigate} on the 90-case RE2 subset (not run; Table~\ref{tab:index}).}{t06-rq2-re2-oracle-investigate-v1}
+\resulttablefull{tab:rq2nezha}{RQ2 on Nezha (AI arms not run; Table~\ref{tab:index}).}{t06-rq2-nezha-oracle-brief-v1}
+\resulttablefull{tab:rq2lab}{RQ2 on VeylLab (not run; Table~\ref{tab:index}).}{t06-rq2-veyllab-oracle-rq2-v1}

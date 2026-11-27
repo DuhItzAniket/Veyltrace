@@ -5,5 +5,5 @@ RCAEval-C decoy-change generator (task O-13, **Observe lane**). Spec:
 Use: `DecoySpec.from_protocol` → `generate` → `write_overlay` (the file for `events.overlay_path`,
 O-09) and `decoy_changes_json` (the answer-key column), all in `veyltrace_decoys/rcaevalc.py`.
 
-Not in the `veyltrace_bench` wheel yet (tests reach it through `conftest.py`): the runner needs
-`decoys/veyltrace_decoys` added to the wheel packages in `bench/pyproject.toml` (Reason lane).
+Part of the `veyltrace_bench` wheel (`decoys/veyltrace_decoys` in `bench/pyproject.toml`); the
+runner calls it from `veyltrace_bench/decoy_runs.py`. The tests also reach it through `conftest.py`.

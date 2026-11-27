@@ -1,5 +1,45 @@
-% §6 Discussion (all authors, after the results exist). Outline from docs/11 §5.
+% §6 Discussion, draft v1 (R-18). Outline from docs/11 §5; every result value is a \resnum.
 \section{Discussion}
 \label{sec:discussion}
 
-\leadq{write after M4. Planned points: where the verifier abstains (network faults, where internal-before-external onset precedence flips); what the LLM adds and through which predicates; using \sys as an MCP verification tool for other agents; the limits of synthetic decoys.}
+\paragraph{Where the verifier loses and where it abstains}
+The verifier, not the slate, costs \sys its accuracy.
+The true root is in the top five candidates almost always (\S\ref{sec:rq1}), and the fused ranker slate alone reaches an AC@1 of \resnum{re2-oracle-rq1-v1}{ob/causatrix:rrf/ac_at_1}, \resnum{re2-oracle-rq1-v1}{ss/causatrix:rrf/ac_at_1} and \resnum{re2-oracle-rq1-v1}{tt/causatrix:rrf/ac_at_1} on OB, SS and TT, against \resnum{re2-oracle-rq1-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/ac_at_1} after verification (point values; no paired test is committed).
+The telemetry ablation narrows the search.
+With metrics alone, \code{veyltrace:off} scores \resnum{re2-metrics-only-v1}{ob/veyltrace:off/ac_at_1}, \resnum{re2-metrics-only-v1}{ss/veyltrace:off/ac_at_1} and \resnum{re2-metrics-only-v1}{tt/veyltrace:off/ac_at_1}, higher than with every source, and dropping logs alone raises SS AC@1 by \resnum{re2-oracle-rq1-v1}{ss/veyltrace:off/ac_at_1/difference/vs:re2-drop-logs-v1}.
+On these point values, adding logs, traces and events to metrics lowers AC@1 on every RE2 system; no committed result holds an interval or a test for a cross-experiment difference.
+The ablation removes a source from the whole pipeline, so the committed results do not say whether the loss arises in the rankers or in the verifier's trials; that is the first question for the next version.
+The verified score also orders risk worse than the fused score (H3c), so the verifier's confidence is not yet a better basis for abstention than the fused score.
+
+The no-fault answer does not work as fitted in v1.0.
+Under the fit convention of docs/04 §12, no held-out normal window is declared \NOFAULT; under the literal reading of the protocol, the false-alarm rate falls to \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.false_alarm_rate.estimate} (95\% CI \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.false_alarm_rate.ci}), still above the 0.15 limit, and \NOFAULT is then wrongly declared on \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{literal_tau_sensitivity.pooled.wrong_no_fault_rate.estimate} of fault cases, so both targets miss under that reading (a sensitivity analysis computed after the results).
+Calibrated on OB and SS, the threshold does fire on TT, but with the same trade-off: false alarms on \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.false_alarm_rate} of normal windows and wrong \NOFAULT on \resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/no_fault_rates.wrong_no_fault_rate} of fault cases.
+The candidate sets themselves cover the root at the target rate within RE2, and stay close to it with OB or SS held out (\resnum{re2-oracle-loso-off-v1}{ob/veyltrace:off/coverage} and \resnum{re2-oracle-loso-off-v1}{ss/veyltrace:off/coverage}, with 95\% CIs \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ob.coverage.ci} and \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ss.coverage.ci} that contain 0.90), but not with TT held out (\resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/coverage}) or on Nezha after calibration on RE2: \resnum{re2-to-nezha-transfer-v1}{ob/veyltrace:off/coverage} and \resnum{re2-to-nezha-transfer-v1}{tt/veyltrace:off/coverage} on Nezha OB and TT.
+Split-conformal coverage assumes that calibration and test cases are exchangeable; these results suggest that an operator should calibrate on the system being diagnosed.
+We planned to examine where the verifier abstains by fault class, for instance on network faults, where the internal-before-external onset precedence can flip.
+No committed result breaks verdicts down by fault class, so we do not discuss it here.
+\leadq{a fault-class breakdown (e.g.\ network faults) would be a new statistic from per\_case.csv; same lead call as the failure taxonomy in Section~\ref{sec:rq1}.}
+
+\paragraph{What the LLM adds}
+On RE2 with the oracle alert, the code-verified proposer adds no detectable accuracy (H2a; Holm-adjusted $p = $ \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p}) at a p95 cost above its 180\,s budget (\S\ref{sec:rq5}).
+Its value, if any, is that verification bounds the harm of a misled model.
+An unverified agent over the same proposals scores a higher AC@1 on clean inputs (\resnum{re2-oracle-rq2-v1}{ob/agent-only:brief/ac_at_1}, \resnum{re2-oracle-rq2-v1}{ss/agent-only:brief/ac_at_1} and \resnum{re2-oracle-rq2-v1}{tt/agent-only:brief/ac_at_1}, against \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief/ac_at_1}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief/ac_at_1} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief/ac_at_1}; exploratory, with no test).
+With one planted decoy, its top-1 changes in \resnum{re2-oracle-planted-v1}{ob/agent-only:brief/decoy_top1_change}, \resnum{re2-oracle-planted-v1}{ss/agent-only:brief/decoy_top1_change} and \resnum{re2-oracle-planted-v1}{tt/agent-only:brief/decoy_top1_change} of runs and its AC@1 falls to \resnum{re2-oracle-planted-v1}{pooled/agent-only:brief/ac_at_1}, while the verified arm's top-1 changes in \resnum{re2-oracle-planted-v1}{ob/veyltrace:brief/decoy_top1_change}, \resnum{re2-oracle-planted-v1}{ss/veyltrace:brief/decoy_top1_change} and \resnum{re2-oracle-planted-v1}{tt/veyltrace:brief/decoy_top1_change} of runs and its pooled AC@1 is \resnum{re2-oracle-planted-v1}{pooled/veyltrace:brief/ac_at_1}.
+The agent takes the model's order as its ranking and the decoy is placed first, so the decoy becomes its top-1 by construction; these flips show the placement of the decoy, not a measured weakness of the model.
+The comparison shows only that the verifier does not follow the proposal order, at the price of the agent's accuracy on clean inputs; the verified arm's decoy rate still misses the 0.05 target on OB and SS in point estimate, and only on SS at the lower bound of its exact interval (H2b).
+We cannot say through which predicates the LLM acts.
+The per-predicate request counts of \vtfigref{fig5-predicate-requests} need a contract change and are not in the committed results, and no committed file records how many proposals were admitted, accepted or rejected.
+Three planned comparisons are also missing: the \code{investigate} mode was cut, a 9B against a 4B model was never configured, and the proposer ran only on RE2 with the oracle alert (\S\ref{sec:rq2}).
+
+\paragraph{\sys as a verification tool for other agents}
+Because the verifier evaluates every requested predicate for every candidate, it could serve other RCA agents as a check behind a tool interface such as MCP.
+The MCP server moved to v1.1 (ADR \code{20261123-cl-}\allowbreak\code{explain-scope-cuts}), so we have no result for this use.
+Our RQ2 results suggest what such a check would offer: a planted claim placed first did not become the verified top-1 by default, as it does for an agent that follows the model's order, although it still changed that top-1 more often than the 0.05 target on OB and SS; and on clean RE2 inputs the verified arm scored below the unverified agent, as \code{veyltrace:off} scores below the fused slate.
+An agent that calls the verifier would therefore do better to treat a disagreement as a flag to inspect than as a correction.
+
+\paragraph{The limits of synthetic decoys}
+RCAEval-C's change logs are synthetic, and the true change is easy to spot: on OB a rule that names the latest change reaches AC@1 \resnum{rcaevalc-pi1-l0-v1}{ob/naive-change/ac_at_1} when a true change is present, and when only decoys are present, at 6 per hour, it ranks a decoy first in \resnum{rcaevalc-pi0-l6-v1}{ob/naive-change/decoy_ranked_first}, \resnum{rcaevalc-pi0-l6-v1}{ss/naive-change/decoy_ranked_first} and \resnum{rcaevalc-pi0-l6-v1}{tt/naive-change/decoy_ranked_first} of cases on OB, SS and TT.
+\sys ranks a decoy first in \resnum{rcaevalc-pi0-l6-v1}{ob/veyltrace:off/decoy_ranked_first}, \resnum{rcaevalc-pi0-l6-v1}{ss/veyltrace:off/decoy_ranked_first} and \resnum{rcaevalc-pi0-l6-v1}{tt/veyltrace:off/decoy_ranked_first} of those cases, far less often than the naive rule, but a true change raises its AC@1 little (H4c).
+The benchmark therefore tests how gullible the change channel is, not whether it separates a real faulty deploy from routine ones.
+No v1.0 result uses real deploy, configuration or feature-flag events (ADR \code{20261124-as-}\allowbreak\code{observe-cuts-v1-1}).
+The planted decoy proposals of RQ2 are synthetic in the same way: we plant one kind of false claim, and a real adversary or a misled model may produce others.

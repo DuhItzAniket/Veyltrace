@@ -1,0 +1,2 @@
+panel,series,x,value,low,high,status,experiment,commit,source
+all,predicate requests,claim-pass outcome,,,,"no data in the committed results: predicate requests and claim-pass outcomes (04 §7 ""Proposal outcomes"") are only in each run's proposals.json and verdict.json, in run directories that are not committed; summary.json has no proposal-outcome entry (03 §13.3), so the figure needs a contract change before it can be drawn",re2-oracle-rq2-v1,9e553e1c0ca4efcb082d945fb6f6659ea49f234b,re2-oracle-rq2-v1 @ 9e553e1c

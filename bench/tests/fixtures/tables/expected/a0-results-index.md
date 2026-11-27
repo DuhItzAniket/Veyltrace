@@ -2,7 +2,7 @@
 
 # Table A0: results index
 
-Every experiment YAML in bench/experiments (synth smoke excluded) and the state of its committed results, then the 04 §6 matrix cells that only bench/results/not_run.yaml names.
+Every experiment YAML in bench/experiments (synth smoke excluded) and the state of its committed results; then the other committed results folders (RQ3 intervals, replay sites, AI cost, performance samples); then the 04 §6 matrix cells that only bench/results/not_run.yaml names or that no experiment YAML covers.
 
 | Experiment | RQ | Pre-registered | Status | Groups | Statistics | Source |
 |---|---|---|---|---|---|---|
@@ -34,18 +34,18 @@ Every experiment YAML in bench/experiments (synth smoke excluded) and the state 
 | re2-drop-metrics-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-drop-metrics-v1 (not run) |
 | re2-drop-traces-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-drop-traces-v1 (not run) |
 | re2-metrics-only-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-metrics-only-v1 (not run) |
-| re2-oracle-baselines-r05 | RQ1 | no | not run<sup>4</sup> | not run<sup>4</sup> | not run<sup>4</sup> | re2-oracle-baselines-r05 (not run) |
+| re2-oracle-baselines-r05 | RQ1 | no | run (bench_summary 0.1.0)<sup>4</sup> | 2 | none<sup>5</sup> | re2-oracle-baselines-r05 @ fixture |
 | re2-oracle-investigate-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-investigate-v1 (not run) |
 | re2-oracle-loso-off-v1 | RQ3, RQ4 | no | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-loso-off-v1 (not run) |
 | re2-oracle-loso-v1 | RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-loso-v1 (not run) |
-| re2-oracle-permute-v1 | RQ2 | yes | run | 2 | not run<sup>5</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | RQ2 | yes | run | 2 | not run<sup>6</sup> | re2-oracle-permute-v1 @ fixture |
 | re2-oracle-planted-v1 | RQ2 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-prior-only-v1 | RQ1 | yes | run | 3 | not run<sup>5</sup> | re2-oracle-prior-only-v1 @ fixture |
-| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run | re2-oracle-rq1-v1 @ fixture |
-| re2-oracle-rq2-v1 | RQ2 | yes | run | 6 | 6 intervals, 2 comparisons, 0 not run | re2-oracle-rq2-v1 @ fixture |
+| re2-oracle-prior-only-v1 | RQ1 | yes | run | 3 | not run<sup>6</sup> | re2-oracle-prior-only-v1 @ fixture |
+| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run; 9 metrics without interval (ac_at_k: ac_at_2,4; avg_at_5; chance; cost; fine_ac_at_k; lift; mrr; rerank_at_1; retrieval_at_k) | re2-oracle-rq1-v1 @ fixture |
+| re2-oracle-rq2-v1 | RQ2 | yes | run | 6 | 6 intervals, 2 comparisons, 0 not run; 9 metrics without interval (ac_at_k: ac_at_2–5; avg_at_5; chance; cost; fine_ac_at_k; lift; mrr; rerank_at_1; retrieval_at_k) | re2-oracle-rq2-v1 @ fixture |
 | re2-oracle-rq3-investigate-v1 | RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-investigate-v1 (not run) |
 | re2-oracle-rq3-off-v1 | RQ3 | no | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-rq3-off-v1 (not run) |
-| re2-oracle-rq3-v1 | RQ3 | yes | run | 6 | not run<sup>5</sup> | re2-oracle-rq3-v1 @ fixture |
+| re2-oracle-rq3-v1 | RQ3 | yes | run | 6 | not run<sup>6</sup> | re2-oracle-rq3-v1 @ fixture |
 | re2-shift-m120-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m120-brief-v1 (not run) |
 | re2-shift-m120-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m120-v1 (not run) |
 | re2-shift-m30-brief-v1 | RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-shift-m30-brief-v1 (not run) |
@@ -61,18 +61,32 @@ Every experiment YAML in bench/experiments (synth smoke excluded) and the state 
 | re2-to-nezha-transfer-v1 | RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re2-to-nezha-transfer-v1 (not run) |
 | re3-oracle-prior-only-v1 | RQ1 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-prior-only-v1 (not run) |
 | re3-oracle-rq1-v1 | RQ1, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | re3-oracle-rq1-v1 (not run) |
-| re3-oracle-rq2-v1 | RQ2 | yes | not run<sup>6</sup> | not run<sup>6</sup> | not run<sup>6</sup> | re3-oracle-rq2-v1 (not run) |
+| re3-oracle-rq2-v1 | RQ2 | yes | not run<sup>7</sup> | not run<sup>7</sup> | not run<sup>7</sup> | re3-oracle-rq2-v1 (not run) |
 | veyllab-oracle-rq1-v1 | RQ1, RQ3, RQ4 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | veyllab-oracle-rq1-v1 (not run) |
 | veyllab-oracle-rq2-v1 | RQ2, RQ3 | yes | not run<sup>2</sup> | not run<sup>2</sup> | not run<sup>2</sup> | veyllab-oracle-rq2-v1 (not run) |
+| replay/ci | RQ6 | - | not run<sup>8</sup> | not run<sup>8</sup> | not run<sup>8</sup> | replay/ci (not run) |
+| replay/recording | RQ6 | - | not run<sup>9</sup> | not run<sup>9</sup> | not run<sup>9</sup> | replay/recording (not run) |
+| replay/second-laptop | RQ6 | - | not run<sup>10</sup> | not run<sup>10</sup> | not run<sup>10</sup> | replay/second-laptop (not run) |
+| 04 §6 cell cloud-opsbench/agent-only | - | - | not run<sup>11</sup> | not run<sup>11</sup> | not run<sup>11</sup> | no bench experiment |
+| 04 §6 cell re1-oracle/baselines | - | - | not run<sup>11</sup> | not run<sup>11</sup> | not run<sup>11</sup> | no bench experiment |
+| 04 §6 cell re1-oracle/off | - | - | not run<sup>11</sup> | not run<sup>11</sup> | not run<sup>11</sup> | no bench experiment |
+| 04 §6 cell re1-oracle/rankers | - | - | not run<sup>11</sup> | not run<sup>11</sup> | not run<sup>11</sup> | no bench experiment |
+| 04 §6 cell re2-proposal-decoys/investigate | - | - | not run<sup>11</sup> | not run<sup>11</sup> | not run<sup>11</sup> | no bench experiment |
+| 04 §6 cell veyllab-oracle/investigate | - | - | not run<sup>11</sup> | not run<sup>11</sup> | not run<sup>11</sup> | no bench experiment |
 
 Notes:
 
 1. not run: stretch dataset not verified (07 §1.1 cut item 2)
 2. not run: no committed results in bench/results
 3. not run: results from a dirty work tree are never used (04 §10.2)
-4. not run: summary.json is bench_summary 0.1.0; tables read 1.1 and 1.2 (re-run)
-5. not run: fixture statistics are off
-6. not run: incomplete result: no summary.json (bench writes manifest.json last)
+4. ran (bench_summary 0.1.0); its summary.json is not tabulated: the tables read 1.1 and 1.2 (03 §13.3)
+5. bench_summary 0.1.0 statistics: not run: cluster bootstrap CIs and tests come from bench/stats (O-14)
+6. not run: fixture statistics are off
+7. not run: incomplete result: no summary.json (bench writes manifest.json last)
+8. not run: no committed result (veyltrace bench replay --role ci)
+9. not run: no committed result (veyltrace bench replay --role recording)
+10. not run: no committed result (veyltrace bench replay --role second-laptop)
+11. not run: no experiment YAML covers it and not_run.yaml gives no reason (04 §6: R-16 fills or marks every cell)
 
 Sources:
 
@@ -104,7 +118,7 @@ Sources:
 - re2-drop-metrics-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped metrics; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
 - re2-drop-traces-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped traces; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
 - re2-metrics-only-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; dropped events;logs;traces; split crossfit2, calibration rcaeval-re2, alpha 0.1; AI off
-- re2-oracle-baselines-r05: not run: summary.json is bench_summary 0.1.0; tables read 1.1 and 1.2 (re-run); protocol: re2-ob, re2-ss, re2-tt (all cases); oracle alert; no shift; all sources; AI off
+- re2-oracle-baselines-r05: ran (bench_summary 0.1.0); its summary.json is not tabulated: the tables read 1.1 and 1.2 (03 §13.3); commit fixture; sha256 manifest.json cf3eec628a2a25ac481de9cd13fc0079f667ab5647e5bde1b9d7c5516282d3cb, per_case.csv 1790e0afea0566ebf1f9ef0a7da346135d804e4d236331085d8b6f002232f08d, summary.json 77489facbf88c7b96d47410916821346b4dee913ea0caf782f21e1ad07c8eeac; protocol: re2-ob, re2-ss, re2-tt (all cases); oracle alert; no shift; all sources; AI off
 - re2-oracle-investigate-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (bench/re2_investigate_cases.yaml, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:investigate qwen3.5-9b-q4_k_m seeds 1,2,3
 - re2-oracle-loso-off-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split loso, calibration rcaeval-re2, alpha 0.1; normal windows rcaeval_pre_injection; AI off
 - re2-oracle-loso-v1: not run: no committed results in bench/results; protocol: re2-ob, re2-ss, re2-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split loso, calibration rcaeval-re2, alpha 0.1; normal windows rcaeval_pre_injection; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3
@@ -132,5 +146,8 @@ Sources:
 - re3-oracle-prior-only-v1: not run: no committed results in bench/results; protocol: re3-ob, re3-ss, re3-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration rcaeval-re3, alpha 0.1; AI off
 - re3-oracle-rq1-v1: not run: no committed results in bench/results; protocol: re3-ob, re3-ss, re3-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI off
 - re3-oracle-rq2-v1: not run: incomplete result: no summary.json (bench writes manifest.json last); protocol: re3-ob, re3-ss, re3-tt (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
+- replay/ci: not run: no committed result (veyltrace bench replay --role ci)
+- replay/recording: not run: no committed result (veyltrace bench replay --role recording)
+- replay/second-laptop: not run: no committed result (veyltrace bench replay --role second-laptop)
 - veyllab-oracle-rq1-v1: not run: no committed results in bench/results; protocol: veyllab-ob, veyllab-otel (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration veyllab, alpha 0.1; normal windows veyllab; AI off
 - veyllab-oracle-rq2-v1: not run: no committed results in bench/results; protocol: veyllab-ob, veyllab-otel (all cases, excluding bench/dev_cases.yaml); oracle alert; no shift; all sources; split crossfit2, calibration veyllab, alpha 0.1; normal windows veyllab; AI: veyltrace:brief qwen3.5-9b-q4_k_m seeds 1,2,3; agent-only:brief qwen3.5-9b-q4_k_m seeds 1,2,3
