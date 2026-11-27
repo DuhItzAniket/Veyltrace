@@ -10,6 +10,7 @@ with no timestamp and no path, so it depends only on the results.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -134,6 +135,18 @@ def tex_escape(value: str) -> str:
     return "".join(_TEX.get(ch, ch) for ch in value)
 
 
+#: The generator's own number at the start of a title ("Table 7c: ", "Fig. 4: "). The .md keeps it
+#: (the repo's numbering); a .tex drops it, since LaTeX numbers the paper's tables and figures and
+#: the generator's numbers differ from them (paper.link_numbers turns references into \vtref).
+NUMBERED_TITLE = re.compile(r"^(?:Table|Fig\.) (A?\d+[a-z]?): ")
+
+
+def tex_title(title: str) -> str:
+    """The title without the generator's number (capitalised, "datasets" → "Datasets"), for LaTeX."""
+    bare = NUMBERED_TITLE.sub("", title)
+    return bare[:1].upper() + bare[1:] if bare != title else title
+
+
 def tex_cells(table: Table) -> tuple[list[list[str]], list[str]]:
     """Every row's LaTeX cells with their note marks, its source cell last, and the note texts in
     marker order: the body `latex` prints, for renderers that lay it out differently (paper.py)."""
@@ -156,7 +169,7 @@ def latex(table: Table) -> str:
         f"% {GENERATED}",
         r"\begin{table}[t]",
         r"\centering",
-        rf"\caption{{{tex_escape(table.title)}. {tex_escape(table.caption)}}}",
+        rf"\caption{{{tex_escape(tex_title(table.title))}. {tex_escape(table.caption)}}}",
         rf"\label{{tab:{table.name}}}",
         r"\small",
         rf"\begin{{tabular}}{{{'l' * len(columns)}}}",

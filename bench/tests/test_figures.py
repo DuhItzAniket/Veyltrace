@@ -87,6 +87,24 @@ def test_fig7_has_one_0_s_point_per_series(results: Path) -> None:
     assert len(zero) == len({(r["panel"], r["series"]) for r in zero})  # no duplicate x = 0 point
 
 
+def test_a_long_note_wraps_inside_the_frame_and_grows_it() -> None:
+    """Fig 8's one-line note ran past the 640 px edge: a note wraps to NOTE_CHARS per line and
+    each further line makes the frame LINE_PX taller (viewBox included)."""
+    note = " ".join(["2 of 18 points not plotted: 2 n/a (see the CSV status)"] * 4)
+    for image in (
+        svg.heatmap("t", ["a"], ["x"], [[0.5]], note),
+        svg.lines("t", "x", "y", [0.0, 1.0], {"s": [(0.0, 0.5, None, None)]}, note),
+    ):
+        root = ET.fromstring(image)
+        notes = [el.text or "" for el in root if el.get("fill") == "#555"]
+        assert len(notes) > 1 and all(len(n) <= svg.NOTE_CHARS for n in notes) and " ".join(notes) == note
+        height = svg.HEIGHT + svg.LINE_PX * (len(notes) - 1)
+        assert root.get("height") == str(height) and root.get("viewBox") == f"0 0 {svg.WIDTH} {height}"
+    assert ET.fromstring(svg.heatmap("t", ["a"], ["x"], [[0.5]], "note")).get("height") == str(svg.HEIGHT)
+    gap = svg.placeholder("Fig. 5: t", "why")  # drawn text drops the generator's number, <title> keeps it
+    assert '"middle">t</text>' in gap and '"middle">Fig. 5' not in gap and "<title>Fig. 5: t</title>" in gap
+
+
 def test_heatmap_labels_round_as_the_tables() -> None:
     assert ">0.063<" in svg.heatmap("t", ["a"], ["x"], [[0.0625]], "note")  # ROUND_HALF_UP, as cells.fixed
 

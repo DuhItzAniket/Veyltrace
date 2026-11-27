@@ -94,24 +94,29 @@ def outputs(
 ) -> dict[str, bytes]:
     """Every generated file, as {path relative to the results root: bytes}, sorted by path: per
     table its `.md` and `.tex`, its full grid as a longtable (`-full.tex`) and, for a table the
-    paper's main text cites (paper.VIEWS), its compact paper view (`-paper.tex`)."""
+    paper's main text cites (paper.VIEWS), its compact paper view (`-paper.tex`). In every `.tex`,
+    a reference by the generator's number ("Table 7c") is the paper's \\vtref macro instead, since
+    LaTeX numbers the PDF (paper.link_numbers); the `.md` keeps the generator's numbers."""
     ctx = context(results_root, experiments_dir)
+    tables = [table for build in builders for table in paired(build, ctx)]
+    drawn = figures(ctx)
+    targets = paper.number_targets(tables, sorted({Path(p).stem for p in drawn if p.endswith(".csv")}))
     files: dict[str, bytes] = {}
-    for build in builders:
-        for table in paired(build, ctx):
-            rendered = {
-                ".md": markdown(table),
-                ".tex": latex(table),
-                f"{paper.FULL_SUFFIX}.tex": paper.full_latex(table),
-            }
-            if (view := paper.VIEWS.get(table.name)) is not None:
-                rendered[f"{paper.PAPER_SUFFIX}.tex"] = paper.paper_latex(paper.build(table, view))
-            for suffix, text in rendered.items():
-                path = f"{TABLES_DIR}/{table.name}{suffix}"
-                if path in files:
-                    raise ConfigError(f"two tables are named {table.name!r}")
-                files[path] = text.encode("utf-8")
-    return dict(sorted((files | figures(ctx)).items()))
+    for table in tables:
+        rendered = {
+            ".md": markdown(table),
+            ".tex": latex(table),
+            f"{paper.FULL_SUFFIX}.tex": paper.full_latex(table),
+        }
+        if (view := paper.VIEWS.get(table.name)) is not None:
+            rendered[f"{paper.PAPER_SUFFIX}.tex"] = paper.paper_latex(paper.build(table, view))
+        for suffix, text in rendered.items():
+            path = f"{TABLES_DIR}/{table.name}{suffix}"
+            if path in files:
+                raise ConfigError(f"two tables are named {table.name!r}")
+            linked = paper.link_numbers(text, targets, path) if suffix.endswith(".tex") else text
+            files[path] = linked.encode("utf-8")
+    return dict(sorted((files | drawn).items()))
 
 
 def _on_disk(root: Path) -> list[str]:

@@ -215,4 +215,6 @@ def test_fig7_takes_the_full_case_brief_point_with_its_interval(results: Path) -
     assert brief["ob"]["source"] == "re2-oracle-rq2-v1 @ fixture"
     image = files["figures/fig7-shift-ob.svg"].decode()
     assert "computed from per_case.csv" not in image
-    assert "H4a tests ±60 and ±120 s, other shifts are exploratory (04 §2)" in image
+    lines = [line for line in image.splitlines() if 'fill="#555"' in line]  # the note, wrapped
+    note = " ".join(line.split(">", 1)[1].removesuffix("</text>") for line in lines)
+    assert "H4a tests ±60 and ±120 s, other shifts are exploratory (04 §2)" in note  # wrapped under the plot

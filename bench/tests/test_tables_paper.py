@@ -12,7 +12,7 @@ import pytest
 
 from veyltrace_bench.tables import cells, generate, paper
 from veyltrace_bench.tables.context import context
-from veyltrace_bench.tables.render import SOURCE_COLUMN, Row, Table, latex, markdown, tex_escape
+from veyltrace_bench.tables.render import GENERATED, SOURCE_COLUMN, Row, Table, latex, markdown, tex_escape
 from veyltrace_bench.tables.results import Results
 from veyltrace_core.errors import ConfigError
 
@@ -163,6 +163,77 @@ def test_the_full_grid_splits_columns_into_parts_that_repeat_the_key() -> None:
     heads = [line for line in tex.splitlines() if line.startswith(r"\# & System &")]
     assert len(heads) == 2 * len(parts)  # first head and continued-page head per part
     assert SOURCE_COLUMN in heads[-1] and r"\allowbreak" not in heads[0]
+
+
+def _names(column: str, text: str) -> bool:
+    """Whether `text` names the column header as printed (case-sensitive, whole header)."""
+    return re.search(rf"(?<![\w@]){re.escape(column)}(?![\w@])", text) is not None
+
+
+def test_every_view_caption_describes_only_the_columns_the_view_shows(committed: dict[str, Table]) -> None:
+    for name, view in paper.VIEWS.items():
+        table = committed[name]
+        assert view.caption, name  # its own caption, never the full table's
+        drawn = paper.drawn_columns(view)
+        assert set(drawn) <= set(table.columns), name
+        dropped = [c for c in table.columns if c not in drawn]
+        assert dropped, name  # a view that drops nothing needs no view
+        named = [c for c in dropped if _names(c, view.caption)]
+        assert not named, (name, named)
+        tex = paper.paper_latex(paper.build(table, view))
+        assert rf"The full grid is \vtfullref{{{name}}}." in tex  # the pointer to the appendix grid
+        assert tex_escape(table.caption) not in tex
+
+
+def _tex(files: dict[str, bytes]) -> dict[str, str]:
+    return {p: d.decode() for p, d in files.items() if p.startswith("tables/") and p.endswith(".tex")}
+
+
+CITED = re.compile(r"\\vt(?:full)?ref\{([^}]*)\}")
+
+
+def test_tex_outputs_name_tables_by_macro_and_the_md_keeps_the_generator_numbers() -> None:
+    files = generate.outputs(COMMITTED, EXPERIMENTS)
+    numbered = re.compile(r"\b(?:Table|Fig\.|Figure) A?\d+[a-z]?\b")
+    tex = _tex(files)
+    assert tex and not [p for p, text in tex.items() if numbered.search(text)]
+    assert "Generated caption: RQ3 literal" in tex[f"tables/t07c-rq3-tau-sensitivity{paper.FULL_SUFFIX}.tex"]
+    md = files["tables/t07-rq3-calibration.md"].decode()
+    assert md.startswith(f"<!-- {GENERATED} -->\n\n# Table 7: RQ3 calibration") and "Table 7c is" in md
+    tables = {p.removeprefix("tables/").removesuffix(".md") for p in files if p.endswith(".md")}
+    cited = {m[1] for text in tex.values() for m in CITED.finditer(text)}
+    assert {"t07c-rq3-tau-sensitivity", "t08b-rq5-ai-cost", "t08c-rq5-slowest-laptop"} <= cited <= tables
+
+
+def test_every_table_a_generated_file_cites_is_in_the_appendix() -> None:
+    """A \\vtref target the paper does not print would fall back to a file name (preamble.tex):
+    the appendix prints or enters every table the generated .tex files cite."""
+    appendix = (BENCH.parent / "paper" / "sections" / "09-appendix.tex").read_text(encoding="utf-8")
+    entered = set(re.findall(r"^\\resulttable(?:full|entry)\{.*\}\{([^{}]*)\}$", appendix, re.M))
+    tex = _tex(generate.outputs(COMMITTED, EXPERIMENTS))
+    cited = {m[1] for text in tex.values() for m in CITED.finditer(text)}
+    assert cited and cited <= entered, sorted(cited - entered)
+
+
+def test_numbers_resolve_to_one_table_and_an_unknown_one_is_a_config_error() -> None:
+    def named(name: str, title: str) -> Table:
+        return Table(name, title, "c", ("System",), ())
+
+    tables = [
+        named("t05-rq1-re2-oracle", "Table 5: RQ1, RE2"),  # the one paper.VIEWS has
+        named("t05-rq1-re3-oracle", "Table 5: RQ1, RE3"),
+        named("t07c-rq3-tau-sensitivity", "Table 7c: RQ3 literal τ_nf"),
+    ]
+    targets = paper.number_targets(tables, ["fig4-retrieval-rerank"])
+    text = "see Table 5 and Table 7c's rows, Fig. 4 and Figure 4"
+    assert paper.link_numbers(text, targets, "x.tex") == (
+        r"see \vtref{t05-rq1-re2-oracle} and \vtref{t07c-rq3-tau-sensitivity}'s rows, "
+        r"\vtfigref{fig4-retrieval-rerank} and \vtfigref{fig4-retrieval-rerank}"
+    )
+    with pytest.raises(ConfigError, match="'Table 9'"):
+        paper.link_numbers("Table 9", targets, "x.tex")
+    assert r"\caption{RQ3 literal $\tau$\_nf. c}" in latex(tables[2])  # no generator number
+    assert paper.full_latex(Table("t", "T", "c", ("A",), ())).splitlines()[2] == r"\vtfullsize{0}{2}"
 
 
 def test_pdflatex_has_every_character_the_tables_print() -> None:
