@@ -43,6 +43,13 @@ def _revision(row: Row) -> bool:
     return any(s.stands_in_for is not None for s in (row.source, *row.also) if s is not None)
 
 
+def _standalone(row: Row, replaced: set[str]) -> bool:
+    """Whether the row cites a revision under its own id while the revised pass of the same table
+    cites it in the slot of the experiment it revises (`replaced`): the same values twice."""
+    src = row.source
+    return src is not None and src.stands_in_for is None and src.experiment_id in replaced
+
+
 def _key(table: Table, row: Row) -> tuple[str, ...]:
     return tuple(row.cells[i].text for i in table.key)
 
@@ -52,7 +59,9 @@ def paired(build: Builder, ctx: Context) -> list[Table]:
     §12), the builder runs again once per revision (sorted by id), and each row citing that
     revision goes right after the last pre-registered row with the same key (`Table.key`, e.g.
     system and method), both labelled by their source cell; a revised row whose key the
-    pre-registered table lacks (a method the revision added) goes at the end (M1 of the review)."""
+    pre-registered table lacks (a method the revision added) goes at the end (M1 of the review).
+    The revision's own rows, under its own id, are then left out of that table, since the revised
+    rows print the same values (gap 35 of the R-17 audit)."""
     tables = build(ctx)
     if not ctx.revises or build in UNPAIRED:
         return tables
@@ -60,14 +69,17 @@ def paired(build: Builder, ctx: Context) -> list[Table]:
     out: list[Table] = []
     for i, table in enumerate(tables):
         revised: dict[tuple[str, ...], list[Row]] = {}
-        for twin in twins:
+        replaced: set[str] = set()
+        for new, twin in zip(sorted(ctx.revises), twins, strict=True):
             if twin[i].name != table.name:
                 raise ConfigError(f"the revised pass of {table.name!r} built {twin[i].name!r} instead")
             for row in filter(_revision, twin[i].rows):
                 revised.setdefault(_key(table, row), []).append(row)
-        last = {_key(table, row): n for n, row in enumerate(table.rows)}
+                replaced.add(new)
+        kept = [row for row in table.rows if not _standalone(row, replaced)]
+        last = {_key(table, row): n for n, row in enumerate(kept)}
         rows: list[Row] = []
-        for n, row in enumerate(table.rows):
+        for n, row in enumerate(kept):
             rows.append(row)
             if last[_key(table, row)] == n:
                 rows += revised.pop(_key(table, row), [])
