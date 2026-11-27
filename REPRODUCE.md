@@ -36,7 +36,7 @@ uv run veyltrace bench tables --check
 ```
 
 - The command reads only `bench/experiments/*.yaml` and `bench/results/`, and it writes nothing.
-- Run it at `results-v1` (`3ed9d7cd`, the R-17 result freeze) or later. On earlier commits `--check` prints `differs: <path>` for every table and figure, because none is committed yet.
+- Run it at `v1.0.0` or later. On commits before `results-v1` (`3ed9d7cd`, the R-17 result freeze) `--check` prints `differs: <path>` for every table and figure, because none is committed yet. At `results-v1` itself it passes on Windows only: on macOS and Linux three tables (A0, A2, 8c) list the perf-o11 files in another order, with every hash equal (#664, fixed before `v1.0.0`).
 - Options: `--check`, `--results <dir>` (default `bench/results`) and `--experiments <dir>` (default `bench/experiments`). `veyltrace bench tables --help` shows only `--help`, because the core CLI hands the arguments to bench unparsed.
 - Exit 0 means that every table and figure under `bench/results/tables/` and `bench/results/figures/` regenerates byte-identically, including the headline Table 5 (RQ1, RE2, oracle alert).
 - Exit 2 lists the files that differ.

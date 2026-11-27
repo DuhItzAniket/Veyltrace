@@ -131,7 +131,7 @@ class Context:
 
 def reportable(experiments_dir: Path) -> tuple[Experiment, ...]:
     """Every experiment YAML except synth smoke runs, sorted by experiment id."""
-    found = (load_experiment(p) for p in sorted(experiments_dir.glob("*.yaml")))
+    found = (load_experiment(p) for p in sorted(experiments_dir.glob("*.yaml"), key=by_name))
     return tuple(sorted((e for e in found if set(e.dataset.parts) != {SYNTH}), key=lambda e: e.experiment_id))
 
 
@@ -148,8 +148,9 @@ def context(results_root: Path, experiments_dir: Path) -> Context:
     """The context of `results_root`. A register entry naming neither an experiment YAML nor a
     04 §6 cell, a revision of an unknown experiment, or a development case in a pre-registered RE2
     experiment's runs is a ConfigError."""
-    found = sorted(((load_experiment(p), sha256_text_lf(p)) for p in sorted(experiments_dir.glob("*.yaml"))),
-                   key=lambda es: es[0].experiment_id)  # fmt: skip
+    yamls = sorted(experiments_dir.glob("*.yaml"), key=by_name)
+    loaded = ((load_experiment(p), sha256_text_lf(p)) for p in yamls)
+    found = sorted(loaded, key=lambda es: es[0].experiment_id)
     keep = [(e, sha) for e, sha in found if set(e.dataset.parts) != {SYNTH}]
     register, ids = read_register(results_root), {e.experiment_id for e, _ in keep}
     if unknown := sorted(set(register.reasons) - ids - CELLS):
@@ -205,9 +206,16 @@ def _yaml(keep: list[tuple[Experiment, str]], experiment_id: str) -> Experiment:
     return next(e for e, _ in keep if e.experiment_id == experiment_id)
 
 
+def by_name(path: Path) -> str:
+    """Sort key for files and folders of one directory: the name by code point, the same on every
+    platform. Sorting `Path` objects is case-insensitive on Windows and by code point on POSIX, so
+    `README.md` next to lower-case names moved between hosts (#664)."""
+    return path.name
+
+
 def _side(results_root: Path, folder: Path) -> Side:
     name = folder.relative_to(results_root).as_posix()
-    files = sorted(p for p in folder.iterdir() if p.is_file())
+    files = sorted((p for p in folder.iterdir() if p.is_file()), key=by_name)
     hashes = tuple((p.name, sha256_file(p)) for p in files)
     top = name.split("/", 1)[0]
     rq3 = load_rq3(results_root, folder.name) if top == RQ3_DIR else None
@@ -220,13 +228,13 @@ def _sides(results_root: Path, experiment_ids: set[str]) -> tuple[Side, ...]:
     if not results_root.is_dir():
         return ()
     out: list[Side] = []
-    for top in sorted(p for p in results_root.iterdir() if p.is_dir()):
+    for top in sorted((p for p in results_root.iterdir() if p.is_dir()), key=by_name):
         if top.name in experiment_ids or top.name in GENERATED_DIRS:
             continue
         if top.name not in NESTED:
             out.append(_side(results_root, top))
             continue
-        for sub in sorted(p for p in top.iterdir() if p.is_dir()):
+        for sub in sorted((p for p in top.iterdir() if p.is_dir()), key=by_name):
             if not (top.name == "replay" and sub.name in REPLAY_ROLES):
                 out.append(_side(results_root, sub))
     return tuple(out)

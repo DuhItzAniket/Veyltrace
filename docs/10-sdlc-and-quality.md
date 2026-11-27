@@ -117,6 +117,7 @@ Workflow: [.github/workflows/ci.yml](../.github/workflows/ci.yml). Runs on every
 | `isolation` | same | `uv run python scripts/check.py --isolation` | import ban (§4) |
 | `determinism` | same | `uv run python scripts/check.py --determinism --require-synth --ai-fake` | two runs per synth case, identical hashes; fails instead of skipping if the synth adapter is missing; FakeProvider record/replay arm. The real case (`--require-real-case`, which reads `VEYLTRACE_DATA`) is added after O-01 |
 | `contracts-in-sync` | same | `uv run python scripts/check.py --contracts-in-sync` | regenerate contracts; fail on any diff |
+| `tables` | same | `uv run veyltrace bench tables --check` | every committed table and figure regenerates byte-identically on Linux (REPRODUCE.md §1; the recording host is Windows, #664); not a required check |
 | `changelog` | PRs, workspace exists | `uv run python scripts/check.py --changelog --base origin/<base>` | a valid fragment for this PR |
 | `console` | `console/package.json` exists and `console/`, `contracts/` or `.github/workflows/` changed | `pnpm -C console install --frozen-lockfile` then `pnpm -C console check` | tsc, eslint, vitest |
 | `fixtures-stale` (not required) | as `lint`, but PRs and manual runs only (not pushes to `main`) | `uv run python scripts/check.py --fixtures-stale` | fixtures older than their `upstream.lock.json`. The lead fixes them with `check.py --update-golden --cascade` and the `cross-lane` label (lead decision 2026-11-06) |

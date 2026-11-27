@@ -19,7 +19,7 @@ import pyarrow as pa
 from veyltrace_bench.experiment import Experiment
 from veyltrace_bench.summary import METRIC_KEYS
 from veyltrace_bench.tables import cells
-from veyltrace_bench.tables.context import CELLS, DEV_CASES, Context, Side
+from veyltrace_bench.tables.context import CELLS, DEV_CASES, Context, Side, by_name
 from veyltrace_bench.tables.render import Row, Table
 from veyltrace_bench.tables.results import EXACT_SHARES, PER_CASE, REVISION_CUT, Replay, Results
 from veyltrace_contracts.models import SummaryGroupMetrics
@@ -251,7 +251,7 @@ def _timing_rows(ctx: Context) -> dict[str, list[tuple[Results, tuple[str, str, 
     found: dict[str, list[tuple[Results, tuple[str, str, str, str]]]] = {}
     for side in (s for s in ctx.sides if s.source.experiment_id == PERF and s.source.path is not None):
         assert side.source.path is not None
-        for path in sorted(side.source.path.glob("*.csv")):
+        for path in sorted(side.source.path.glob("*.csv"), key=by_name):
             reader = csv.DictReader(stdio.StringIO(textio.read_text(path)))
             if not set(PERF_COLUMNS) <= set(reader.fieldnames or ()):
                 continue  # not a timing sample; Table A0 still lists and hashes it
