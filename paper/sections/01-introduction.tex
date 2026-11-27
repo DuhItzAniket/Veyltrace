@@ -11,7 +11,7 @@ Yet the public benchmarks on which research methods are scored, such as RCAEval,
 Root-cause analysis (RCA) research has moved quickly towards large language model (LLM) agents.
 On one 90-case benchmark, simple harnesses around frontier cloud models reach a mean PR@1 of 72.8\% (an SQL agent) and 77.2\% (a Codex harness) over three models, against 38.9\% for the best non-LLM method~\cite{rcatlas2026}.
 Stricter tasks tell a different story.
-Across eleven LLMs, the exact root-cause set is recovered in 20.7\% of OpenRCA~2.0 cases on average~\cite{openrca2026v2}; the best model solves 25.3\% of medium and 10.0\% of hard ORCA-bench tasks~\cite{orcabench2026}; and on SREGym one agent's end-to-end success falls from 63.7\% on problems ported from earlier benchmarks to 17.9\% on failures new to SREGym~\cite{sregym2026}.
+Across eleven LLMs, the exact root-cause set is recovered in 20.7\% of OpenRCA~2.0 cases on average~\cite{openrca2026v2}; the best of five frontier agents reaches 25.3\% RCA accuracy on medium and 10.0\% on hard ORCA-bench tasks~\cite{orcabench2026}; and on SREGym one agent's end-to-end success falls from 63.7\% on problems ported from earlier benchmarks to 17.9\% on failures new to SREGym~\cite{sregym2026}.
 Agents can also be steered: in a pre-registered preprint, one planted false sentence made models name a decoy service first in 21--42\% of flagged RCAEval RE2 cases~\cite{hussain2026prereg}.
 Explicit verification helps: an LLM-based verifier and grounder raised Acc@1 by 3.5--35.1 points in all 14 configurations of one study, but did not reduce errors in which the model misread the meaning of the telemetry~\cite{diagguard2026}.
 We found no paper that isolates a purely deterministic verifier over LLM proposals.
