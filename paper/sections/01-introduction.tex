@@ -20,7 +20,7 @@ The field's own measurements are fragile as well.
 The same method on the same cases scores differently in different harnesses: BARO's AC@1 on RE2-TT is 0.67 in RCAEval's harness and 0.32 in PRISM's~\cite{rcaeval2024,prism2026}.
 In the same pre-registered preprint, shifting the assumed fault onset two minutes late dropped N-Sigma from 0.80 to 0.07 AC@1 on RE2~\cite{hussain2026prereg}.
 Simple alert counting matches or beats state-of-the-art methods on Nezha, Eadro and RCAEval~\cite{fang2026rethinking}.
-Selecting a method by leave-one-system-out evaluation picks the worse method on up to 5 of 11 held-out subsystems, and none of 23 audited RCA papers released per-case outputs~\cite{hu2026audit}.
+A method selected without the held-out subsystem lost to another published method on 3 of 11 subsystems, and none of the 21 reachable releases of 23 audited RCA papers had the per-case outputs needed to recheck every paired comparison~\cite{hu2026audit}.
 
 Three properties that an engineer needs before acting on an automated diagnosis are therefore missing together.
 First, an LLM should be able to contribute without being trusted: its claims should count only after code has checked them, and it should not be able to argue for its favourite candidate.
