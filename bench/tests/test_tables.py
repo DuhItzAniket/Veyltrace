@@ -50,7 +50,7 @@ def test_the_index_matches_its_golden_file_and_lists_every_reportable_experiment
     assert len(reportable) == len(list(EXPERIMENTS.glob("*.yaml"))) - 2  # synth-smoke, synth-baselines
     text = files[INDEX].decode()
     assert all(f"| {e.experiment_id} |" in text for e in reportable)
-    assert "| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run |" in text
+    assert "| re2-oracle-rq1-v1 | RQ1 | yes | run | 8 | 20 intervals, 2 comparisons, 1 not run; " in text
     assert "commit fixture; sha256 manifest.json " in text  # provenance of a run experiment
     assert text.count(f". not run: {NO_RESULTS}\n") == 1  # one note for every experiment without results
 

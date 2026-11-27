@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from veyltrace_bench.tables import generate, svg
-from veyltrace_bench.tables.results import NO_GROUP
+from veyltrace_bench.tables.results import NO_GROUP, NO_INTERVAL
 
 BENCH = Path(__file__).resolve().parents[1]
 EXPERIMENTS = BENCH / "experiments"
@@ -50,6 +50,7 @@ def test_fig4_values_and_sources(results: Path) -> None:
     assert ob["AC@1"]["value"] == "0.5" and ob["AC@1"]["low"] == "0.375" and ob["AC@1"]["status"] == "ok"
     assert ob["Rerank@1"]["value"] == "0.571428571"  # exactly the summary value
     assert ob["Rerank@1"]["low"] == "" and ob["Rerank@1"]["high"] == ""  # a ratio has no interval
+    assert ob["Rerank@1"]["status"] == f"ok; {NO_INTERVAL}"  # and says so (R3)
     assert ob["AC@1"]["source"] == "re2-oracle-rq1-v1 @ fixture"
     assert {r["experiment"] for r in rows} == {"re2-oracle-rq1-v1"} and rows[0]["commit"] == "fixture"
     tt = [r for r in rows if r["panel"] == "tt"]
@@ -60,11 +61,11 @@ def test_not_run_points_are_listed_not_drawn(results: Path) -> None:
     files = generate.outputs(results, EXPERIMENTS)
     shift = _rows(files["figures/fig7-shift.csv"])
     assert any(r["status"].startswith("not run: no committed results") for r in shift)
-    assert all(r["value"] == "" for r in shift if r["status"] != "ok")
+    assert all(r["value"] == "" for r in shift if not r["status"].startswith("ok"))
     image = files["figures/fig7-shift-ob.svg"].decode()
     drawn = image.count("<circle")
-    assert drawn == sum(1 for r in shift if r["panel"] == "ob" and r["status"] == "ok")
-    assert "points not run or undefined; see the CSV" in image
+    assert drawn == sum(1 for r in shift if r["panel"] == "ob" and r["status"].startswith("ok"))
+    assert "points have no value (see the CSV status)" in image
     aurc = _rows(files["figures/fig6-risk-coverage.csv"])
     ob = {(r["series"], r["x"]): r["value"] for r in aurc if r["panel"] == "ob"}
     assert ob[("veyltrace:off", "AURC verifier")] == "0.25" and ob[("veyltrace:off", "AURC fused")] == "0.375"
@@ -72,7 +73,7 @@ def test_not_run_points_are_listed_not_drawn(results: Path) -> None:
 
 def test_heatmap_marks_missing_cells_grey() -> None:
     image = svg.heatmap("t", ["a"], ["x", "y"], [[0.5, None]], "note")
-    assert "not run" in image and "#dddddd" in image and "0.500" in image
+    assert svg.NO_VALUE in image and "not run" not in image and "#dddddd" in image and "0.500" in image
     assert svg.heatmap("t", ["a"], ["x", "y"], [[0.5, None]], "note") == image
 
 

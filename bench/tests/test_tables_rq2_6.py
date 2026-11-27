@@ -5,6 +5,7 @@ hand-made 1.1 fixtures and the committed experiment YAMLs.
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -51,8 +52,9 @@ def test_the_1_2_entries_render_with_their_reasons(files: dict[str, str], result
         for line in t7.splitlines()
         if line.startswith("| re2-oracle-rq3-v1 | crossfit2 (rcaeval-re2) | 0.1 | ob | veyltrace:off |")
     )
+    bare = re.sub(r"<sup>\d+</sup>", "", row)  # rates without an interval carry a note (R3)
     assert (
-        "| 0.875 | -0.025 | 1.000 | 1.500 | 0.500 | 0.250 | 0.375 | 0.250 | 0.000 |" in row
+        "| 0.875 | -0.025 | 1.000 | 1.500 | 0.500 | 0.250 | 0.375 | 0.250 | 0.000 |" in bare
     )  # coverage … wrong NO_FAULT
     assert "no committed results in bench/results" in t7  # loso did not run: its own reason wins
     assert "alpha 0.1 (each experiment's calibration.alpha" in t7 and NO_ENTRY.format("coverage") not in t7
