@@ -6,6 +6,8 @@
 \usepackage{tikz}  % generated figures: scripts/paper_generated.py writes R-17's SVG panels as TikZ
 % \vtkey prints an experiment id or selector in sans serif, breakable at / , : . - _
 \DeclareUrlCommand\vtkey{\urlstyle{sf}\def\UrlBreaks{\do\/\do\,\do\:\do\.\do\-\do\_}}
+% Long \code ids cannot hyphenate; extra stretch lets their lines break, document-wide (R-18 build).
+\setlength{\emergencystretch}{2em}
 
 % Review mode: no ACM rights block until the venue is chosen at M4 (docs/11 §7).
 \setcopyright{none}

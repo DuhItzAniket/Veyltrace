@@ -20,14 +20,14 @@ On PetShop, no causal method that was not given the call graph beat plain ranked
 \sys keeps this family as its rankers (\S\ref{sec:slate}) and puts its effort into re-ranking and verification, not into learning a graph.
 
 \paragraph{LLM harnesses versus strict metrics.}
-LLM-based RCA began with hand-crafted pipelines. Flow-of-Action guides a multi-agent system with standard operating procedures~\cite{flowofaction2025}, RCAgent drives tool calls~\citeneeded{RCAgent; docs/11 \S4.3 gives no year, venue or identifier}, and mABC lets agents reach a decision by voting~\cite{mabc2024}.
+Early LLM-based RCA systems differ in how much of the workflow they fix in advance. Flow-of-Action guides a multi-agent system with standard operating procedures~\cite{flowofaction2025}, RCAgent lets a tool-augmented agent collect and analyse the data autonomously~\cite{rcagent}, and mABC lets agents reach a decision by voting~\cite{mabc2024}.
 RCAtlas re-ran them on its 90 cases, re-implementing Flow-of-Action and RCAgent over shared data tools and running mABC from its released code. They reached a mean PR@1 of 53.3\%, 49.3\% and 15.6\% respectively, averaged over partly different sets of models, which is below the simple harnesses quoted in Section~\ref{sec:intro}~\cite{rcatlas2026}.
 The same study's case studies show how an LLM that decides can fail without warning: in one case Flow-of-Action's LLM judge declared a wrong service the root cause in the first round, and in another mABC stopped at a caller because it inspects only received calls and so cannot see a service that has stopped receiving them~\cite{rcatlas2026}.
 Strict metrics stay low even for strong models.
 Besides the exact-set, on-call and unseen-failure results in Section~\ref{sec:intro}, OpenRCA~2.0 finds that LLMs recover propagation edges less reliably than the services involved (mean Edge F1 43.4\% against mean Node F1 62.2\%)~\cite{openrca2026v2}.
 On OpenRCA~1.0, the best original configuration solved 11.34\% of cases~\cite{openrca2025}. A public issue reports that this is not significantly above the 7.46\% of a leave-one-out predictor that reads no telemetry but uses the labels of the other cases (exact McNemar $p = 0.06$); the maintainers reply that the paper already reports random guessing and that this predictor is not free of information~\cite{openrcaissue23}.
 The strongest results in this line that we found all use commercial models served through APIs.
-We found no paper that evaluates a model of at most 10B parameters as the investigating agent on RCAEval, OpenRCA or RCABench; ThinkFL fine-tunes lightweight LLMs for failure localisation, but the size of its models is unconfirmed~\citeneeded{ThinkFL, TOSEM'26; arXiv 2504.18776 appears in sota\_methods\_2026.md and the docs/11 \S11 claim register, not in docs/11 \S4}.
+We found no paper that evaluates a model of at most 10B parameters as the investigating agent on RCAEval, OpenRCA or RCABench; the closest is ThinkFL, which uses reinforcement fine-tuning to turn a 3B model (Llama-3.2-3B) into an agent that calls diagnostic tools over several rounds, but evaluates it on the AIOps 2022 dataset and on a TrainTicket deployment the authors built themselves~\cite{thinkfl}.
 
 \paragraph{Hybrids: code prepares, the LLM decides.}
 Hybrid designs pair deterministic candidate generation or evidence extraction with an LLM that makes the final choice.
@@ -62,8 +62,8 @@ Industrial systems treat recent changes as prime suspects.
 Gandalf correlates fault signals with ongoing rollouts in space and time to stop bad Azure deployments. It reports 92.4\% precision on data-plane rollouts and 94.9\% precision over more than 1,200 region-level control-plane deployments~\cite{gandalf2020}.
 ChangeRCA finds the defective change among the candidate changes behind a change-induced incident, on WeChat data that is not public~\cite{changerca2024}.
 Meta's deployment health checks compare the cohort under test with a control cohort drawn from the unchanged fleet. Meta reports that a one-year quality-improvement programme for these checks cut the fleet-wide false-positive rate from 12.1\% to 2.7\%~\cite{metahealth2026}.
-A method in which an LLM reads code changes to re-weight trace-based spectrum localisation has also been proposed~\citeneeded{DeltaRCA, ASE 2026, DOI 10.1145/3832783.3837424; bibliographic fields seen only in a search summary}.
-These systems gate rollouts or rank changes on proprietary data, and the public benchmarks carry no change events (Section~\ref{sec:intro}).
+DeltaRCA uses an LLM agent to find the operations that code changes affect, and uses them to guide weight propagation in trace-based spectrum localisation~\cite{deltarca}.
+Gandalf, ChangeRCA and Meta's health checks gate rollouts or rank changes on proprietary data, and the public benchmarks carry no change events (Section~\ref{sec:intro}).
 \sys instead treats change proximity and changed-versus-peer contrast as one evidence channel among several (\S\ref{sec:evidence}), and RCAEval-C tests how easily decoy changes mislead that channel (\S\ref{sec:rq4}).
 
 % Table 1 is hand-written (not generated). Cells come from docs/11 §4, the research notes and the

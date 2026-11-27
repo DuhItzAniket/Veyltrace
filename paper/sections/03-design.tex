@@ -93,7 +93,7 @@ The fused score is gated reciprocal rank fusion,
 F(s) = \sum_{r \in \text{active}} \frac{w_r}{k + \text{rank}_r(s)}, \qquad k = 60,\; w_r = 1,
 \end{equation}
 where a ranker is \emph{active} only if its channel exists for the case and its scores are not constant: without traces \code{cp_sbfl} abstains, and without change events \code{change_prox} abstains, so a missing channel never injects a vote.
-The constant $k=60$ is the usual choice \citeneeded{Cormack et al.\ 2009, reciprocal rank fusion; the notes name it without an identifier}, also used by GALA+~\cite{galaplus2026}; the weights are fixed and the fusion rule is an ablation, never tuned.
+The constant $k=60$ is the value fixed by the original reciprocal rank fusion paper~\cite{cormack2009rrf}, whose pilot runs found it near-optimal but not critical, and it is also used by GALA+~\cite{galaplus2026}; the weights are fixed and the fusion rule is an ablation, never tuned.
 Services are ordered by fused score, then services with an internal anomaly first, then earliest onset, then name.
 A fixed rule table labels each slate candidate with a mode (resource, network, code, change or dependency), a fault class and an indicator; it answers ``if this service were the root, which fault would it be'', and its accuracy is measured, not assumed.
 
@@ -165,15 +165,17 @@ With $n$ calibration scores and level $\alpha = 0.10$, $\hat{q}$ is the $\lceil 
 \begin{equation}
 C = \{\, c \in \text{decision pool} : s(c) \leq \hat{q} \,\}.
 \end{equation}
-If calibration and test cases are exchangeable and $\hat{q}$ is finite, the root is in $C$ with probability at least $1-\alpha$, marginally over cases \citeneeded{a split-conformal reference; the notes name Angelopoulos \& Bates without an identifier and cite only conformal work on rankings~\cite{conformalranking2025,conformalretrieval2024}}.
+If calibration and test cases are exchangeable, the true root's nonconformity is at most $\hat{q}$ with probability at least $1-\alpha$, marginally over calibration and test cases~\cite{angelopoulos2023conformal}; when $\hat{q}$ is finite, a score at most $\hat{q}$ is finite, so this event is exactly the root being in $C$.
 A finite score at most $\hat{q}$ implies the root is in the pool, so decision-pool retrieval bounds coverage and we report it next to coverage.
 Calibration is fitted only on calibration folds, separately per benchmark family, AI arm, alert protocol and fold (\S\ref{sec:splits}), and reaches the verifier as configuration; exchangeability fails across systems, so leave-one-system-out coverage is an empirical result, not a guarantee.
 
 \paragraph{No fault}
 Every method evaluated on PetShop named false root causes during normal operation~\cite{petshop2024}, so \sys may answer \NOFAULT.
 The statistic is $M = \log(1 + \max(\max_{e} E(e), \max_{s} I(s)))$ over the entry services' external and all services' internal robust deviations.
-The verdict is \NOFAULT, with an empty set and no root, if no service is silent and $M \leq \tau_\text{nf}$, where $\tau_\text{nf}$ is the $\lceil (m+1)(1-\beta) \rceil$-th smallest $M$ over $m$ \emph{normal windows} of the calibration fold, with $\beta = 0.10$, so at most about 10\% of exchangeable normal windows are flagged as faults.
-With fewer than nine normal windows the threshold falls back to the three-sigma rule, $\log(1+3)$, and is marked uncalibrated.
+The verdict is \NOFAULT, with an empty set and no root, if no service is silent and $M \leq \tau_\text{nf}$, where $\tau_\text{nf}$ is the $\lceil (m+1)(1-\beta) \rceil$-th smallest $M$ over $m$ \emph{normal windows} of the calibration fold, with $\beta = 0.10$, so, when $\tau_\text{nf}$ is calibrated, at most about 10\% of exchangeable normal windows are flagged as faults.
+A normal window that can never be declared \NOFAULT (a failed or timed-out run, an undefined $M$, or a silent service) scores $+\infty$ and stays among the $m$ windows, because dropping it would make $\tau_\text{nf}$ less conservative.
+With fewer than nine normal windows, or when the index lands on such a window, the threshold falls back to the three-sigma rule, $\log(1+3)$, and is marked uncalibrated.
+The second fallback is a logged deviation (\S\ref{sec:deviations}); under cross-fitting on RE2 it applies in both folds, so the held-out false-alarm rate is \resnum{rq3-intervals/re2-oracle-rq3-off-v1}{intervals.pooled.false_alarm_rate.estimate} (\S\ref{sec:rq3}).
 The rate of wrong \NOFAULT answers on fault cases is measured, not guaranteed.
 
 \paragraph{Statuses}
@@ -181,7 +183,12 @@ Let the margin be $m = (V_\text{top} - V_\text{runner-up})/V_\text{top}$.
 The verdict is \st{CONFIRMED} if the set has one member, the leader passes every mandatory trial and $m \geq 0.30$; \st{LIKELY} if the leader passes every mandatory trial, the set has at most three members and $m \geq 0.15$; and \st{INCONCLUSIVE} otherwise.
 Untestable is not a pass, so missing telemetry pushes a verdict towards \st{INCONCLUSIVE}.
 \st{LIKELY} and \st{INCONCLUSIVE} verdicts carry \emph{asks}, generated by code from a fixed template table, that name the failed trial, the missing source or the close runner-up that would settle the case.
-The ranking is written for every status, so abstaining cannot raise accuracy; abstention is scored separately through coverage, risk--coverage curves and the \NOFAULT rates (\S\ref{sec:metrics}).
+The ranking is written for every status, so abstaining cannot raise accuracy; abstention is scored separately through coverage, risk--coverage areas (AURC) and the \NOFAULT rates (\S\ref{sec:metrics}).
+
+\subsection{The incident card and narration}
+\label{sec:card}
+
+\lanesection{explain-narration}{Explain}{Causivra's incident card, its template and LLM narration, the claim checker and replay of the narrative (docs/02 §6.10).}
 
 \subsection{Receipts and replay}
 \label{sec:receipts}

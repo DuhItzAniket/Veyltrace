@@ -11,7 +11,13 @@
 
 \leadq{still to write: the predicate library; configuration defaults with their sources; prompts and JSON schemas; hardware per laptop; the pinned RCAEval commit.}
 
-\leadq{docs/04 §10 asks for each not-run cell's decision record (ADR), and §10.2 for the code commit and result hashes behind every number; R-17's index has neither column yet.}
+Table~\ref{tab:index} maps every result to its source.
+For each committed experiment result it prints the code commit and the SHA-256 of the manifest, the per-case file and the summary file.
+For the side results (RQ3 intervals, replay sites, AI-path cost and the performance samples) it prints the SHA-256 of their own files, and for each replay site the commit it replayed at.
+For each experiment that did not run, it prints the reason and the decision record (ADR) that cut it, with two exceptions.
+The Cloud-OpsBench \code{agent-only} cell has no experiment configuration, and its note gives only the reason, although the same cut list covers it.
+Five docs/04 §6 matrix cells, the three RE1 tuning cells (baselines, rankers and AI off) and the two optional \code{investigate} cells under planted decoy proposals and on VeylLab, have no experiment configuration, and their note gives neither a reason nor an ADR (\S\ref{sec:deviations}).
+A revised experiment names its revision and the docs/04 §12 row that made it (\S\ref{sec:deviations}).
 \leadq{which runs shared the machine (R-16 plan, decision 3) is not in R-17's cost table; add it there or state it in §5.5.}
 
 \resulttablefull{tab:index}{Results index: every experiment configuration (synthetic smoke runs excluded) with its research questions, whether it is pre-registered, its status (run, or not run with the reason), its result groups and its statistics.}{a0-results-index}
@@ -42,11 +48,11 @@
 \resulttablefull{tab:rq1det}{RQ1 accuracy on RE2 under the detected alert.}{t05-rq1-re2-detected}
 \resulttablefull{tab:rq1re3}{RQ1 accuracy on RE3 (code faults) under the oracle alert.}{t05-rq1-re3-oracle}
 \resulttablefull{tab:rq1nezha}{RQ1 accuracy on Nezha under the oracle alert.}{t05-rq1-nezha-oracle}
-\resulttablefull{tab:rq1lab}{RQ1 accuracy on VeylLab under the oracle alert.}{t05-rq1-veyllab-oracle}
-\resulttablefull{tab:rq1fse}{RQ1 accuracy on the FSE'26 Train Ticket set (stretch) under the oracle alert.}{t05-rq1-fse26-oracle}
+\resulttablefull{tab:rq1lab}{RQ1 accuracy on VeylLab under the oracle alert (not run; Table~\ref{tab:index}).}{t05-rq1-veyllab-oracle}
+\resulttablefull{tab:rq1fse}{RQ1 accuracy on the FSE'26 Train Ticket set (stretch) under the oracle alert (not run; Table~\ref{tab:index}).}{t05-rq1-fse26-oracle}
 
-\resulttablefull{tab:rq2det}{RQ2 on RE2 under the detected alert.}{t06-rq2-re2-detected-rq2-v1}
-\resulttablefull{tab:rq2re3}{RQ2 on RE3.}{t06-rq2-re3-oracle-rq2-v1}
-\resulttablefull{tab:rq2inv}{RQ2 exploratory: \code{veyltrace:investigate} on the 90-case RE2 subset.}{t06-rq2-re2-oracle-investigate-v1}
-\resulttablefull{tab:rq2nezha}{RQ2 on Nezha.}{t06-rq2-nezha-oracle-brief-v1}
-\resulttablefull{tab:rq2lab}{RQ2 on VeylLab.}{t06-rq2-veyllab-oracle-rq2-v1}
+\resulttablefull{tab:rq2det}{RQ2 on RE2 under the detected alert (AI arms not run; Table~\ref{tab:index}).}{t06-rq2-re2-detected-rq2-v1}
+\resulttablefull{tab:rq2re3}{RQ2 on RE3 (AI arms not run; Table~\ref{tab:index}).}{t06-rq2-re3-oracle-rq2-v1}
+\resulttablefull{tab:rq2inv}{RQ2 exploratory: \code{veyltrace:}\allowbreak\code{investigate} on the 90-case RE2 subset (not run; Table~\ref{tab:index}).}{t06-rq2-re2-oracle-investigate-v1}
+\resulttablefull{tab:rq2nezha}{RQ2 on Nezha (AI arms not run; Table~\ref{tab:index}).}{t06-rq2-nezha-oracle-brief-v1}
+\resulttablefull{tab:rq2lab}{RQ2 on VeylLab (not run; Table~\ref{tab:index}).}{t06-rq2-veyllab-oracle-rq2-v1}
