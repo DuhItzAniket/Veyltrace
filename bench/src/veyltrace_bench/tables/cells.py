@@ -120,9 +120,9 @@ def p_value(value: float | None) -> Cell:
 
 
 def exact_share(share: float | None, n: int | None) -> Cell:
-    """A share of `n` independent pairs with its 95% exact (Clopper–Pearson) interval, as 04 §8
-    gives proportions without clusters (H2b decoy flips, H2c permutation invariance); a dash for
-    n = 0. A share that is not k / n for an integer k breaks 03 §13.3 and is an error."""
+    """A share of `n` (case, seed) pairs with its 95% exact (Clopper–Pearson) interval, as 04 §2 RQ2
+    pre-registers for H2b decoy flips and H2c permutation invariance (PAIRS_NOTE says what it
+    assumes); a dash for n = 0. A share that is not k / n for an integer k breaks 03 §13.3 and is an error."""
     if n == 0 and share is None:
         return Cell(DASH, NO_PAIRS_NOTE)
     if share is None or n is None or n < 1 or not 0.0 <= share <= 1.0:

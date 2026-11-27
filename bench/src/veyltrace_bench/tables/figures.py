@@ -1,4 +1,4 @@
-"""The data figures of 11 §5 (R-17): Figs 4, 6, 7, 8, 9 drawn; Fig 5 as a reasoned gap.
+"""The data figures of 11 §5 (R-17): Figs 4, 6, 7, 8, 9 drawn; Fig 5 as a reasoned gap (no data).
 
 Each figure writes `figures/<name>.csv` (every plotted value with its interval, status and source
 experiment and commit: the figure's data of record) and one SVG per panel. A point without a value
@@ -28,6 +28,7 @@ OURS = "veyltrace:off"
 SHIFT_SERIES = ("rcaeval:nsigma", "rcaeval:baro", "simplerca", "causatrix:rrf", OURS, "veyltrace:brief")
 AC1 = ("ac_at_k", "ac_at_1")  # (summary entry, key)
 RQ3 = "re2-oracle-rq3-v1"  # the pre-registered RQ3 experiment of Fig 6; its revisions are paired in
+RQ2 = "re2-oracle-rq2-v1"  # the experiment of Fig 5 (predicate requests, 04 §7 proposal outcomes)
 
 
 @dataclass(frozen=True)
@@ -237,10 +238,22 @@ def draw6(ctx: Context, rows: list[Datum]) -> dict[str, bytes]:
 FIGURES: tuple[tuple[Rows, Draw], ...] = (
     (rows4, draw4), (rows6, draw6), (rows7, draw7), (rows8, draw8), (rows9, draw9),
 )  # fmt: skip
+#: Figures whose experiment ran but whose data no committed result holds (lead rule R7): (name,
+#: title, experiment, series, x, reason). The figure is not generated, and its CSV has one status row
+#: naming the experiment, so it is never read as "not run".
 GAPS = (
-    ("fig5-predicate-requests", "Fig. 5: predicate requests vs claim-pass outcome",
-     "predicate requests live in each run's proposals.json; bench_summary has no entry for them"),
+    ("fig5-predicate-requests", "Fig. 5: predicate requests vs claim-pass outcome", RQ2,
+     "predicate requests", "claim-pass outcome",
+     "no data in the committed results: predicate requests and claim-pass outcomes (04 §7 \"Proposal "
+     "outcomes\") are only in each run's proposals.json and verdict.json, in run directories that are "
+     "not committed; summary.json has no proposal-outcome entry (03 §13.3), so the figure needs a "
+     "contract change before it can be drawn"),
 )  # fmt: skip
+
+
+def gap_rows(ctx: Context, eid: str, series: str, x: str, reason: str) -> list[Datum]:
+    """The one status row of a figure without data: no value, the reason, and the experiment."""
+    return [Datum("all", series, x, Point(None, status=reason), ctx.get(eid))]
 
 
 def figures(ctx: Context) -> dict[str, bytes]:
@@ -248,6 +261,7 @@ def figures(ctx: Context) -> dict[str, bytes]:
     files: dict[str, bytes] = {}
     for rows_of, draw in FIGURES:
         files |= draw(ctx, paired(rows_of, ctx))
-    for name, title, reason in GAPS:
+    for name, title, eid, series, x, reason in GAPS:
+        files[f"{name}.csv"] = to_csv(gap_rows(ctx, eid, series, x, reason))
         files[f"{name}.svg"] = svg.placeholder(title, reason).encode()
     return {f"{FIGURES_DIR}/{k}": v for k, v in sorted(files.items())}

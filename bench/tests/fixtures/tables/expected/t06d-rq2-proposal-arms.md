@@ -2,25 +2,68 @@
 
 # Table 6d: RQ2 planted and permuted proposals
 
-Planted decoy proposals (H2b: share of (case, seed) whose top-1 changed under a planted proposal) and proposal permutations (H2c: share of (case, seed) with one verdict_hash across permutations); bench_summary 1.2 entries (03 §13.3); 95% exact (Clopper–Pearson) binomial intervals over the pairs in brackets (04 §8 proportions without clusters). Protocol: see Sources.
+Planted decoy proposals (H2b: share of (case, seed) whose top-1 changed under a planted proposal) and proposal permutations (H2c: share of (case, seed) with one verdict_hash across permutations), bench_summary 1.2 entries (03 §13.3), with 95% exact (Clopper–Pearson) binomial intervals over the (case, seed) pairs in brackets, as 04 §2 RQ2 pre-registers for H2b and H2c (04 §8 lists decoy flips under cluster-bootstrap intervals where clusters exist; no committed file has a case-clustered interval for them). AC@k of each arm with its 95% cluster-bootstrap interval (04 §8); on an AC@k row, Pairs is the group's fault-case runs (n_fault: cases × seeds, times the unpermuted run and its permutations on a permute arm). The unperturbed arms are in Table 6 (re2-oracle-rq2-v1). Protocol: see Sources.
 
 | Experiment | System | Method | Metric | Value | Pairs | Source |
 |---|---|---|---|---|---|---|
 | re2-oracle-permute-v1 | ob | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997]<sup>1</sup> | 8 | re2-oracle-permute-v1 @ fixture |
 | re2-oracle-permute-v1 | ss | veyltrace:brief | permutation_invariance | 0.875 [0.473, 0.997]<sup>1</sup> | 8 | re2-oracle-permute-v1 @ fixture |
 | re2-oracle-permute-v1 | tt | veyltrace:brief | permutation_invariance | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-permute-v1 @ fixture |
-| re2-oracle-planted-v1 | ob | agent-only:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | ob | veyltrace:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | ss | agent-only:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | ss | veyltrace:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | tt | agent-only:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
-| re2-oracle-planted-v1 | tt | veyltrace:brief | decoy_top1_change | not run<sup>3</sup> | not run<sup>3</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-permute-v1 | pooled | veyltrace:brief | permutation_invariance | no value<sup>3</sup> | no value<sup>3</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ob | veyltrace:brief | ac_at_1 | 0.500<sup>4</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ob | veyltrace:brief | ac_at_3 | 0.875<sup>4</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ob | veyltrace:brief | ac_at_5 | 1.000<sup>4</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ss | veyltrace:brief | ac_at_1 | 0.500<sup>4</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ss | veyltrace:brief | ac_at_3 | 0.875<sup>4</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | ss | veyltrace:brief | ac_at_5 | 1.000<sup>4</sup> | 8 | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | tt | veyltrace:brief | ac_at_1 | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | tt | veyltrace:brief | ac_at_3 | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | tt | veyltrace:brief | ac_at_5 | not run<sup>2</sup> | not run<sup>2</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | pooled | veyltrace:brief | ac_at_1 | not run<sup>5</sup> | n/a<sup>6</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | pooled | veyltrace:brief | ac_at_3 | not run<sup>5</sup> | n/a<sup>6</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-permute-v1 | pooled | veyltrace:brief | ac_at_5 | not run<sup>5</sup> | n/a<sup>6</sup> | re2-oracle-permute-v1 @ fixture |
+| re2-oracle-planted-v1 | ob | agent-only:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | veyltrace:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | agent-only:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | veyltrace:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | agent-only:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | veyltrace:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | agent-only:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | veyltrace:brief | decoy_top1_change | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | agent-only:brief | ac_at_1 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | agent-only:brief | ac_at_3 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | agent-only:brief | ac_at_5 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | veyltrace:brief | ac_at_1 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | veyltrace:brief | ac_at_3 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ob | veyltrace:brief | ac_at_5 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | agent-only:brief | ac_at_1 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | agent-only:brief | ac_at_3 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | agent-only:brief | ac_at_5 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | veyltrace:brief | ac_at_1 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | veyltrace:brief | ac_at_3 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | ss | veyltrace:brief | ac_at_5 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | agent-only:brief | ac_at_1 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | agent-only:brief | ac_at_3 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | agent-only:brief | ac_at_5 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | veyltrace:brief | ac_at_1 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | veyltrace:brief | ac_at_3 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | tt | veyltrace:brief | ac_at_5 | not run<sup>7</sup> | not run<sup>7</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | agent-only:brief | ac_at_1 | not run<sup>7</sup> | n/a<sup>6</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | agent-only:brief | ac_at_3 | not run<sup>7</sup> | n/a<sup>6</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | agent-only:brief | ac_at_5 | not run<sup>7</sup> | n/a<sup>6</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | veyltrace:brief | ac_at_1 | not run<sup>7</sup> | n/a<sup>6</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | veyltrace:brief | ac_at_3 | not run<sup>7</sup> | n/a<sup>6</sup> | re2-oracle-planted-v1 (not run) |
+| re2-oracle-planted-v1 | pooled | veyltrace:brief | ac_at_5 | not run<sup>7</sup> | n/a<sup>6</sup> | re2-oracle-planted-v1 (not run) |
 
 Notes:
 
 1. exact binomial interval over (case, seed) pairs, as 04 RQ2 pre-registers for H2b and H2c; a case's seeds are not independent, so this interval can be narrower than a case-clustered one
 2. not run: its summary.json has no group for this dataset, system and method
-3. not run: no committed results in bench/results
+3. no pooled value in the committed results: summary.json reports `permutation_invariance` per system only (03 §13.3), and the tables compute no new statistics (R3)
+4. no interval: not run: fixture statistics are off
+5. not run: fixture statistics are off
+6. not applicable: pooled rows report the per-system counts above
+7. not run: no committed results in bench/results
 
 Sources:
 
