@@ -1,7 +1,8 @@
 % Veyltrace paper, draft v1 (R-18, #47). Build: README.md. Owner: the lead.
 % Template: acmart sigconf, because KDD 2027 cycle 2 is the primary target (docs/11 §7);
-% the venue and its template are fixed at M4. `review` numbers the lines for comments.
-\documentclass[sigconf,review,anonymous]{acmart}
+% the venue and its template are fixed at M4. `review` numbers the lines for comments;
+% `nonacm' drops the ACM rights block, reference format and conference running head (v1.0.0).
+\documentclass[sigconf,nonacm,review,anonymous]{acmart}
 \input{preamble}
 
 \begin{document}
@@ -20,6 +21,8 @@
 \begin{abstract}
 \input{sections/00-abstract}
 \end{abstract}
+
+\ccsdesc[500]{Software and its engineering~Software testing and debugging}
 
 \keywords{root-cause analysis, microservices, verification, conformal prediction, abstention, large language models, reproducibility}
 

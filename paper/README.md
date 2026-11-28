@@ -1,6 +1,6 @@
 # paper/ — the Veyltrace research paper
 
-Draft v1 of the paper planned in [docs/11](../docs/11-research-paper-plan.md) (task R-18, [#47](https://github.com/DuhItzAniket/Veyltrace/issues/47)). The plan wins on structure, claims and the writing workflow; [docs/04](../docs/04-evaluation-protocol.md) at tag `prereg-v1` wins on every protocol detail.
+Version v1.0.0 of the paper planned in [docs/11](../docs/11-research-paper-plan.md) (task R-18, [#47](https://github.com/DuhItzAniket/Veyltrace/issues/47)). The plan wins on structure, claims and the writing workflow; [docs/04](../docs/04-evaluation-protocol.md) at tag `prereg-v1` wins on every protocol detail.
 
 ## Build
 
@@ -11,6 +11,8 @@ uv run veyltrace bench tables              # R-17: bench/results/tables/ and fig
 uv run python scripts/paper_generated.py   # fills paper/generated/ (tables, figures, numbers.tex)
 cd paper && latexmk
 ```
+
+Hand-drawn figures: `paper/figures/<name>.tex` (standalone TikZ); after editing, run `pdflatex <name>.tex` in `paper/figures/` and commit the PDF; `\diagram` includes it.
 
 `latexmkrc` runs pdflatex and BibTeX and writes everything, including `main.pdf`, to `build/` (git-ignored). `latexmk -C` cleans it. The build needs no lane file and no generated file: missing ones print a coloured placeholder, so `latexmk` alone still builds a draft.
 
@@ -29,7 +31,7 @@ It prints a report: how many keys resolve, and each unresolved key with its firs
 | Decision | Why |
 |---|---|
 | LaTeX, one file per section | [11 §10](../docs/11-research-paper-plan.md#10-writing-workflow) |
-| `acmart` `sigconf,review,anonymous` | KDD 2027 cycle 2 is the primary target ([11 §7](../docs/11-research-paper-plan.md#7-venue-plan-and-arxiv)) and uses `acmart`; `review` numbers the lines. ISSRE (the alternative) uses IEEEtran: switching changes only `main.tex` and the bibliography style, at M4 |
+| `acmart` `sigconf,nonacm,review,anonymous` | KDD 2027 cycle 2 is the primary target ([11 §7](../docs/11-research-paper-plan.md#7-venue-plan-and-arxiv)) and uses `acmart`; `review` numbers the lines; `nonacm` (v1.0.0) prints no ACM rights block, reference format or conference running head until the venue is chosen. ISSRE (the alternative) uses IEEEtran: switching changes only `main.tex` and the bibliography style, at M4 |
 | One sentence per line | diffs and review comments land on one sentence |
 | No bibliography merge script | 11 §10 proposed per-lane `.bib` files merged into a generated `refs.bib`. BibTeX reads several files directly, so `refs.bib` is the lead's file and each lane may add `sections/<lane>-refs.bib`, which `.github/lanes.yml` already gives that lane. No generated file, no script. A key lives in exactly one file |
 
@@ -37,7 +39,7 @@ It prints a report: how many keys resolve, and each unresolved key with its firs
 
 | Path | Owner |
 |---|---|
-| `main.tex`, `preamble.tex`, `refs.bib`, `latexmkrc`, `sections/<nn>-<slug>.tex` | lead (Reason lane) |
+| `main.tex`, `preamble.tex`, `refs.bib`, `latexmkrc`, `sections/<nn>-<slug>.tex`, `figures/` | lead (Reason lane) |
 | `sections/observe-*.tex`, `sections/observe-refs.bib` | Observe lane |
 | `sections/explain-*.tex`, `sections/explain-refs.bib` | Explain lane |
 | `generated/` | nobody by hand: `scripts/paper_generated.py` (R-17, [#46](https://github.com/DuhItzAniket/Veyltrace/issues/46)) fills it; git ignores it |

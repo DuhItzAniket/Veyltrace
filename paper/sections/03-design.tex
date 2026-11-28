@@ -11,7 +11,7 @@ Two rules shape every component.
 \emph{AI proposes, code decides}: only the verifier sets the verdict, through a fixed decision function, and model outputs enter only as proposals or as evidence that code recomputed.
 \emph{AI can buy evidence, never assert it}: a claim from the LLM counts only after code has re-evaluated its predicate on stored data, and that predicate is evaluated for every candidate in the pool.
 
-\diagram*{fig:pipeline}{The propose--verify pipeline. Observe engines turn telemetry into facts, the Reason engines turn facts into a verdict, and every LLM call sits in the Explain engines; the only path from the LLM to the verdict runs through code-recomputed predicates.}{fig1-pipeline}{the ten engines in three lanes (Observe 1--5, Reason 6, 7, 9, Explain 8, 10), colour-coded by trust class: deterministic code, code-recomputed evidence, untrusted LLM output; the claim pass (step~8) as the only edge from Relentra into the verdict.}
+\diagram*{fig:pipeline}{The propose--verify pipeline. Observe engines turn telemetry into facts, the Reason engines turn facts into a verdict, and every LLM call sits in the Explain engines; the only path from the LLM to the verdict runs through code-recomputed predicates.}{fig1-pipeline}{The ten engines in pipeline order in three lanes, Observe (1--5), Reason (6, 7, 9) and Explain (8, 10), where Causatrix's rankers and Relentra's LLM propose, Relentra's named predicates reach the verdict only through FaultLoom's claim pass, Causentra decides, and Causivra's receipt feeds a replay that re-runs FaultLoom to Causivra, with Relentra read from its cassette, and compares the verdict hash.}
 
 \subsection{Pipeline and engine boundaries}
 \label{sec:pipeline}
@@ -69,7 +69,7 @@ The subject substitution is the whole mechanism: the model chooses \emph{which} 
 A model that requests a check to support its favourite therefore also produces that check's result for every rival, and the check helps whichever candidate it actually holds for.
 With the AI off there are no claims, and the engine atoms are byte-identical to those of a run with the AI on.
 
-\diagram{fig:claimpass}{The claim pass. Each distinct predicate requested by any proposal is evaluated for every candidate in the pool; only these code results, with fixed weights, can move the verified score.}{fig2-claim-pass}{a grid with proposals' requested predicates as rows and pool candidates (slate and proposed) as columns, each cell a \texttt{claim\_check} atom (true / false / null); arrows from the proposals to the rows only, not to the cells.}
+\diagram{fig:claimpass}{The claim pass. Each distinct predicate requested by any proposal is evaluated for every candidate in the pool; only these code results, with fixed weights, can move the verified score.}{fig2-claim-pass}{Two proposals request three named predicates, with arrows from the proposals to the predicate rows only; code fills every cell of the grid of predicates by pool candidates (three slate candidates and one proposed service) with an illustrative true, false or null \texttt{claim\_check} atom, and Causentra multiplies each candidate's score by one plus the clipped sum of the fixed, signed weights of the predicates that hold for it.}
 
 \subsection{Rankers and the fused slate}
 \label{sec:slate}
