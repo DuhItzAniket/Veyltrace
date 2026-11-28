@@ -33,7 +33,6 @@ If the repaired reply still fails, salvage drops each invalid claim, then each p
 A run ends \code{complete} if a valid proposal remains or the reply was valid, \code{failed} after a provider error or with nothing valid, and \code{budget_exhausted} if the prompt did not fit; a failed proposer leaves the verdict as it would be with the AI off on the same evidence.
 Normalisation merges proposals with the same service and fault class, removes duplicate claims, keeps at most five hypotheses, sorts claims and proposals canonically and derives their identifiers from hashes of their content, so \code{proposals.json} depends on the \emph{set} the model proposed, not on its order or wording.
 The only field that records the reply's order is a \code{rank} kept for the agent-only baseline, which the verifier never reads.
-\leadq{the repair count has no committed source: the agent-trace \code{repair} field is only in the run directories, which are not committed, so it needs a producer before it can be printed; the failed-run count reads \code{rq5-ai-cost}.}
 On RE2 under the oracle alert, \resnum{rq5-ai-cost}{systems.ob.status.failed}, \resnum{rq5-ai-cost}{systems.ss.status.failed} and \resnum{rq5-ai-cost}{systems.tt.status.failed} of the \resnum{rq5-ai-cost}{systems.ob.n} recorded \code{veyltrace:brief} runs per system ended \code{failed} on OB, SS and TT (Table~\ref{tab:rq5ai}); no committed file records how many runs used the repair call.
 
 \paragraph{Model and budgets}
