@@ -250,6 +250,8 @@ Isolation: the fetcher needs HTTP, which engines 1–7 must not import (AGENTS �
 | `events.overlay_path` | `null` | path | RCAEval-C overlay from O-13; must be under `${VEYLTRACE_DATA}` |
 | `rcaeval.layout` | `auto` | — | `auto \| hf \| zenodo` |
 | `rcaeval.metrics_table` | `simple` | — | the table RCAEval's own runner reads ([rcaeval_facts §Dataset layout][rf-layout]) |
+| `nezha.half_window_s` | `720` | s | half width of a Nezha case's slice around the fault; a priori, RCAEval's 12 + 12 min shape ([rcaeval_facts §Metric step and windows][rf-step]) |
+| `nezha.clip` | `midpoint` | — | `midpoint \| none`: end a slice halfway to the neighbouring fault so no row is in two cases (§3.3); a priori |
 | `normalise.aliases` | `{ob: {frontendservice: frontend}}` | — | [rcaeval_facts §Dataset layout][rf-layout] |
 | `normalise.component_suffixes` | `["-db"]` | — | RCAEval scorer convention ([rcaeval_facts §Ground truth and scoring][rf-scoring]) |
 | `normalise.drop_containers` | `[istio-proxy, istio-init, POD]` | — | a priori; sidecars are not services; verify on RE2 logs |

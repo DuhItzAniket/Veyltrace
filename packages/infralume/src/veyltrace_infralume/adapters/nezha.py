@@ -28,6 +28,7 @@ from veyltrace_core.io import empty_table
 from veyltrace_core.log import get_logger
 from veyltrace_infralume.adapters.nezha_layout import (
     DATASETS,
+    SliceRule,
     fault_times_ns,
     nezha_key,
     parse_key,
@@ -212,7 +213,7 @@ class NezhaAdapter:
         day, index = ref.location.parent, int(ref.location.name)
         system = ref.dataset.removeprefix("nezha-")
         times = fault_times_ns(day)
-        window = window_ns(times, index)
+        window = window_ns(times, index, SliceRule.from_config(cfg))
         rules = NameRules.from_config(cfg, system)
         scrub = Scrubber(ScrubRules.from_config(cfg), folder_tokens(ref.canonical_key, ""))
         # case_manifest.inputs lists files behind emitted rows (03 §2.1), so not the fault list.

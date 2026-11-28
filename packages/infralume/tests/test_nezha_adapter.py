@@ -37,6 +37,7 @@ T = (
 )
 assert T == (1_661_140_434, 1_661_140_734)  # literal epoch seconds: a naive-local parse would differ
 ADAPTER = NezhaAdapter()
+RULE = layout.SliceRule(12 * 60 * NS, "midpoint")  # the config/infralume.yaml defaults
 KEYS = (f"nezha-ob-{DATE}-0", f"nezha-ob-{DATE}-1")
 
 
@@ -227,8 +228,8 @@ def test_second_case_gets_only_its_own_rows(nezha_day: Path, infralume_cfg: Engi
 @given(st.lists(st.integers(60, 3000), min_size=1, max_size=12), st.data())
 def test_slices_tile_the_day_without_overlap(gaps: list[int], data: st.DataObject) -> None:
     times = tuple(sum(gaps[: i + 1]) * NS for i in range(len(gaps)))
-    windows = [layout.window_ns(times, i) for i in range(len(times))]
-    half = layout.HALF_SPAN_NS
+    windows = [layout.window_ns(times, i, RULE) for i in range(len(times))]
+    half = RULE.half_window_ns
     for (lo, hi), t in zip(windows, times, strict=True):
         assert lo < t < hi and hi - lo <= 2 * half
     assert windows[0][0] == times[0] - half and windows[-1][1] == times[-1] + half  # first, last of day
@@ -321,3 +322,14 @@ def test_a_malformed_csv_row_is_skipped_not_fatal(nezha_day: Path, infralume_cfg
     with path.open("a", encoding="utf-8", newline="\n") as f:
         f.write(f"x,{T[0] * NS},10.0.0.1,{POD},server,0a,0b,spliced,extra,cells\n")  # 10 cells, not 8
     assert _convert(KEYS[0], infralume_cfg).tables.logs.num_rows == 6  # the six good lines
+
+
+def test_slice_rule_comes_from_config_and_rejects_bad_values(infralume_cfg: EngineConfig) -> None:
+    assert layout.SliceRule.from_config(infralume_cfg) == RULE  # nezha.half_window_s 720, clip midpoint
+    times = (1000 * NS, 1100 * NS, 5000 * NS)
+    unclipped = layout.SliceRule(720 * NS, "none")
+    assert layout.window_ns(times, 1, unclipped) == (380 * NS, 1820 * NS)  # overlaps its neighbour
+    assert layout.window_ns(times, 1, RULE) == (1050 * NS, 1820 * NS)
+    for half, clip in ((720, "median"), (0, "midpoint"), (True, "midpoint"), ("720", "midpoint")):
+        with pytest.raises(ConfigError, match="nezha"):
+            layout.SliceRule.from_config({"nezha": {"half_window_s": half, "clip": clip}})
