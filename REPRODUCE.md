@@ -43,7 +43,7 @@ $env:VEYLTRACE_DATA = "$HOME\veyltrace-data"
 uv run veyltrace bench tables --check
 ```
 
-- The command reads only `bench/experiments/*.yaml` and `bench/results/`, and it writes nothing.
+- The command reads only `bench/`: the experiment YAMLs, the case lists they name (`bench/dev_cases.yaml`, `bench/re2_investigate_cases.yaml`) and `bench/results/`. It writes nothing.
 - Run it at `v1.0.0` or later (until that tag exists: any `main` commit after #665, 27 Nov). On success it prints `tables --check: <n> files, 0 differ`. On commits before `results-v1` (`3ed9d7cd`, the R-17 result freeze) `--check` prints `differs: <path>` for every table and figure, because none is committed yet. At `results-v1` itself it passes on Windows only: on macOS and Linux three tables (A0, A2, 8c) list the perf-o11 files in another order, with every hash equal (#664, fixed before `v1.0.0`).
 - Options: `--check`, `--results <dir>` (default `bench/results`) and `--experiments <dir>` (default `bench/experiments`). `veyltrace bench tables --help` shows only `--help`, because the core CLI hands the arguments to bench unparsed.
 - Exit 0 means that every table and figure under `bench/results/tables/` and `bench/results/figures/` regenerates byte-identically, including the headline Table 5 (RQ1, RE2, oracle alert).
@@ -60,6 +60,7 @@ Check out the commit that the result's `manifest.json` names (`code.commit`). Th
 | `results-code-v1-cpu` | `281787f1` | `results-code-v1` plus the two 04 §12 revision YAMLs. It produced `re2-oracle-rq3-off-v1` and `re2-oracle-loso-off-v1`, and every crossfit2 experiment with `calibration.fit: false`: the onset shifts, the source drops, metrics-only and the RCAEval-C cells. They reuse the rcaeval-re2 files that `re2-oracle-rq3-off-v1` fits, and `calibrated.check` reads that YAML. Run that experiment first, in the same checkout, so `config/calibration/` holds its files |
 | `results-code-v1-prior` | `9cb317d7` | `results-code-v1` plus the bench-only `prior-only` floor (#562; 04 §12 row of 26 Nov): `re2-oracle-prior-only-v1`, `re3-oracle-prior-only-v1` |
 | `results-replay-v1` | `a2cdc166` | `results-code-v1` plus the RQ6 replay fixes: `replay/recording` |
+| `results-replay-v1-sites` | `fc8bb322` | `results-replay-v1` plus the committed `replay/recording` result, which the other sites replay: `replay/second-laptop`, `replay/ci` |
 | `results-code-v1-baselines` | `1b2f3be5` | `results-code-v1` plus the RCAEval dataset entries for RE3 and Nezha in `bench/baselines.yaml` (#615), no engine or config change: `re3-oracle-rq1-v1` |
 | `results-code-v1-baselines-2` | `0654af62` | `results-code-v1-baselines` with the Nezha entries pointing where RCAEval's `main.py` reads (#627), again only `bench/baselines.yaml`: `nezha-oracle-rq1-v1` |
 
@@ -94,7 +95,7 @@ Derived results are rebuilt from the kept runs, so they need the runs root of st
 The AI arms (`brief`, `agent-only:brief`) ran with `qwen3.5:9b`, the Q4_K_M blob with SHA-256 `02d45dc1…0278d`, under Ollama 0.40.16 on the recording host ([config/llm.yaml](config/llm.yaml), [docs/team/ak.md](docs/team/ak.md)).
 
 - **Replay (exact).**
-  - `uv run veyltrace bench replay --role second-laptop` replays the 801 kept recordings from a copy of `<runs root>/bench-ai`.
+  - `uv run veyltrace bench replay --role second-laptop` replays the 801 kept recordings at `results-replay-v1-sites` (`fc8bb322`, §2) from a copy of `<runs root>/bench-ai`.
   - On the recording host, Tier 1 matched 801 of 801 (`bench/results/replay/recording/`).
   - On the second laptop (i5-1135G7, default kernel, no pin), 799 of 801 exited 0 and 800 reproduced the verdict (`bench/results/replay/second-laptop/`). One run timed out while another job loaded the laptop, and one card differed. `evidence.parquet` differed on 501 runs, and the cause is the OpenBLAS kernel (#576).
   - The recordings hold the benchmark's telemetry, so the archive is shared privately and is not in this repository or the release.

@@ -32,9 +32,9 @@ PYTHON = "3.12"  # 04 §4: one of the versions main.py accepts (rcaeval_facts "D
 EXTRA_DROP = ("torch",)  # the `core` extra = requirements.txt without torch (RCAEval setup.py)
 
 
-def sh(*cmd: str) -> str:
+def sh(*cmd: str, cwd: Path | None = None) -> str:
     print("+", " ".join(cmd), flush=True)
-    proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    proc = subprocess.run(cmd, capture_output=True, text=True, check=False, cwd=cwd)
     if proc.returncode != 0:
         print(proc.stderr, file=sys.stderr)
         raise SystemExit(f"error: {cmd[0]} exited {proc.returncode}")
@@ -54,13 +54,17 @@ def checkout(cfg: rcaeval.Settings, source: Path) -> None:
 
 
 def lock(source: Path) -> None:
-    """Compile the core extra's pins for Python 3.12 into the committed lock."""
+    """Compile the core extra's pins for Python 3.12 into the committed lock.
+
+    Why the relative input path: `uv pip compile` writes the input path into the lock's
+    `# via -r <path>` annotations, so compiling from inside the temporary directory keeps the
+    machine's temp path (and the user name in it) out of the committed file (#676)."""
     lines = (source / "requirements.txt").read_text(encoding="utf-8").splitlines()
     keep = [ln for ln in lines if not ln.strip().startswith(EXTRA_DROP)]
     with tempfile.TemporaryDirectory() as tmp:
-        req = Path(tmp, "requirements.in")
-        req.write_text("\n".join(keep) + "\n", encoding="utf-8")
-        sh("uv", "pip", "compile", str(req), "--python-version", PYTHON, "--no-header", "-o", str(LOCK))
+        Path(tmp, "requirements.in").write_text("\n".join(keep) + "\n", encoding="utf-8")
+        compile_cmd = ("uv", "pip", "compile", "requirements.in", "--python-version", PYTHON)
+        sh(*compile_cmd, "--no-header", "-o", str(LOCK), cwd=Path(tmp))
 
 
 def install(cfg: rcaeval.Settings, source: Path) -> None:
