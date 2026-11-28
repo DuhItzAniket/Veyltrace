@@ -50,7 +50,8 @@ The single-ranker and fused-slate rows of Table~\ref{tab:rq1} locate the loss.
 The fused slate without the verifier (\code{causatrix:rrf}) scores \resnum{re2-oracle-rq1-v1}{ob/causatrix:rrf/ac_at_1}, \resnum{re2-oracle-rq1-v1}{ss/causatrix:rrf/ac_at_1} and \resnum{re2-oracle-rq1-v1}{tt/causatrix:rrf/ac_at_1} on OB, SS and TT (\resnum{re2-oracle-rq1-v1}{pooled/causatrix:rrf/ac_at_1} pooled), above \code{veyltrace:off} on every system.
 Both arms share the upstream steps (Infralume to Causalith) and re-run FaultLoom and Causatrix with the same configuration, so they rank the same slate (deviation log, 21~Nov~2026); on these point values the verifier's re-ranking lowers top-1 accuracy relative to the slate it receives.
 No paired comparison of the two arms is committed, so we report this as an observation, not a test.
-\leadq{failure taxonomy of the misses by fault class (expected: network faults, where T1 fails). No committed table breaks the misses down by fault class; computing one from \code{per_case.csv} would be a new statistic, which docs/04 §10.2 rules out in the tables. Decide whether R-17 adds such a table or the paper drops the taxonomy.}
+As a limit of v1.0, we do not break the misses down by fault class, although docs/11 §5 plans a failure taxonomy: no table generated before the results-v1 freeze holds such a breakdown, and the protocol takes every reported number from a summary file (docs/04 §10.2).
+Readers can compute it from the released per-case outputs (\code{per_case.csv}), whose \code{case_id} the released ingest adapter derives from each benchmark case's own key.
 
 The \code{prior-only} floor carries a note of the deviation log (26~Nov~2026).
 A simulation on the answer keys, run before any \code{prior-only} result existed, showed that cross-fitting deals each root's clusters alternately to the folds, so a case's own root is slightly rarer in the fold that fits it, and \code{prior-only} was expected to fall below chance on RE2.
@@ -136,7 +137,8 @@ On TT, the false-alarm rate is then \resnum{re2-oracle-loso-off-v1}{tt/veyltrace
 These two TT rates are the same as those of the literal reading under cross-fitting above, although they come from separate committed entries of the two experiments.
 With OB or SS held out, no window is answered \NOFAULT, as under cross-fitting.
 These leave-one-system-out rates are exploratory, because the targets are defined on the cross-fit folds.
-\leadq{abstention per fault class: no committed table breaks coverage, set size or the \NOFAULT rates down by fault class, and computing one here would be a new statistic (docs/04 §10.2). Decide whether R-17 adds it or the paper drops it.}
+As a limit of v1.0, we do not break coverage, set size or the \NOFAULT rates down by fault class, although docs/04 §10.6 asks that the network-fault cells be shown: no table generated before the results-v1 freeze holds such a breakdown, and the protocol takes every reported number from a summary file (docs/04 §10.2).
+The released \code{per_case.csv} files hold the per-case rows from which readers can compute it.
 
 \subsection{RQ4: Robustness}
 \label{sec:rq4}
@@ -174,7 +176,7 @@ H4d (exploratory) is an optional name-anonymisation probe with no pre-registered
 \paragraph{Verdict for H5}
 H5 misses.
 On the slowest laptop (Table~\ref{tab:rq5laptop}, warm pass), peak memory stays within 3\,GB on every RE2 system and the time per case within 30\,s on OB and SS, but not on TT; the sample holds 10 cases per system, so its p95 is its maximum.
-The bench runs, on a machine that no committed file records, show the same pattern, with a TT p95 of \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.wall_ms_p95}\,ms.
+The solo bench run on the recording host (\S\ref{sec:stats}, Table~\ref{tab:hardware}) shows the same pattern, with a TT p95 of \resnum{re2-oracle-rq1-v1}{tt/veyltrace:off/cost.wall_ms_p95}\,ms.
 The replayed AI arms record no run cost, so the proposer's cost is the model time its recording logged: its p95 is \resnum{rq5-ai-cost}{systems.ob.model_wall_ms_p95}, \resnum{rq5-ai-cost}{systems.ss.model_wall_ms_p95} and \resnum{rq5-ai-cost}{systems.tt.model_wall_ms_p95}\,ms on OB, SS and TT (Table~\ref{tab:rq5ai}), over the 180{,}000\,ms budget on every system.
 The model client stops a request after 240\,s (\code{config/llm.yaml}) and records it as an outcome, not as a longer time, and \resnum{rq5-ai-cost}{systems.ob.status.failed}, \resnum{rq5-ai-cost}{systems.ss.status.failed} and \resnum{rq5-ai-cost}{systems.tt.status.failed} of \resnum{rq5-ai-cost}{systems.ob.n} recorded runs per system failed; the recorded time of each request is thus bounded by the timeout, and these p95 values may understate the time the proposer would need without it.
 The narration budget cannot be decided: every card in these runs was narrated from templates with no model call, and no committed file holds a narration time.

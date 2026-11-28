@@ -28,5 +28,5 @@ Notes:
 
 Sources:
 
-- perf-o11: sha256 i5-1135g7.csv f7c7e4d89e2faa2603cab41af892808509794eb70779cec0e43f3ae2d885f396, m4-arm64.csv 150cfda8236bde638b1d108b5a7c6d9a8c2b422194878af9c7d82c4b514e498c, README.md 30ca6dbf4abda1ca7db862ab2ec4dec2123735e855eb2859e63c31d67a5b6d98
+- perf-o11: sha256 README.md 30ca6dbf4abda1ca7db862ab2ec4dec2123735e855eb2859e63c31d67a5b6d98, i5-1135g7.csv f7c7e4d89e2faa2603cab41af892808509794eb70779cec0e43f3ae2d885f396, m4-arm64.csv 150cfda8236bde638b1d108b5a7c6d9a8c2b422194878af9c7d82c4b514e498c
 - re2-oracle-baselines-r05: ran (bench_summary 0.1.0); its summary.json is not tabulated: the tables read 1.1 and 1.2 (03 §13.3); commit 175788ce7ffde622824a3876c3965c527a4706d2; sha256 manifest.json 2e6ace662b6cfa8cc2a91e5c5090a7f456c73f5c06aabbf7b015302e4b939e56, per_case.csv 4aebc664fa8c64a039e0857c84ddbc37c66d0dba0012c372c80a118e6ec3a47f, summary.json 96b0c44c2a59188e4bdf81e2715e4451536356c853a6288912b2c4fc2c6b79cb; protocol: re2-ob, re2-ss, re2-tt (all cases); oracle alert; no shift; all sources; AI off

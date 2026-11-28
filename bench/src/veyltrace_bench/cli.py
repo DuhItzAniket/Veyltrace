@@ -79,6 +79,7 @@ def _tables(args: argparse.Namespace) -> int:
         stale = generate.differences(files, results)
         for path in stale:
             print(f"differs: {path}", file=sys.stderr)
+        print(f"tables --check: {len(files)} files, {len(stale)} differ")  # a visible result (#668)
         return CHECK_DIFFERS if stale else int(DiagnoseExit.OK)
     changed = generate.write(files, results)
     print(f"tables: {len(files)} files, {len(changed)} changed")

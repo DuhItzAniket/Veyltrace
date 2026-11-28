@@ -229,7 +229,7 @@ VIEWS: dict[str, View] = {
             "RQ5 cost on RE2, per System and Method: nearest-rank p50 and p95 over the group's rows (03 "
             "§13.3) of the wall time per case (ms) and the run's peak RSS (MiB, per_case.csv "
             "peak_rss_mb), for veyltrace:off from its solo run re2-oracle-rq1-v1 and the brief arms of "
-            "re2-oracle-rq2-v1. No committed file records the machine of these runs; the slowest "
+            "re2-oracle-rq2-v1. No result file records the machine of these runs; the slowest "
             "laptop's measurement, which H5 is read against, is Table 8c, and the AI path's recorded "
             "model time and tokens are Table 8b."
         ),

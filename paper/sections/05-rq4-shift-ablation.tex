@@ -11,4 +11,4 @@ Over those four shifts, the largest drop of \code{veyltrace:off} is \resnum{re2-
 \resulttable{tab:ablation}{Telemetry ablation (H4b): AC@1, the share of correct \st{CONFIRMED} verdicts and their number per cell and system for \code{veyltrace:off}; Table~\ref{tab:ablation-full} has every method.}{re2-oracle-rq1-v1, re2-drop-metrics-v1, re2-drop-logs-v1, re2-drop-traces-v1, re2-drop-events-v1, re2-metrics-only-v1}{t11-rq4-ablation}
 H4b holds if, in every ablation cell, at least 90\% of \st{CONFIRMED} verdicts are correct.
 Table~\ref{tab:ablation} gives that share per cell and system, and Figure~\ref{fig:ablation} the accuracy.
-\leadq{the mix of statuses per cell, which docs/11 §5 plans for this figure, needs a summary entry.}
+In v1.0 we do not report the full mix of verdict statuses per ablation cell, which docs/11 §5 plans for this figure: the summary files hold only the shares of \st{CONFIRMED} and of \st{CONFIRMED}-or-\st{LIKELY} verdicts among fault cases (\code{selective_accuracy}), not how the other fault cases split into \st{INCONCLUSIVE}, \NOFAULT and runs with no verdict.

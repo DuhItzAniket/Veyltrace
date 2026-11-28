@@ -1,6 +1,6 @@
 # 01 · Infralume — ingest any source into one canonical telemetry store and scrub leakage
 
-> Status: v0.1-draft · Lane: Observe · Master: [docs/02-architecture.md §6.1](../02-architecture.md), §4 (step 0), §5.1 · Contracts: [docs/03-contracts.md §2.1–2.5](../03-contracts.md) · Last updated: 2026-10-30
+> Status: built (O-01, O-07 converter, O-08, O-09), checked against the code at `results-code-v1` · Lane: Observe · Master: [docs/02-architecture.md §6.1](../02-architecture.md), §4 (step 0), §5.1 · Contracts: [docs/03-contracts.md §2.1–2.5](../03-contracts.md) · Last updated: 2026-11-24
 
 ## 1. Purpose and scope
 
@@ -8,13 +8,13 @@ Infralume is the only engine that touches raw data. It reads one case from a ben
 
 **In scope**
 
-- Adapters: `rcaeval` (RE1, RE2, RE3), `nezha`, `fse26_tt` (format unverified), `veyllab`, `otlp_live`.
-- The dataset fetcher behind `veyltrace data fetch <dataset>`.
+- Adapters: `rcaeval` (RE1, RE2, RE3) and `nezha` are built. `otlp_live` is built (#508, O-07), for the live demo. `veyllab` is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher.
+- The dataset fetchers behind `veyltrace data fetch <name>` (`rcaeval`, `nezha`).
 - Canonical table construction, service-name normalisation, the span error-status rule.
 - Leakage scrubbing, the opaque `case_id`, the `sources` map.
 - The alert hint: `t_alert_hint_ns` (null under the detected protocol) and `hint_source` in `case_manifest`.
 - Robustness hooks (O-09): `sources.drop`, the change-event overlay used by RCAEval-C (§3.10), and the config key `alert.shift_s`, which core's alert step applies.
-- The OTLP → canonical converter library used by `veyllab`, the lab's release build and the gateway (O-07).
+- The OTLP → canonical converter library for the gateway and, later, `veyllab` (§3.9), built under O-07 (#24).
 
 **Out of scope**
 
@@ -30,7 +30,7 @@ Infralume is the only engine that touches raw data. It reads one case from a ben
 
 | Input | Read by | Notes |
 |---|---|---|
-| Raw case folder or capture under `${VEYLTRACE_DATA}` | adapter only | located through the private index `${VEYLTRACE_DATA}/index/<dataset>.json` (`case_id → relative path`), written by the fetcher, or by the gateway for `live` (#24); never copied into a run directory |
+| Raw case folder or capture under `${VEYLTRACE_DATA}` | adapter only | located through the private index `${VEYLTRACE_DATA}/index/<dataset>.json` (`case_id → relative path`; one file per dataset id, e.g. `re2-ob`, `nezha-tt`), written by the fetcher, or by the gateway for `live` (#24); never copied into a run directory |
 | `config/infralume.yaml` | all steps | §4 |
 | Optional events overlay file under `${VEYLTRACE_DATA}/overlays/` | §3.10 | written by the RCAEval-C generator (O-13); path given through `events.overlay_path` |
 
@@ -50,10 +50,12 @@ A source that is absent or dropped is written as a schema-valid table with zero 
 
 ### 3.1 Two phases
 
-1. **Convert (first time per case).** Adapter reads raw files, builds canonical tables, normalises names, scrubs, and writes them to the cache `${VEYLTRACE_DATA}/cache/<dataset>/<case_id>/<key>/`. The key hashes the adapter name and version, the convert config sections and the `<major>.<minor>` of the four telemetry contracts, so a contract minor bump is a cache miss (#349). This phase is excluded from the 30 s budget ([02 §9](../02-architecture.md)); its own target is ≤ 10 s per RE2 case (O-01).
-2. **Materialise (every run).** Copy cached tables into the run directory, apply `sources.drop` and the events overlay, read the alert hint (kept only when `alert.protocol` is `oracle` or `live`, §3.7), write `case_manifest.json`. Tables cover the full available span; core's alert step then writes `alert.json`.
+1. **Convert (first time per case).** Adapter reads raw files, builds canonical tables, normalises names, scrubs, and writes them to the cache `${VEYLTRACE_DATA}/cache/<dataset>/<case_id>/<key>/`. This phase is excluded from the 30 s budget ([02 §9](../02-architecture.md)); its own target is ≤ 10 s per RE2 case (O-01).
+2. **Materialise (every run).** Copy cached tables into the run directory, apply `sources.drop` and the events overlay, ask the adapter for the alert hint (kept only when `alert.protocol` is `oracle` or `live`, §3.7), write `case_manifest.json`. Tables cover the full available span; core's alert step then writes `alert.json`.
 
-Cache entries are keyed by (`case_id`, adapter version, `scrub.rules_version`, config hash of the convert-phase keys). A stale key forces re-conversion.
+**Cache key.** `<key>` is the first 16 hex of the hash of: the adapter name and version, the convert config sections (`normalise`, `rcaeval`, `scrub`, `status`; `scrub.rules_version` is covered through `scrub`) and the `<major>.<minor>` of the four telemetry contracts, so a contract minor bump is a cache miss (#349). A changed key forces re-conversion. `sources` and `events` act at materialise and are not in the key; neither is `duckdb`, which ingest does not use at all (§5). The key does not cover the raw files' bytes: after a re-fetch that changes a case, delete its cache directory or bump the adapter version.
+
+**Cache entry.** The four tables after normalisation and scrubbing, plus `case.json` (system, sources, inputs, adapter, scrub counts), written last: an entry without it, or one that cannot be read, is converted again. The hint is never cached. An adapter with `cacheable = false` (`synth`) is converted on every run.
 
 ### 3.2 Opaque `case_id`
 
@@ -61,61 +63,61 @@ Cache entries are keyed by (`case_id`, adapter version, `scrub.rules_version`, c
 
 | Adapter | Canonical case key |
 |---|---|
-| `rcaeval` | Hugging Face case name `{suite}{system}_{service}_{fault}_{rep}`, lowercase, e.g. the HF directory name. A Zenodo path `RE2/RE2-OB/<svc>_<fault>/<rep>` is converted to the same string. |
+| `rcaeval` | Hugging Face case name `{release}{system}_{service}_{fault}_{rep}`, lowercase, e.g. `re2ob_checkoutservice_cpu_1` (the HF directory name). A Zenodo path `RE2/RE2-OB/<svc>_<fault>/<rep>` is converted to the same string. One mislabelled Zenodo folder (RE3-TT `ts-route-service_f6`, really F3) is relabelled first, so both mirrors give one id. |
 | `nezha` | `nezha-{system}-{date}-{index}` (index = 0-based order of the fault in the day's fault list, by `inject_time`), e.g. `nezha-ob-2022-08-22-0` |
-| `fse26_tt` | to define at O-08 |
-| `veyllab` | the capture id (already opaque, set by the lab packager) |
+| `veyllab` (not built, §3.3) | the capture id (already opaque, set by the lab packager) |
 | `otlp_live` | the snapshot id written by the gateway |
 
 The canonical key encodes ground truth for RCAEval (the folder name is the label, [rcaeval_facts §Dataset layout][rf-layout]). It exists only inside the adapter and the private index. `case_id` hides it from engines; it is not a secret against a deliberate brute-force over 735 names, and it is not meant to be.
 
 ### 3.3 Adapters
 
-All adapters are modules under `veyltrace_infralume.adapters`, registered under the entry-point group `veyltrace.adapters`. Each implements `convert(case_ref, cfg) -> CanonicalCase` and `alert_hint(case_ref) -> tuple[int | None, str]` (`t_alert_hint_ns`, `hint_source`). `veyltrace_core.synth` registers the `synth` adapter in the same group (§1).
+Each adapter is a class in a module under `veyltrace_infralume.adapters`, registered under the entry-point group `veyltrace.adapters`, and implements core's `Adapter` protocol: `name`, `version`, `datasets` (patterns of the dataset ids it reads), `cacheable`, `resolve(dataset, case, data_root) -> CaseRef` (`case` is a `case_id` or a canonical key), `list_cases(dataset, data_root)`, `convert(ref, cfg) -> CanonicalCase` and `alert_hint(ref) -> tuple[int | None, str]` (`t_alert_hint_ns`, `hint_source`). Registered: `rcaeval` (`re1-*`, `re2-*`, `re3-*`) and `nezha` (`nezha-*`). `veyltrace_core.synth` registers the `synth` adapter in the same group (§1).
 
-**`rcaeval`** — layouts from [rcaeval_facts §Dataset layout][rf-layout]. Detect layout by file presence: HF Parquet (`metrics.parquet`), Zenodo CSV (`simple_metrics.csv`, or `data.csv` for RE1), figshare (`metrics.json`, optional).
+**`rcaeval`** — layouts from [rcaeval_facts §Dataset layout][rf-layout]. Detect layout by its metrics file: HF Parquet (`metrics.parquet`), tried first, or Zenodo CSV (`simple_metrics.csv`, else `data.csv` for RE1); `rcaeval.layout` can force one. A case directory with no metrics file of the wanted layout is rejected (`unsupported_format`). The figshare JSON layout is not supported.
 
 | Raw | Canonical mapping |
 |---|---|
-| metrics, wide (`time` + one column per `{service}_{metric}`) | Unpivot. Split the column name at the **first** `_`: prefix → service (normalised, §3.4), remainder → `name` (e.g. `cpu`, `mem`, `diskio`, `socket`, `workload`, `error`, `latency-50`, `latency-90`). `t_ns = time × 10⁹`. Drop the duplicate `time.1` column. Drop NaN and ±inf points (never forward-fill; RCAEval stores unobserved points as NaN). `unit`: `mem` → `bytes`, `latency-*` → `s`, others null (CPU unit is unverified). `metric_type` and `attrs_json` null (not published). `source_system = prom` (data came from Prometheus queries, [rcaeval_facts §Metric step and windows][rf-step]). Default table: `simple_metrics` / HF `metrics.parquet`; raw Zenodo `metrics.csv` is not read. |
-| logs (`timestamp`, `container_name`, `message`, optional `level`, `pod_name`, `req_path`, …) | `t_ns = timestamp` in ns, the epoch unit read from the column's magnitude (s, ms, µs or ns): the Hugging Face mirror stores Unix **seconds** (checked on RE2-OB/SS/TT and RE3-OB, O-01), not the nanoseconds the notebooks show. A null `message` becomes an empty `body` (the line still counts). service from `container_name`; `component = pod_name` normalised if present, else service. `severity` from `level` (map `warning→WARN`, `err/error→ERROR`, `critical/fatal→FATAL`, `debug→DEBUG`, `info→INFO`, `trace→TRACE`, else null). `body = message` unchanged (multi-line stack traces stay in one row). `req_path` and other unknown columns → `attrs_json`. The dataset's own `cluster_id` and `log_template` columns are dropped: Signalyth mines its own templates. Never use the `time` "HH:MM" string. |
-| traces (`traceID, spanID, parentSpanID, serviceName, methodName, operationName, startTime` µs, `duration` µs, `statusCode`) | `start_ns = startTime × 1000` (fallback `startTimeMillis × 10⁶`); `end_ns = start_ns + duration × 1000`. `parent_span_id` = null when NaN or empty. `operation = methodName` if non-empty else `operationName` (TraceRCA convention). `kind = unspecified` (no kind column). `status_code` = `statusCode` cast to int32, null if NaN. `status` by §3.5. IDs kept as strings (leading zeros preserved). |
+| metrics, wide (`time` + one column per `{service}_{metric}`) | Unpivot. Split the column name at the **first** `_`: prefix → service (normalised, §3.4), remainder → `name` (e.g. `cpu`, `mem`, `diskio`, `socket`, `workload`, `error`, `latency-50`, `latency-90`). `t_ns = time` rounded to whole seconds `× 10⁹`. Every other column whose name starts with `time` is skipped (the duplicate `time.1`). A column with no `{service}_` prefix is not a service metric: dropped and logged. Drop NaN and ±inf points (never forward-fill; RCAEval stores unobserved points as NaN). `unit`: `mem` → `bytes`, `latency-*` → `s`, others null (CPU unit is unverified). `metric_type` and `attrs_json` null (not published). `source_system = prom` (data came from Prometheus queries, [rcaeval_facts §Metric step and windows][rf-step]). Default table: `simple_metrics` / HF `metrics.parquet`; raw Zenodo `metrics.csv` is not read. |
+| logs (`timestamp`, `container_name`, `message`, optional `level`, `pod_name`, `req_path`, …) | `t_ns = timestamp` in ns, the epoch unit read from the column's magnitude (s, ms, µs or ns): the Hugging Face mirror stores Unix **seconds** (checked on RE2-OB/SS/TT and RE3-OB, O-01), not the nanoseconds the notebooks show. A null `message` becomes an empty `body` (the line still counts). service from `container_name`; `component = pod_name` normalised if present, else service. `severity` from `level`, trimmed and lowercased (map `warn/warning→WARN`, `err/error→ERROR`, `critical/fatal→FATAL`, `debug→DEBUG`, `info→INFO`, `trace→TRACE`, else null). `body = message` unchanged (multi-line stack traces stay in one row). `req_path` and other unknown columns → `attrs_json`. The dataset's own `cluster_id` and `log_template` columns are dropped: Signalyth mines its own templates. Never use the `time` "HH:MM" string. |
+| traces (`traceID, spanID, parentSpanID, serviceName, methodName, operationName, startTime` µs, `duration` µs, `statusCode`) | `start_ns = startTime × 1000` (fallback `startTimeMillis × 10⁶`); `end_ns = start_ns + duration × 1000`. `parent_span_id` = null when NaN or empty. `operation = methodName` if non-empty else `operationName` (TraceRCA convention). `kind = unspecified` (no kind column). `component` = null unless it says more than `service` (e.g. `carts-db`). `status_code` = `statusCode` cast to int32, null if NaN. `status` by §3.5. IDs kept as strings (leading zeros preserved). |
 | events | none in RCAEval → zero rows, `sources.events = false` |
-| `inject_time.txt` | read **only** by `alert_hint()`: `t_alert_hint_ns = seconds × 10⁹`, `hint_source = oracle` (§3.7) |
+| `inject_time.txt` | read **only** by `alert_hint()`: line 1 as integer seconds, `t_alert_hint_ns = seconds × 10⁹`, `hint_source = oracle` (§3.7). No file: null, `none`. Not an integer: the case is rejected (`no_hint`) |
 
-Never opened by the adapter (enforced by an allow-list of readable file names per layout): `cases.parquet`, `root_cause.txt`, `pod-node-*.csv`, any `*.png`, `*.log`. A header-only `logs.csv` or `traces.csv` means the source is absent ([rcaeval_facts §Data quirks][rf-quirks]).
+Never opened by the adapter (enforced by an allow-list of readable file names per layout; any other name raises `ForbiddenFile`): `cases.parquet`, `root_cause.txt`, `pod-node-*.csv`, any `*.png`, `*.log`. A header-only `logs.csv` or `traces.csv` means the source is absent ([rcaeval_facts §Data quirks][rf-quirks]).
 
-Hint sanity: if the hint lies outside `[data_start_ns, data_end_ns]` (two RE1-OB cases have broken inject times, [rcaeval_facts §Data quirks][rf-quirks]), Infralume still writes it unchanged and logs a warning; the alert step decides what to do (open question 8).
+Hint sanity: if the hint lies outside `[data_start_ns, data_end_ns]` (two RE1-OB cases have broken inject times, [rcaeval_facts §Data quirks][rf-quirks]), Infralume still writes it unchanged and logs a warning (`infralume.hint_outside_span`; not under `detected`, where the hint is blanked). Core's alert step then rejects the case by default (§11, question 8).
 
-**`nezha`** — format verified on the repository at commit `d8140101` (O-08, 22 Nov 2026). `rca_data/<date>/` holds one collection day: `<date>-fault_list.json`, `metric/<pod>_metric.csv` (one row per minute for the whole day), and `log/HH_MM_log.csv`, `trace/HH_MM_trace.csv`, which exist only for the fault's minute and the two after it. Four days, 101 faults: 2022-08-22 and -23 are Online Boutique (56), 2023-01-29 and -30 Train Ticket (45); the system is read from the pod names (`ts-` = Train Ticket). Datasets `nezha-ob`, `nezha-tt`.
+**`nezha`** — format verified on the repository at commit `d8140101` (O-08, 22 Nov 2026). `rca_data/<date>/` holds one collection day: `<date>-fault_list.json`, `metric/<pod>_metric.csv` (one row per minute for the whole day), and `log/HH_MM_log.csv`, `trace/HH_MM_trace.csv`, which exist only for the fault's minute and the two after it. Four days, 101 faults: 2022-08-22 and -23 are Online Boutique (56), 2023-01-29 and -30 Train Ticket (45); the system is read from the pod names (`ts-` = Train Ticket). Datasets `nezha-ob`, `nezha-tt`. The fetcher extracts the days to `${VEYLTRACE_DATA}/nezha/src/rca_data/`.
 
 - **Case and slice.** One case per fault-list entry; slice `[t_fault − 12 min, t_fault + 12 min)` clipped to the midpoint between neighbouring faults of the day (mirrors RCAEval's 12 + 12 min shape, [rcaeval_facts §Metric step and windows][rf-step]), so no row belongs to two cases. The index entry of a case is `<day directory>/<index>`.
 - **Minute files read.** Every log and trace file of the day named after a minute in `[lo − 1 min, hi + 1 min]`, then filtered to the slice: a file named `HH_MM` holds rows from about 41 s before that minute to 20 s after it, so a fault's last file can hold rows that belong to the next case. On the published data every case ends up with exactly its own three files.
-- **Duplicate log rows.** Neighbouring minute files overlap by a second or two, and 24,717 of the 4.2 million log rows are published twice (88 more are repeated inside one file). Repeated rows are dropped and logged (§6); spans are de-duplicated by the shared span rule.
+- **Duplicate log rows.** Neighbouring minute files overlap by a second or two: of the 4,175,406 published log rows (4.2 million; 4,175,405 well-formed, see the next item), 24,717 repeat across minute files and 88 more inside one file. Rows of a case that are equal in every column are dropped and logged (§6); spans are de-duplicated by the shared span rule.
+- **Malformed rows.** A CSV row with the wrong number of columns is skipped and logged (§6): exactly one row in all published minute files is two lines spliced together, a log row (`2023-01-29/log/10_06_log.csv`, 10 fields where the header has 8). The files hold 8,299,354 rows (8.3 million): 4,175,406 log rows in 303 files and 4,123,948 trace rows in 303 files. Counted on 27 Nov 2026 on the fetched copy of the pinned commit `d8140101`, with Python's `csv` reader over every `rca_data/*/log/*.csv` and `rca_data/*/trace/*.csv`, header rows excluded; no trace row is malformed.
 - **Input names.** `case_manifest.inputs` names minute files by their position among the case's files (`logs/minute-0.csv`, `traces/minute-0.csv`, …), never by their real `HH_MM` name, which is the clock minute around the fault and would reveal the fault time where the hint is blanked. Pod metric files keep their names; the fault list is not an input.
 - **Fault time.** `inject_time` (UTC) only. `inject_timestamp` is not used: on the Train Ticket days it is eight hours off and repeats between entries. Entries are ordered by that time, and two entries may not share it. The fault list is read only for these times (slice bounds and the oracle hint); `inject_pod`, `inject_type` and `root_cause_*.json` are never read.
-- **Metrics.** Pod files only; time from the `Time` text in whole seconds, which must be marked `+0000 UTC` (the `TimeStamp` column is 2·10^8 s off in some pod files). Names: `cpu`, `cpu_usage_rate`, `mem` (Mi converted to bytes), `memory_usage_rate`, `syscall_read`, `syscall_write`, `network_receive_bytes`, `network_transmit_bytes`, `latency-90/95/99` (server side), `client_p90/95/99` (client side, kept outside the latency family), `workload`, `success_rate`. Node-level columns are not service metrics and are not read.
-- **Logs.** Body = the `log` field of the container's JSON line, or its inner `message` when that is JSON (Online Boutique); severity from the inner `severity` or the level word at the start of a plain line (Train Ticket); trace and span ids go to `attrs_json`.
+- **Metrics.** Pod files only; time from the `Time` text in whole seconds, which must be marked `+0000 UTC` (the `TimeStamp` column is 2·10^8 s off in some pod files); a row whose `Time` does not parse or lacks the mark is dropped. Service = the pod file name without its generated suffix, `component` = the service, `source_system = prom`. Names: `cpu`, `cpu_usage_rate`, `mem` (Mi converted to bytes), `memory_usage_rate`, `syscall_read`, `syscall_write`, `network_receive_bytes`, `network_transmit_bytes`, `latency-90/95/99` (server side), `client_p90/95/99` (client side, kept outside the latency family), `workload`, `success_rate`. Node-level columns are not service metrics and are not read.
+- **Logs.** Body = the `log` field of the container's JSON line, or its inner `message` when that is JSON (Online Boutique); severity from the inner `severity` or the level word in the first 64 characters of a plain line (Train Ticket); service = pod name without its generated suffix, `component` = the pod name; trace and span ids go to `attrs_json`, and the `trace_id` and `span_id` columns stay null.
 - **Spans.** Service = pod name without its generated suffix; `root` parents are null; times in microseconds; Nezha records no status code, so every span is `unset` and the error-rate signals are empty.
 - **Not read** (outside the allow-list): `front_service.csv`, `dependency.csv`, `source_50.csv`, `destination_50.csv`, `traceid/`, and `construct_data/` (open question 6).
 - **Known limit.** A case has at most 12 min of metrics before the fault at one point a minute (median 4 min, because faults are 4–9 min apart), and its logs and traces start about 1.5 min before the fault. With core's default baseline window `[t_alert − 20 min, t_alert − 2 min]`, 86 of the 101 cases have fewer than 3 baseline metric points and none has baseline logs or spans.
 
-**`fse26_tt`** — "format unverified". Zenodo DOI 10.5281/zenodo.17105974, 1,430 cases; size, file format, injection tool and licence not verified ([benchmarks_and_testbed §Q1][bt]). Until R-07 confirms them, the module exists and raises `UnsupportedFormat`. Cut-list item 2 ([07 §1.1](../07-roadmap.md)).
+**`fse26_tt`** — cut ([07 §1.1](../07-roadmap.md) cut item 2): no module, adapter or fetcher. The dataset (Zenodo DOI 10.5281/zenodo.17105974, 1,430 cases) was never verified for size, file format, injection tool or licence ([benchmarks_and_testbed §Q1][bt]).
 
-**`veyllab`** — reads a packaged capture from `${VEYLTRACE_DATA}/veyllab/<dataset>/<capture_id>/`, the layout in [05 §9](../05-fault-lab-and-dataset.md): `otlp/{traces,metrics,logs}.jsonl` (protobuf-JSON mapping, already scrubbed by the packager), `events.jsonl` in `telemetry.events` shape, `oracle_alert.json` (`{"t_alert_ns": …}` → hint, `hint_source = oracle`), `capture.json` (`capture_id`, `system`). Raw captures and answer keys stay under `lab/captures/`, which Infralume never reads. Conversion uses the OTLP converter (§3.9); scrubbing is re-applied (idempotent).
+**`veyllab`** — not built: moved to v1.1 (lead decision, 23 Nov 2026; ADR 20261124-as-observe-cuts-v1-1). The plan: it reads a packaged capture from `${VEYLTRACE_DATA}/veyllab/<dataset>/<capture_id>/`, the layout in [05 §9](../05-fault-lab-and-dataset.md): `otlp/{traces,metrics,logs}.jsonl` (protobuf-JSON mapping, already scrubbed by the packager), `events.jsonl` in `telemetry.events` shape, `oracle_alert.json` (`{"t_alert_ns": …}` → hint, `hint_source = oracle`), `capture.json` (`capture_id`, `system`). Raw captures and answer keys stay under `lab/captures/`, which Infralume never reads. Conversion uses the OTLP converter (§3.9); scrubbing is re-applied (idempotent).
 
-**`otlp_live`** — reads a gateway snapshot: canonical-shape Parquet for the four sources plus `snapshot.json` (`snapshot_id`, trigger time). It re-applies normalisation and scrubbing (both idempotent) and writes `t_alert_hint_ns` = trigger time, `hint_source = live`, `dataset = live`. Built (#502): the snapshot id is the canonical case key, found through `index/live.json`; `system` is `other` and no per-system alias applies, because a snapshot does not name its system; a missing, unreadable or foreign `snapshot.json`, or a Parquet file that fails its contract, rejects the case as `invalid_capture`. `synth` cases do not go through this reader: `veyltrace_core.synth` registers its own adapter (§1).
+**`otlp_live`** — built (#508, O-07), for the live demo. It reads a gateway snapshot: canonical-shape Parquet for the four sources plus `snapshot.json` (`snapshot_id`, trigger time). It re-applies normalisation and scrubbing (both idempotent) and writes `t_alert_hint_ns` = trigger time, `hint_source = live`, `dataset = live`. The snapshot id is the canonical case key, found through `index/live.json`; `system` is `other` and no per-system alias applies, because a snapshot does not name its system; a missing, unreadable or foreign `snapshot.json`, or a Parquet file that fails its contract, rejects the case as `invalid_capture`. `synth` cases do not go through this reader: `veyltrace_core.synth` registers its own adapter (§1).
 
 ### 3.4 Service-name normalisation
 
 Applied to every service, component and entity value, in this order:
 
 1. Trim; lowercase.
-2. If the value came from a pod-name field (`pod_name`, `k8s.pod.name`): strip Kubernetes generated suffixes. Deployment pods: `-[bcdfghjklmnpqrstvwxz2456789]{6,10}-[bcdfghjklmnpqrstvwxz2456789]{5}$`; DaemonSet/Job pods: `-[bcdfghjklmnpqrstvwxz2456789]{5}$`; StatefulSet: `-\d+$`. (A priori, from the Kubernetes name generator's vowel-free alphabet; checked against real `pod_name` values at O-01.) The unstripped pod name is kept as `component`.
-3. Drop the row if the name is in `normalise.drop_containers` (sidecars such as `istio-proxy`).
+2. If the value came from a pod-name field (`pod_name`, `k8s.pod.name`): strip Kubernetes generated suffixes. Deployment pods: `-[bcdfghjklmnpqrstvwxz2456789]{6,10}-[bcdfghjklmnpqrstvwxz2456789]{5}$`; DaemonSet/Job pods: `-[bcdfghjklmnpqrstvwxz2456789]{5}$`; StatefulSet: `-\d+$`. (A priori, from the Kubernetes name generator's vowel-free alphabet; checked against real `pod_name` values at O-01.) The patterns are tried in that order and the first one that matches and leaves a non-empty name is applied, once; a pattern that would empty the name is skipped and the next one tried (`names.strip_pod_suffix`). The unstripped pod name (with `_` replaced by `-`) is kept as `component`.
+3. Drop the row if the name, before or after step 2, is in `normalise.drop_containers` (sidecars such as `istio-proxy`; compared in lowercase). The test is repeated on the service that steps 4–6 give, so a name that aliases or folds into a dropped container is dropped too.
 4. Apply the per-system alias map, e.g. OB `frontendservice → frontend` (trace vs metric naming, [rcaeval_facts §Dataset layout][rf-layout]).
-5. Fold component suffixes: a name ending in a listed suffix (default `-db`) becomes `service = base`, `component = original`. This matches RCAEval's scorer, which strips `-db` ([rcaeval_facts §Ground truth and scoring][rf-scoring]).
-6. Replace `_` with `-`. RCAEval ranks use `_` as the service/indicator separator, so a service name must not contain it ([rcaeval_facts §Ground truth and scoring][rf-scoring]).
+5. Fold component suffixes: a name ending in a listed suffix (default `-db`) becomes `service = base`, `component` = the name before folding (after its alias and step 6). This matches RCAEval's scorer, which strips `-db` ([rcaeval_facts §Ground truth and scoring][rf-scoring]).
+6. Replace `_` with `-`. RCAEval ranks use `_` as the service/indicator separator, so a service name must not contain it ([rcaeval_facts §Ground truth and scoring][rf-scoring]). Steps 4–6 are repeated until the name stops changing.
 7. Validate against `^[a-z0-9][a-z0-9.-]*$`; anything else raises `InvalidName` (adapter bug, not data).
 
 Normalisation is idempotent: `n(n(x)) = n(x)` (property test).
@@ -142,13 +144,15 @@ Rules version `scrub.rules_version` (default `scrub-1`); counts go to `case_mani
 |---|---|---|
 | Deny-listed attribute keys: key starts with `feature_flag.`, or any dot-separated key segment matches `chaos*`, `fault*`, `inject*` (case-insensitive) | `attrs_json`, `detail_json`, OTLP resource and span attributes | drop the attribute; count `dropped_attributes` |
 | Fault-tool services: `flagd`, `flagd-ui`, Chaos Mesh components (`scrub.drop_services`) | all telemetry rows | drop rows; count `dropped_rows` |
-| Chaos objects in events (any detail key or value containing `chaos`, case-insensitive) | events | drop row |
-| Folder tokens: canonical case key, original relative path, original directory names, capture id | every string column and JSON value, attribute keys included | replace by `<case>`; a service or pod name that holds one rejects the case (`invalid_name`), since `<case>` makes no valid name |
+| Chaos objects in events (any detail key or value containing `chaos`, case-insensitive) | events | drop row; count `dropped_rows` |
+| Folder tokens: the canonical case key, the case path relative to the data root, and each directory name in it that contains `_` (RCAEval's `{service}_{fault}`); for `nezha` the canonical key only at conversion (at materialise, the overlay scrubber's tokens are built from the case path as for every adapter, so they also hold that path and its directory name `rca_data`). Matched case-insensitively | every string column and JSON value, attribute keys included | replace by `<case>`; a service or pod name that holds one rejects the case (`invalid_name`), since `<case>` makes no valid name |
 | Flag-change events (`kind = flag`) | events | keep; any flag key in `detail_json` that is not already an 8-hex digest is replaced by the first 8 hex of its SHA-256, the same rule the lab packager applies ([05 §7](../05-fault-lab-and-dataset.md)); kept as decided in [02 §6.1](../02-architecture.md) |
 
 Log bodies are not rewritten except for folder tokens: rewriting words like "fault" would destroy legitimate evidence.
 
-**Scrub test** (O-01, `tests/test_scrub.py`). Builds a raw fixture with planted tokens in attribute keys, bodies, file names, service names and events; runs the adapter; then reads every output (Parquet string columns and JSON) and asserts: (a) no folder token appears anywhere; (b) no key in any `attrs_json`/`detail_json` matches the deny-list; (c) no row has a service, component or entity in `scrub.drop_services`; (d) `scrub` counts equal the planted counts; (e) scrubbing twice equals scrubbing once. The same assertions (a)–(c) run on three real RCAEval cases in the real-data smoke tests, with the real directory names as tokens.
+`dropped_rows` also counts the rows of dropped containers (`normalise.drop_containers`, §3.4 step 3). Rows dropped for missing data (no name, no timestamp, §6) are log lines only, never scrub counts.
+
+**Scrub test** (O-01, `tests/test_scrub.py`; the rules alone in `tests/test_scrub_rules.py`). Builds a raw fixture with planted tokens in attribute keys, bodies, file names, service names and events; runs the adapter; then reads every output (Parquet string columns and JSON) and asserts: (a) no folder token appears anywhere; (b) no key in any `attrs_json`/`detail_json` matches the deny-list; (c) no row has a service, component or entity in `scrub.drop_services`; (d) `scrub` counts equal the planted counts; (e) scrubbing twice equals scrubbing once. The same assertions (a)–(c) run on one real RCAEval case per suite of the real-data smoke test (five, §7), with the real directory names as tokens.
 
 ### 3.7 Alert hint and how the alert step uses it
 
@@ -157,10 +161,9 @@ Infralume reads the run's protocol (shared key `alert.protocol` in `config/core.
 | Dataset | `t_alert_hint_ns` (oracle or live protocol) | `hint_source` |
 |---|---|---|
 | `rcaeval` | `inject_time.txt` × 10⁹ | `oracle` |
-| `nezha` | fault-list timestamp of the case | `oracle` |
-| `veyllab` | `oracle_alert.json` | `oracle` |
+| `nezha` | fault-list `inject_time` (UTC) of the case | `oracle` |
+| `veyllab` (not built, §3.3) | `oracle_alert.json` | `oracle` |
 | `otlp_live` | watcher breach time or "Diagnose now" time | `live` |
-| `fse26_tt` | to define at O-08 | `oracle` or `none` |
 | `synth` | as written by the generator | as written |
 | no published time | null | `none` |
 
@@ -179,8 +182,8 @@ Core then adds `alert.shift_s` (recorded as `alert.shift_ns`) and computes the c
 ### 3.8 Manifest fields
 
 - `data_start_ns`, `data_end_ns`: min/max timestamp over the case's own non-dropped sources (span `start_ns`/`end_ns` included). Overlay events (§3.10) are merged into `events` but never extend the span.
-- `services`: sorted union of normalised services in metrics, logs and spans (events entities that are not telemetry services are excluded).
-- `inputs`: one entry per raw file that contributed to a non-empty emitted table, named `<source>/<basename>` (e.g. `traces/traces.parquet`), never containing a folder name; plus `overlay/events.parquet` when an overlay is used.
+- `services`: sorted union of normalised services in metrics, logs and spans, after `sources.drop` (events entities that are not telemetry services are excluded).
+- `inputs`: one entry (`name`, `sha256`, `bytes`) per raw file that contributed to a non-empty emitted table, named `<source>/<basename>` (e.g. `traces/traces.parquet`; Nezha minute files get position names, §3.3), never containing a folder name; plus `overlay/events.parquet` when an overlay is used.
 - `system`: from the adapter (`ob | ss | tt | otel | other`).
 
 ### 3.9 OTLP → canonical converter (O-07)
@@ -212,15 +215,15 @@ The name encoding stays even with `attrs_json?`, because the 03 key (`service, c
 
 | Hook | Effect |
 |---|---|
-| `sources.drop: [logs, …]` | materialise step writes zero-row tables for those sources and sets `sources.<s> = false`; their raw files leave `inputs` |
+| `sources.drop: [logs, …]` | materialise step writes zero-row tables for those sources and sets `sources.<s> = false`; their raw files leave `inputs`, and their services and times no longer count for `services`, `data_start_ns` and `data_end_ns`. Valid names: `metrics`, `logs`, `traces`, `events`; any other name is a config error |
 | `alert.shift_s: <int>` | shared key in `config/core.yaml` (next to `alert.protocol`); O-09 maps the experiment's `protocol.shift_s` ([04 §5.2](../04-evaluation-protocol.md)) to it; **applied by core's alert step**, which records it as `alert.shift_ns`. Infralume does not read it |
-| `events.overlay_path` | merges an events file (03 §2.5 shape) produced by the RCAEval-C generator in `bench/decoys/` (O-13). The generator writes overlays to `${VEYLTRACE_DATA}/overlays/<experiment_id>/<case_id>/events.parquet`, never under `bench/` or `lab/`, because Infralume may not read there. Every overlay row gets `source_system = synthetic` and `actor = null`, so no column separates true changes from decoys; entities are normalised and scrubbed; the file is listed in `inputs` as `overlay/events.parquet`; `sources.events = true` if any row survives |
+| `events.overlay_path` | merges an events file (03 §2.5 shape) produced by the RCAEval-C generator in `bench/decoys/` (O-13). The generator writes overlays under `${VEYLTRACE_DATA}`, never under `bench/` or `lab/`, because Infralume may not read there. Every overlay row gets `source_system = synthetic` and `actor = null`, so no column separates true changes from decoys; `sources.events = true` if any row survives. Rules below |
 
 All three come from config, so they change the config hash and therefore `run_id`.
 
-**Built (O-09).** `sources.drop` and `alert.shift_s` were already in place (O-00/O-01 and core's alert step); O-09 adds the overlay. Where the text above left a choice:
+**Overlay rules (O-09).**
 
-- *Path.* `events.overlay_path` is a relative POSIX path resolved under `${VEYLTRACE_DATA}` (core rejects absolute paths, `~`, `$` and `..` in every `*_path` key), e.g. `overlays/<experiment_id>/<case_id>/events.parquet`. A missing file, or one that is not a valid `telemetry.events` table, is a config error (exit 1), not a rejected case.
+- *Path.* `events.overlay_path` is a relative POSIX path resolved under `${VEYLTRACE_DATA}` (core rejects absolute paths, `~`, `$` and `..` in every `*_path` key), e.g. `overlays/<experiment_id>/<case_id>/events.parquet`. A missing file, or one that is not a valid `telemetry.events` table, is a config error (`ConfigError`, exit 4), not a rejected case (exit 3).
 - *Untrusted rows.* Each overlay row goes through the case's name rules (aliases, suffix folding; the component name is kept as `entity`) and through the scrubber: deny-listed detail keys are removed, flag keys hashed, folder tokens replaced. Rows on a dropped container or a fault-tool service, and rows whose detail names a chaos object, are dropped. Both counts are added to `scrub.dropped_attributes` and `scrub.dropped_rows`.
 - *Merge.* Overlay rows are appended to the case's own events (which are not changed) and the writer sorts the table. Every overlay row is kept, including rows before `data_start_ns` or after `data_end_ns`, but the span stays that of the case's own telemetry (lead decision, #323): RE2 has 12 min of data before the injection and RCAEval-C decoys start 30 min before it, so a stretched span would move the clamped baseline window and Signalyth's series grid in the cells with decoys. `services` is unchanged too, as for any event entity (§3.8).
 - *With `sources.drop: [events]`* the overlay is dropped with the case's events: no rows, no `overlay/events.parquet` input.
@@ -228,14 +231,15 @@ All three come from config, so they change the config hash and therefore `run_id
 
 ### 3.11 Dataset fetcher
 
-`veyltrace data fetch <dataset> [--suite re2-ob] [--source hf|zenodo] [--cases N]` downloads into `${VEYLTRACE_DATA}` (default `~/veyltrace-data`; the fetcher refuses a target inside the git work tree, so data cannot be committed and nothing lands under `bench/` or `lab/`) and writes `${VEYLTRACE_DATA}/index/<dataset>.json` plus a `fetch.lock.json` with the SHA-256 and size of every file. Built (O-01b2): Hugging Face cases land in `rcaeval/hf/<case>/` (allow-listed files and `inject_time.txt` only; `root_cause.txt` is not fetched), the lock is `rcaeval/fetch.lock.json`, each file is checked against the tree API's size and LFS SHA-256 (git blob id for plain files); `--source zenodo` is a usage error until a follow-up adds it.
+`veyltrace data fetch <name> [--suite re2-ob] [--source hf] [--cases N]` (`<name>` = `rcaeval` or `nezha`) downloads into `${VEYLTRACE_DATA}` (default `~/veyltrace-data`; the fetcher refuses a target inside the git work tree, so data cannot be committed and nothing lands under `bench/` or `lab/`). It writes one private index per dataset id (`index/re2-ob.json`, `index/nezha-tt.json`, …) and a lock file with the SHA-256 and size of every file: `rcaeval/fetch.lock.json`, and `nezha/fetch.lock.json`, which also records the repository and the commit. A verified file that is already present is not downloaded again. Exit codes: 0 done, 1 a download or a check failed, 2 usage.
+
+`rcaeval` (O-01b2): Hugging Face cases land in `rcaeval/hf/<case>/` (allow-listed files and `inject_time.txt` only; `root_cause.txt` is not fetched), and each file is checked against the tree API's size and LFS SHA-256 (git blob id for plain files). Without `--suite` all nine suites are fetched; `--cases N` keeps the first N cases of each suite, by name. `--source zenodo` is not built: a usage error (exit 2).
 
 | Dataset | Source (from [rcaeval_facts §Downloads and licence][rf-downloads], [benchmarks_and_testbed §Q1][bt]) | Size |
 |---|---|---|
-| `rcaeval` (default `--source hf`) | Hugging Face `phamquiluan/RCAEval`, file list from the tree API `https://huggingface.co/api/datasets/phamquiluan/RCAEval/tree/main?recursive=true`; files via the standard HF `resolve/main/<path>` URL (verify at O-01) | 3.44 GB total; RE2-SS ≈ 101 MB, RE2-OB ≈ 923 MB, RE2-TT ≈ 1.97 GB |
-| `rcaeval --source zenodo` | Zenodo record 14590730, `https://zenodo.org/records/14590730/files/RE2-OB.zip?download=1` pattern | ≈ 5.2 GB zips, ≈ 38 GB extracted |
+| `rcaeval` (default `--source hf`) | Hugging Face `phamquiluan/RCAEval`, file list from the tree API `https://huggingface.co/api/datasets/phamquiluan/RCAEval/tree/main?recursive=true`; (pages followed through the `Link` header, only on huggingface.co); files from `https://huggingface.co/datasets/phamquiluan/RCAEval/resolve/main/<path>` | 3.44 GB total; RE2-SS ≈ 101 MB, RE2-OB ≈ 923 MB, RE2-TT ≈ 1.97 GB |
+| `rcaeval --source zenodo` (not built) | Zenodo record 14590730, `https://zenodo.org/records/14590730/files/RE2-OB.zip?download=1` pattern | ≈ 5.2 GB zips, ≈ 38 GB extracted |
 | `nezha` | GitHub `IntelligentDDS/Nezha` (MIT), the tar archive of the pinned commit, streamed; file list, sizes and git blob ids from the tree API of that commit, and every extracted file is verified against its blob id. Fetched: per day the fault list and the adapter's allow-listed files (`metric/*_metric.csv`, `log/`, `trace/`); not `traceid/`, the other metric files or `construct_data/`. Whole archive only: `--suite`, `--source`, `--cases` are refused. A dropped connection keeps the verified files, so the next run resumes | 722 files, 2.8 GB extracted |
-| `fse26_tt` | Zenodo DOI 10.5281/zenodo.17105974 | unverified |
 
 `cases.parquet` (the HF ground-truth index) is downloaded only into `${VEYLTRACE_DATA}/rcaeval/answers/` for bench; the adapter's allow-list never opens it. Licence: code MIT; dataset MIT on HF/figshare, CC BY 4.0 on Zenodo — cite the RCAEval paper either way ([rcaeval_facts §Downloads and licence][rf-downloads]).
 
@@ -245,53 +249,66 @@ Isolation: the fetcher needs HTTP, which engines 1–7 must not import (AGENTS �
 
 | Key | Default | Unit | Rationale / source |
 |---|---|---|---|
+| `alert.protocol` | `oracle` (in `config/core.yaml`) | — | shared core key; Infralume reads it only to blank the hint under `detected` (§3.7) |
 | `alert.shift_s` | `0` (in `config/core.yaml`) | s | O-09 hook; shared core key, read and applied by core's alert step, not by Infralume; grid −120…+120 s ([04 §5.2](../04-evaluation-protocol.md)) |
 | `sources.drop` | `[]` | — | O-09 telemetry ablation ([04 §5.2](../04-evaluation-protocol.md)) |
 | `events.overlay_path` | `null` | path | RCAEval-C overlay from O-13; must be under `${VEYLTRACE_DATA}` |
 | `rcaeval.layout` | `auto` | — | `auto \| hf \| zenodo` |
-| `rcaeval.metrics_table` | `simple` | — | the table RCAEval's own runner reads ([rcaeval_facts §Dataset layout][rf-layout]) |
+| `rcaeval.metrics_table` | `simple` | — | the table RCAEval's own runner reads ([rcaeval_facts §Dataset layout][rf-layout]); `simple` is the only accepted value |
 | `normalise.aliases` | `{ob: {frontendservice: frontend}}` | — | [rcaeval_facts §Dataset layout][rf-layout] |
 | `normalise.component_suffixes` | `["-db"]` | — | RCAEval scorer convention ([rcaeval_facts §Ground truth and scoring][rf-scoring]) |
-| `normalise.drop_containers` | `[istio-proxy, istio-init, POD]` | — | a priori; sidecars are not services; verify on RE2 logs |
+| `normalise.drop_containers` | `[istio-proxy, istio-init, POD]` | — | a priori; sidecars are not services; verified on RE2 (`istio-init` appears in RE2-TT metrics) |
 | `scrub.rules_version` | `scrub-1` | — | bump on any rule change |
 | `scrub.deny_key_patterns` | `["feature_flag.*", "chaos*", "fault*", "inject*"]` | — | [02 §6.1](../02-architecture.md) |
 | `scrub.drop_services` | `[flagd, flagd-ui, chaos-controller-manager, chaos-daemon, chaos-dashboard, chaos-dns-server]` | — | [02 §6.1](../02-architecture.md); flag-key leak risk [benchmarks_and_testbed §Q3][bt] |
 | `status.otel_code_set` | `[0, 1, 2]` | — | §3.5 |
 | `status.http_error_min` | `500` | — | §3.5 |
-| `otlp.metric_label_keys` | `[http.response.status_code, http.route, rpc.method]` | — | a priori; HTTP stable semconv, RPC release candidate ([stack_and_market §A1][sm]) |
-| `duckdb.threads` | `1` | — | deterministic aggregates ([rcaeval_facts §Engineering][rf-eng]) |
-| `duckdb.memory_limit` | `1GB` | bytes | share of the 3 GB budget (§8) |
-| `fetch.rcaeval.hf_repo` | `phamquiluan/RCAEval` | — | [rcaeval_facts §Downloads and licence][rf-downloads] |
-| `fetch.rcaeval.zenodo_record` | `14590730` | — | [rcaeval_facts §Downloads and licence][rf-downloads] |
-| `fetch.nezha.commit` | `d8140101fdb4e7dfb60d3ef9f64706f382b68470` | — | pinned at O-08 (22 Nov 2026); a constant in `fetch/nezha.py`, as `data fetch` has no run config |
+| `otlp.metric_label_keys` | `[http.response.status_code, http.route, rpc.method]` | — | not a key of the file: the named constant `METRIC_LABEL_KEYS` in `otlp.py`, until a new key can be added without regenerating goldens on another machine (#256, lead decision on #24); a priori; HTTP stable semconv, RPC release candidate ([stack_and_market §A1][sm]) |
+| `duckdb.threads` | `1` | — | deterministic aggregates ([rcaeval_facts §Engineering][rf-eng]); read by `veyltrace_core.duck.connect`, which ingest does not call today (§5) |
+| `duckdb.memory_limit` | `1GB` | — | share of the 3 GB budget (§8) |
+| `fetch.rcaeval.hf_repo` | `phamquiluan/RCAEval` | — | [rcaeval_facts §Downloads and licence][rf-downloads]; a constant in `fetch/rcaeval.py`, not a key of the file, as `data fetch` has no run config |
+| `fetch.nezha.commit` | `d8140101fdb4e7dfb60d3ef9f64706f382b68470` | — | pinned at O-08 (22 Nov 2026); a constant in `fetch/nezha.py`, for the same reason |
+
+The Zenodo record (14590730) has no key or constant: `--source zenodo` is not built (§3.11). A change in `normalise`, `rcaeval`, `scrub` or `status` converts the case again (§3.1), also for a Nezha case.
 
 ## 5. Determinism and isolation
 
 - No wall clock: times come from data; the cache key has no timestamps.
 - File discovery: list, then sort by relative path (byte order). Never iterate an unsorted glob or `os.listdir`.
-- DuckDB `threads = 1` for any aggregate; exact functions only (no `approx_*`).
+- Ingest uses no DuckDB today (Arrow and NumPy only, §8). Any later aggregate goes through `veyltrace_core.duck.connect` with `threads = 1`; exact functions only (no `approx_*`).
 - Output order is the 03 key; ties (e.g. identical log rows) are broken by all remaining columns.
 - `canonical_json` for `attrs_json`, `detail_json` and the manifest.
-- Allowed imports: `duckdb`, `pyarrow`, `numpy`, `opentelemetry-proto`/`protobuf` (O-07), stdlib. Banned: any HTTP client, `socket`, LLM clients, `torch`, `transformers`. The `fetch` subpackage is the only network code and is unreachable from `api.py`.
+- Allowed imports: `duckdb`, `pyarrow`, `numpy`, stdlib. The converter takes the protobuf-JSON mapping as plain dicts, so there is no protobuf dependency (§3.9). Banned: any HTTP client, `socket`, LLM clients, `torch`, `transformers`. The `fetch` subpackage is the only network code and is unreachable from `api.py`.
 - Infralume never reads `answer_key` files, `cases.parquet`, `root_cause*` files, or fault-list root-cause fields, and never opens a path under `bench/` or `lab/` ([02 §9](../02-architecture.md), rule 3; the isolation test scans for those path literals). Data roots come only from `${VEYLTRACE_DATA}`.
 
 ## 6. Missing data and failure behaviour
 
 | Situation | Behaviour |
 |---|---|
-| Source file missing or header-only | zero-row table, `sources.<s> = false` |
-| All four sources empty | `InvalidCase("no_telemetry")` |
+| Logs or traces file missing or header-only | zero-row table, `sources.<s> = false` |
+| RCAEval case with no metrics file of the wanted layout | `CaseRejected("unsupported_format")` |
+| All four sources empty (in the raw case, or after `sources.drop`) | `CaseRejected("no_telemetry")` (exit 3) |
+| Service or pod name that holds a folder token | `CaseRejected("invalid_name")` (§3.6) |
+| `inject_time.txt` whose first line is not an integer | `CaseRejected("no_hint")` |
+| Unknown name in `sources.drop`; overlay file missing or invalid | `ConfigError` (exit 4) |
+| Cache entry incomplete or unreadable | converted again (§3.1) |
 | Metric value NaN/inf | point dropped |
+| Metric column with no `{service}_` prefix | dropped, logged |
+| Log or span row with no service name | dropped, logged |
+| Row of a dropped container (`normalise.drop_containers`) | dropped, counted in `scrub.dropped_rows` |
+| Nezha CSV row with the wrong number of columns | skipped, logged |
+| Nezha metric row whose `Time` does not parse or is not marked `+0000 UTC` | dropped |
+| Nezha log row repeated in every column | kept once, count logged |
 | Span with `end < start` | dropped, counted in a structured log line (not an artefact) |
 | Span with unknown parent | kept; `parent_span_id` stays as given (Signalyth treats it as an orphan) |
 | Duplicate span id within a trace | keep the first in key order, drop the rest, log count |
 | Log without timestamp | dropped |
 | Unknown severity string | `severity = null` |
-| Hint outside the data span | written unchanged, warning logged; alert step decides |
+| Hint outside the data span | written unchanged, warning logged; core's alert step rejects the case by default (§11, question 8) |
 | No published alert time | `t_alert_hint_ns = null`, `hint_source = none` (only the detected protocol can run) |
 | `alert.protocol = detected` | `t_alert_hint_ns = null`, `hint_source = none`, whatever the dataset publishes |
-| Malformed OTLP payload | `InvalidCapture` naming the file; no partial output |
-| Unknown columns | ignored for metrics; stored in `attrs_json` for logs |
+| Malformed OTLP payload (§3.9) | rejected (`invalid_capture`) naming the file; no partial output |
+| Unknown columns | metrics: every column not named `time*` is read as a metric; logs: stored in `attrs_json`; spans: not read |
 
 ## 7. Tests
 
@@ -323,11 +340,11 @@ Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocatio
 
 | ID | When | Scope | Acceptance (summary) |
 |---|---|---|---|
-| O-00 | by M0, Tue 3 Nov | stub `run(ctx)` (runs the `synth` adapter from `veyltrace_core.synth`); fixtures | e2e on `synth-01` through Observe |
-| O-01 | Phase 1, by M1 Sun 8 Nov | fetcher for `rcaeval`; `rcaeval` adapter (RE1 metrics; RE2/RE3 metrics, logs, traces); scrub + test; manifest with alert hint; error rule | all RE2 cases ingest; scrub test passes; ≤ 10 s/case |
-| O-07 | Phase 2, by M2 Sun 15 Nov | OTLP converter; `veyllab` adapter ([05 §9](../05-fault-lab-and-dataset.md) layout) | lab captures ingest |
-| O-08 | Phase 3, by M3 Sun 22 Nov | `nezha`; `fse26_tt` if R-07 confirms size/format/licence | Nezha cases ingest |
-| O-09 | Phase 3 | `sources.drop`; `alert.shift_s` wiring (applied by core); `events.overlay_path` (for O-13) | bench can drive all hooks |
+| O-00 | done (planned by M0, Tue 3 Nov) | stub `run(ctx)` (runs the `synth` adapter from `veyltrace_core.synth`); fixtures | e2e on `synth-01` through Observe |
+| O-01 | done (planned Phase 1, by M1 Sun 8 Nov) | fetcher for `rcaeval`; `rcaeval` adapter (RE1 metrics; RE2/RE3 metrics, logs, traces); scrub + test; manifest with alert hint; error rule | all RE2 cases ingest; scrub test passes; ≤ 10 s/case |
+| O-07 | converter (#500, #501) and `otlp_live` (#508) done (planned Phase 2, by M2 Sun 15 Nov) | OTLP converter and `otlp_live`, for the live demo. The `veyllab` adapter ([05 §9](../05-fault-lab-and-dataset.md) layout) is moved to v1.1 | live snapshots ingest |
+| O-08 | done (planned Phase 3, by M3 Sun 22 Nov) | `nezha` adapter and fetcher. `fse26_tt` is cut | Nezha cases ingest |
+| O-09 | done (planned Phase 3) | `sources.drop`; `alert.shift_s` wiring (applied by core); `events.overlay_path` (for O-13) | bench can drive all hooks |
 | O-13 | Phase 3 (Observe-owned, in `bench/decoys/`) | RCAEval-C generator writing overlays; see [04-causync §3.6](04-causync.md) | decoys reproducible from seed |
 | O-11 | Phase 3 | performance pass with the other Observe engines | ≤ 30 s, ≤ 3 GB on the slowest laptop |
 | O-12 | Phase 4 | final docs, fixtures | reviewed by lead |
@@ -339,11 +356,11 @@ Per RE2 case: materialise ≤ 2 s and ≤ 0.5 GB peak RSS (*estimate*, allocatio
 | 1 | ~~CCR: add `metric_type?` and `attrs_json?` to `telemetry.metrics`.~~ **Resolved in 03 §2.2 (2026-10-30)**: both added. Remaining: the 03 key does not include `attrs_json`. | §3.9: converter fills both and keeps label keys in `name` for key uniqueness |
 | 2 | ~~Isolation exemption and entry-point group for the fetcher.~~ **Resolved in 02 §6.1, §9 and 08 §3.1 (2026-10-30)**: `veyltrace_infralume.fetch` is the single network exemption; `veyltrace.fetchers` is a listed group. | — |
 | 3 | ~~Keep flagd flag-change events?~~ **Resolved in 02 §6.1 (2026-10-30)**: flagd telemetry dropped, flag-change events kept with hashed keys. | bench reports flag-fault cases with and without `events` |
-| 4 | Is `frontend-external` (RCAEval OB metrics) its own service or an alias of `frontend`? | own service (faithful to source and to RCAEval's candidate count) |
+| 4 | ~~Is `frontend-external` (RCAEval OB metrics) its own service or an alias of `frontend`?~~ **Resolved in `config/infralume.yaml`**: `normalise.aliases` has no entry for it, so it is its own service. | own service (faithful to source and to RCAEval's candidate count) |
 | 5 | ~~Overlay hook missing from O-09.~~ **Resolved in 07 (2026-10-30)**: O-09 provides `events.overlay_path`. | — |
 | 6 | Use Nezha `construct_data` as no-fault cases for `NO_FAULT` calibration? | no: 02 §6.9 and 03 §12.1 fix the normal-window sources (`synth-05`, VeylLab, RCAEval pre-injection); adding Nezha needs a CCR |
 | 7 | ~~No `synth` dataset or adapter.~~ **Resolved in 02 §6.1 and 03 §2.1 (2026-10-30)**: `veyltrace_core.synth` registers adapter `synth`, dataset `synth`. | — |
-| 8 | A hint outside the data span (broken RE1-OB cases): reject, or run? | core's alert step rejects the case under the oracle protocol; bench reports it as "not run" |
+| 8 | ~~A hint outside the data span (broken RE1-OB cases): reject, or run?~~ **Resolved in core's alert step**: under `oracle` and `live` the case is rejected (`hint_outside_span`) while `alert.reject_hint_outside_span` in `config/core.yaml` is `true` (the default). | bench reports the case as "not run" |
 | 9 | ~~Hint visible under the detected protocol.~~ **Resolved in 03 §2.1 (2026-10-30)**: the hint is null under `detected` and only core's alert step reads it (§3.7). | — |
 
 ## 12. References

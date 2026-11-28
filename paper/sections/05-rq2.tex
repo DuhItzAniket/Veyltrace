@@ -1,7 +1,6 @@
 % §5.2 RQ2: the lead's draft v1 (R-18, #47). docs/11 §5 assigns 5.2 to the Explain lane;
 % sections/explain-rq2.tex replaces this file when it exists.
 \resulttable*{tab:rq2}{RQ2 on RE2 under the oracle alert: accuracy of \code{veyltrace:off}, \code{veyltrace:brief} and \code{agent-only:brief} per system, with the floors (chance, \code{prior-only}) and the baselines (N-Sigma, BARO, \code{simplerca}), 95\% cluster-bootstrap intervals and run outcomes.}{re2-oracle-rq2-v1}{t06-rq2-re2-oracle-rq2-v1}
-\leadq{docs/04 §8 asks for per-seed values with mean and SD, and §7 for proposal outcomes (admitted, accepted, rejection reasons); R-17's t06 pools the seeds and shows run outcomes, so these need an R-17 follow-up.}
 
 \resulttable{tab:rq2cmp}{RQ2 paired comparisons for H2a: proposer lift (AC@1 of \code{veyltrace:brief} minus AC@1 of \code{veyltrace:off}) per system and pooled, with 95\% cluster-bootstrap intervals and Holm-adjusted $p$ (family \code{rq2}).}{re2-oracle-rq2-v1}{t06c-rq2-comparisons}
 
@@ -22,7 +21,7 @@ On TT the upper bound is zero itself, so H2a holds there only at the boundary.
 The proposer also adds no detectable accuracy: the Holm-adjusted $p$ of the superiority test is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p} pooled and \resnum{re2-oracle-rq2-v1}{ob/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p}, \resnum{re2-oracle-rq2-v1}{ss/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p} and \resnum{re2-oracle-rq2-v1}{tt/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p} on OB, SS and TT.
 Pooled AC@1 is \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1} for \code{veyltrace:brief} (95\% CI \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/ac_at_1/ci}), against \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:off/ac_at_1} with the AI off.
 docs/04 §8 also asks for AC@1 per seed, with its mean and standard deviation, and §7 asks for the proposal outcomes.
-No committed result holds either: \code{summary.json} groups runs by dataset, system and method, not by seed, and it has no proposal-outcome entry.
+No committed result holds either: \code{summary.json} groups runs by dataset, system and method, not by seed, and it has no proposal-outcome entry; adding them would need a change to the summary contract (docs/03 §13.3).
 
 \paragraph{Planted decoy proposals (H2b)}
 H2b holds if a planted decoy proposal changes the top-1 candidate in at most 5\% of cases.
@@ -62,6 +61,4 @@ This comparison was not run, because the multi-turn \code{investigate} mode was 
 \emph{9B against 4B.}
 No experiment configuration runs a 4B model, so no committed result holds this comparison, and it is not tested.
 
-\resultfigure{fig:predicates}{Which predicates the proposer requested, and how often each held for its own candidate, for a rival, or for no pool candidate in the claim pass.}{re2-oracle-rq2-v1}{fig5-predicate-requests}
-No committed result holds the data of Figure~\ref{fig:predicates}: predicate requests and claim-pass outcomes are only in each run's \code{proposals.json} and \code{verdict.json}, and those run directories are not committed.
-\leadq{R-17 commits Figure~\ref{fig:predicates} as a placeholder with no data: \code{summary.json} has no proposal-outcome entry, so the figure needs a contract change before it can be drawn. Decide between a Contract Change Request and an R-17 follow-up.}
+The paper has no figure of which predicates the proposer requested and how often each held, because predicate requests and claim-pass outcomes are only in each run's \code{proposals.json} and \code{verdict.json}, whose run directories are not committed, and no summary entry holds them (docs/03 §13.3).

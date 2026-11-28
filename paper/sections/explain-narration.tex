@@ -1,6 +1,4 @@
-% The incident card and its narration, Explain lane (X-13, #50). No slot exists yet: the lead
-% inputs it from 03-design.tex (proposed: a subsection "The incident card and narration" before
-% "Receipts and replay"), so this file has no heading of its own. Sources: docs/02 §2 P3-P4,
+% The incident card and its narration, Explain lane (X-13, #50). Sources: docs/02 §2 P3-P4,
 % §5.2, §6.10; engines 10 §2-§6; 03 §11; code packages/causivra (narrate.py, checker.py,
 % placeholders.py, fmt.py, prose.py, replay.py). Every constant is a design default from
 % config/causivra.yaml or engines 10 §4, fixed a priori.
@@ -64,5 +62,5 @@ A run whose verdict and trace reproduce but whose card differs exits with code~6
 To help diagnosis, the replay report also names the first intermediate artefact whose hash differs from the record.
 
 Because the results runs predate the narrator, their cards are template prose, so a Tier-1 exit~6 there can come only from a difference in deterministic card output.
-Tier-1 replay of the recorded runs exited with code~6 on \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief/replay.tier1_outcomes.6} of them (\S\ref{sec:rq6}).
-\leadq{the exit-6 count is in Tier-1 \code{replay_summary.json} (\code{tier1.outcomes}); its key here is provisional. The narration metrics of 04 §7 (fallback rate, checker rejections per rule, entity--atom consistency) have no source run, because narration and the checker (\#458, \#461) merged after \code{results-code-v1}, so they are left out rather than given a placeholder that would print a trivial value.}
+Tier-1 replay exited with code~6 on \resnum{replay/second-laptop}{tier1.outcomes.6} run on the second laptop and \resnum{replay/ci}{tier1.outcomes.6} in CI, the same run at both sites, and on \resnum{replay/recording}{tier1.outcomes.6} on the recording laptop (\S\ref{sec:rq6}).
+The narration metrics of 04 §7 (fallback rate, checker rejections per rule and entity--atom consistency) are not reported: narration and the checker (\#458, \#461) merged after \code{results-code-v1}, so no committed run measured them.

@@ -5,7 +5,7 @@ Adds to the root [AGENTS.md](../../AGENTS.md); never overrides it.
 **Lane:** Observe. **Spec:** [docs/engines/01-infralume.md](../../docs/engines/01-infralume.md). **Master:** [02 §5.1, §6.1](../../docs/02-architecture.md). **Contract:** [03 §2.1–2.5](../../docs/03-contracts.md).
 
 ## Purpose
-Engine 1, pipeline step 0. The only code that touches raw data: adapters (`rcaeval`, `nezha`, `fse26_tt`, `veyllab`, `otlp_live`) turn one case into canonical `telemetry.*` over the full available span, normalise service names, apply the span error-status rule and scrub leakage. Also ships the OTLP → canonical converter (used by the gateway and the lab) and the dataset fetcher behind `veyltrace data fetch`. The `synth` adapter is not here: it lives in `veyltrace_core.synth`.
+Engine 1, pipeline step 0. The only code that touches raw data: adapters (`rcaeval`, `nezha`) turn one case into canonical `telemetry.*` over the full available span, normalise service names, apply the span error-status rule and scrub leakage. Also ships the dataset fetchers behind `veyltrace data fetch` (`rcaeval`, `nezha`). The OTLP → canonical converter and the `otlp_live` adapter are not built yet: in progress under O-07 (#24), for the live demo. The `veyllab` adapter is not built: moved to v1.1 (lead decision, 23 Nov 2026). `fse26_tt` is cut (07 §1.1 cut item 2): no module, adapter or fetcher. The `synth` adapter is not here: it lives in `veyltrace_core.synth`.
 
 ## Inputs / outputs
 In: raw case under `${VEYLTRACE_DATA}`, `config/infralume.yaml`, optional events overlay. Out: `case_manifest.json` (with `t_alert_hint_ns`, null under the detected protocol, and `hint_source`), `telemetry/{metrics,logs,spans,events}.parquet`.
@@ -16,8 +16,8 @@ In: raw case under `${VEYLTRACE_DATA}`, `config/infralume.yaml`, optional events
 - No path under `bench/` or `lab/` (02 §9 rule 3). Data roots come only from `${VEYLTRACE_DATA}`.
 - Scrubbing and normalisation must stay idempotent (property tests).
 - Absent and dropped sources look identical: zero-row table, `sources.<s> = false`.
-- Determinism: sorted file discovery, DuckDB `threads = 1`, exact functions, `canonical_json`.
-- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `duckdb`, `pyarrow`, `numpy`, `opentelemetry-proto`/`protobuf`, stdlib. Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`.
+- Determinism: sorted file discovery, exact functions, `canonical_json`; DuckDB (not used by ingest today) only through `veyltrace_core.duck.connect` with `threads = 1`.
+- Allowed imports: `veyltrace_core`, `veyltrace_contracts`, `duckdb`, `pyarrow`, `numpy`, stdlib (the OTLP converter takes plain dicts: no protobuf dependency). Banned: `veyltrace_llm`, LLM/HTTP clients, `socket`, `torch`, `transformers`.
 - Exception: `veyltrace_infralume/fetch/` (entry-point group `veyltrace.fetchers`) may use stdlib `urllib.request` and is never imported by `api.py` or adapters. It is the single network exemption ([02 §6.1, §9](../../docs/02-architecture.md)); the isolation test enforces it.
 
 ## Commands

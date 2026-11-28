@@ -17,8 +17,8 @@ Calibrated on OB and SS, the threshold does fire on TT, but with the same trade-
 The candidate sets themselves cover the root at the target rate within RE2, and stay close to it with OB or SS held out (\resnum{re2-oracle-loso-off-v1}{ob/veyltrace:off/coverage} and \resnum{re2-oracle-loso-off-v1}{ss/veyltrace:off/coverage}, with 95\% CIs \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ob.coverage.ci} and \resnum{rq3-intervals/re2-oracle-loso-off-v1}{intervals.ss.coverage.ci} that contain 0.90), but not with TT held out (\resnum{re2-oracle-loso-off-v1}{tt/veyltrace:off/coverage}) or on Nezha after calibration on RE2: \resnum{re2-to-nezha-transfer-v1}{ob/veyltrace:off/coverage} and \resnum{re2-to-nezha-transfer-v1}{tt/veyltrace:off/coverage} on Nezha OB and TT.
 Split-conformal coverage assumes that calibration and test cases are exchangeable; these results suggest that an operator should calibrate on the system being diagnosed.
 We planned to examine where the verifier abstains by fault class, for instance on network faults, where the internal-before-external onset precedence can flip.
-No committed result breaks verdicts down by fault class, so we do not discuss it here.
-\leadq{a fault-class breakdown (e.g.\ network faults) would be a new statistic from per\_case.csv; same lead call as the failure taxonomy in Section~\ref{sec:rq1}.}
+As a limit of v1.0, we report no fault-class breakdown, although docs/04 §10.6 asks for the network-fault cells: no table generated before the results-v1 freeze holds one, and the protocol takes every reported number from a summary file (docs/04 §10.2).
+Readers can compute it from the released per-case outputs (\code{per_case.csv}).
 
 \paragraph{What the LLM adds}
 On RE2 with the oracle alert, the code-verified proposer adds no detectable accuracy (H2a; Holm-adjusted $p = $ \resnum{re2-oracle-rq2-v1}{pooled/veyltrace:brief-vs-veyltrace:off/ac_at_1/holm_p}) at a p95 cost above its 180\,s budget (\S\ref{sec:rq5}).
@@ -28,7 +28,7 @@ With one planted decoy, its top-1 changes in \resnum{re2-oracle-planted-v1}{ob/a
 The agent takes the model's order as its ranking and the decoy is placed first, so the decoy becomes its top-1 by construction; these flips show the placement of the decoy, not a measured weakness of the model.
 The comparison shows only that the verifier does not follow the proposal order, at the price of the agent's accuracy on clean inputs; the verified arm's decoy rate still misses the 0.05 target on OB and SS in point estimate, and only on SS at the lower bound of its exact interval (H2b).
 We cannot say through which predicates the LLM acts.
-The per-predicate request counts of \vtfigref{fig5-predicate-requests} need a contract change and are not in the committed results, and no committed file records how many proposals were admitted, accepted or rejected.
+The per-predicate request counts are not in the committed results, and no committed file records how many proposals were admitted, accepted or rejected; both would need a new summary entry (docs/03 §13.3).
 Three planned comparisons are also missing: the \code{investigate} mode was cut, a 9B against a 4B model was never configured, and the proposer ran only on RE2 with the oracle alert (\S\ref{sec:rq2}).
 
 \paragraph{\sys as a verification tool for other agents}
