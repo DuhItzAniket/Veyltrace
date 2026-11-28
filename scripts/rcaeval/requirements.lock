@@ -1,5 +1,5 @@
 causal-learn==0.1.4.8
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 certifi==2026.10.23
     # via requests
 charset-normalizer==3.5.2
@@ -30,7 +30,7 @@ kiwisolver==1.5.1
     # via matplotlib
 matplotlib==3.11.2
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
     #   pingouin
     #   seaborn
@@ -40,11 +40,11 @@ narwhals==2.28.0
     # via scikit-learn
 networkx==3.7
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
 numpy==2.5.4
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
     #   contourpy
     #   matplotlib
@@ -68,7 +68,7 @@ packaging==26.3
     #   xarray
 pandas==3.1.1
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
     #   pandas-flavor
     #   pingouin
@@ -82,7 +82,7 @@ patsy==1.0.3
 pillow==13.0.0
     # via matplotlib
 pingouin==0.7.0
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 pluggy==1.7.0
     # via pytest
 pydot==4.0.1
@@ -94,24 +94,24 @@ pyparsing==3.3.3
     #   matplotlib
     #   pydot
 pytest==9.2.0
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 python-dateutil==4.0.0
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   matplotlib
     #   pandas
 requests==2.34.2
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 scikit-learn==1.9.1
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
     #   pingouin
 scikit-network==0.33.5
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 scipy==1.18.1
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
     #   momentchi2
     #   pingouin
@@ -125,7 +125,7 @@ six==1.17.0
     # via tigramite
 statsmodels==0.14.6
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
     #   pingouin
 tabulate==0.10.0
@@ -133,12 +133,12 @@ tabulate==0.10.0
 threadpoolctl==3.8.0
     # via scikit-learn
 tigramite==5.2.10.1
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 toml==0.10.2
-    # via -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    # via -r requirements.in
 tqdm==4.70.1
     # via
-    #   -r C:/Users/Luikz/AppData/Local/Temp/tmpadbud8ol/requirements.in
+    #   -r requirements.in
     #   causal-learn
 tzdata==2026.6
     # via

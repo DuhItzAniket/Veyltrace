@@ -3,7 +3,7 @@
 **Verifiable, change-aware root-cause analysis for microservice outages.**
 Statistical rankers and a local LLM investigator *propose* hypotheses; a deterministic verifier *decides*; every verdict comes with a receipt that replays to the same hash.
 
-> **Status (30 Oct 2026):** design complete, implementation starts Mon 2 Nov 2026. v1.0.0 is planned for Tue 1 Dec 2026 ([roadmap](docs/07-roadmap.md)). Nothing in this repo is a measured result yet; numbers in the docs are cited from published work or marked as targets.
+> **Status: v1.0.0.** Results are frozen at tag `results-v1` (`3ed9d7cd`), and every reported number is in [`bench/results/`](bench/results/). [REPRODUCE.md](REPRODUCE.md) says how to check them. The paper source is in [`paper/`](paper/), and [paper/README.md](paper/README.md#build) says how to build it. The Zenodo DOI will follow the release.
 
 ## Why
 
@@ -39,18 +39,18 @@ flowchart LR
 
 Full design: [docs/02-architecture.md](docs/02-architecture.md). Contracts between engines: [docs/03-contracts.md](docs/03-contracts.md).
 
-## Start here (team)
+## Reproduce
 
-1. Read [AGENTS.md](AGENTS.md); your AI coding agent reads it too.
-2. Follow the reading order in [docs/README.md](docs/README.md).
-3. Set up your laptop and agent with [docs/09-ai-agent-playbook.md](docs/09-ai-agent-playbook.md).
-4. Pick your issue from the project board; work in your lane only ([docs/08-collaboration-and-git.md](docs/08-collaboration-and-git.md)).
-
-Commands below exist from milestone M0 (Tue 3 Nov 2026):
+Install with [`uv`](https://docs.astral.sh/uv/), then regenerate every table and figure from the committed results:
 
 ```bash
 uv sync --all-packages
+uv run veyltrace bench tables --check
 ```
+
+It reads only `bench/`: the experiment YAMLs, the case lists they name (`bench/dev_cases.yaml`, `bench/re2_investigate_cases.yaml`) and `bench/results/`. It writes nothing, and exits 0 when every file under `bench/results/tables/` and `bench/results/figures/` regenerates byte-identically. [REPRODUCE.md](REPRODUCE.md) covers rerunning the experiments and replaying the AI arms.
+
+Diagnose one synthetic case and replay its verdict:
 
 ```bash
 uv run veyltrace diagnose --dataset synth --case synth-01 --ai off
@@ -67,11 +67,22 @@ uv run veyltrace replay runs/synth/<case_id>/<run_id>/receipt.json
 | `docs/` | specs, plans, process, ADRs ([index](docs/README.md)) |
 | `contracts/` | JSON Schemas and generated Python/TS models |
 | `packages/` | the ten engines + `core`, `llm`, `gateway` |
-| `bench/` | datasets, baselines, metrics, statistics, experiments |
-| `lab/` | laptop fault-injection testbed and dataset capture |
+| `config/` | one YAML per engine, plus `core`, `llm` and `gateway` |
+| `bench/` | baselines, metrics, statistics, experiments and the committed results |
+| `paper/` | LaTeX source of the paper ([build](paper/README.md#build)) |
+| `scripts/` | checks, contract generation, paper inputs, derived results (RQ3 intervals, RQ5 AI cost), RCAEval setup |
+| `tests/` | repo-wide tests (contracts, isolation, scripts) and integration tests |
+| `lab/` | laptop fault-injection testbed |
 | `console/` | web UI |
 | `reports/`, `research_notes/` | research with sources |
 
+## Contributing
+
+1. Read [AGENTS.md](AGENTS.md); your AI coding agent reads it too.
+2. Follow the reading order in [docs/README.md](docs/README.md).
+3. Set up your laptop and agent with [docs/09-ai-agent-playbook.md](docs/09-ai-agent-playbook.md).
+4. Pick your issue from the project board; work in your lane only ([docs/08-collaboration-and-git.md](docs/08-collaboration-and-git.md)).
+
 ## Licence and citation
 
-Code: [Apache-2.0](LICENSE). Datasets we release: CC BY 4.0. If you use Veyltrace, cite it via [CITATION.cff](CITATION.cff).
+Code: [Apache-2.0](LICENSE). The VeylLab dataset (planned for v1.1) will be released under CC BY 4.0. If you use Veyltrace, cite it via [CITATION.cff](CITATION.cff).

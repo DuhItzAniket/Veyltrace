@@ -27,6 +27,7 @@
 | [04-evaluation-protocol](04-evaluation-protocol.md) | RQs, datasets, splits, metrics, baselines, statistics, experiment matrix | Reason |
 | [05-fault-lab-and-dataset](05-fault-lab-and-dataset.md) | laptop testbed, fault catalog, VeylLab dataset | Explain |
 | [06-gateway-and-console](06-gateway-and-console.md) | HTTP API, MCP tools, UI | Explain |
+| [06-live-demo](06-live-demo.md) | live demo script and the X-10 rehearsal runbook | Explain |
 | [07-roadmap](07-roadmap.md) | phases, milestones, tasks, cut list | lead |
 | [08-collaboration-and-git](08-collaboration-and-git.md) | lanes, ownership, branching, contract changes, rhythm | lead |
 | [09-ai-agent-playbook](09-ai-agent-playbook.md) | per-tool setup, session protocol, prompt templates | lead |
@@ -37,6 +38,8 @@
 | [engines/](engines/) | one spec per engine (01–10, pipeline order) | engine's lane |
 | [adr/](adr/) | architecture decision records | author |
 | [team/](team/) | one file per person: laptop, agent, availability | that person |
+| [../REPRODUCE.md](../REPRODUCE.md) | how to rebuild the tables, rerun the AI-off experiments and replay the AI arms, and which tag produced each result | lead |
+| [../paper/](../paper/) | the paper's LaTeX source; its [README](../paper/README.md) gives the build, the format decisions and who edits which file | lead (lane files: their lane) |
 
 ## Research
 
