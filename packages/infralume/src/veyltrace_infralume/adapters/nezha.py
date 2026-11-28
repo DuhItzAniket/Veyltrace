@@ -88,7 +88,7 @@ def _open(day: Path, kind: str, name: str) -> Path | None:
 def _read(path: Path) -> pa.Table:
     """A CSV file as a table; id and text columns as strings, quoted newlines allowed (log bodies).
     A row with the wrong number of columns is skipped and logged as a data-quality drop (01 §6):
-    one of the 8.3 million published log rows is two lines spliced together."""
+    one of the 8.3 million published log and trace rows is two lines spliced together."""
     skipped: list[int] = []
 
     def skip(row: Any) -> str:
