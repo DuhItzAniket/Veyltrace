@@ -9,11 +9,8 @@
 % Long \code ids cannot hyphenate; extra stretch lets their lines break, document-wide (R-18 build).
 \setlength{\emergencystretch}{2em}
 
-% Review mode: no ACM rights block until the venue is chosen at M4 (docs/11 §7).
-\setcopyright{none}
-\settopmatter{printacmref=false}
-\acmConference[Draft v1]{Veyltrace paper draft v1}{November 2026}{not for distribution}
-\renewcommand\footnotetextcopyrightpermission[1]{}
+% No ACM rights block, reference format or conference running head: main.tex sets `nonacm'
+% until the venue is chosen (docs/11 §7).
 
 % ---------------------------------------------------------------- names
 \newcommand{\sys}{Veyltrace\xspace}
@@ -157,16 +154,20 @@
   \centering
   \IfFileExists{generated/#5.tex}{\input{generated/#5.tex}\par}{%
     \IfFileExists{generated/#5.pdf}{\includegraphics[width=\linewidth]{generated/#5.pdf}}{\vt@placeholder{figure}{#4}{\textsf{bench/results/figures/\detokenize{#5}.csv} and \textsf{\detokenize{#5}[-\textless panel\textgreater].svg}, drawn as TikZ in \textsf{paper/generated/\detokenize{#5}.tex} by \textsf{scripts/paper\_generated.py}}}}
+  \Description{A chart drawn from the committed benchmark results; its data are in the released file bench/results/figures/#5.csv.}
   \caption{#3}\label{#2}\label{vtgen:#5}
   \IfBooleanTF{#1}{\end{figure*}}{\end{figure}}}
-% \diagram[*]{<label>}{<caption>}{<name>}{<what to draw>}: hand-drawn figures live in
-% figures/<name>.pdf (source next to it); until then a box says what to draw.
+% \diagram[*]{<label>}{<caption>}{<name>}{<description>}: hand-drawn figures live in
+% figures/<name>.pdf, built by pdflatex from the standalone TikZ source figures/<name>.tex
+% next to it; the description is the figure's \Description and, if the PDF is missing,
+% the text of the box printed in its place.
 \NewDocumentCommand{\diagram}{s m m m m}{%
   \IfBooleanTF{#1}{\begin{figure*}[t]}{\begin{figure}[t]}
   \centering
   \IfFileExists{figures/#4.pdf}{\includegraphics[width=\linewidth]{figures/#4.pdf}}{%
     \fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\small
       \textbf{Diagram to draw} (\texttt{paper/figures/\detokenize{#4}.pdf}): #5}}}
+  \Description{#5}
   \caption{#3}\label{#2}
   \IfBooleanTF{#1}{\end{figure*}}{\end{figure}}}
 \makeatother

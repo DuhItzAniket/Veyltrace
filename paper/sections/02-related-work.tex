@@ -13,7 +13,7 @@ On RCAEval~\cite{rcaeval2024}, a public benchmark of 735 microservice failure ca
 PRISM~\cite{prism2026}, a single-author preprint (the method is renamed CIE in its second version) with no public code repository as of November 2026, separates each service's internal anomalies (resource usage such as CPU, memory and disk I/O) from the external ones observable at its boundary (latency, request rate and error rate). It reports 0.68 Top-1, averaged over fault types, together with 0.91 Top-3 and 0.87 Avg@5 on RCAEval's 735 cases.
 BARO~\cite{baro2024} and N-Sigma, both implemented in RCAEval's code~\cite{rcaeval2024}, are the usual simple references.
 DecompRCA~\cite{decomprca2026} separates retrieval failures (the true cause is never a candidate) from re-ranking failures (it is a candidate but ranked too low).
-On RCAEval's RE1 suites retrieval is close to solved (\S\ref{sec:slate}). On industrial cyber-physical benchmarks, the statistical baseline that scores every sensor ranks the true cause wrongly in 79--100\% of cases, and no graph-based method clearly beat the strongest statistical baseline.
+On RCAEval's RE1 suites retrieval is close to solved (\S\ref{sec:slate}). On industrial cyber-physical benchmarks, the statistical baseline that scores every sensor ranks the true cause wrongly in 79--100\% of cases, and no graph-based method clearly beat the strongest statistical baseline~\cite{decomprca2026}.
 Causal discovery has not changed this picture.
 In one study, most graph-learning RCA methods performed about as well as a random ranking, and the slowest needed more than an hour per case: neural Granger discovery with RUN~\cite{run2024} took 1,078--4,938\,s per case on the datasets where it finished and did not finish within the time limit on the larger ones~\cite{causalinference2024ase}.
 On PetShop, no causal method that was not given the call graph beat plain ranked correlation~\cite{petshop2024}.
@@ -90,7 +90,7 @@ DiagGuard~\cite{diagguard2026} & no & no & no & no & no \\
 ARGUS~\cite{argus2026} & partial\textsuperscript{g} & no\textsuperscript{h} & no & no & no \\
 LM-PACE~\cite{lmpace2024} & no & no & no & no & no \\
 \midrule
-\sys (this paper) & yes & yes & yes & yes & yes\textsuperscript{i} \\
+\sys (this paper) & yes & yes & partial\textsuperscript{i} & yes & yes\textsuperscript{j} \\
 \bottomrule
 \end{tabularx}
 
@@ -110,5 +110,6 @@ LM-PACE~\cite{lmpace2024} & no & no & no & no & no \\
 \textsuperscript{f}The paper does not say where its distilled 3B verifier or the larger LLM that writes the final synthesis runs.
 \textsuperscript{g}A sufficiency gate checks that minimum evidence exists, and the confidence label is computed from the investigation trace; claims are not described as re-evaluated.
 \textsuperscript{h}The prompt asks for ``Unknown'' instead of an inferred value; the paper does not say whether a run can end without a root cause.
-\textsuperscript{i}Design properties of \sys; \S\ref{sec:rq6} measures replay and \S\ref{sec:rq5} cost.
+\textsuperscript{i}The AI arms' recordings contain benchmark telemetry and are not public in v1.0 (\S\ref{sec:conclusion}); AI-off verdicts can be reproduced from the public benchmark data (REPRODUCE.md §2).
+\textsuperscript{j}Design properties of \sys; \S\ref{sec:rq6} measures replay and \S\ref{sec:rq5} cost.
 \end{table}

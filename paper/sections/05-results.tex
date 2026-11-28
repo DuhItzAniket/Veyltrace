@@ -150,7 +150,7 @@ H4a misses on TT and holds on OB and SS: only on TT does the largest drop over t
 These drops are point estimates: no committed result holds an interval on a difference between two experiments, although docs/04 §2 asks for one per cell.
 The shifted AI runs were cut (decision record \code{20261121-ak-}\allowbreak\code{r16-cut-list}, 21~Nov and addendum of 25~Nov), so H4a is tested for \code{veyltrace:off} only.
 H4b misses: in every ablation cell with at least one \st{CONFIRMED} verdict, fewer than 90\% of those verdicts are correct.
-The highest share is \resnum{re2-drop-events-v1}{tt/veyltrace:off/selective_accuracy.ac_at_1_confirmed}, on TT with events dropped, and the same as with logs dropped (\resnum{re2-drop-logs-v1}{tt/veyltrace:off/selective_accuracy.ac_at_1_confirmed}).
+The highest share, \resnum{re2-drop-events-v1}{tt/veyltrace:off/selective_accuracy.ac_at_1_confirmed} on TT, comes from the drop-events control, which removes nothing because RCAEval has no change events and equals the unablated run in AC@1 on every system (Table~\ref{tab:ablation}); dropping logs on TT gives the same share (\resnum{re2-drop-logs-v1}{tt/veyltrace:off/selective_accuracy.ac_at_1_confirmed}).
 A cell with no \st{CONFIRMED} verdict, which includes every metrics-only cell, leaves the share undefined, and we do not count it as holding.
 No committed file holds an interval for these shares or a pooled share (Table~\ref{tab:ablation}).
 
