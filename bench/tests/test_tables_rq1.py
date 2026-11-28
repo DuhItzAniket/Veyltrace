@@ -204,3 +204,16 @@ def test_the_detected_table_has_onset_error_and_says_prior_only_reads_no_alert(r
 
 def files_of(results: Path) -> dict[str, str]:
     return {k: v.decode() for k, v in generate.outputs(results, EXPERIMENTS).items() if k.endswith(".md")}
+
+
+def test_cli_check_prints_a_summary_line(results: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    """A passing check says so, instead of exiting silently (#668, L-06 report on #54)."""
+    argv = ["tables", "--results", str(results), "--experiments", str(EXPERIMENTS)]
+    assert bench_cli.main(argv) == 0
+    capsys.readouterr()
+    assert bench_cli.main([*argv, "--check"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("tables --check: ") and out.rstrip().endswith(" files, 0 differ")
+    textio.write_text(results / T5, "hand edit\n")
+    assert bench_cli.main([*argv, "--check"]) == 2
+    assert capsys.readouterr().out.rstrip().endswith(" files, 1 differ")
