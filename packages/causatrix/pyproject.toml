@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veyltrace-causatrix"
-version = "0.1.0"
+version = "1.0.0"
 description = "Veyltrace engine 7 (Causatrix): rankers, fusion and the hypothesis slate."
 readme = "README.md"
 requires-python = ">=3.12"

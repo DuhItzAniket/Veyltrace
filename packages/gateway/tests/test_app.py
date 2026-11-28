@@ -16,6 +16,7 @@ from veyltrace_core.config import load_section_file
 from veyltrace_core.errors import ConfigError
 from veyltrace_core.testing import repo_root
 from veyltrace_gateway import __main__ as cli
+from veyltrace_gateway import __version__
 from veyltrace_gateway.app import create_app
 from veyltrace_gateway.settings import check_bind, is_loopback, load_settings, settings_from
 
@@ -64,7 +65,7 @@ def test_health_envelope() -> None:
     assert status == 200
     health = json.loads(body)
     assert set(health) == {"status", "version", "code_commit", "ai", "live"}
-    assert health["status"] == "ok" and health["version"] == "0.1.0"
+    assert health["status"] == "ok" and health["version"] == __version__
     llm = load_section_file("llm", config_dir=CONFIG)  # so a model change in config needs no test edit
     assert health["ai"] == {
         "default_mode": "off",

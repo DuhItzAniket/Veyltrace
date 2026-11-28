@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veyltrace-core"
-version = "0.1.0"
+version = "1.0.0"
 description = "Veyltrace core: hashing, IDs, rng, config, contract I/O, run context, pipeline and CLI."
 readme = "README.md"
 requires-python = ">=3.12"

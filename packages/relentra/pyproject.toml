@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "veyltrace-relentra"
-version = "0.1.0"
+version = "1.0.0"
 description = "Veyltrace engine 8 (Relentra): LLM investigator that proposes candidates and checks."
 readme = "README.md"
 requires-python = ">=3.12"
